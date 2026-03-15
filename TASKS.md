@@ -1,6 +1,6 @@
 # Matplotlib-Go Development Plan
 
-This plan prioritizes getting useful plotting functionality working quickly with your existing GoBasic renderer, rather than diving deep into rendering backends. We'll build core plot types first, then enhance with axes features, and defer complex backend work until later.
+This plan prioritizes getting useful plotting functionality working quickly. The AGG backend (via `github.com/MeKo-Christian/agg_go`) is now available and provides high-quality anti-aliased rendering as the primary backend, replacing the GoBasic PoC renderer.
 
 ---
 
@@ -10,26 +10,24 @@ This plan prioritizes getting useful plotting functionality working quickly with
 
 - ✅ Artist hierarchy (Figure→Axes→Artists) with proper traversal
 - ✅ Transform system (Linear/Log scales, data→pixel transforms)
-- ✅ GoBasic renderer using `golang.org/x/image/vector`
+- ✅ GoBasic renderer using `golang.org/x/image/vector` (PoC)
+- ✅ **AGG renderer** using `github.com/MeKo-Christian/agg_go` v0.2.2 — anti-aliased, sub-pixel accurate
 - ✅ Line2D artist with stroke support (joins, caps, dashes)
 - ✅ Golden image testing infrastructure
 - ✅ Working example: `examples/lines/basic.go` produces clean line plots
+- ✅ Backend registry system with GoBasic and AGG backends registered
 
 **Current capabilities:**
 
 ```go
-// Basic line plots work
-line := &core.Line2D{
-    XY: []geom.Pt{{0,0}, {1,0.2}, {3,0.9}},
-    W: 2.0,
-    Col: render.Color{R: 0, G: 0, B: 0, A: 1},
-}
-ax.Add(line)
+// AGG backend with anti-aliased rendering
+r := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
+core.SavePNG(fig, r, "output.png")
 ```
 
 ---
 
-# Phase 1: Core Plot Types (IMMEDIATE PRIORITY)
+# ✅ Phase 1: Core Plot Types (COMPLETED)
 
 **Goal:** Get the most commonly used plot types working
 
@@ -73,49 +71,59 @@ ax.Add(line)
 - [x] Series labels for legend preparation
 - [x] Example: `examples/multi/basic.go`
 
-**Exit Criteria:**
-
-- Basic scatter, bar, and fill plots render correctly
-- Multiple plot types can coexist on same axes
-- All examples work with `go run main.go`
-
 ---
 
-# Phase 2: Axes Features (HIGH PRIORITY)
+# Phase 2: Axes Features — AGG Migration (CURRENT PRIORITY)
 
-**Goal:** Make plots look professional with proper axes
+**Goal:** Migrate all rendering to the AGG backend and make plots look professional
 
-### 2.1 Axis Rendering
+### 2.1 AGG Backend Integration ✅
 
-- [ ] Draw actual axis lines (spines) using existing line drawing
+- [x] Add `github.com/MeKo-Christian/agg_go` v0.2.2 dependency
+- [x] Implement `render.Renderer` interface using AGG's Agg2D
+- [x] Path rendering (fill + stroke) with proper joins, caps, dashes
+- [x] Register AGG backend in the backend registry
+- [x] AGG backend unit tests
+- [x] Example: `examples/agg-demo/main.go`
+
+### 2.2 Update Golden Tests for AGG
+
+- [ ] Regenerate golden images using AGG backend
+- [ ] Verify anti-aliased output quality vs GoBasic
+- [ ] Update test infrastructure to support per-backend golden tests
+
+### 2.3 Axis Rendering with AGG
+
+- [ ] Draw actual axis lines (spines) using AGG's anti-aliased lines
 - [ ] Tick marks (major/minor) positioned correctly
 - [ ] Use existing LinearLocator/LogLocator for tick placement
 - [ ] Example: `examples/axes/spines.go`
 
-### 2.2 Grid Lines
+### 2.4 Grid Lines
 
 - [ ] Major and minor grid lines
 - [ ] Grid styling (color, alpha, line style)
 - [ ] Grid behind/in front of data
 - [ ] Example: `examples/axes/grid.go`
 
-### 2.3 Axis Limits and Scaling
+### 2.5 Axis Limits and Scaling
 
 - [ ] `SetXLim(min, max)` and `SetYLim(min, max)` methods
 - [ ] Auto-scaling based on data bounds
 - [ ] Margin handling around data
 - [ ] Example: `examples/axes/limits.go`
 
-### 2.4 Basic Text Labels
+### 2.6 Text Labels using AGG Text Engine
 
-- [ ] Simple text rendering using basic ASCII fonts
+- [ ] Text rendering using AGG's GSV vector font (built-in, no external fonts needed)
 - [ ] Title, xlabel, ylabel placement
 - [ ] Tick labels using existing formatters
-- [ ] Text alignment and rotation basics
+- [ ] Text alignment and rotation
 - [ ] Example: `examples/axes/labels.go`
 
 **Exit Criteria:**
 
+- All plots render with AGG anti-aliasing
 - Plots have proper axis lines, ticks, and labels
 - Grid lines work and look good
 - Axis limits can be set manually or auto-computed
@@ -150,8 +158,8 @@ ax.Add(line)
 ### 3.4 Images and Heatmaps
 
 - [ ] `Image2D` artist for imshow functionality
-- [ ] Basic nearest-neighbor image scaling
-- [ ] Simple colormaps (grayscale, basic colors)
+- [ ] AGG image transformation for scaling/rotation
+- [ ] Colormaps (using AGG gradients)
 - [ ] Example: `examples/image/basic.go`
 
 **Exit Criteria:**
@@ -213,7 +221,7 @@ ax.Add(line)
 
 ### 5.2 Interactive Features
 
-- [ ] Basic pan/zoom using mouse
+- [ ] Basic pan/zoom using mouse (leveraging AGG's SDL2 support)
 - [ ] Simple event handling
 - [ ] Real-time plot updates
 - [ ] Example: `examples/interactive/basic.go`
@@ -232,36 +240,48 @@ ax.Add(line)
 
 ---
 
-# Phase 6: Advanced Backends (FUTURE)
+# Phase 6: Advanced Rendering (FUTURE)
 
-**Goal:** High-performance and specialized rendering (deferred)
+**Goal:** High-performance and specialized rendering
 
-### 6.1 Performance Optimization
+### 6.1 AGG Advanced Features
 
-- [ ] Optimize GoBasic renderer performance
-- [ ] Path simplification and culling
-- [ ] Large dataset handling
+- [ ] Gradient fills using AGG's linear/radial gradients
+- [ ] Image transformations and pattern fills
+- [ ] Gouraud-shaded triangles for smooth colormaps
+- [ ] Custom blend modes and alpha compositing
 
-### 6.2 Alternative Backends (Future Consideration)
+### 6.2 TrueType Font Support
 
-- [ ] AGG backend for anti-aliasing (if needed)
-- [ ] Skia backend for GPU acceleration (if needed)
-- [ ] PDF export for publications (if needed)
-
-### 6.3 Advanced Text
-
-- [ ] Font loading and management
+- [ ] Load TTF/OTF fonts via AGG's FreeType integration
 - [ ] Complex text shaping
 - [ ] LaTeX-style math rendering
+
+### 6.3 Performance Optimization
+
+- [ ] Path simplification and culling
+- [ ] Large dataset handling (100k+ points)
+- [ ] Parallel rendering
+
+### 6.4 Additional Backends
+
+- [ ] Skia backend for GPU acceleration (if needed)
+- [ ] PDF export for publications (if needed)
 
 **Exit Criteria:**
 
 - Only implement if performance or quality demands it
-- GoBasic should handle most use cases well
+- AGG should handle most use cases well
 
 ---
 
 # Development Guidelines
+
+## Backend Strategy
+
+- **Primary backend:** AGG (`backends/agg/`) — anti-aliased, sub-pixel accurate
+- **PoC backend:** GoBasic (`backends/gobasic/`) — retained for reference and simple use cases
+- **Future:** Skia (GPU), SVG (vector), PDF (print)
 
 ## Testing Strategy
 

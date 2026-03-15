@@ -12,8 +12,9 @@ type Backend string
 
 const (
 	GoBasic Backend = "gobasic"
+	AGG     Backend = "agg"
 	Skia    Backend = "skia"
-	// Future backends: AGG, PDF, SVG, etc.
+	// Future backends: PDF, SVG, etc.
 )
 
 // Capability represents a backend feature capability.
@@ -51,6 +52,11 @@ type Config struct {
 // GoBasicConfig holds GoBasic-specific options.
 type GoBasicConfig struct {
 	// No specific options yet
+}
+
+// AGGConfig holds AGG-specific options.
+type AGGConfig struct {
+	// No specific options yet; AGG provides anti-aliasing by default.
 }
 
 // SkiaConfig holds Skia-specific options.
