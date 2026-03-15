@@ -86,11 +86,11 @@ core.SavePNG(fig, r, "output.png")
 - [x] AGG backend unit tests
 - [x] Example: `examples/agg-demo/main.go`
 
-### 2.2 Update Golden Tests for AGG
+### 2.2 Update Golden Tests for AGG ✅
 
-- [ ] Regenerate golden images using AGG backend
-- [ ] Verify anti-aliased output quality vs GoBasic
-- [ ] Update test infrastructure to support per-backend golden tests
+- [x] Regenerate golden images using AGG backend
+- [x] Verify anti-aliased output quality vs GoBasic
+- [x] Update test infrastructure to use AGG backend (all 14 golden tests migrated)
 
 ### 2.3 Axis Rendering with AGG
 
