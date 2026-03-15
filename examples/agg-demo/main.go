@@ -15,55 +15,52 @@ func main() {
 	// Create a figure with dimensions 800x500
 	fig := core.NewFigure(800, 500)
 
-	// Add axes
+	// Add axes with margins for labels
 	ax := fig.AddAxes(geom.Rect{
-		Min: geom.Pt{X: 0.1, Y: 0.15},
-		Max: geom.Pt{X: 0.95, Y: 0.9},
+		Min: geom.Pt{X: 0.12, Y: 0.18},
+		Max: geom.Pt{X: 0.95, Y: 0.88},
 	})
 
 	// Set up coordinate scales
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(-1.2, 1.2)
 
+	// Set labels
+	ax.SetTitle("Sine and Cosine Waves")
+	ax.SetXLabel("x (radians)")
+	ax.SetYLabel("y")
+
+	// Add grid lines (behind data)
+	ax.AddXGrid()
+	ax.AddYGrid()
+
 	// Generate sine wave data
-	var sinePts []geom.Pt
-	for i := 0; i <= 100; i++ {
-		x := float64(i) / 10.0
-		y := math.Sin(x)
-		sinePts = append(sinePts, geom.Pt{X: x, Y: y})
+	n := 200
+	x := make([]float64, n)
+	sinY := make([]float64, n)
+	cosY := make([]float64, n)
+	for i := 0; i < n; i++ {
+		x[i] = float64(i) / float64(n-1) * 10.0
+		sinY[i] = math.Sin(x[i])
+		cosY[i] = math.Cos(x[i])
 	}
 
-	// Generate cosine wave data
-	var cosPts []geom.Pt
-	for i := 0; i <= 100; i++ {
-		x := float64(i) / 10.0
-		y := math.Cos(x)
-		cosPts = append(cosPts, geom.Pt{X: x, Y: y})
-	}
+	// Plot sine (auto color cycle: blue)
+	ax.Plot(x, sinY, core.PlotOptions{Label: "sin(x)"})
 
-	// Add sine line (blue)
-	ax.Add(&core.Line2D{
-		XY:  sinePts,
-		W:   2.5,
-		Col: render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1}, // Tab blue
-	})
-
-	// Add cosine line (orange)
-	ax.Add(&core.Line2D{
-		XY:  cosPts,
-		W:   2.5,
-		Col: render.Color{R: 1.0, G: 0.50, B: 0.05, A: 1}, // Tab orange
-	})
+	// Plot cosine (auto color cycle: orange)
+	ax.Plot(x, cosY, core.PlotOptions{Label: "cos(x)"})
 
 	// Create AGG renderer with white background
 	r := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
 
-	// Save as PNG using the AGG backend
+	// Save as PNG
 	err := core.SavePNG(fig, r, "agg_demo.png")
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Println("Created agg_demo.png using the AGG anti-aliased renderer!")
+	fmt.Println("Created agg_demo.png — sine/cosine plot with AGG anti-aliased rendering,")
+	fmt.Println("axis ticks, grid lines, and labels!")
 }
