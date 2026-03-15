@@ -77,7 +77,12 @@ type Axes struct {
 	// Axis control
 	XAxis *Axis // bottom x-axis
 	YAxis *Axis // left y-axis
-	
+
+	// Text labels
+	Title  string // title above the plot
+	XLabel string // x-axis label below ticks
+	YLabel string // y-axis label left of ticks
+
 	// Color cycling for multiple series
 	ColorCycle *color.ColorCycle
 }
@@ -151,6 +156,15 @@ func (a *Axes) AddYGrid() *Grid {
 	return a.AddGrid(AxisLeft)
 }
 
+// SetTitle sets the title displayed above the plot.
+func (a *Axes) SetTitle(title string) { a.Title = title }
+
+// SetXLabel sets the label displayed below the x-axis.
+func (a *Axes) SetXLabel(label string) { a.XLabel = label }
+
+// SetYLabel sets the label displayed left of the y-axis.
+func (a *Axes) SetYLabel(label string) { a.YLabel = label }
+
 // NextColor returns the next color in the axes color cycle.
 func (a *Axes) NextColor() render.Color {
 	if a.ColorCycle == nil {
@@ -198,8 +212,6 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 
 	for _, ax := range fig.Children {
 		px := ax.layout(fig)
-		r.Save()
-		r.ClipRect(px)
 
 		// Build DrawContext with composed transform
 		ctx := &DrawContext{
@@ -212,6 +224,10 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			Clip: px,
 		}
 
+		// Draw clipped content (data, grids, axes)
+		r.Save()
+		r.ClipRect(px)
+
 		if !ax.zsorted {
 			sort.SliceStable(ax.Artists, func(i, j int) bool {
 				zi, zj := ax.Artists[i].Z(), ax.Artists[j].Z()
@@ -222,12 +238,10 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			})
 			ax.zsorted = true
 		}
-		// Draw all artists (data) first
 		for _, art := range ax.Artists {
 			art.Draw(r, ctx)
 		}
 
-		// Draw axes on top of data
 		if ax.XAxis != nil {
 			ax.XAxis.Draw(r, ctx)
 		}
@@ -235,6 +249,49 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			ax.YAxis.Draw(r, ctx)
 		}
 		r.Restore()
+
+		// Draw labels outside the clip rect (in the figure margins)
+		drawAxesLabels(ax, r, ctx, px)
+	}
+}
+
+// drawAxesLabels renders title, xlabel, and ylabel outside the clipped axes area.
+func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect) {
+	type textRenderer interface {
+		DrawText(text string, origin geom.Pt, size float64, textColor render.Color)
+	}
+
+	textRen, ok := r.(textRenderer)
+	if !ok {
+		return
+	}
+
+	labelColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+	titleSize := ctx.RC.FontSize + 2
+	labelSize := ctx.RC.FontSize
+
+	// Title: centered above the plot
+	if ax.Title != "" {
+		metrics := r.MeasureText(ax.Title, titleSize, ctx.RC.FontKey)
+		x := px.Min.X + (px.W()-metrics.W)/2
+		y := px.Min.Y - 10
+		textRen.DrawText(ax.Title, geom.Pt{X: x, Y: y}, titleSize, labelColor)
+	}
+
+	// XLabel: centered below the x-axis tick labels
+	if ax.XLabel != "" {
+		metrics := r.MeasureText(ax.XLabel, labelSize, ctx.RC.FontKey)
+		x := px.Min.X + (px.W()-metrics.W)/2
+		y := px.Max.Y + 35
+		textRen.DrawText(ax.XLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+	}
+
+	// YLabel: centered left of the y-axis tick labels (drawn horizontally for simplicity)
+	if ax.YLabel != "" {
+		metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
+		x := px.Min.X - 60 - metrics.W/2
+		y := px.Min.Y + px.H()/2 + metrics.H/2
+		textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
 	}
 }
 

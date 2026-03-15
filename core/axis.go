@@ -228,53 +228,67 @@ func (a *Axis) Bounds(*DrawContext) geom.Rect {
 
 // drawTickLabels draws text labels for the ticks if the renderer supports text.
 func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float64, isXAxis bool) {
-	// Check if renderer supports text drawing (gobasic.Renderer has DrawText method)
 	type textRenderer interface {
 		DrawText(text string, origin geom.Pt, size float64, textColor render.Color)
 	}
-	
+
 	textRen, ok := r.(textRenderer)
 	if !ok {
-		return // Renderer doesn't support text
+		return
 	}
-	
-	fontSize := 12.0 // Default font size
-	
+
+	fontSize := ctx.RC.FontSize
+	if fontSize <= 0 {
+		fontSize = 12.0
+	}
+
 	for _, tickValue := range ticks {
-		// Format the tick value using the formatter
 		label := a.Formatter.Format(tickValue)
 		if label == "" {
 			continue
 		}
-		
-		// Calculate label position
+
+		// Measure text for centering
+		metrics := r.MeasureText(label, fontSize, ctx.RC.FontKey)
+
 		var labelPos geom.Pt
-		
+
 		if isXAxis {
-			// X-axis labels go below the ticks
 			spineY := getSpinePosition(a.Side, ctx)
 			tickPos := ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: spineY})
-			
+
 			switch a.Side {
 			case AxisBottom:
-				labelPos = geom.Pt{X: tickPos.X, Y: tickPos.Y - a.TickSize - 5} // Below tick
+				// Center horizontally under tick, below tick mark
+				labelPos = geom.Pt{
+					X: tickPos.X - metrics.W/2,
+					Y: tickPos.Y - a.TickSize - 3,
+				}
 			case AxisTop:
-				labelPos = geom.Pt{X: tickPos.X, Y: tickPos.Y + a.TickSize + fontSize + 5} // Above tick
+				labelPos = geom.Pt{
+					X: tickPos.X - metrics.W/2,
+					Y: tickPos.Y + a.TickSize + metrics.H + 3,
+				}
 			}
 		} else {
-			// Y-axis labels go to the left of the ticks
 			spineX := getSpinePosition(a.Side, ctx)
 			tickPos := ctx.DataToPixel.Apply(geom.Pt{X: spineX, Y: tickValue})
-			
+
 			switch a.Side {
 			case AxisLeft:
-				labelPos = geom.Pt{X: tickPos.X - a.TickSize - 50, Y: tickPos.Y + fontSize/2} // Left of tick
+				// Right-align to left of tick
+				labelPos = geom.Pt{
+					X: tickPos.X - a.TickSize - metrics.W - 3,
+					Y: tickPos.Y + metrics.H/2,
+				}
 			case AxisRight:
-				labelPos = geom.Pt{X: tickPos.X + a.TickSize + 5, Y: tickPos.Y + fontSize/2} // Right of tick
+				labelPos = geom.Pt{
+					X: tickPos.X + a.TickSize + 3,
+					Y: tickPos.Y + metrics.H/2,
+				}
 			}
 		}
-		
-		// Draw the label
+
 		textRen.DrawText(label, labelPos, fontSize, a.Color)
 	}
 }
