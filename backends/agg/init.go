@@ -16,7 +16,7 @@ func init() {
 			backends.PathClip,
 		},
 		Factory: func(config backends.Config) (render.Renderer, error) {
-			return New(config.Width, config.Height, config.Background), nil
+			return New(config.Width, config.Height, config.Background)
 		},
 		Available: true,
 	})

@@ -9,11 +9,39 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"sync"
 
 	agglib "github.com/MeKo-Christian/agg_go"
+	"golang.org/x/image/font/gofont/goregular"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
+
+// goFontPath holds the path to the extracted Go Regular TTF, initialised once.
+var (
+	goFontOnce sync.Once
+	goFontPath string
+	goFontErr  error
+)
+
+func loadGoFontPath() (string, error) {
+	goFontOnce.Do(func() {
+		f, err := os.CreateTemp("", "matplotlib-go-*.ttf")
+		if err != nil {
+			goFontErr = err
+			return
+		}
+		_, err = f.Write(goregular.TTF)
+		f.Close()
+		if err != nil {
+			os.Remove(f.Name())
+			goFontErr = err
+			return
+		}
+		goFontPath = f.Name()
+	})
+	return goFontPath, goFontErr
+}
 
 // Renderer implements render.Renderer using the AGG rendering backend.
 type Renderer struct {
@@ -24,6 +52,7 @@ type Renderer struct {
 	viewport geom.Rect
 	stack    []state
 	clipRect *geom.Rect
+	fontPath string // path to TrueType font; empty means use GSV fallback
 }
 
 // state represents a saved graphics state.
@@ -34,21 +63,36 @@ type state struct {
 var _ render.Renderer = (*Renderer)(nil)
 
 // New creates a new AGG renderer with the specified dimensions and background color.
-func New(w, h int, bg render.Color) *Renderer {
+// Returns an error if width or height are not positive.
+func New(w, h int, bg render.Color) (*Renderer, error) {
+	if w <= 0 || h <= 0 {
+		return nil, errors.New("agg: width and height must be positive")
+	}
+
 	ctx := agglib.NewContext(w, h)
 
 	// Clear with background color
 	bgColor := renderColorToAGG(bg)
 	ctx.Clear(bgColor)
 
-	// Use built-in GSV vector font for text rendering
-	ctx.GetAgg2D().FontGSV(13.0)
-
-	return &Renderer{
+	r := &Renderer{
 		ctx:    ctx,
 		width:  w,
 		height: h,
 	}
+
+	// Prefer TrueType (Go Regular) for crisp text; fall back to built-in GSV.
+	if fp, err := loadGoFontPath(); err == nil {
+		agg := ctx.GetAgg2D()
+		if loadErr := agg.Font(fp, 12.0, false, false, agglib.RasterFontCache, 0); loadErr == nil {
+			r.fontPath = fp
+		}
+	}
+	if r.fontPath == "" {
+		ctx.GetAgg2D().FontGSV(13.0)
+	}
+
+	return r, nil
 }
 
 // Begin starts a drawing session with the given viewport.
@@ -186,6 +230,7 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 }
 
 // buildAGGPath converts a geom.Path into AGG path commands on the current context.
+// Coordinates are quantized to ensure deterministic rendering across platforms.
 func (r *Renderer) buildAGGPath(p geom.Path) {
 	agg := r.ctx.GetAgg2D()
 	agg.ResetPath()
@@ -194,22 +239,34 @@ func (r *Renderer) buildAGGPath(p geom.Path) {
 	for _, cmd := range p.C {
 		switch cmd {
 		case geom.MoveTo:
-			pt := p.V[vi]
+			if vi >= len(p.V) {
+				return
+			}
+			pt := quantizePt(p.V[vi])
 			agg.MoveTo(pt.X, pt.Y)
 			vi++
 		case geom.LineTo:
-			pt := p.V[vi]
+			if vi >= len(p.V) {
+				return
+			}
+			pt := quantizePt(p.V[vi])
 			agg.LineTo(pt.X, pt.Y)
 			vi++
 		case geom.QuadTo:
-			ctrl := p.V[vi]
-			to := p.V[vi+1]
+			if vi+1 >= len(p.V) {
+				return
+			}
+			ctrl := quantizePt(p.V[vi])
+			to := quantizePt(p.V[vi+1])
 			agg.QuadricCurveTo(ctrl.X, ctrl.Y, to.X, to.Y)
 			vi += 2
 		case geom.CubicTo:
-			c1 := p.V[vi]
-			c2 := p.V[vi+1]
-			to := p.V[vi+2]
+			if vi+2 >= len(p.V) {
+				return
+			}
+			c1 := quantizePt(p.V[vi])
+			c2 := quantizePt(p.V[vi+1])
+			to := quantizePt(p.V[vi+2])
 			agg.CubicCurveTo(c1.X, c1.Y, c2.X, c2.Y, to.X, to.Y)
 			vi += 3
 		case geom.ClosePath:
@@ -229,23 +286,32 @@ func (r *Renderer) GlyphRun(_ render.GlyphRun, _ render.Color) {
 	// Text rendering is done through DrawText helper instead.
 }
 
-// MeasureText measures text dimensions using AGG's built-in font engine.
+// setFont configures the font engine for the given size.
+func (r *Renderer) setFont(size float64) {
+	agg := r.ctx.GetAgg2D()
+	if r.fontPath != "" {
+		_ = agg.Font(r.fontPath, size, false, false, agglib.RasterFontCache, 0)
+	} else {
+		agg.FontGSV(size)
+	}
+}
+
+// MeasureText measures text dimensions using the active font engine.
 func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
 	if text == "" {
 		return render.TextMetrics{}
 	}
 
+	r.setFont(size)
 	agg := r.ctx.GetAgg2D()
-	agg.FontGSV(size)
-
-	width := agg.TextWidth(text)
-	height := agg.FontHeight()
+	w := agg.TextWidth(text)
+	h := agg.FontHeight()
 
 	return render.TextMetrics{
-		W:       width,
-		H:       height,
-		Ascent:  height * 0.8, // Approximate for GSV font
-		Descent: height * 0.2,
+		W:       w,
+		H:       h,
+		Ascent:  h * 0.8,
+		Descent: h * 0.2,
 	}
 }
 
@@ -256,8 +322,8 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 		return
 	}
 
+	r.setFont(size)
 	agg := r.ctx.GetAgg2D()
-	agg.FontGSV(size)
 	agg.FillColor(renderColorToAGG(textColor))
 	agg.LineColor(renderColorToAGG(textColor))
 	agg.Text(origin.X, origin.Y, text, true, 0, 0)
@@ -297,4 +363,16 @@ func clamp01(v float64) float64 {
 		return 1
 	}
 	return v
+}
+
+// quantize snaps a floating-point value to a fixed grid to ensure
+// deterministic rendering across platforms and compiler versions.
+const quantizationGrid = 1e-6
+
+func quantize(v float64) float64 {
+	return math.Round(v/quantizationGrid) * quantizationGrid
+}
+
+func quantizePt(p geom.Pt) geom.Pt {
+	return geom.Pt{X: quantize(p.X), Y: quantize(p.Y)}
 }

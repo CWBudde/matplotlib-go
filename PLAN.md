@@ -21,7 +21,8 @@ This plan prioritizes getting useful plotting functionality working quickly. The
 
 ```go
 // AGG backend with anti-aliased rendering
-r := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
+r, err := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
+if err != nil { log.Fatal(err) }
 core.SavePNG(fig, r, "output.png")
 ```
 
@@ -92,12 +93,13 @@ core.SavePNG(fig, r, "output.png")
 - [x] Verify anti-aliased output quality vs GoBasic
 - [x] Update test infrastructure to use AGG backend (all 14 golden tests migrated)
 
-### 2.3 Axis Rendering with AGG
+### 2.3 Axis Rendering with AGG ✅
 
-- [ ] Draw actual axis lines (spines) using AGG's anti-aliased lines
-- [ ] Tick marks (major/minor) positioned correctly
-- [ ] Use existing LinearLocator/LogLocator for tick placement
-- [ ] Example: `examples/axes/spines.go`
+- [x] Draw actual axis lines (spines) using AGG's anti-aliased lines
+- [x] Tick marks (major/minor) positioned correctly
+- [x] Use existing LinearLocator/LogLocator for tick placement
+- [x] MinorLinearLocator for subdividing between major ticks
+- [x] Example: `examples/axes/spines/main.go`
 
 ### 2.4 Grid Lines
 

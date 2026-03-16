@@ -17,16 +17,18 @@ const (
 
 // Axis renders axis spines, ticks, and labels for a single dimension.
 type Axis struct {
-	Side       AxisSide     // which side of the plot
-	Locator    Locator      // tick position calculator
-	Formatter  Formatter    // tick label formatter
-	Color      render.Color // axis line and tick color
-	LineWidth  float64      // width of axis line and ticks
-	TickSize   float64      // length of tick marks (in pixels)
-	ShowSpine  bool         // whether to draw the axis line
-	ShowTicks  bool         // whether to draw tick marks
-	ShowLabels bool         // whether to draw tick labels (stub for now)
-	z          float64      // z-order
+	Side         AxisSide     // which side of the plot
+	Locator      Locator      // major tick position calculator
+	MinorLocator Locator      // minor tick position calculator (nil = no minor ticks)
+	Formatter    Formatter    // tick label formatter
+	Color        render.Color // axis line and tick color
+	LineWidth    float64      // width of axis line and ticks
+	TickSize     float64      // length of major tick marks (in pixels)
+	MinorTickSize float64     // length of minor tick marks (in pixels); 0 uses TickSize*0.6
+	ShowSpine    bool         // whether to draw the axis line
+	ShowTicks    bool         // whether to draw tick marks
+	ShowLabels   bool         // whether to draw tick labels
+	z            float64      // z-order
 }
 
 // NewXAxis creates an axis for the bottom (x-axis).
@@ -75,22 +77,26 @@ func (a *Axis) Draw(r render.Renderer, ctx *DrawContext) {
 	}
 
 	// Calculate tick positions
-	ticks := a.Locator.Ticks(min, max, 8) // aim for ~8 ticks
+	ticks := a.Locator.Ticks(min, max, 6) // aim for ~6 ticks
 
 	// Draw spine (axis line)
 	if a.ShowSpine {
 		a.drawSpine(r, ctx, isXAxis)
 	}
 
-	// Draw tick marks
+	// Draw minor tick marks first (behind major)
+	if a.ShowTicks && a.MinorLocator != nil {
+		minorTicks := a.MinorLocator.Ticks(min, max, 30)
+		if len(minorTicks) > 0 {
+			a.drawMinorTicks(r, ctx, minorTicks, isXAxis)
+		}
+	}
+
+	// Draw major tick marks
 	if a.ShowTicks && len(ticks) > 0 {
 		a.drawTicks(r, ctx, ticks, isXAxis)
 	}
-
-	// Draw tick labels if supported by the renderer
-	if a.ShowLabels && len(ticks) > 0 {
-		a.drawTickLabels(r, ctx, ticks, isXAxis)
-	}
+	// Tick labels are drawn outside the clip via DrawTickLabels (called from DrawFigure)
 }
 
 // drawSpine draws the main axis line.
@@ -133,48 +139,50 @@ func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext, isXAxis bool) {
 // drawTicks draws tick marks at the specified positions.
 func (a *Axis) drawTicks(r render.Renderer, ctx *DrawContext, ticks []float64, isXAxis bool) {
 	for _, tickValue := range ticks {
-		a.drawSingleTick(r, ctx, tickValue, isXAxis)
+		a.drawSingleTick(r, ctx, tickValue, a.TickSize, isXAxis)
 	}
 }
 
-// drawSingleTick draws a single tick mark.
-func (a *Axis) drawSingleTick(r render.Renderer, ctx *DrawContext, tickValue float64, isXAxis bool) {
+// drawMinorTicks draws smaller tick marks at the specified positions.
+func (a *Axis) drawMinorTicks(r render.Renderer, ctx *DrawContext, ticks []float64, isXAxis bool) {
+	sz := a.MinorTickSize
+	if sz <= 0 {
+		sz = a.TickSize * 0.6
+	}
+	for _, tickValue := range ticks {
+		a.drawSingleTick(r, ctx, tickValue, sz, isXAxis)
+	}
+}
+
+// drawSingleTick draws a single tick mark with the given size.
+func (a *Axis) drawSingleTick(r render.Renderer, ctx *DrawContext, tickValue, tickSize float64, isXAxis bool) {
 	var p1, p2 geom.Pt
 
 	if isXAxis {
 		// Vertical tick mark
 		spineY := getSpinePosition(a.Side, ctx)
-		tickX := tickValue
+		spinePixel := ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: spineY})
 
-		// Transform spine position to pixel coordinates
-		spinePixel := ctx.DataToPixel.Apply(geom.Pt{X: tickX, Y: spineY})
-
-		// Calculate tick endpoints in pixel space
-		// Note: With Y-flipped coordinates, positive Y is up in data space but down in pixel space
 		switch a.Side {
 		case AxisBottom:
 			p1 = spinePixel
-			p2 = geom.Pt{X: spinePixel.X, Y: spinePixel.Y - a.TickSize} // Ticks point down (more positive Y in screen coords)
+			p2 = geom.Pt{X: spinePixel.X, Y: spinePixel.Y - tickSize}
 		case AxisTop:
 			p1 = spinePixel
-			p2 = geom.Pt{X: spinePixel.X, Y: spinePixel.Y + a.TickSize} // Ticks point up (less Y in screen coords)
+			p2 = geom.Pt{X: spinePixel.X, Y: spinePixel.Y + tickSize}
 		}
 	} else {
 		// Horizontal tick mark
 		spineX := getSpinePosition(a.Side, ctx)
-		tickY := tickValue
+		spinePixel := ctx.DataToPixel.Apply(geom.Pt{X: spineX, Y: tickValue})
 
-		// Transform spine position to pixel coordinates
-		spinePixel := ctx.DataToPixel.Apply(geom.Pt{X: spineX, Y: tickY})
-
-		// Calculate tick endpoints in pixel space
 		switch a.Side {
 		case AxisLeft:
 			p1 = spinePixel
-			p2 = geom.Pt{X: spinePixel.X - a.TickSize, Y: spinePixel.Y}
+			p2 = geom.Pt{X: spinePixel.X - tickSize, Y: spinePixel.Y}
 		case AxisRight:
 			p1 = spinePixel
-			p2 = geom.Pt{X: spinePixel.X + a.TickSize, Y: spinePixel.Y}
+			p2 = geom.Pt{X: spinePixel.X + tickSize, Y: spinePixel.Y}
 		}
 	}
 
@@ -226,6 +234,25 @@ func (a *Axis) Bounds(*DrawContext) geom.Rect {
 	return geom.Rect{}
 }
 
+// DrawTickLabels draws tick labels outside the clip region (call after r.Restore()).
+func (a *Axis) DrawTickLabels(r render.Renderer, ctx *DrawContext) {
+	if !a.ShowLabels {
+		return
+	}
+	var min, max float64
+	var isXAxis bool
+	switch a.Side {
+	case AxisBottom, AxisTop:
+		min, max = ctx.DataToPixel.XScale.Domain()
+		isXAxis = true
+	case AxisLeft, AxisRight:
+		min, max = ctx.DataToPixel.YScale.Domain()
+		isXAxis = false
+	}
+	ticks := a.Locator.Ticks(min, max, 6)
+	a.drawTickLabels(r, ctx, ticks, isXAxis)
+}
+
 // drawTickLabels draws text labels for the ticks if the renderer supports text.
 func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float64, isXAxis bool) {
 	type textRenderer interface {
@@ -259,15 +286,15 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 
 			switch a.Side {
 			case AxisBottom:
-				// Center horizontally under tick, below tick mark
+				// Center horizontally, below the spine (outside the axes region)
 				labelPos = geom.Pt{
 					X: tickPos.X - metrics.W/2,
-					Y: tickPos.Y - a.TickSize - 3,
+					Y: tickPos.Y + a.TickSize + 3,
 				}
 			case AxisTop:
 				labelPos = geom.Pt{
 					X: tickPos.X - metrics.W/2,
-					Y: tickPos.Y + a.TickSize + metrics.H + 3,
+					Y: tickPos.Y - a.TickSize - metrics.H - 3,
 				}
 			}
 		} else {
@@ -276,7 +303,7 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 
 			switch a.Side {
 			case AxisLeft:
-				// Right-align to left of tick
+				// Right-align to left of spine (outside the axes region)
 				labelPos = geom.Pt{
 					X: tickPos.X - a.TickSize - metrics.W - 3,
 					Y: tickPos.Y + metrics.H/2,

@@ -52,10 +52,14 @@ func main() {
 	ax.Plot(x, cosY, core.PlotOptions{Label: "cos(x)"})
 
 	// Create AGG renderer with white background
-	r := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		fmt.Printf("Error creating renderer: %v\n", err)
+		return
+	}
 
 	// Save as PNG
-	err := core.SavePNG(fig, r, "agg_demo.png")
+	err = core.SavePNG(fig, r, "agg_demo.png")
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return

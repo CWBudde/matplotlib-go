@@ -224,7 +224,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			Clip: px,
 		}
 
-		// Draw clipped content (data, grids, axes)
+		// Draw clipped content (data, grids, spines, tick marks)
 		r.Save()
 		r.ClipRect(px)
 
@@ -250,7 +250,13 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		}
 		r.Restore()
 
-		// Draw labels outside the clip rect (in the figure margins)
+		// Draw tick labels and text labels outside the clip rect (in the margins)
+		if ax.XAxis != nil {
+			ax.XAxis.DrawTickLabels(r, ctx)
+		}
+		if ax.YAxis != nil {
+			ax.YAxis.DrawTickLabels(r, ctx)
+		}
 		drawAxesLabels(ax, r, ctx, px)
 	}
 }

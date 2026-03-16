@@ -109,6 +109,39 @@ func TestLogLocator_MinorsBetweenMajors(t *testing.T) {
 	}
 }
 
+func TestMinorLinearLocator_SubdividesMajors(t *testing.T) {
+	minors := (MinorLinearLocator{N: 5}).Ticks(0, 10, 0)
+	if len(minors) == 0 {
+		t.Fatal("expected minor ticks")
+	}
+	// Minor ticks should not coincide with major ticks
+	majors := (LinearLocator{}).Ticks(0, 10, 6)
+	majorSet := map[float64]bool{}
+	for _, m := range majors {
+		majorSet[m] = true
+	}
+	for _, v := range minors {
+		for mj := range majorSet {
+			if math.Abs(v-mj) < 1e-10 {
+				t.Errorf("minor tick %v coincides with major tick %v", v, mj)
+			}
+		}
+	}
+	// Should be strictly increasing
+	if !strictlyIncreasing(minors) {
+		t.Errorf("minor ticks not strictly increasing: %v", minors)
+	}
+}
+
+func TestMinorLinearLocator_DefaultN(t *testing.T) {
+	// N=0 should default to 5
+	m0 := (MinorLinearLocator{N: 0}).Ticks(0, 10, 0)
+	m5 := (MinorLinearLocator{N: 5}).Ticks(0, 10, 0)
+	if len(m0) != len(m5) {
+		t.Errorf("N=0 should default to N=5: got %d vs %d ticks", len(m0), len(m5))
+	}
+}
+
 func TestScalarFormatter_TrimAndScientific(t *testing.T) {
 	f := ScalarFormatter{Prec: 6}
 	if got := f.Format(1.0); got != "1" {

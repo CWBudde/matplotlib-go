@@ -43,7 +43,7 @@ func (LinearLocator) Ticks(min, max float64, targetCount int) []float64 {
 	// Determine exponent of 10 for raw step.
 	exp := math.Floor(math.Log10(raw))
 	base := math.Pow(10, exp)
-	candidates := []float64{1 * base, 2 * base, 5 * base}
+	candidates := []float64{1 * base, 2 * base, 5 * base, 10 * base}
 	step := candidates[0]
 	best := math.Abs(candidates[0] - raw)
 	for _, c := range candidates[1:] {
@@ -77,6 +77,49 @@ func (LinearLocator) Ticks(min, max float64, targetCount int) []float64 {
 		}
 	}
 	return out
+}
+
+// MinorLinearLocator subdivides the intervals between major ticks.
+// N is the number of subdivisions per major interval (e.g. N=5 gives 4 minor ticks
+// between each pair of major ticks). If N <= 1, defaults to 5.
+type MinorLinearLocator struct {
+	N int // subdivisions per major interval
+}
+
+func (m MinorLinearLocator) Ticks(min, max float64, _ int) []float64 {
+	n := m.N
+	if n <= 1 {
+		n = 5
+	}
+	// Get major ticks to subdivide between them
+	majors := (LinearLocator{}).Ticks(min, max, 6)
+	if len(majors) < 2 {
+		return nil
+	}
+
+	step := (majors[1] - majors[0]) / float64(n)
+	if step <= 0 {
+		return nil
+	}
+
+	// Generate minor ticks across the full range, excluding major positions
+	start := majors[0]
+	end := majors[len(majors)-1]
+	var ticks []float64
+	for v := start; v <= end+step*0.5; v += step {
+		// Skip if this coincides with a major tick
+		isMajor := false
+		for _, mj := range majors {
+			if math.Abs(v-mj) < step*0.01 {
+				isMajor = true
+				break
+			}
+		}
+		if !isMajor && v >= min && v <= max {
+			ticks = append(ticks, v)
+		}
+	}
+	return ticks
 }
 
 // LogLocator produces logarithmic ticks for positive domains. Major ticks

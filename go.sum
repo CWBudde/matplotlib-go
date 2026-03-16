@@ -1,5 +1,7 @@
 github.com/MeKo-Christian/agg_go v0.2.2 h1:ySw45x1nlMmIPlosRYEqb6qUoremUfZyussCtcocyWw=
 github.com/MeKo-Christian/agg_go v0.2.2/go.mod h1:G0hjnR1ZdeDF5v2DS3vcF6M+3s/ZPSaoIFP9F9OMk3Q=
+github.com/MeKo-Christian/agg_go v0.2.3 h1:Px5f1/m8dJ62GK38RZuf151kRWIfXg0kBEoGzxHTDC0=
+github.com/MeKo-Christian/agg_go v0.2.3/go.mod h1:G0hjnR1ZdeDF5v2DS3vcF6M+3s/ZPSaoIFP9F9OMk3Q=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

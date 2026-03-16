@@ -1,0 +1,134 @@
+package test
+
+// Matplotlib reference tests compare our renderer against real matplotlib output.
+//
+// Reference images live in testdata/matplotlib_ref/ and are committed to the repo.
+// Tests skip if that directory is absent (first checkout, CI without refs, etc.).
+//
+// To (re)generate the reference images:
+//
+//	go test ./test/... -run TestMpl -update-matplotlib
+//
+// This requires either `uv` (recommended) or `python3` with matplotlib installed.
+// uv will automatically fetch matplotlib into a temporary virtual environment.
+
+import (
+	"flag"
+	"fmt"
+	"image"
+	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sync"
+	"testing"
+
+	"matplotlib-go/test/imagecmp"
+)
+
+var updateMatplotlib = flag.Bool("update-matplotlib", false,
+	"Regenerate matplotlib reference images via `uv run` (or python3) before comparing")
+
+const (
+	mplRefDir  = "../testdata/matplotlib_ref"
+	mplMinPSNR = 10.0 // dB; below this indicates a fundamental rendering error
+)
+
+var (
+	mplOnce sync.Once
+	mplErr  error
+)
+
+// ensureRefs generates reference images when -update-matplotlib is set,
+// or skips the calling test if the ref directory does not exist yet.
+func ensureRefs(t *testing.T) {
+	t.Helper()
+	if !*updateMatplotlib {
+		if _, err := os.Stat(mplRefDir); os.IsNotExist(err) {
+			t.Skip("matplotlib refs not found – run with -update-matplotlib to generate")
+		}
+		return
+	}
+
+	mplOnce.Do(func() {
+		script := filepath.Join("matplotlib_ref", "generate.py")
+		outDir, _ := filepath.Abs(mplRefDir)
+
+		uvPath, err := exec.LookPath("uv")
+		var cmd *exec.Cmd
+		if err == nil {
+			cmd = exec.Command(uvPath, "run", script, "--output-dir", outDir)
+		} else {
+			pyPath, err2 := exec.LookPath("python3")
+			if err2 != nil {
+				mplErr = fmt.Errorf("need uv or python3: uv: %v; python3: %v", err, err2)
+				return
+			}
+			cmd = exec.Command(pyPath, script, "--output-dir", outDir)
+		}
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		mplErr = cmd.Run()
+	})
+
+	if mplErr != nil {
+		t.Fatalf("matplotlib reference generation failed: %v", mplErr)
+	}
+}
+
+// runMplTest renders our version, loads the matplotlib reference, and
+// compares them. It always writes artefacts for visual inspection and fails
+// only when PSNR drops below mplMinPSNR (indicating a structural error).
+func runMplTest(t *testing.T, name string, renderFunc func() image.Image) {
+	t.Helper()
+	ensureRefs(t)
+
+	got := renderFunc()
+
+	refPath := filepath.Join(mplRefDir, name+".png")
+	want, err := imagecmp.LoadPNG(refPath)
+	if err != nil {
+		t.Fatalf("load matplotlib ref %s: %v", refPath, err)
+	}
+
+	// tolerance=255 so Identical is always true; we rely on PSNR for the verdict.
+	diff, err := imagecmp.ComparePNG(got, want, 255)
+	if err != nil {
+		t.Fatalf("image comparison failed: %v", err)
+	}
+
+	t.Logf("PSNR=%.1f dB  MeanAbs=%.2f  MaxDiff=%d", diff.PSNR, diff.MeanAbs, diff.MaxDiff)
+
+	// Always write artefacts so humans can inspect visually.
+	artifactsDir := filepath.Join("..", "_artifacts", "matplotlib_ref")
+	if mkErr := os.MkdirAll(artifactsDir, 0o755); mkErr == nil {
+		_ = imagecmp.SavePNG(got, filepath.Join(artifactsDir, name+"_go.png"))
+		_ = imagecmp.SavePNG(want, filepath.Join(artifactsDir, name+"_mpl.png"))
+		_ = imagecmp.SaveDiffImage(got, want, 10, filepath.Join(artifactsDir, name+"_diff.png"))
+	}
+
+	if !math.IsInf(diff.PSNR, 1) && diff.PSNR < mplMinPSNR {
+		t.Errorf("PSNR %.1f dB < %.1f dB: likely fundamental rendering mismatch with matplotlib",
+			diff.PSNR, mplMinPSNR)
+	}
+}
+
+// ─── Individual tests ────────────────────────────────────────────────────────
+// Each test reuses the render* helper from golden_test.go.
+
+func TestMpl_BasicLine(t *testing.T)          { runMplTest(t, "basic_line", renderBasicLine) }
+func TestMpl_JoinsCaps(t *testing.T)          { runMplTest(t, "joins_caps", renderJoinsCaps) }
+func TestMpl_Dashes(t *testing.T)             { runMplTest(t, "dashes", renderDashes) }
+func TestMpl_ScatterBasic(t *testing.T)       { runMplTest(t, "scatter_basic", renderScatterBasic) }
+func TestMpl_ScatterMarkerTypes(t *testing.T) { runMplTest(t, "scatter_marker_types", renderScatterMarkerTypes) }
+func TestMpl_ScatterAdvanced(t *testing.T)    { runMplTest(t, "scatter_advanced", renderScatterAdvanced) }
+func TestMpl_BarBasic(t *testing.T)           { runMplTest(t, "bar_basic", renderBarBasic) }
+func TestMpl_BarHorizontal(t *testing.T)      { runMplTest(t, "bar_horizontal", renderBarHorizontal) }
+func TestMpl_BarGrouped(t *testing.T)         { runMplTest(t, "bar_grouped", renderBarGrouped) }
+func TestMpl_FillBasic(t *testing.T)          { runMplTest(t, "fill_basic", renderFillBasic) }
+func TestMpl_FillBetween(t *testing.T)        { runMplTest(t, "fill_between", renderFillBetween) }
+func TestMpl_FillStacked(t *testing.T)        { runMplTest(t, "fill_stacked", renderFillStacked) }
+func TestMpl_MultiSeriesBasic(t *testing.T)   { runMplTest(t, "multi_series_basic", renderMultiSeriesBasic) }
+func TestMpl_MultiSeriesColorCycle(t *testing.T) {
+	runMplTest(t, "multi_series_color_cycle", renderMultiSeriesColorCycle)
+}

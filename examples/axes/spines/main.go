@@ -1,0 +1,63 @@
+package main
+
+import (
+	"fmt"
+	"math"
+
+	"matplotlib-go/backends/agg"
+	"matplotlib-go/core"
+	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
+	"matplotlib-go/transform"
+)
+
+func main() {
+	fig := core.NewFigure(800, 500)
+
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.15},
+		Max: geom.Pt{X: 0.95, Y: 0.88},
+	})
+
+	ax.XScale = transform.NewLinear(0, 2*math.Pi)
+	ax.YScale = transform.NewLinear(-1.5, 1.5)
+
+	ax.SetTitle("Axis Spines, Major & Minor Ticks")
+	ax.SetXLabel("x")
+	ax.SetYLabel("y")
+
+	// Enable minor ticks on both axes
+	ax.XAxis.MinorLocator = core.MinorLinearLocator{N: 5}
+	ax.YAxis.MinorLocator = core.MinorLinearLocator{N: 4}
+
+	// Add grid for major ticks
+	ax.AddXGrid()
+	ax.AddYGrid()
+
+	// Generate sine wave
+	n := 200
+	x := make([]float64, n)
+	sinY := make([]float64, n)
+	cosY := make([]float64, n)
+	for i := range n {
+		x[i] = 2 * math.Pi * float64(i) / float64(n-1)
+		sinY[i] = math.Sin(x[i])
+		cosY[i] = math.Cos(x[i])
+	}
+
+	ax.Plot(x, sinY, core.PlotOptions{Label: "sin(x)"})
+	ax.Plot(x, cosY, core.PlotOptions{Label: "cos(x)"})
+
+	r, err := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	if err := core.SavePNG(fig, r, "spines.png"); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Println("Created spines.png — axis spines with major and minor ticks")
+}

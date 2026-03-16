@@ -157,7 +157,10 @@ func renderBasicLine() image.Image {
 	}
 	ax.Add(line)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -192,7 +195,10 @@ func renderJoinsCaps() image.Image {
 	}
 	ax.Add(capLine)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -231,7 +237,10 @@ func renderDashes() image.Image {
 		ax.Add(line)
 	}
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -259,7 +268,10 @@ func renderScatterBasic() image.Image {
 	}
 	ax.Add(scatter)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -298,7 +310,10 @@ func renderScatterMarkerTypes() image.Image {
 		ax.Add(scatter)
 	}
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -342,7 +357,10 @@ func renderScatterAdvanced() image.Image {
 	}
 	ax.Add(scatter)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -367,7 +385,10 @@ func renderBarBasic() image.Image {
 	}
 	ax.Add(bar)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -392,7 +413,10 @@ func renderBarHorizontal() image.Image {
 	}
 	ax.Add(bar)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -431,7 +455,10 @@ func renderBarGrouped() image.Image {
 	}
 	ax.Add(bar2)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -460,7 +487,10 @@ func renderFillBasic() image.Image {
 	}
 	ax.Add(fill)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -500,7 +530,10 @@ func renderFillBetween() image.Image {
 	ax.Add(sineLine)
 	ax.Add(cosLine)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -540,7 +573,10 @@ func renderFillStacked() image.Image {
 	ax.Add(fill2)
 	ax.Add(fill3)
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -567,7 +603,10 @@ func renderMultiSeriesBasic() image.Image {
 	width := 0.4
 	ax.Bar(x3, y3, core.BarOptions{Label: "Series 3", Width: &width})
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
@@ -597,7 +636,10 @@ func renderMultiSeriesColorCycle() image.Image {
 		ax.Plot(x, y, core.PlotOptions{Label: label})
 	}
 
-	r := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }
