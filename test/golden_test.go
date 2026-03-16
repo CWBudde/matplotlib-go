@@ -232,9 +232,9 @@ func renderDashes() image.Image {
 		color  render.Color
 	}{
 		{4, []float64{}, render.Color{R: 0, G: 0, B: 0, A: 1}},
-		{3, []float64{5, 2}, render.Color{R: 0.8, G: 0, B: 0, A: 1}},
-		{2, []float64{3, 1, 1, 1}, render.Color{R: 0, G: 0.6, B: 0, A: 1}},
-		{1, []float64{1, 1}, render.Color{R: 0, G: 0, B: 0.8, A: 1}},
+		{3, []float64{10, 4}, render.Color{R: 0.8, G: 0, B: 0, A: 1}},
+		{2, []float64{6, 2, 2, 2}, render.Color{R: 0, G: 0.6, B: 0, A: 1}},
+		{1, []float64{2, 2}, render.Color{R: 0, G: 0, B: 0.8, A: 1}},
 	}
 
 	for _, lineSpec := range lines {

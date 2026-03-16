@@ -116,16 +116,19 @@ def dashes(out_dir):
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 5)
 
+    # Dash values match golden_test.go (pixels in Go renderer).
+    # Empirically: set_dashes units map to ~2.8 pixels at DPI=100,
+    # so the conversion is p * 36 / DPI (= p / 2.78 at DPI=100).
     specs = [
-        (4, [],             (0,   0,   0)),
-        (3, [5, 2],         (0.8, 0,   0)),
-        (2, [3, 1, 1, 1],   (0,   0.6, 0)),
-        (1, [1, 1],         (0,   0,   0.8)),
+        (4, [],               (0,   0,   0)),
+        (3, [10, 4],          (0.8, 0,   0)),
+        (2, [6, 2, 2, 2],     (0,   0.6, 0)),
+        (1, [2, 2],           (0,   0,   0.8)),
     ]
     for y_val, pattern, color in specs:
         (line,) = ax.plot([1, 9], [y_val, y_val], color=color, linewidth=lw(3))
         if pattern:
-            line.set_dashes([p * 72.0 / DPI for p in pattern])
+            line.set_dashes([p * 36.0 / DPI for p in pattern])
 
     save(fig, out_dir, "dashes")
 
