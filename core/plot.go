@@ -294,6 +294,67 @@ func (a *Axes) FillBetweenPlot(x, y1, y2 []float64, opts ...FillOptions) *Fill2D
 	return fill
 }
 
+// HistOptions holds optional parameters for histogram plots.
+type HistOptions struct {
+	Bins      int          // number of bins (0 = auto)
+	BinEdges  []float64    // explicit bin edges (overrides Bins)
+	BinStrat  BinStrategy  // automatic binning strategy
+	Norm      HistNorm     // normalization mode
+	Color     *render.Color
+	EdgeColor *render.Color
+	EdgeWidth *float64
+	Alpha     *float64
+	Label     string
+}
+
+// Hist creates a histogram from raw data with automatic color cycling.
+func (a *Axes) Hist(data []float64, opts ...HistOptions) *Hist2D {
+	if len(data) == 0 {
+		return nil
+	}
+
+	var opt HistOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	color := a.NextColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+
+	edgeColor := render.Color{R: 0, G: 0, B: 0, A: 0}
+	if opt.EdgeColor != nil {
+		edgeColor = *opt.EdgeColor
+	}
+
+	edgeWidth := 0.0
+	if opt.EdgeWidth != nil {
+		edgeWidth = *opt.EdgeWidth
+	}
+
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+
+	hist := &Hist2D{
+		Data:      data,
+		Bins:      opt.Bins,
+		BinEdges:  opt.BinEdges,
+		BinStrat:  opt.BinStrat,
+		Norm:      opt.Norm,
+		Color:     color,
+		EdgeColor: edgeColor,
+		EdgeWidth: edgeWidth,
+		Alpha:     alpha,
+		Label:     opt.Label,
+	}
+
+	a.Add(hist)
+	return hist
+}
+
 // FillToBaselinePlot creates a fill from a curve to baseline with automatic color cycling.
 func (a *Axes) FillToBaselinePlot(x, y []float64, opts ...FillOptions) *Fill2D {
 	if len(x) == 0 || len(y) == 0 {

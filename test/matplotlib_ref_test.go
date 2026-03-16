@@ -132,3 +132,7 @@ func TestMpl_MultiSeriesBasic(t *testing.T)   { runMplTest(t, "multi_series_basi
 func TestMpl_MultiSeriesColorCycle(t *testing.T) {
 	runMplTest(t, "multi_series_color_cycle", renderMultiSeriesColorCycle)
 }
+
+func TestMpl_HistBasic(t *testing.T)      { runMplTest(t, "hist_basic", renderHistBasic) }
+func TestMpl_HistDensity(t *testing.T)    { runMplTest(t, "hist_density", renderHistDensity) }
+func TestMpl_HistStrategies(t *testing.T) { runMplTest(t, "hist_strategies", renderHistStrategies) }

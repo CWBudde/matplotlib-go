@@ -12,35 +12,36 @@ import (
 	"sync"
 
 	agglib "github.com/MeKo-Christian/agg_go"
-	"golang.org/x/image/font/gofont/goregular"
+	"codeberg.org/go-fonts/dejavu/dejavusans"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
 
-// goFontPath holds the path to the extracted Go Regular TTF, initialised once.
+// dejaVuFontPath holds the path to the extracted DejaVu Sans TTF, initialised once.
+// DejaVu Sans is the same font matplotlib uses by default.
 var (
-	goFontOnce sync.Once
-	goFontPath string
-	goFontErr  error
+	fontOnce sync.Once
+	fontPath string
+	fontErr  error
 )
 
-func loadGoFontPath() (string, error) {
-	goFontOnce.Do(func() {
+func loadFontPath() (string, error) {
+	fontOnce.Do(func() {
 		f, err := os.CreateTemp("", "matplotlib-go-*.ttf")
 		if err != nil {
-			goFontErr = err
+			fontErr = err
 			return
 		}
-		_, err = f.Write(goregular.TTF)
+		_, err = f.Write(dejavusans.TTF)
 		f.Close()
 		if err != nil {
 			os.Remove(f.Name())
-			goFontErr = err
+			fontErr = err
 			return
 		}
-		goFontPath = f.Name()
+		fontPath = f.Name()
 	})
-	return goFontPath, goFontErr
+	return fontPath, fontErr
 }
 
 // Renderer implements render.Renderer using the AGG rendering backend.
@@ -81,8 +82,8 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		height: h,
 	}
 
-	// Prefer TrueType (Go Regular) for crisp text; fall back to built-in GSV.
-	if fp, err := loadGoFontPath(); err == nil {
+	// Prefer DejaVu Sans (same as matplotlib) for crisp text; fall back to built-in GSV.
+	if fp, err := loadFontPath(); err == nil {
 		agg := ctx.GetAgg2D()
 		if loadErr := agg.Font(fp, 12.0, false, false, agglib.RasterFontCache, 0); loadErr == nil {
 			r.fontPath = fp

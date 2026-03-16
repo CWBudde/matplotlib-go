@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"testing"
@@ -73,6 +74,18 @@ func TestMultiSeriesBasic_Golden(t *testing.T) {
 
 func TestMultiSeriesColorCycle_Golden(t *testing.T) {
 	runGoldenTest(t, "multi_series_color_cycle", renderMultiSeriesColorCycle)
+}
+
+func TestHistBasic_Golden(t *testing.T) {
+	runGoldenTest(t, "hist_basic", renderHistBasic)
+}
+
+func TestHistDensity_Golden(t *testing.T) {
+	runGoldenTest(t, "hist_density", renderHistDensity)
+}
+
+func TestHistStrategies_Golden(t *testing.T) {
+	runGoldenTest(t, "hist_strategies", renderHistStrategies)
 }
 
 // runGoldenTest is a helper function for golden image testing
@@ -602,6 +615,125 @@ func renderMultiSeriesBasic() image.Image {
 	ax.Scatter(x2, y2, core.ScatterOptions{Label: "Series 2"})
 	width := 0.4
 	ax.Bar(x3, y3, core.BarOptions{Label: "Series 3", Width: &width})
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+// normalData generates a seeded normally-distributed sample using Box-Muller.
+func normalData(seed1, seed2 uint64, n int, mean, stddev float64) []float64 {
+	rng := rand.New(rand.NewPCG(seed1, seed2))
+	data := make([]float64, n)
+	for i := range data {
+		u1 := rng.Float64()
+		u2 := rng.Float64()
+		data[i] = math.Sqrt(-2*math.Log(u1))*math.Cos(2*math.Pi*u2)*stddev + mean
+	}
+	return data
+}
+
+// renderHistBasic creates a basic count histogram for golden testing.
+func renderHistBasic() image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.12},
+		Max: geom.Pt{X: 0.95, Y: 0.90},
+	})
+
+	data := normalData(42, 0, 500, 5.0, 1.5)
+
+	blue := render.Color{R: 0.26, G: 0.53, B: 0.80, A: 0.8}
+	black := render.Color{R: 0, G: 0, B: 0, A: 1}
+	ew := 0.8
+	ax.Hist(data, core.HistOptions{
+		Color:     &blue,
+		EdgeColor: &black,
+		EdgeWidth: &ew,
+	})
+	ax.AutoScale(0.05)
+	_, yMax := ax.YScale.Domain()
+	ax.SetYLim(0, yMax)
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+// renderHistDensity creates a density-normalized histogram for golden testing.
+func renderHistDensity() image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.12},
+		Max: geom.Pt{X: 0.95, Y: 0.90},
+	})
+
+	data := normalData(42, 0, 500, 5.0, 1.5)
+
+	green := render.Color{R: 0.20, G: 0.65, B: 0.30, A: 0.8}
+	black := render.Color{R: 0, G: 0, B: 0, A: 1}
+	ew := 0.8
+	bins := 20
+	ax.Hist(data, core.HistOptions{
+		Bins:      bins,
+		Norm:      core.HistNormDensity,
+		Color:     &green,
+		EdgeColor: &black,
+		EdgeWidth: &ew,
+	})
+	ax.AutoScale(0.05)
+	_, yMax := ax.YScale.Domain()
+	ax.SetYLim(0, yMax)
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+// renderHistStrategies creates a histogram comparing two datasets for golden testing.
+func renderHistStrategies() image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.12},
+		Max: geom.Pt{X: 0.95, Y: 0.90},
+	})
+
+	data1 := normalData(42, 0, 300, 4.0, 1.0)
+	data2 := normalData(7, 0, 300, 7.0, 1.2)
+
+	blue := render.Color{R: 0.26, G: 0.53, B: 0.80, A: 0.6}
+	orange := render.Color{R: 0.90, G: 0.50, B: 0.10, A: 0.6}
+	black := render.Color{R: 0, G: 0, B: 0, A: 1}
+	ew := 0.5
+	bins := 15
+	prob := core.HistNormProbability
+
+	ax.Hist(data1, core.HistOptions{
+		Bins:      bins,
+		Norm:      prob,
+		Color:     &blue,
+		EdgeColor: &black,
+		EdgeWidth: &ew,
+	})
+	ax.Hist(data2, core.HistOptions{
+		Bins:      bins,
+		Norm:      prob,
+		Color:     &orange,
+		EdgeColor: &black,
+		EdgeWidth: &ew,
+	})
+	ax.AutoScale(0.05)
+	_, yMax := ax.YScale.Domain()
+	ax.SetYLim(0, yMax)
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {

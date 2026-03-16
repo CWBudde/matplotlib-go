@@ -18,6 +18,7 @@ import math
 import os
 import sys
 
+import numpy as np
 import matplotlib
 
 matplotlib.use("Agg")
@@ -152,7 +153,9 @@ def scatter_marker_types(out_dir):
     markers = ["o", "s", "^", "D", "+", "x"]
     colors  = [(1,0,0), (0,1,0), (0,0,1), (1,1,0), (1,0,1), (0,1,1)]
     for i, (marker, color) in enumerate(zip(markers, colors)):
-        ax.scatter([i + 1], [4], s=ss(12), c=[color], marker=marker, linewidths=0)
+        # Plus (+) and cross (x) are line-only markers; use linewidths to make them visible
+        line_w = lw(2) if marker in ("+", "x") else 0
+        ax.scatter([i + 1], [4], s=ss(12), c=[color], marker=marker, linewidths=line_w)
     save(fig, out_dir, "scatter_marker_types")
 
 
@@ -282,6 +285,79 @@ def multi_series_basic(out_dir):
     save(fig, out_dir, "multi_series_basic")
 
 
+def hist_basic(out_dir):
+    """Count histogram matching renderHistBasic in golden_test.go."""
+    rng = np.random.default_rng(42)
+    data = rng.normal(loc=5.0, scale=1.5, size=500)
+    fig = make_fig()
+    ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
+    n, bins, patches = ax.hist(
+        data,
+        bins="sturges",
+        color=(0.26, 0.53, 0.80, 0.8),
+        edgecolor=(0, 0, 0, 1),
+        linewidth=lw(0.8),
+        rwidth=1.0,
+    )
+    # match AutoScale(0.05) margin
+    margin = 0.05 * (data.max() - data.min())
+    ax.set_xlim(data.min() - margin, data.max() + margin)
+    count_max = n.max()
+    ax.set_ylim(0, count_max * 1.05)
+    save(fig, out_dir, "hist_basic")
+
+
+def hist_density(out_dir):
+    """Density histogram matching renderHistDensity in golden_test.go."""
+    rng = np.random.default_rng(42)
+    data = rng.normal(loc=5.0, scale=1.5, size=500)
+    fig = make_fig()
+    ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
+    n, bins, patches = ax.hist(
+        data,
+        bins=20,
+        density=True,
+        color=(0.20, 0.65, 0.30, 0.8),
+        edgecolor=(0, 0, 0, 1),
+        linewidth=lw(0.8),
+        rwidth=1.0,
+    )
+    margin = 0.05 * (data.max() - data.min())
+    ax.set_xlim(data.min() - margin, data.max() + margin)
+    density_max = n.max()
+    ax.set_ylim(0, density_max * 1.05)
+    save(fig, out_dir, "hist_density")
+
+
+def hist_strategies(out_dir):
+    """Two overlapping probability histograms matching renderHistStrategies."""
+    rng = np.random.default_rng(42)
+    data1 = rng.normal(loc=4.0, scale=1.0, size=300)
+    rng2 = np.random.default_rng(7)
+    data2 = rng2.normal(loc=7.0, scale=1.2, size=300)
+    fig = make_fig()
+    ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
+    n1, _, _ = ax.hist(
+        data1, bins=15, density=False, weights=np.ones(len(data1)) / len(data1),
+        color=(0.26, 0.53, 0.80, 0.6),
+        edgecolor=(0, 0, 0, 1),
+        linewidth=lw(0.5),
+        rwidth=1.0,
+    )
+    n2, _, _ = ax.hist(
+        data2, bins=15, density=False, weights=np.ones(len(data2)) / len(data2),
+        color=(0.90, 0.50, 0.10, 0.6),
+        edgecolor=(0, 0, 0, 1),
+        linewidth=lw(0.5),
+        rwidth=1.0,
+    )
+    all_data = np.concatenate([data1, data2])
+    margin = 0.05 * (all_data.max() - all_data.min())
+    ax.set_xlim(all_data.min() - margin, all_data.max() + margin)
+    ax.set_ylim(0, max(n1.max(), n2.max()) * 1.05)
+    save(fig, out_dir, "hist_strategies")
+
+
 def multi_series_color_cycle(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
@@ -303,6 +379,7 @@ ALL_PLOTS = [
     bar_basic, bar_horizontal, bar_grouped,
     fill_basic, fill_between, fill_stacked,
     multi_series_basic, multi_series_color_cycle,
+    hist_basic, hist_density, hist_strategies,
 ]
 
 

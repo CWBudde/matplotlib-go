@@ -171,12 +171,13 @@ func (s *Scatter2D) createSquarePath(center geom.Pt, radius float64) geom.Path {
 func (s *Scatter2D) createTrianglePath(center geom.Pt, radius float64) geom.Path {
 	path := geom.Path{}
 
-	// Triangle vertices (equilateral triangle pointing up)
+	// Triangle vertices (equilateral triangle pointing up).
+	// Screen Y increases downward, so apex has smaller Y and base has larger Y.
 	height := radius * math.Sqrt(3) / 2
 	vertices := []geom.Pt{
-		{X: center.X, Y: center.Y + height},            // top
-		{X: center.X - radius, Y: center.Y - height/2}, // bottom-left
-		{X: center.X + radius, Y: center.Y - height/2}, // bottom-right
+		{X: center.X, Y: center.Y - height},            // apex (top)
+		{X: center.X - radius, Y: center.Y + height/2}, // base-left
+		{X: center.X + radius, Y: center.Y + height/2}, // base-right
 	}
 
 	for i, v := range vertices {

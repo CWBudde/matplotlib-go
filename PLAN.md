@@ -139,12 +139,15 @@ core.SavePNG(fig, r, "output.png")
 
 **Goal:** Expand the plotting vocabulary
 
-### 3.1 Histograms
+### 3.1 Histograms ✅
 
-- [ ] `Histogram` artist built on bar charts
-- [ ] Automatic binning with various bin strategies
-- [ ] Density normalization options
-- [ ] Example: `examples/histogram/basic.go`
+- [x] `Hist2D` artist for histogram plots
+- [x] Automatic binning strategies: Auto, Sturges, Scott, Freedman-Diaconis, Sqrt
+- [x] Explicit bin edges supported via `BinEdges` field
+- [x] Normalization modes: Count (default), Probability, Density
+- [x] `Axes.Hist()` convenience method with color cycling
+- [x] Comprehensive unit tests and golden tests (3 golden images)
+- [x] Example: `examples/histogram/basic.go`
 
 ### 3.2 Box Plots
 

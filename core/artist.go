@@ -313,11 +313,13 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		}
 		r.Restore()
 
-		// Draw tick labels and text labels outside the clip rect (in the margins)
+		// Draw ticks (outward), tick labels, and text labels outside the clip rect
 		if ax.XAxis != nil {
+			ax.XAxis.DrawTicks(r, ctx)
 			ax.XAxis.DrawTickLabels(r, ctx)
 		}
 		if ax.YAxis != nil {
+			ax.YAxis.DrawTicks(r, ctx)
 			ax.YAxis.DrawTickLabels(r, ctx)
 		}
 		drawAxesLabels(ax, r, ctx, px)
