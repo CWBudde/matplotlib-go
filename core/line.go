@@ -48,7 +48,25 @@ func (l *Line2D) Z() float64 {
 	return l.z
 }
 
-// Bounds returns an empty rect for now (will be enhanced in later phases).
+// Bounds returns the bounding box of all points in data space.
 func (l *Line2D) Bounds(*DrawContext) geom.Rect {
-	return geom.Rect{}
+	if len(l.XY) == 0 {
+		return geom.Rect{}
+	}
+	r := geom.Rect{Min: l.XY[0], Max: l.XY[0]}
+	for _, pt := range l.XY[1:] {
+		if pt.X < r.Min.X {
+			r.Min.X = pt.X
+		}
+		if pt.Y < r.Min.Y {
+			r.Min.Y = pt.Y
+		}
+		if pt.X > r.Max.X {
+			r.Max.X = pt.X
+		}
+		if pt.Y > r.Max.Y {
+			r.Max.Y = pt.Y
+		}
+	}
+	return r
 }

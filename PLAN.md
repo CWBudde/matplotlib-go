@@ -101,33 +101,36 @@ core.SavePNG(fig, r, "output.png")
 - [x] MinorLinearLocator for subdividing between major ticks
 - [x] Example: `examples/axes/spines/main.go`
 
-### 2.4 Grid Lines
+### 2.4 Grid Lines ✅
 
-- [ ] Major and minor grid lines
-- [ ] Grid styling (color, alpha, line style)
-- [ ] Grid behind/in front of data
-- [ ] Example: `examples/axes/grid.go`
+- [x] Major and minor grid lines
+- [x] Grid styling (color, alpha, line width, dash patterns)
+- [x] Grid behind data (z-order -1000)
+- [x] Custom locators per grid (major/minor independently)
+- [x] Example: `examples/axes/grid/main.go`
 
-### 2.5 Axis Limits and Scaling
+### 2.5 Axis Limits and Scaling ✅
 
-- [ ] `SetXLim(min, max)` and `SetYLim(min, max)` methods
-- [ ] Auto-scaling based on data bounds
-- [ ] Margin handling around data
-- [ ] Example: `examples/axes/limits.go`
+- [x] `SetXLim(min, max)` and `SetYLim(min, max)` methods
+- [x] `SetXLimLog`/`SetYLimLog` with auto-configured locators/formatters
+- [x] `AutoScale(margin)` — computes limits from artist bounds with configurable margin
+- [x] `Line2D.Bounds()` now returns actual data extent (was stub)
+- [x] Example: `examples/axes/limits/main.go`
 
-### 2.6 Text Labels using AGG Text Engine
+### 2.6 Text Labels using AGG Text Engine ✅
 
-- [ ] Text rendering using AGG's GSV vector font (built-in, no external fonts needed)
-- [ ] Title, xlabel, ylabel placement
-- [ ] Tick labels using existing formatters
-- [ ] Text alignment and rotation
-- [ ] Example: `examples/axes/labels.go`
+- [x] Text rendering using TrueType (Go Regular) with GSV vector font fallback
+- [x] Title, xlabel, ylabel placement with proper centering
+- [x] Tick labels using existing formatters (ScalarFormatter, LogFormatter)
+- [x] Vertical ylabel text via `DrawTextVertical` (character-by-character layout)
+- [x] `MeasureText` for layout calculations
+- [x] Example: `examples/axes/labels/main.go`
 
-**Exit Criteria:**
+**Exit Criteria:** ✅
 
 - All plots render with AGG anti-aliasing
 - Plots have proper axis lines, ticks, and labels
-- Grid lines work and look good
+- Grid lines work and look good (major + minor, dashed)
 - Axis limits can be set manually or auto-computed
 
 ---

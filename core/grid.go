@@ -7,13 +7,19 @@ import (
 
 // Grid renders grid lines at tick positions.
 type Grid struct {
-	Axis      AxisSide     // which axis to use for tick positions
-	Color     render.Color // grid line color
-	LineWidth float64      // width of grid lines
-	Alpha     float64      // alpha override (0-1), if 0 uses Color.A
-	Major     bool         // draw grid at major ticks
-	Minor     bool         // draw grid at minor ticks (not implemented yet)
-	z         float64      // z-order (should be behind data)
+	Axis           AxisSide     // which axis to use for tick positions
+	Color          render.Color // major grid line color
+	LineWidth      float64      // width of major grid lines
+	Dashes         []float64    // dash pattern for major grid (nil = solid)
+	Alpha          float64      // alpha override (0-1), if 0 uses Color.A
+	Major          bool         // draw grid at major ticks
+	Minor          bool         // draw grid at minor ticks
+	MinorColor     render.Color // minor grid line color (zero value uses Color with lower alpha)
+	MinorLineWidth float64      // width of minor grid lines (0 uses LineWidth*0.5)
+	MinorDashes    []float64    // dash pattern for minor grid (nil = solid)
+	Locator        Locator      // major tick locator (nil = LinearLocator)
+	MinorLocator   Locator      // minor tick locator (nil = MinorLinearLocator{N:5})
+	z              float64      // z-order (should be behind data)
 }
 
 // NewGrid creates a new grid for the specified axis.
@@ -31,71 +37,89 @@ func NewGrid(axis AxisSide) *Grid {
 
 // Draw renders grid lines at tick positions.
 func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
-	if !g.Major {
-		return // nothing to draw
+	if !g.Major && !g.Minor {
+		return
 	}
 
-	// Get the axis domain and locator
 	var min, max float64
-	var locator Locator
 	var isXAxis bool
 
 	switch g.Axis {
 	case AxisBottom, AxisTop:
 		min, max = ctx.DataToPixel.XScale.Domain()
 		isXAxis = true
-		// Use a default locator since we don't have direct access to axis
-		locator = LinearLocator{}
 	case AxisLeft, AxisRight:
 		min, max = ctx.DataToPixel.YScale.Domain()
-		isXAxis = false
-		locator = LinearLocator{}
 	}
 
-	// Calculate tick positions
-	ticks := locator.Ticks(min, max, 8)
-
-	// Get grid color
-	gridColor := g.Color
+	majorColor := g.Color
 	if g.Alpha > 0 && g.Alpha <= 1 {
-		gridColor.A = g.Alpha
+		majorColor.A = g.Alpha
 	}
 
-	// Draw grid lines
-	for _, tickValue := range ticks {
-		g.drawGridLine(r, ctx, tickValue, isXAxis, gridColor)
+	// Draw minor grid first (behind major)
+	if g.Minor {
+		minorLoc := g.MinorLocator
+		if minorLoc == nil {
+			minorLoc = MinorLinearLocator{N: 5}
+		}
+		minorTicks := minorLoc.Ticks(min, max, 30)
+
+		minorColor := g.MinorColor
+		if minorColor == (render.Color{}) {
+			minorColor = majorColor
+			minorColor.A = majorColor.A * 0.4
+		}
+		minorWidth := g.MinorLineWidth
+		if minorWidth <= 0 {
+			minorWidth = g.LineWidth * 0.5
+		}
+
+		for _, v := range minorTicks {
+			g.drawLine(r, ctx, v, isXAxis, minorColor, minorWidth, g.MinorDashes)
+		}
+	}
+
+	// Draw major grid
+	if g.Major {
+		loc := g.Locator
+		if loc == nil {
+			loc = LinearLocator{}
+		}
+		ticks := loc.Ticks(min, max, 8)
+
+		for _, v := range ticks {
+			g.drawLine(r, ctx, v, isXAxis, majorColor, g.LineWidth, g.Dashes)
+		}
 	}
 }
 
-// drawGridLine draws a single grid line.
-func (g *Grid) drawGridLine(r render.Renderer, ctx *DrawContext, tickValue float64, isXAxis bool, color render.Color) {
+// drawLine draws a single grid line.
+func (g *Grid) drawLine(r render.Renderer, ctx *DrawContext, tickValue float64, isXAxis bool, color render.Color, width float64, dashes []float64) {
 	var p1, p2 geom.Pt
 
 	if isXAxis {
-		// Vertical grid line (for x-axis ticks)
 		yMin, yMax := ctx.DataToPixel.YScale.Domain()
 		p1 = ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: yMin})
 		p2 = ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: yMax})
 	} else {
-		// Horizontal grid line (for y-axis ticks)
 		xMin, xMax := ctx.DataToPixel.XScale.Domain()
 		p1 = ctx.DataToPixel.Apply(geom.Pt{X: xMin, Y: tickValue})
 		p2 = ctx.DataToPixel.Apply(geom.Pt{X: xMax, Y: tickValue})
 	}
 
-	// Create line path
 	path := geom.Path{}
 	path.C = append(path.C, geom.MoveTo)
 	path.V = append(path.V, p1)
 	path.C = append(path.C, geom.LineTo)
 	path.V = append(path.V, p2)
 
-	// Draw the grid line
 	paint := render.Paint{
-		LineWidth: g.LineWidth,
+		LineWidth: width,
 		Stroke:    color,
 		LineCap:   render.CapButt,
 		LineJoin:  render.JoinMiter,
+		Dashes:    dashes,
 	}
 	r.Path(path, &paint)
 }

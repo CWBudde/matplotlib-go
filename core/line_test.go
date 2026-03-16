@@ -74,10 +74,10 @@ func TestLine2D_BasicFunctionality(t *testing.T) {
 		t.Errorf("Expected Z() = 1.0, got %f", line.Z())
 	}
 
-	// Test Bounds() method (should return empty rect for now)
+	// Test Bounds() returns the data bounding box of the line
 	bounds := line.Bounds(nil)
-	if bounds.Min.X != 0 || bounds.Min.Y != 0 || bounds.Max.X != 0 || bounds.Max.Y != 0 {
-		t.Errorf("Expected empty bounds, got %+v", bounds)
+	if bounds.Min.X != 0 || bounds.Min.Y != 0 || bounds.Max.X != 10 || bounds.Max.Y != 0.9 {
+		t.Errorf("Unexpected bounds, got %+v", bounds)
 	}
 
 	// Test Draw() method doesn't panic
@@ -116,4 +116,74 @@ func TestLine2D_AsArtist(t *testing.T) {
 	// Test that the figure can be drawn without panic
 	var r render.NullRenderer
 	DrawFigure(fig, &r)
+}
+
+func TestLine2D_Bounds(t *testing.T) {
+	line := &Line2D{
+		XY: []geom.Pt{{X: 2, Y: -1}, {X: 5, Y: 3}, {X: 8, Y: 0}},
+	}
+	b := line.Bounds(nil)
+	if b.Min.X != 2 || b.Min.Y != -1 || b.Max.X != 8 || b.Max.Y != 3 {
+		t.Errorf("unexpected bounds: %v", b)
+	}
+}
+
+func TestLine2D_BoundsEmpty(t *testing.T) {
+	line := &Line2D{}
+	b := line.Bounds(nil)
+	if b.W() != 0 || b.H() != 0 {
+		t.Errorf("empty line should have zero bounds: %v", b)
+	}
+}
+
+func TestAutoScale(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	ax.Add(&Line2D{XY: []geom.Pt{{X: 2, Y: -1}, {X: 8, Y: 5}}})
+	ax.Add(&Line2D{XY: []geom.Pt{{X: 0, Y: 0}, {X: 10, Y: 3}}})
+
+	ax.AutoScale(0)
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+
+	if xMin != 0 || xMax != 10 {
+		t.Errorf("x limits: got [%v, %v], want [0, 10]", xMin, xMax)
+	}
+	if yMin != -1 || yMax != 5 {
+		t.Errorf("y limits: got [%v, %v], want [-1, 5]", yMin, yMax)
+	}
+}
+
+func TestAutoScaleWithMargin(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	ax.Add(&Line2D{XY: []geom.Pt{{X: 0, Y: 0}, {X: 10, Y: 10}}})
+
+	ax.AutoScale(0.1) // 10% margin
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+
+	// 10% of span=10 is 1, so limits should be [-1, 11]
+	if xMin != -1 || xMax != 11 {
+		t.Errorf("x limits: got [%v, %v], want [-1, 11]", xMin, xMax)
+	}
+	if yMin != -1 || yMax != 11 {
+		t.Errorf("y limits: got [%v, %v], want [-1, 11]", yMin, yMax)
+	}
+}
+
+func TestAutoScaleNoData(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	ax.XScale = transform.NewLinear(0, 1)
+	ax.YScale = transform.NewLinear(0, 1)
+
+	// AutoScale with no artists should not change limits
+	ax.AutoScale(0.05)
+	xMin, xMax := ax.XScale.Domain()
+	if xMin != 0 || xMax != 1 {
+		t.Errorf("limits should be unchanged with no data: got [%v, %v]", xMin, xMax)
+	}
 }

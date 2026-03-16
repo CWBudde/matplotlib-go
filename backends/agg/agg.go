@@ -323,10 +323,36 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 	}
 
 	r.setFont(size)
-	agg := r.ctx.GetAgg2D()
-	agg.FillColor(renderColorToAGG(textColor))
-	agg.LineColor(renderColorToAGG(textColor))
-	agg.Text(origin.X, origin.Y, text, true, 0, 0)
+	a := r.ctx.GetAgg2D()
+	a.FillColor(renderColorToAGG(textColor))
+	a.LineColor(renderColorToAGG(textColor))
+	a.Text(origin.X, origin.Y, text, true, 0, 0)
+}
+
+// DrawTextVertical renders text vertically (one character per line, top to bottom).
+// This is used for ylabel rendering where true rotation is not available.
+func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, textColor render.Color) {
+	if text == "" {
+		return
+	}
+
+	r.setFont(size)
+	a := r.ctx.GetAgg2D()
+	a.FillColor(renderColorToAGG(textColor))
+	a.LineColor(renderColorToAGG(textColor))
+
+	h := a.FontHeight()
+	runes := []rune(text)
+	totalH := float64(len(runes)) * h
+	y := center.Y - totalH/2 + h // start from top, offset by one line height
+
+	for _, ch := range runes {
+		s := string(ch)
+		w := a.TextWidth(s)
+		x := center.X - w/2
+		a.Text(x, y, s, true, 0, 0)
+		y += h
+	}
 }
 
 // GetImage returns the rendered image as a standard Go image.RGBA.

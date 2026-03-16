@@ -75,8 +75,9 @@ type Axes struct {
 	zsorted      bool
 
 	// Axis control
-	XAxis *Axis // bottom x-axis
-	YAxis *Axis // left y-axis
+	XAxis     *Axis // bottom x-axis
+	YAxis     *Axis // left y-axis
+	ShowFrame bool  // draw top and right border lines (default true)
 
 	// Text labels
 	Title  string // title above the plot
@@ -102,6 +103,7 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 		YScale:       transform.NewLinear(0, 1),
 		XAxis:        NewXAxis(),
 		YAxis:        NewYAxis(),
+		ShowFrame:    true,
 		ColorCycle:   color.NewDefaultColorCycle(),
 	}
 	f.Children = append(f.Children, ax)
@@ -137,6 +139,60 @@ func (a *Axes) SetYLimLog(min, max, base float64) {
 		a.YAxis.Locator = LogLocator{Base: base, Minor: false}
 		a.YAxis.Formatter = LogFormatter{Base: base}
 	}
+}
+
+// AutoScale computes axis limits from the data bounds of all artists,
+// adding the specified margin fraction on each side (e.g. 0.05 = 5%).
+// A margin of 0 fits exactly to the data. If no artists have non-zero bounds,
+// limits remain unchanged.
+func (a *Axes) AutoScale(margin float64) {
+	var xMin, xMax, yMin, yMax float64
+	first := true
+
+	for _, art := range a.Artists {
+		b := art.Bounds(nil)
+		if b.W() == 0 && b.H() == 0 && b.Min.X == 0 && b.Min.Y == 0 {
+			continue // skip zero-bounds artists (grids, etc.)
+		}
+		if first {
+			xMin, xMax = b.Min.X, b.Max.X
+			yMin, yMax = b.Min.Y, b.Max.Y
+			first = false
+		} else {
+			if b.Min.X < xMin {
+				xMin = b.Min.X
+			}
+			if b.Max.X > xMax {
+				xMax = b.Max.X
+			}
+			if b.Min.Y < yMin {
+				yMin = b.Min.Y
+			}
+			if b.Max.Y > yMax {
+				yMax = b.Max.Y
+			}
+		}
+	}
+	if first {
+		return // no data artists
+	}
+
+	// Apply margin
+	xSpan := xMax - xMin
+	ySpan := yMax - yMin
+	if xSpan == 0 {
+		xSpan = 1 // avoid zero-span
+	}
+	if ySpan == 0 {
+		ySpan = 1
+	}
+	xMin -= xSpan * margin
+	xMax += xSpan * margin
+	yMin -= ySpan * margin
+	yMax += ySpan * margin
+
+	a.XScale = transform.NewLinear(xMin, xMax)
+	a.YScale = transform.NewLinear(yMin, yMax)
 }
 
 // AddGrid adds grid lines for the specified axis.
@@ -248,6 +304,13 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		if ax.YAxis != nil {
 			ax.YAxis.Draw(r, ctx)
 		}
+		if ax.ShowFrame {
+			ref := ax.XAxis
+			if ref == nil {
+				ref = ax.YAxis
+			}
+			DrawFrame(r, ctx, ref)
+		}
 		r.Restore()
 
 		// Draw tick labels and text labels outside the clip rect (in the margins)
@@ -265,6 +328,10 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect) {
 	type textRenderer interface {
 		DrawText(text string, origin geom.Pt, size float64, textColor render.Color)
+	}
+	type verticalTextRenderer interface {
+		textRenderer
+		DrawTextVertical(text string, center geom.Pt, size float64, textColor render.Color)
 	}
 
 	textRen, ok := r.(textRenderer)
@@ -292,12 +359,18 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 		textRen.DrawText(ax.XLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
 	}
 
-	// YLabel: centered left of the y-axis tick labels (drawn horizontally for simplicity)
+	// YLabel: vertical text if supported, else horizontal fallback
 	if ax.YLabel != "" {
-		metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
-		x := px.Min.X - 60 - metrics.W/2
-		y := px.Min.Y + px.H()/2 + metrics.H/2
-		textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+		if vertRen, ok := r.(verticalTextRenderer); ok {
+			x := px.Min.X - 55
+			y := px.Min.Y + px.H()/2
+			vertRen.DrawTextVertical(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+		} else {
+			metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
+			x := px.Min.X - 60 - metrics.W/2
+			y := px.Min.Y + px.H()/2 + metrics.H/2
+			textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+		}
 	}
 }
 

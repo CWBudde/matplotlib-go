@@ -1,6 +1,8 @@
 package core
 
 import (
+	"math"
+
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
@@ -81,7 +83,7 @@ func (a *Axis) Draw(r render.Renderer, ctx *DrawContext) {
 
 	// Draw spine (axis line)
 	if a.ShowSpine {
-		a.drawSpine(r, ctx, isXAxis)
+		a.drawSpine(r, ctx)
 	}
 
 	// Draw minor tick marks first (behind major)
@@ -99,41 +101,51 @@ func (a *Axis) Draw(r render.Renderer, ctx *DrawContext) {
 	// Tick labels are drawn outside the clip via DrawTickLabels (called from DrawFigure)
 }
 
-// drawSpine draws the main axis line.
-func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext, isXAxis bool) {
-	var p1, p2 geom.Pt
+// drawSpine draws the main axis line directly in pixel space.
+// Lines are snapped inward by half their width so the stroke falls entirely
+// within the clip rectangle, avoiding sub-pixel anti-aliasing artifacts.
+func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext) {
+	px := ctx.Clip
+	lw := a.LineWidth
+	half := lw / 2
+	p1, p2 := spinePixelEndpoints(a.Side, px, half)
 
-	if isXAxis {
-		// Horizontal spine
-		min, max := ctx.DataToPixel.XScale.Domain()
-		y := getSpinePosition(a.Side, ctx)
-
-		p1 = ctx.DataToPixel.Apply(geom.Pt{X: min, Y: y})
-		p2 = ctx.DataToPixel.Apply(geom.Pt{X: max, Y: y})
-	} else {
-		// Vertical spine
-		min, max := ctx.DataToPixel.YScale.Domain()
-		x := getSpinePosition(a.Side, ctx)
-
-		p1 = ctx.DataToPixel.Apply(geom.Pt{X: x, Y: min})
-		p2 = ctx.DataToPixel.Apply(geom.Pt{X: x, Y: max})
-	}
-
-	// Create line path
-	path := geom.Path{}
-	path.C = append(path.C, geom.MoveTo)
-	path.V = append(path.V, p1)
-	path.C = append(path.C, geom.LineTo)
-	path.V = append(path.V, p2)
-
-	// Draw the spine
 	paint := render.Paint{
-		LineWidth: a.LineWidth,
+		LineWidth: lw,
 		Stroke:    a.Color,
 		LineCap:   render.CapButt,
 		LineJoin:  render.JoinMiter,
 	}
+	path := geom.Path{
+		C: []geom.Cmd{geom.MoveTo, geom.LineTo},
+		V: []geom.Pt{p1, p2},
+	}
 	r.Path(path, &paint)
+}
+
+// spinePixelEndpoints returns the two pixel-space endpoints for a spine on the
+// given side of px, snapped inward by `inset` pixels.
+func spinePixelEndpoints(side AxisSide, px geom.Rect, inset float64) (geom.Pt, geom.Pt) {
+	x1 := math.Round(px.Min.X)
+	y1 := math.Round(px.Min.Y)
+	x2 := math.Round(px.Max.X)
+	y2 := math.Round(px.Max.Y)
+
+	switch side {
+	case AxisBottom:
+		y := y2 - inset
+		return geom.Pt{X: x1, Y: y}, geom.Pt{X: x2, Y: y}
+	case AxisTop:
+		y := y1 + inset
+		return geom.Pt{X: x1, Y: y}, geom.Pt{X: x2, Y: y}
+	case AxisLeft:
+		x := x1 + inset
+		return geom.Pt{X: x, Y: y1}, geom.Pt{X: x, Y: y2}
+	case AxisRight:
+		x := x2 - inset
+		return geom.Pt{X: x, Y: y1}, geom.Pt{X: x, Y: y2}
+	}
+	return geom.Pt{}, geom.Pt{}
 }
 
 // drawTicks draws tick marks at the specified positions.
@@ -201,6 +213,34 @@ func (a *Axis) drawSingleTick(r render.Renderer, ctx *DrawContext, tickValue, ti
 		LineJoin:  render.JoinMiter,
 	}
 	r.Path(path, &paint)
+}
+
+// DrawFrame draws the top and right border lines of the axes box directly in
+// pixel space, snapped to crisp integer-aligned positions.
+func DrawFrame(r render.Renderer, ctx *DrawContext, ref *Axis) {
+	if ref == nil || !ref.ShowSpine {
+		return
+	}
+	paint := render.Paint{
+		LineWidth: ref.LineWidth,
+		Stroke:    ref.Color,
+		LineCap:   render.CapButt,
+		LineJoin:  render.JoinMiter,
+	}
+	half := ref.LineWidth / 2
+
+	drawLine := func(p1, p2 geom.Pt) {
+		path := geom.Path{
+			C: []geom.Cmd{geom.MoveTo, geom.LineTo},
+			V: []geom.Pt{p1, p2},
+		}
+		r.Path(path, &paint)
+	}
+
+	p1, p2 := spinePixelEndpoints(AxisTop, ctx.Clip, half)
+	drawLine(p1, p2)
+	p1, p2 = spinePixelEndpoints(AxisRight, ctx.Clip, half)
+	drawLine(p1, p2)
 }
 
 // getSpinePosition returns the data coordinate where the spine should be drawn.

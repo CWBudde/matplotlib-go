@@ -183,6 +183,45 @@ func TestGrid_Disabled(t *testing.T) {
 	}
 }
 
+func TestGrid_MinorDraw(t *testing.T) {
+	grid := NewGrid(AxisBottom)
+	grid.Minor = true
+	grid.MinorDashes = []float64{2, 3}
+
+	renderer := &render.NullRenderer{}
+	ctx := createTestDrawContext()
+
+	_ = renderer.Begin(geom.Rect{})
+	// Should not panic with minor grid enabled
+	grid.Draw(renderer, ctx)
+	_ = renderer.End()
+}
+
+func TestGrid_MinorOnlyDraw(t *testing.T) {
+	grid := NewGrid(AxisLeft)
+	grid.Major = false
+	grid.Minor = true
+
+	renderer := &render.NullRenderer{}
+	ctx := createTestDrawContext()
+
+	_ = renderer.Begin(geom.Rect{})
+	grid.Draw(renderer, ctx)
+	_ = renderer.End()
+}
+
+func TestGrid_CustomLocator(t *testing.T) {
+	grid := NewGrid(AxisBottom)
+	grid.Locator = LogLocator{Base: 10}
+
+	renderer := &render.NullRenderer{}
+	ctx := createTestDrawContext()
+
+	_ = renderer.Begin(geom.Rect{})
+	grid.Draw(renderer, ctx)
+	_ = renderer.End()
+}
+
 func TestAxes_AddGrid(t *testing.T) {
 	// Test adding grids to axes
 	axes := &Axes{
