@@ -6,6 +6,7 @@ import (
 
 	"matplotlib-go/backends"
 	"matplotlib-go/render"
+	_ "matplotlib-go/backends/agg"     // Register AGG
 	_ "matplotlib-go/backends/gobasic" // Register GoBasic
 	_ "matplotlib-go/backends/skia"    // Register Skia (stub)
 )

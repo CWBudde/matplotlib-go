@@ -13,7 +13,8 @@ type Backend string
 const (
 	GoBasic Backend = "gobasic"
 	Skia    Backend = "skia"
-	// Future backends: AGG, PDF, SVG, etc.
+	AGG     Backend = "agg"
+	// Future backends: PDF, SVG, etc.
 )
 
 // Capability represents a backend feature capability.

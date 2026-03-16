@@ -3,10 +3,13 @@ module matplotlib-go
 go 1.24.0
 
 require (
+	agg_go v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	golang.org/x/image v0.30.0 // pinned to commit c574db581976698ac047466629eeeb7b17bb49dd for determinism
 )
+
+replace agg_go => github.com/MeKo-Christian/agg_go v0.0.0-20250826144629-9ca521ccc14d
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
