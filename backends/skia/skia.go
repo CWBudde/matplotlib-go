@@ -163,7 +163,7 @@ func (r *Renderer) SavePNG(path string) error {
 	// TODO: Use Skia's image encoding
 	// - Create SkImage from surface
 	// - Encode as PNG with appropriate compression
-	return fmt.Errorf("Skia backend not implemented - use gobasic backend")
+	return fmt.Errorf("Skia backend not implemented - use agg backend")
 }
 
 // FlushGPU flushes pending GPU operations (if using GPU backend).

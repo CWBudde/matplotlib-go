@@ -178,19 +178,19 @@ func TestPathStroke(t *testing.T) {
 
 func TestMeasureText(t *testing.T) {
 	r := New(200, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
-	
+
 	// Test empty string
 	metrics := r.MeasureText("", 12, "default")
 	if metrics.W != 0 || metrics.H != 0 {
 		t.Errorf("Expected zero metrics for empty string, got W=%v, H=%v", metrics.W, metrics.H)
 	}
-	
+
 	// Test basic text
 	metrics = r.MeasureText("Hello", 13, "default")
 	if metrics.W <= 0 || metrics.H <= 0 {
 		t.Errorf("Expected positive metrics for text, got W=%v, H=%v", metrics.W, metrics.H)
 	}
-	
+
 	// Test scaling - larger size should give larger metrics
 	metricsSmall := r.MeasureText("Test", 10, "default")
 	metricsLarge := r.MeasureText("Test", 20, "default")
@@ -200,49 +200,44 @@ func TestMeasureText(t *testing.T) {
 	}
 }
 
-func TestDrawText(t *testing.T) {
+func TestDrawTextNoOp(t *testing.T) {
 	r := New(200, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
-	
+
 	err := r.Begin(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 200, Y: 100}})
 	if err != nil {
 		t.Fatalf("Begin failed: %v", err)
 	}
 	defer r.End()
-	
-	// Test drawing text
+
+	// Text is intentionally a no-op in GoBasic.
 	textColor := render.Color{R: 0, G: 0, B: 0, A: 1} // black
 	origin := geom.Pt{X: 10, Y: 50}
 	r.DrawText("Hello, World!", origin, 13, textColor)
-	
-	// Verify that the image has been modified (some pixels should not be white)
+
+	// Verify that the image has not been modified.
 	img := r.GetImage()
 	bounds := img.Bounds()
-	
-	foundNonWhite := false
+
 	whiteColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	
-	for y := bounds.Min.Y; y < bounds.Max.Y && !foundNonWhite; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X && !foundNonWhite; x++ {
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			if c := img.RGBAAt(x, y); c != whiteColor {
-				foundNonWhite = true
+				t.Fatalf("Expected no pixels to change after DrawText, but found %v at %d,%d", c, x, y)
 			}
 		}
-	}
-	
-	if !foundNonWhite {
-		t.Error("Expected to find non-white pixels after drawing text, but image appears unchanged")
 	}
 }
 
 func TestGlyphRun(t *testing.T) {
 	r := New(200, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
-	
+
 	err := r.Begin(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 200, Y: 100}})
 	if err != nil {
 		t.Fatalf("Begin failed: %v", err)
 	}
 	defer r.End()
-	
+
 	// Test GlyphRun - should not panic even with limited implementation
 	glyphRun := render.GlyphRun{
 		Glyphs:  []render.Glyph{{ID: 1, Advance: 7, Offset: geom.Pt{}}},
@@ -251,7 +246,7 @@ func TestGlyphRun(t *testing.T) {
 		FontKey: "default",
 	}
 	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
-	
+
 	// Should not panic
 	r.GlyphRun(glyphRun, textColor)
 }

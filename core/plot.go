@@ -7,11 +7,11 @@ import (
 
 // PlotOptions holds optional parameters for plotting functions.
 type PlotOptions struct {
-	Color      *render.Color // if nil, uses automatic color cycling
-	LineWidth  *float64      // if nil, uses default
-	Dashes     []float64     // dash pattern
-	Label      string        // series label for legend
-	Alpha      *float64      // alpha transparency
+	Color     *render.Color // if nil, uses automatic color cycling
+	LineWidth *float64      // if nil, uses default
+	Dashes    []float64     // dash pattern
+	Label     string        // series label for legend
+	Alpha     *float64      // alpha transparency
 }
 
 // Plot creates a line plot with automatic color cycling if no color is specified.
@@ -68,13 +68,13 @@ func (a *Axes) Plot(x, y []float64, opts ...PlotOptions) *Line2D {
 
 // ScatterOptions holds optional parameters for scatter plots.
 type ScatterOptions struct {
-	Color      *render.Color // if nil, uses automatic color cycling
-	Size       *float64      // marker size
-	Marker     *MarkerType   // marker type
-	EdgeColor  *render.Color // edge color
-	EdgeWidth  *float64      // edge width
-	Alpha      *float64      // alpha transparency
-	Label      string        // series label for legend
+	Color     *render.Color // if nil, uses automatic color cycling
+	Size      *float64      // marker size
+	Marker    *MarkerType   // marker type
+	EdgeColor *render.Color // edge color
+	EdgeWidth *float64      // edge width
+	Alpha     *float64      // alpha transparency
+	Label     string        // series label for legend
 }
 
 // Scatter creates a scatter plot with automatic color cycling if no color is specified.
@@ -296,10 +296,10 @@ func (a *Axes) FillBetweenPlot(x, y1, y2 []float64, opts ...FillOptions) *Fill2D
 
 // HistOptions holds optional parameters for histogram plots.
 type HistOptions struct {
-	Bins      int          // number of bins (0 = auto)
-	BinEdges  []float64    // explicit bin edges (overrides Bins)
-	BinStrat  BinStrategy  // automatic binning strategy
-	Norm      HistNorm     // normalization mode
+	Bins      int         // number of bins (0 = auto)
+	BinEdges  []float64   // explicit bin edges (overrides Bins)
+	BinStrat  BinStrategy // automatic binning strategy
+	Norm      HistNorm    // normalization mode
 	Color     *render.Color
 	EdgeColor *render.Color
 	EdgeWidth *float64
@@ -353,6 +353,136 @@ func (a *Axes) Hist(data []float64, opts ...HistOptions) *Hist2D {
 
 	a.Add(hist)
 	return hist
+}
+
+// BoxPlotOptions holds optional parameters for box plots.
+type BoxPlotOptions struct {
+	Position     *float64      // x position of the box center
+	Width        *float64      // box width in data units
+	Color        *render.Color // box fill color
+	EdgeColor    *render.Color // box outline color
+	MedianColor  *render.Color // median line color
+	WhiskerColor *render.Color // whisker and cap color
+	CapColor     *render.Color // whisker cap color
+	FlierColor   *render.Color // outlier marker color
+	EdgeWidth    *float64      // box outline width in pixels
+	WhiskerWidth *float64      // whisker line width in pixels
+	MedianWidth  *float64      // median line width in pixels
+	CapWidth     *float64      // cap length in data units
+	FlierSize    *float64      // outlier marker radius in pixels
+	Alpha        *float64      // alpha transparency
+	ShowFliers   *bool         // whether to draw outliers
+	Label        string        // series label for legend
+}
+
+// BoxPlot creates a box plot from raw sample data with automatic color cycling.
+func (a *Axes) BoxPlot(data []float64, opts ...BoxPlotOptions) *BoxPlot2D {
+	if len(data) == 0 {
+		return nil
+	}
+
+	var opt BoxPlotOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	position := 1.0
+	if opt.Position != nil {
+		position = *opt.Position
+	}
+
+	width := 0.6
+	if opt.Width != nil {
+		width = *opt.Width
+	}
+
+	color := a.NextColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+
+	edgeColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+	if opt.EdgeColor != nil {
+		edgeColor = *opt.EdgeColor
+	}
+
+	medianColor := edgeColor
+	if opt.MedianColor != nil {
+		medianColor = *opt.MedianColor
+	}
+
+	whiskerColor := edgeColor
+	if opt.WhiskerColor != nil {
+		whiskerColor = *opt.WhiskerColor
+	}
+
+	capColor := whiskerColor
+	if opt.CapColor != nil {
+		capColor = *opt.CapColor
+	}
+
+	flierColor := edgeColor
+	if opt.FlierColor != nil {
+		flierColor = *opt.FlierColor
+	}
+
+	edgeWidth := 1.0
+	if opt.EdgeWidth != nil {
+		edgeWidth = *opt.EdgeWidth
+	}
+
+	whiskerWidth := 1.0
+	if opt.WhiskerWidth != nil {
+		whiskerWidth = *opt.WhiskerWidth
+	}
+
+	medianWidth := 1.5
+	if opt.MedianWidth != nil {
+		medianWidth = *opt.MedianWidth
+	}
+
+	capWidth := width * 0.5
+	if opt.CapWidth != nil {
+		capWidth = *opt.CapWidth
+	}
+
+	flierSize := 3.5
+	if opt.FlierSize != nil {
+		flierSize = *opt.FlierSize
+	}
+
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+
+	showFliers := true
+	if opt.ShowFliers != nil {
+		showFliers = *opt.ShowFliers
+	}
+
+	box := &BoxPlot2D{
+		Data:         data,
+		Position:     position,
+		Width:        width,
+		Color:        color,
+		EdgeColor:    edgeColor,
+		MedianColor:  medianColor,
+		WhiskerColor: whiskerColor,
+		CapColor:     capColor,
+		FlierColor:   flierColor,
+		EdgeWidth:    edgeWidth,
+		WhiskerWidth: whiskerWidth,
+		MedianWidth:  medianWidth,
+		CapWidth:     capWidth,
+		FlierSize:    flierSize,
+		Alpha:        alpha,
+		ShowFliers:   showFliers,
+		Label:        opt.Label,
+	}
+
+	a.Add(box)
+	return box
 }
 
 // FillToBaselinePlot creates a fill from a curve to baseline with automatic color cycling.

@@ -10,5 +10,6 @@
 //   - State stack for Save/Restore operations
 //   - PNG export via image/png package
 //
-// This is the primary backend for Phase B of matplotlib-go development.
+// This backend is kept as a pure-Go reference implementation and compatibility
+// fallback, while AGG is the default renderer in the current port.
 package gobasic

@@ -88,6 +88,10 @@ func TestHistStrategies_Golden(t *testing.T) {
 	runGoldenTest(t, "hist_strategies", renderHistStrategies)
 }
 
+func TestBoxPlotBasic_Golden(t *testing.T) {
+	runGoldenTest(t, "boxplot_basic", renderBoxPlotBasic)
+}
+
 // runGoldenTest is a helper function for golden image testing
 func runGoldenTest(t *testing.T, testName string, renderFunc func() image.Image) {
 	// Render the plot
@@ -120,20 +124,20 @@ func runGoldenTest(t *testing.T, testName string, renderFunc func() image.Image)
 	// Check if images are within tolerance
 	if !diff.Identical {
 		// Save debug images
-		artifactsDir := "../_artifacts"
+		artifactsDir := "../testdata/_artifacts"
 		if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
-			t.Logf("Warning: could not create artifacts directory: %v", err)
+			t.Fatalf("Could not create artifacts directory %s: %v", artifactsDir, err)
 		} else {
 			// Save the rendered image
 			gotPath := filepath.Join(artifactsDir, testName+"_got.png")
 			if err := imagecmp.SavePNG(img, gotPath); err != nil {
-				t.Logf("Warning: could not save got image: %v", err)
+				t.Fatalf("Could not save got image %s: %v", gotPath, err)
 			}
 
 			// Save the diff image
 			diffPath := filepath.Join(artifactsDir, testName+"_diff.png")
 			if err := imagecmp.SaveDiffImage(img, want, 1, diffPath); err != nil {
-				t.Logf("Warning: could not save diff image: %v", err)
+				t.Fatalf("Could not save diff image %s: %v", diffPath, err)
 			}
 
 			t.Logf("Debug images saved to %s/", artifactsDir)
@@ -741,6 +745,84 @@ func renderHistStrategies() image.Image {
 	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
+}
+
+// renderBoxPlotBasic creates a multi-series box plot for golden testing.
+func renderBoxPlotBasic() image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.XScale = transform.NewLinear(0, 4)
+	ax.YScale = transform.NewLinear(0, 10)
+	ax.SetTitle("Box Plots")
+	ax.SetXLabel("Group")
+	ax.SetYLabel("Value")
+	ax.AddYGrid()
+
+	alpha := 0.75
+	boxWidth := 0.55
+	edgeWidth := 1.2
+	whiskerWidth := 1.2
+	medianWidth := 1.8
+	capWidth := 0.35
+	flierSize := 4.0
+
+	boxSpecs := []struct {
+		data     []float64
+		position float64
+		color    render.Color
+	}{
+		{
+			data:     []float64{0.9, 1.0, 1.1, 1.2, 1.3, 1.45, 1.5, 1.7, 1.8},
+			position: 1.0,
+			color:    render.Color{R: 0.25, G: 0.55, B: 0.82, A: 1},
+		},
+		{
+			data:     []float64{4.0, 4.2, 4.3, 4.5, 4.8, 5.0, 5.4, 5.8, 9.4},
+			position: 2.0,
+			color:    render.Color{R: 0.80, G: 0.45, B: 0.20, A: 1},
+		},
+		{
+			data:     []float64{2.0, 2.1, 2.1, 2.2, 2.3, 2.4, 2.4, 2.6, 3.8},
+			position: 3.0,
+			color:    render.Color{R: 0.35, G: 0.70, B: 0.35, A: 1},
+		},
+	}
+
+	black := render.Color{R: 0, G: 0, B: 0, A: 1}
+	for _, spec := range boxSpecs {
+		pos := spec.position
+		ax.BoxPlot(spec.data, core.BoxPlotOptions{
+			Position:     &pos,
+			Width:        &boxWidth,
+			Color:        &spec.color,
+			EdgeColor:    &black,
+			MedianColor:  &black,
+			WhiskerColor: &black,
+			CapColor:     &black,
+			FlierColor:   &black,
+			EdgeWidth:    &edgeWidth,
+			WhiskerWidth: &whiskerWidth,
+			MedianWidth:  &medianWidth,
+			CapWidth:     &capWidth,
+			FlierSize:    &flierSize,
+			Alpha:        &alpha,
+			ShowFliers:   boolPtr(true),
+		})
+	}
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 // renderMultiSeriesColorCycle creates a plot demonstrating automatic color cycling

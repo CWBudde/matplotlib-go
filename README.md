@@ -54,15 +54,15 @@ This project uses golden image testing to ensure visual consistency across platf
 make test
 
 # Run only golden image tests
-go test ./test/
+go test -tags freetype ./test/
 
 # Update golden images when making intentional changes
-go test ./test/ -update-golden
+go test -tags freetype ./test/ -update-golden
 ```
 
 ### Golden Image Testing
 
-Golden tests compare rendered output against reference images stored in `testdata/golden/`. When tests fail, debug artifacts are saved to `_artifacts/` and uploaded by CI:
+Golden tests compare rendered output against reference images stored in `testdata/golden/`. When tests fail, debug artifacts are saved to `testdata/_artifacts/` and uploaded by CI:
 
 - `*_got.png`: Actual rendered output
 - `*_want.png`: Expected golden reference

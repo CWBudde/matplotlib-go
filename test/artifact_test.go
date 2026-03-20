@@ -33,7 +33,7 @@ func TestArtifactGeneration(t *testing.T) {
 	}
 
 	// Generate artifacts like a real golden test would
-	artifactsDir := "../_artifacts"
+	artifactsDir := "../testdata/_artifacts"
 	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
 		t.Fatalf("Could not create artifacts directory: %v", err)
 	}

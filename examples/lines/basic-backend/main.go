@@ -6,18 +6,17 @@ import (
 	"os"
 
 	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 	"matplotlib-go/transform"
-	_ "matplotlib-go/backends/gobasic" // Register GoBasic
-	_ "matplotlib-go/backends/skia"    // Register Skia (stub)
 )
 
 func main() {
 	// Command line flags
 	var (
-		backendFlag = flag.String("backend", "gobasic", "Rendering backend (gobasic, skia)")
+		backendFlag = flag.String("backend", string(backends.AutoBackend), "Rendering backend (auto, agg, gobasic, skia)")
 		outputFlag  = flag.String("output", "out.png", "Output filename")
 		widthFlag   = flag.Int("width", 640, "Image width")
 		heightFlag  = flag.Int("height", 360, "Image height")
@@ -33,26 +32,6 @@ func main() {
 			fmt.Printf("  %s - %s\n", backend, info.Description)
 		}
 		return
-	}
-
-	// Validate backend
-	backend := backends.Backend(*backendFlag)
-	available := backends.Available()
-	found := false
-	for _, b := range available {
-		if b == backend {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		fmt.Printf("Error: Backend '%s' not available\n", backend)
-		fmt.Println("Available backends:")
-		for _, b := range available {
-			fmt.Printf("  %s\n", b)
-		}
-		os.Exit(1)
 	}
 
 	// Create figure
@@ -84,7 +63,7 @@ func main() {
 	// Add line to axes
 	ax.Add(line)
 
-	// Create renderer using backend factory
+	// Create renderer using the registry helper
 	config := backends.Config{
 		Width:      *widthFlag,
 		Height:     *heightFlag,
@@ -92,9 +71,9 @@ func main() {
 		DPI:        72.0,
 	}
 
-	renderer, err := backends.Create(backend, config)
+	renderer, backend, err := backends.NewRenderer(*backendFlag, config, nil)
 	if err != nil {
-		fmt.Printf("Error creating %s renderer: %v\n", backend, err)
+		fmt.Printf("Error creating renderer: %v\n", err)
 		os.Exit(1)
 	}
 

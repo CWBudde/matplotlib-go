@@ -8,9 +8,6 @@ import (
 	"math"
 	"os"
 
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
-	"golang.org/x/image/math/fixed"
 	"golang.org/x/image/vector"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -265,8 +262,8 @@ func (r *Renderer) Image(img render.Image, dst geom.Rect) {
 	// Will be implemented in later phases
 }
 
-// GlyphRun draws a run of glyphs using basicfont.
-// Note: This is a basic implementation that works with the available glyph information.
+// GlyphRun is a no-op in GoBasic.
+// Text rendering is expected to go through the AGG backend.
 func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
 	if len(run.Glyphs) == 0 {
 		return
@@ -276,47 +273,22 @@ func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
 	// without additional font metadata. This method provides the interface but
 	// requires higher-level text drawing to work through other means.
 	// A complete implementation would need a glyph ID to character mapping.
-	
+
 	// For now, this is a stub that maintains the interface contract
 	// Real text rendering would happen through higher-level text drawing functions
 }
 
-// MeasureText measures text dimensions using basicfont.
+// MeasureText returns coarse text metrics for layout only.
 func (r *Renderer) MeasureText(text string, size float64, fontKey string) render.TextMetrics {
 	if text == "" {
 		return render.TextMetrics{}
 	}
 
-	// Use basicfont.Face7x13 as the default font for now
-	face := basicfont.Face7x13
-	metrics := face.Metrics()
-
-	// Calculate text width by summing character advances
-	width := 0
-	for _, ch := range text {
-		advance, ok := face.GlyphAdvance(ch)
-		if ok {
-			width += int(advance >> 6) // Convert from fixed.Int26_6 to pixels
-		} else {
-			// Use advance for missing character replacement
-			width += face.Advance
-		}
-	}
-
-	// Convert fixed.Int26_6 metrics to float64
-	height := float64(metrics.Height >> 6)
-	ascent := float64(metrics.Ascent >> 6)
-	descent := float64(metrics.Descent >> 6)
-
-	// Apply size scaling - basicfont.Face7x13 is a fixed-size font,
-	// so we scale the measurements by the requested size relative to the font's natural size
-	scale := size / 13.0 // Face7x13 is 13 pixels tall
-	
 	return render.TextMetrics{
-		W:       quantize(float64(width) * scale),
-		H:       quantize(height * scale),
-		Ascent:  quantize(ascent * scale),
-		Descent: quantize(descent * scale),
+		W:       quantize(float64(len([]rune(text))) * size * 0.6),
+		H:       quantize(size),
+		Ascent:  quantize(size * 0.8),
+		Descent: quantize(size * 0.2),
 	}
 }
 
@@ -336,46 +308,7 @@ func (r *Renderer) SavePNG(path string) error {
 	return png.Encode(file, r.dst)
 }
 
-// DrawText is a helper method to draw text directly (not part of the Renderer interface).
-// This provides a practical way to render text using basicfont.
-func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor render.Color) {
-	if text == "" {
-		return
-	}
-
-	// Use basicfont.Face7x13 as the default font
-	face := basicfont.Face7x13
-
-	// Convert text color to image.Image for font.Drawer
-	red, green, blue, alpha := textColor.ToPremultipliedRGBA()
-	src := image.NewUniform(color.RGBA{R: red, G: green, B: blue, A: alpha})
-
-	// Create font drawer
-	drawer := &font.Drawer{
-		Dst:  r.dst,
-		Src:  src,
-		Face: face,
-	}
-
-	// Quantize origin for deterministic rendering
-	origin = geom.Pt{X: quantize(origin.X), Y: quantize(origin.Y)}
-
-	// Convert to fixed.Point26_6 and set as drawer dot
-	// With the corrected coordinate system, origin.Y is already in screen coordinates
-	drawer.Dot = fixed.Point26_6{
-		X: fixed.Int26_6(origin.X * 64), // Convert to fixed point
-		Y: fixed.Int26_6(origin.Y * 64),  // Use Y coordinate directly
-	}
-
-	// Apply clipping if set
-	if r.clipRect != nil {
-		// Simple clipping check - only draw if the text origin is within clip bounds
-		if origin.X < r.clipRect.Min.X || origin.X > r.clipRect.Max.X ||
-			origin.Y < r.clipRect.Min.Y || origin.Y > r.clipRect.Max.Y {
-			return
-		}
-	}
-
-	// Draw the text
-	drawer.DrawString(text)
-}
+// DrawText is intentionally a no-op in GoBasic.
+// Text rendering is expected to go through the AGG backend so Matplotlib-style
+// TrueType fonts are used consistently.
+func (r *Renderer) DrawText(_ string, _ geom.Pt, _ float64, _ render.Color) {}

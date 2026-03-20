@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"matplotlib-go/backends/agg"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -51,8 +52,13 @@ func main() {
 	// Plot cosine (auto color cycle: orange)
 	ax.Plot(x, cosY, core.PlotOptions{Label: "cos(x)"})
 
-	// Create AGG renderer with white background
-	r, err := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
+	// Create a renderer from the registry with white background
+	r, _, err := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     500,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
 	if err != nil {
 		fmt.Printf("Error creating renderer: %v\n", err)
 		return

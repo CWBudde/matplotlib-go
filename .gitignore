@@ -1,5 +1,6 @@
 # Test artifacts and debug images
 _artifacts/
+testdata/_artifacts/
 *.png
 !testdata/golden/*.png
 

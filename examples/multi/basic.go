@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"matplotlib-go/backends/gobasic"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -121,8 +122,17 @@ func main() {
 	}
 	ax.Add(bars)
 
-	// Create a GoBasic renderer with light gray background
-	r := gobasic.New(1000, 700, render.Color{R: 0.98, G: 0.98, B: 0.98, A: 1})
+	// Create a renderer from the registry with light gray background
+	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      1000,
+		Height:     700,
+		Background: render.Color{R: 0.98, G: 0.98, B: 0.98, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 
 	// Save as PNG
 	err := core.SavePNG(fig, r, "multi_basic.png")
@@ -177,7 +187,16 @@ func main() {
 	}
 
 	// Save the color cycling example
-	r2 := gobasic.New(1000, 700, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r2, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      1000,
+		Height:     700,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 	err = core.SavePNG(fig2, r2, "multi_color_cycling.png")
 	if err != nil {
 		fmt.Printf("Error saving color cycling PNG: %v\n", err)
@@ -196,7 +215,7 @@ func main() {
 
 	// Sample data
 	xData := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9}
-	
+
 	// Line plot with automatic color cycling
 	yLine := []float64{2, 3.5, 2.8, 4.1, 3.2, 4.8, 4.2, 5.1, 4.9}
 	ax3.Plot(xData, yLine, core.PlotOptions{
@@ -229,7 +248,16 @@ func main() {
 	})
 
 	// Save the convenience methods example
-	r3 := gobasic.New(1000, 700, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r3, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      1000,
+		Height:     700,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 	err = core.SavePNG(fig3, r3, "multi_convenience_methods.png")
 	if err != nil {
 		fmt.Printf("Error saving convenience methods PNG: %v\n", err)

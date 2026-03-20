@@ -6,22 +6,21 @@ import (
 	"os"
 
 	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 	"matplotlib-go/transform"
-	_ "matplotlib-go/backends/gobasic" // Register GoBasic
-	_ "matplotlib-go/backends/skia"    // Register Skia (stub)
 )
 
 func main() {
 	var (
-		backendFlag    = flag.String("backend", "", "Rendering backend (leave empty for auto-selection)")
-		outputFlag     = flag.String("output", "backend-demo.png", "Output filename")
-		widthFlag      = flag.Int("width", 800, "Image width")
-		heightFlag     = flag.Int("height", 600, "Image height")
-		useCaseFlag    = flag.String("usecase", "basic", "Use case (basic, publication, interactive, scientific)")
-		listFlag       = flag.Bool("list", false, "List available backends and exit")
+		backendFlag      = flag.String("backend", "", "Rendering backend (leave empty for auto-selection)")
+		outputFlag       = flag.String("output", "backend-demo.png", "Output filename")
+		widthFlag        = flag.Int("width", 800, "Image width")
+		heightFlag       = flag.Int("height", 600, "Image height")
+		useCaseFlag      = flag.String("usecase", "basic", "Use case (basic, publication, interactive, scientific)")
+		listFlag         = flag.Bool("list", false, "List available backends and exit")
 		capabilitiesFlag = flag.Bool("capabilities", false, "Show backend capabilities matrix and exit")
 	)
 	flag.Parse()

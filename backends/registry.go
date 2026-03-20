@@ -3,6 +3,7 @@ package backends
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"matplotlib-go/render"
 )
@@ -26,11 +27,11 @@ const (
 	SubPixel     Capability = "subpixel"
 	GradientFill Capability = "gradientfill"
 	PathClip     Capability = "pathclip"
-	
+
 	// Performance capabilities
-	GPUAccel     Capability = "gpuaccel"
-	Threading    Capability = "threading"
-	
+	GPUAccel  Capability = "gpuaccel"
+	Threading Capability = "threading"
+
 	// Output capabilities
 	VectorOutput Capability = "vectoroutput"
 	TextShaping  Capability = "textshaping"
@@ -44,7 +45,7 @@ type Config struct {
 	Height     int
 	Background render.Color
 	DPI        float64
-	
+
 	// Backend-specific options (use type assertion)
 	Options interface{}
 }
@@ -62,7 +63,7 @@ type AGGConfig struct {
 // SkiaConfig holds Skia-specific options.
 type SkiaConfig struct {
 	UseGPU      bool
-	SampleCount int // MSAA sample count
+	SampleCount int    // MSAA sample count
 	ColorType   string // RGBA8888, etc.
 }
 
@@ -109,6 +110,9 @@ func (r *Registry) Available() []Backend {
 			available = append(available, backend)
 		}
 	}
+	sort.Slice(available, func(i, j int) bool {
+		return preferredBackendLess(available[i], available[j])
+	})
 	return available
 }
 
@@ -118,11 +122,11 @@ func (r *Registry) Create(backend Backend, config Config) (render.Renderer, erro
 	if !ok {
 		return nil, fmt.Errorf("unknown backend: %s", backend)
 	}
-	
+
 	if !info.Available {
 		return nil, fmt.Errorf("backend %s is not available (missing dependencies?)", backend)
 	}
-	
+
 	return info.Factory(config)
 }
 
@@ -132,7 +136,7 @@ func (r *Registry) HasCapability(backend Backend, capability Capability) bool {
 	if !ok {
 		return false
 	}
-	
+
 	for _, c := range info.Capabilities {
 		if c == capability {
 			return true
@@ -172,15 +176,15 @@ func GetBestBackend(required []Capability) (Backend, error) {
 	if len(available) == 0 {
 		return "", errors.New("no backends available")
 	}
-	
+
 	// Score backends based on capabilities
 	bestBackend := available[0]
-	bestScore := 0
-	
+	bestScore := -1
+
 	for _, backend := range available {
 		score := 0
 		allRequired := true
-		
+
 		for _, capability := range required {
 			if HasCapability(backend, capability) {
 				score++
@@ -188,15 +192,21 @@ func GetBestBackend(required []Capability) (Backend, error) {
 				allRequired = false
 			}
 		}
-		
+
 		// Prefer backends that have all required capabilities
 		if allRequired && score > bestScore {
 			bestBackend = backend
 			bestScore = score
 		}
 	}
-	
+
 	return bestBackend, nil
+}
+
+// DefaultBackend returns the backend used when callers do not specify one.
+// AGG is the preferred default in this port.
+func DefaultBackend() Backend {
+	return AGG
 }
 
 // SimpleConfig creates a basic config for testing/simple use.
@@ -207,4 +217,14 @@ func SimpleConfig(width, height int, bg render.Color) Config {
 		Background: bg,
 		DPI:        72.0,
 	}
+}
+
+func preferredBackendLess(a, b Backend) bool {
+	if a == AGG && b != AGG {
+		return true
+	}
+	if b == AGG && a != AGG {
+		return false
+	}
+	return a < b
 }

@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"matplotlib-go/backends/agg"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -29,8 +30,8 @@ func main() {
 	y2 := make([]float64, n)
 	for i := range n {
 		x[i] = 3.0 + 4.0*float64(i)/float64(n-1) // x in [3, 7]
-		y1[i] = math.Sin(x[i]) * 2.5               // y roughly in [-2.5, 2.5]
-		y2[i] = math.Cos(x[i])*1.5 + 0.5           // shifted cosine
+		y1[i] = math.Sin(x[i]) * 2.5             // y roughly in [-2.5, 2.5]
+		y2[i] = math.Cos(x[i])*1.5 + 0.5         // shifted cosine
 	}
 
 	ax.Plot(x, y1, core.PlotOptions{Label: "2.5·sin(x)"})
@@ -42,7 +43,12 @@ func main() {
 	ax.AddXGrid()
 	ax.AddYGrid()
 
-	r, err := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r, _, err := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     500,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return

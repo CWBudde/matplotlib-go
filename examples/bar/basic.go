@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 
-	"matplotlib-go/backends/gobasic"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -38,8 +39,17 @@ func main() {
 	}
 	ax.Add(verticalBars)
 
-	// Create a GoBasic renderer with white background
-	r := gobasic.New(800, 600, render.Color{R: 1, G: 1, B: 1, A: 1})
+	// Create a renderer from the registry with white background
+	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     600,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 
 	// Save as PNG
 	err := core.SavePNG(fig, r, "bar_basic.png")
@@ -61,7 +71,7 @@ func main() {
 
 	// Example 2: Horizontal bar chart
 	horizontalBars := &core.Bar2D{
-		X:           categories,                                  // Y positions for horizontal bars
+		X:           categories,                                 // Y positions for horizontal bars
 		Heights:     values,                                     // Bar lengths
 		Width:       0.6,                                        // Bar thickness
 		Color:       render.Color{R: 0.8, G: 0.4, B: 0.2, A: 1}, // orange
@@ -71,7 +81,16 @@ func main() {
 	ax2.Add(horizontalBars)
 
 	// Save horizontal bars
-	r2 := gobasic.New(800, 600, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r2, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     600,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 	err = core.SavePNG(fig2, r2, "bar_horizontal.png")
 	if err != nil {
 		fmt.Printf("Error saving horizontal bars PNG: %v\n", err)
@@ -112,7 +131,16 @@ func main() {
 	ax3.Add(variableBars)
 
 	// Save variable bars
-	r3 := gobasic.New(800, 600, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r3, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     600,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 	err = core.SavePNG(fig3, r3, "bar_variable.png")
 	if err != nil {
 		fmt.Printf("Error saving variable bars PNG: %v\n", err)

@@ -170,11 +170,11 @@ func TestQuantize(t *testing.T) {
 	}{
 		{0, 0},
 		{1.0, 1.0},
-		{0.1234567890123, 0.123457},           // rounded to grid
-		{-3.14159265, -3.141593},               // negative
-		{1e-7, 0},                              // below grid, rounds to 0
-		{0.0000005, 0.000001},                  // half grid rounds up
-		{100.123456789, 100.123457},            // large value
+		{0.1234567890123, 0.123457}, // rounded to grid
+		{-3.14159265, -3.141593},    // negative
+		{1e-7, 0},                   // below grid, rounds to 0
+		{0.0000005, 0.000001},       // half grid rounds up
+		{100.123456789, 100.123457}, // large value
 	}
 	for _, tc := range cases {
 		got := quantize(tc.in)

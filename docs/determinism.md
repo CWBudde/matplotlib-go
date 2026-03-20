@@ -166,7 +166,7 @@ The CI system tracks:
 If golden tests fail:
 
 1. Check if the failure is platform-specific
-2. Examine debug artifacts in `_artifacts/`
+2. Examine debug artifacts in `testdata/_artifacts/`
 3. Verify dependency versions match
 4. Consider if the change is intentional
 
@@ -175,7 +175,7 @@ If golden tests fail:
 To update golden baselines:
 
 ```bash
-go test ./test/ -update-golden
+go test -tags freetype ./test/ -update-golden
 ```
 
 This should only be done when visual changes are intentional.

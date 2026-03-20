@@ -63,21 +63,18 @@ func TestBackendSelection(t *testing.T) {
 		Available: true,
 	})
 
-	// Test basic backend selection
-	backend, err := GetBestBackend([]Capability{})
-	if err != nil {
-		t.Fatalf("Should find a backend with no requirements: %v", err)
-	}
-
-	// Test creating renderer
-	config := TestDefaultConfig(100, 100)
-	renderer, err := Create(backend, config)
-	if err != nil {
-		t.Fatalf("Should create renderer: %v", err)
-	}
-
-	if renderer == nil {
-		t.Error("Renderer should not be nil")
+	for _, backend := range DefaultRegistry.Available() {
+		backend := backend
+		t.Run(string(backend), func(t *testing.T) {
+			config := TestDefaultConfig(100, 100)
+			renderer, err := DefaultRegistry.Create(backend, config)
+			if err != nil {
+				t.Fatalf("should create renderer for %s: %v", backend, err)
+			}
+			if renderer == nil {
+				t.Fatalf("renderer for %s should not be nil", backend)
+			}
+		})
 	}
 }
 
@@ -96,14 +93,14 @@ func TestCapabilityMatrix(t *testing.T) {
 func TestRecommendedBackends(t *testing.T) {
 	// Test known use cases
 	useCases := []string{"basic", "publication", "interactive", "scientific"}
-	
+
 	for _, useCase := range useCases {
 		backend, err := GetRecommendedBackend(useCase)
 		if err != nil {
 			// It's OK if no backend satisfies requirements
 			continue
 		}
-		
+
 		if backend == "" {
 			t.Errorf("GetRecommendedBackend should return non-empty backend for %s", useCase)
 		}
@@ -115,4 +112,3 @@ func TestRecommendedBackends(t *testing.T) {
 		t.Error("Should return error for unknown use case")
 	}
 }
-

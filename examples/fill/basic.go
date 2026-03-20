@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"matplotlib-go/backends/gobasic"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -48,7 +49,7 @@ func main() {
 	// Example 2: Fill sine curve to baseline with alpha override
 	fillSine := core.FillToBaseline(x, y1, 0,
 		render.Color{R: 1, G: 0.3, B: 0.3, A: 1.0}) // red
-	fillSine.Alpha = 0.4                             // override with transparency
+	fillSine.Alpha = 0.4                                              // override with transparency
 	fillSine.EdgeColor = render.Color{R: 0.7, G: 0.1, B: 0.1, A: 1.0} // dark red edge
 	fillSine.EdgeWidth = 2.0
 	ax.Add(fillSine)
@@ -74,8 +75,17 @@ func main() {
 	ax.Add(sineLine)
 	ax.Add(cosLine)
 
-	// Create a GoBasic renderer with white background
-	r := gobasic.New(800, 600, render.Color{R: 1, G: 1, B: 1, A: 1})
+	// Create a renderer from the registry with white background
+	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     600,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 
 	// Save as PNG
 	err := core.SavePNG(fig, r, "fill_basic.png")
@@ -127,7 +137,16 @@ func main() {
 	ax2.Add(stack3)
 
 	// Save stacked areas
-	r2 := gobasic.New(800, 600, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r2, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     600,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 	err = core.SavePNG(fig2, r2, "fill_stacked.png")
 	if err != nil {
 		fmt.Printf("Error saving stacked PNG: %v\n", err)

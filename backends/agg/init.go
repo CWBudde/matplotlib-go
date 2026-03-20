@@ -14,6 +14,8 @@ func init() {
 			backends.SubPixel,
 			backends.GradientFill,
 			backends.PathClip,
+			backends.TextShaping,
+			backends.FontHinting,
 		},
 		Factory: func(config backends.Config) (render.Renderer, error) {
 			return New(config.Width, config.Height, config.Background)

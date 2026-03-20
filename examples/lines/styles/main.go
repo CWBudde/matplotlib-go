@@ -4,7 +4,8 @@ package main
 import (
 	"log"
 
-	"matplotlib-go/backends/gobasic"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -31,14 +32,19 @@ func main() {
 	// Create straight lines to demonstrate different line caps
 	createCapDemo(ax)
 
-	// Create a GoBasic renderer with white background
-	r := gobasic.New(800, 600, render.Color{R: 1, G: 1, B: 1, A: 1})
-
-	// Render the figure
-	core.DrawFigure(fig, r)
+	// Create an AGG renderer with white background
+	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     600,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		log.Fatal(createErr)
+	}
 
 	// Save to PNG
-	err := r.SavePNG("examples/lines/styles.png")
+	err := core.SavePNG(fig, r, "examples/lines/styles.png")
 	if err != nil {
 		log.Fatalf("Failed to save PNG: %v", err)
 	}

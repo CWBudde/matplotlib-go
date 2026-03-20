@@ -5,7 +5,8 @@ import (
 	"math"
 	"math/rand/v2"
 
-	"matplotlib-go/backends/agg"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -45,9 +46,14 @@ func main() {
 	ax.AddXGrid()
 	ax.AddYGrid()
 
-	r1, err := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+	r1, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     500,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error: %v\n", createErr)
 		return
 	}
 	if err := core.SavePNG(fig, r1, "hist_basic.png"); err != nil {
@@ -79,9 +85,14 @@ func main() {
 	ax2.AddXGrid()
 	ax2.AddYGrid()
 
-	r2, err := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+	r2, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      800,
+		Height:     500,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error: %v\n", createErr)
 		return
 	}
 	if err := core.SavePNG(fig2, r2, "hist_density.png"); err != nil {

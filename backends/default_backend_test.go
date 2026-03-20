@@ -1,0 +1,39 @@
+package backends_test
+
+import (
+	"testing"
+
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/agg"
+	_ "matplotlib-go/backends/gobasic"
+)
+
+func TestDefaultBackendPreference(t *testing.T) {
+	backend, err := backends.GetBestBackend(nil)
+	if err != nil {
+		t.Fatalf("GetBestBackend failed: %v", err)
+	}
+	if backend != backends.AGG {
+		t.Fatalf("expected default backend %s, got %s", backends.AGG, backend)
+	}
+}
+
+func TestCreateAllAvailableBackends(t *testing.T) {
+	available := backends.Available()
+	if len(available) == 0 {
+		t.Fatal("expected at least one available backend")
+	}
+
+	for _, backend := range available {
+		backend := backend
+		t.Run(string(backend), func(t *testing.T) {
+			renderer, err := backends.Create(backend, backends.TestDefaultConfig(100, 100))
+			if err != nil {
+				t.Fatalf("Create(%s) failed: %v", backend, err)
+			}
+			if renderer == nil {
+				t.Fatalf("Create(%s) returned nil renderer", backend)
+			}
+		})
+	}
+}

@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"matplotlib-go/backends/gobasic"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -124,8 +125,17 @@ func main() {
 	ax.XAxis.TickSize = 6.0
 	ax.YAxis.TickSize = 6.0
 
-	// Create a GoBasic renderer with light background
-	r := gobasic.New(1000, 800, render.Color{R: 0.98, G: 0.98, B: 0.98, A: 1})
+	// Create a renderer from the registry with light background
+	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      1000,
+		Height:     800,
+		Background: render.Color{R: 0.98, G: 0.98, B: 0.98, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 
 	// Save as PNG
 	err := core.SavePNG(fig, r, "axes_enhanced.png")
@@ -186,7 +196,16 @@ func main() {
 	ax2.Add(expLine)
 
 	// Save the logarithmic plot
-	r2 := gobasic.New(1000, 800, render.Color{R: 1, G: 1, B: 1, A: 1})
+	r2, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      1000,
+		Height:     800,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 	err = core.SavePNG(fig2, r2, "axes_logarithmic_enhanced.png")
 	if err != nil {
 		fmt.Printf("Error saving logarithmic PNG: %v\n", err)

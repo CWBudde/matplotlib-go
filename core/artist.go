@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"sort"
 
 	"matplotlib-go/color"
@@ -335,6 +336,10 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 		textRenderer
 		DrawTextVertical(text string, center geom.Pt, size float64, textColor render.Color)
 	}
+	type rotatedTextRenderer interface {
+		textRenderer
+		DrawTextRotated(text string, center geom.Pt, size, angle float64, textColor render.Color)
+	}
 
 	textRen, ok := r.(textRenderer)
 	if !ok {
@@ -343,13 +348,19 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 
 	labelColor := render.Color{R: 0, G: 0, B: 0, A: 1}
 	titleSize := ctx.RC.FontSize + 2
-	labelSize := ctx.RC.FontSize
+	labelSize := math.Round(ctx.RC.FontSize * 0.85)
+	if labelSize < 8 {
+		labelSize = 8
+	}
 
 	// Title: centered above the plot
 	if ax.Title != "" {
 		metrics := r.MeasureText(ax.Title, titleSize, ctx.RC.FontKey)
 		x := px.Min.X + (px.W()-metrics.W)/2
-		y := px.Min.Y - 10
+		// DrawText uses the text baseline, so offset by ascent to keep the full
+		// glyph box above the axes edge instead of letting the baseline float
+		// too close to the plot.
+		y := px.Min.Y - 10 + metrics.Ascent
 		textRen.DrawText(ax.Title, geom.Pt{X: x, Y: y}, titleSize, labelColor)
 	}
 
@@ -357,16 +368,19 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	if ax.XLabel != "" {
 		metrics := r.MeasureText(ax.XLabel, labelSize, ctx.RC.FontKey)
 		x := px.Min.X + (px.W()-metrics.W)/2
-		y := px.Max.Y + 35
+		// Same baseline rule as the title: place the baseline below the axes
+		// using the ascent so the glyph box sits in the intended margin.
+		y := px.Max.Y + 35 + metrics.Ascent
 		textRen.DrawText(ax.XLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
 	}
 
 	// YLabel: vertical text if supported, else horizontal fallback
 	if ax.YLabel != "" {
-		if vertRen, ok := r.(verticalTextRenderer); ok {
-			x := px.Min.X - 55
-			y := px.Min.Y + px.H()/2
-			vertRen.DrawTextVertical(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+		center := geom.Pt{X: px.Min.X - 53, Y: px.Min.Y + px.H()/2}
+		if rotRen, ok := r.(rotatedTextRenderer); ok {
+			rotRen.DrawTextRotated(ax.YLabel, center, labelSize, math.Pi/2, labelColor)
+		} else if vertRen, ok := r.(verticalTextRenderer); ok {
+			vertRen.DrawTextVertical(ax.YLabel, center, labelSize, labelColor)
 		} else {
 			metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
 			x := px.Min.X - 60 - metrics.W/2

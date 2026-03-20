@@ -5,14 +5,15 @@ package agg
 
 import (
 	"errors"
+	"fmt"
 	"image"
 	"image/png"
 	"math"
 	"os"
 	"sync"
 
-	agglib "github.com/MeKo-Christian/agg_go"
 	"codeberg.org/go-fonts/dejavu/dejavusans"
+	agglib "github.com/MeKo-Christian/agg_go"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
@@ -54,6 +55,7 @@ type Renderer struct {
 	stack    []state
 	clipRect *geom.Rect
 	fontPath string // path to TrueType font; empty means use GSV fallback
+	fallback bool   // true if any text path had to fall back to GSV
 }
 
 // state represents a saved graphics state.
@@ -82,15 +84,20 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		height: h,
 	}
 
-	// Prefer DejaVu Sans (same as matplotlib) for crisp text; fall back to built-in GSV.
-	if fp, err := loadFontPath(); err == nil {
-		agg := ctx.GetAgg2D()
-		if loadErr := agg.Font(fp, 12.0, false, false, agglib.RasterFontCache, 0); loadErr == nil {
-			r.fontPath = fp
-		}
+	// Prefer DejaVu Sans (the same default font Matplotlib ships with) via the
+	// AGG TrueType font path. Fall back to the legacy GSV font only when the
+	// FreeType-backed path is unavailable in the current build.
+	fp, err := loadFontPath()
+	if err != nil {
+		return nil, fmt.Errorf("agg: load truetype font: %w", err)
 	}
-	if r.fontPath == "" {
+	if loadErr := ctx.GetAgg2D().Font(fp, 12.0, false, false, agglib.RasterFontCache, 0); loadErr != nil {
+		// Keep the backend usable without the freetype build tag, but prefer the
+		// TrueType path whenever it is available.
 		ctx.GetAgg2D().FontGSV(13.0)
+		r.fallback = true
+	} else {
+		r.fontPath = fp
 	}
 
 	return r, nil
@@ -289,12 +296,18 @@ func (r *Renderer) GlyphRun(_ render.GlyphRun, _ render.Color) {
 
 // setFont configures the font engine for the given size.
 func (r *Renderer) setFont(size float64) {
-	agg := r.ctx.GetAgg2D()
+	r.setFontOn(r.ctx, size, agglib.RasterFontCache)
+}
+
+// setFontOn configures the font engine for a specific AGG context.
+func (r *Renderer) setFontOn(ctx *agglib.Context, size float64, cacheType agglib.FontCacheType) {
 	if r.fontPath != "" {
-		_ = agg.Font(r.fontPath, size, false, false, agglib.RasterFontCache, 0)
-	} else {
-		agg.FontGSV(size)
+		if err := ctx.Font(r.fontPath, size, false, false, cacheType, 0); err == nil {
+			return
+		}
 	}
+	ctx.GetAgg2D().FontGSV(size)
+	r.fallback = true
 }
 
 // MeasureText measures text dimensions using the active font engine.
@@ -307,12 +320,14 @@ func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextM
 	agg := r.ctx.GetAgg2D()
 	w := agg.TextWidth(text)
 	h := agg.FontHeight()
+	ascent := h * 0.8
+	descent := h * 0.2
 
 	return render.TextMetrics{
 		W:       w,
 		H:       h,
-		Ascent:  h * 0.8,
-		Descent: h * 0.2,
+		Ascent:  ascent,
+		Descent: descent,
 	}
 }
 
@@ -328,6 +343,28 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 	a.FillColor(renderColorToAGG(textColor))
 	a.LineColor(renderColorToAGG(textColor))
 	a.Text(origin.X, origin.Y, text, true, 0, 0)
+}
+
+// DrawTextRotated renders text rotated around the provided center point.
+func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle float64, textColor render.Color) {
+	if text == "" {
+		return
+	}
+
+	if r.fontPath != "" {
+		if err := r.ctx.Font(r.fontPath, size, false, false, agglib.RasterFontCache, angle); err != nil {
+			r.ctx.GetAgg2D().FontGSV(size)
+		}
+	} else {
+		r.ctx.GetAgg2D().FontGSV(size)
+	}
+	r.ctx.SetTextAlignment(agglib.AlignCenter, agglib.AlignCenter)
+	r.ctx.SetColor(renderColorToAGG(textColor))
+	_ = r.ctx.DrawText(text, center.X, center.Y)
+
+	// Restore the non-rotated default text state used by the regular label path.
+	r.setFont(size)
+	r.ctx.SetTextAlignment(agglib.AlignLeft, agglib.AlignBottom)
 }
 
 // DrawTextVertical renders text vertically (one character per line, top to bottom).

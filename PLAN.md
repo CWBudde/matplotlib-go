@@ -151,16 +151,20 @@ core.SavePNG(fig, r, "output.png")
 
 ### 3.2 Box Plots
 
-- [ ] `BoxPlot` artist for statistical visualization
-- [ ] Quartiles, whiskers, outliers
-- [ ] Multiple box plots per axes
-- [ ] Example: `examples/boxplot/basic.go`
+- [x] `BoxPlot` artist for statistical visualization
+- [x] Quartiles, whiskers, outliers
+- [x] Multiple box plots per axes
+- [x] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
+- [x] Comprehensive unit tests and golden tests
+- [x] Example: `examples/boxplot/basic.go`
 
 ### 3.3 Error Bars
 
 - [ ] `ErrorBar` artist for scientific plots
 - [ ] X and Y error bars with caps
 - [ ] Combine with scatter/line plots
+- [ ] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
+- [ ] Comprehensive unit tests and golden tests
 - [ ] Example: `examples/errorbar/basic.go`
 
 ### 3.4 Images and Heatmaps
@@ -168,6 +172,8 @@ core.SavePNG(fig, r, "output.png")
 - [ ] `Image2D` artist for imshow functionality
 - [ ] AGG image transformation for scaling/rotation
 - [ ] Colormaps (using AGG gradients)
+- [ ] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
+- [ ] Comprehensive unit tests and golden tests
 - [ ] Example: `examples/image/basic.go`
 
 **Exit Criteria:**

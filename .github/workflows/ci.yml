@@ -36,17 +36,17 @@ jobs:
         run: go mod verify
 
       - name: Run tests
-        run: go test -v ./...
+        run: go test -tags freetype -v ./...
 
       - name: Run golden image tests
-        run: go test -v ./test/
+        run: go test -tags freetype -v ./test/
 
       - name: Upload test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-artifacts-linux
-          path: _artifacts/
+          path: testdata/_artifacts/
           retention-days: 7
 
       - name: Run linting
@@ -84,17 +84,17 @@ jobs:
         run: go mod verify
 
       - name: Run tests
-        run: go test -v ./...
+        run: go test -tags freetype -v ./...
 
       - name: Run golden image tests
-        run: go test -v ./test/
+        run: go test -tags freetype -v ./test/
 
       - name: Upload test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-artifacts-macos
-          path: _artifacts/
+          path: testdata/_artifacts/
           retention-days: 7
 
   cross-platform-verification:
@@ -113,7 +113,7 @@ jobs:
 
       - name: Generate golden images
         run: |
-          go test -v ./test/ -update-golden
+          go test -tags freetype -v ./test/ -update-golden
           find testdata/golden -name "*.png" -exec sha256sum {} \; > golden-hashes.txt
 
       - name: Upload golden image hashes

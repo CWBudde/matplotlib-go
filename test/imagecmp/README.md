@@ -56,8 +56,8 @@ func TestMyRenderer_Golden(t *testing.T) {
 
     if !diff.Identical {
         // Save debug artifacts
-        imagecmp.SavePNG(img, "_artifacts/got.png")
-        imagecmp.SaveDiffImage(img, want, 1, "_artifacts/diff.png")
+        imagecmp.SavePNG(img, "testdata/_artifacts/got.png")
+        imagecmp.SaveDiffImage(img, want, 1, "testdata/_artifacts/diff.png")
 
         t.Fatalf("Golden mismatch: MaxDiff=%d, PSNR=%.2fdB",
             diff.MaxDiff, diff.PSNR)

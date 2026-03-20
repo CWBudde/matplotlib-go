@@ -5,7 +5,8 @@ import (
 	"math"
 	"math/rand"
 
-	"matplotlib-go/backends/gobasic"
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -40,7 +41,7 @@ func main() {
 	scatter1 := &core.Scatter2D{
 		XY:        basicPoints,
 		Size:      8.0,
-		Color:     render.Color{R: 1, G: 0, B: 0, A: 1}, // red
+		Color:     render.Color{R: 1, G: 0, B: 0, A: 1},   // red
 		EdgeColor: render.Color{R: 0.5, G: 0, B: 0, A: 1}, // dark red edge
 		EdgeWidth: 1.5,
 		Marker:    core.MarkerCircle,
@@ -59,7 +60,7 @@ func main() {
 		scatter := &core.Scatter2D{
 			XY:        []geom.Pt{{X: x, Y: -1.8}},
 			Size:      10.0,
-			Color:     render.Color{R: 0, G: 0, B: 1, A: 1}, // blue
+			Color:     render.Color{R: 0, G: 0, B: 1, A: 1},   // blue
 			EdgeColor: render.Color{R: 0, G: 0, B: 0.5, A: 1}, // dark blue edge
 			EdgeWidth: 2.0,
 			Marker:    markerType,
@@ -89,7 +90,7 @@ func main() {
 		hue := angle / (2 * math.Pi)
 		r, g, b := hsvToRgb(hue, 0.8, 0.9)
 		variableColors = append(variableColors, render.Color{R: r, G: g, B: b, A: 1})
-		
+
 		// Darker edge colors
 		rEdge, gEdge, bEdge := hsvToRgb(hue, 1.0, 0.6)
 		edgeColors = append(edgeColors, render.Color{R: rEdge, G: gEdge, B: bEdge, A: 1})
@@ -106,8 +107,17 @@ func main() {
 	}
 	ax.Add(scatter3)
 
-	// Create a GoBasic renderer with white background
-	r := gobasic.New(640, 480, render.Color{R: 1, G: 1, B: 1, A: 1})
+	// Create a renderer from the registry with white background
+	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
+		Width:      640,
+		Height:     480,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        72.0,
+	}, backends.TextCapabilities)
+	if createErr != nil {
+		fmt.Printf("Error creating renderer: %v\n", createErr)
+		return
+	}
 
 	// Save as PNG
 	err := core.SavePNG(fig, r, "scatter_basic.png")

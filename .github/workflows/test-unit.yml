@@ -19,18 +19,18 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
       - name: Build
-        run: go build ./...
+        run: go build -tags freetype ./...
       - name: Vet
-        run: go vet ./...
+        run: go vet -tags freetype ./...
       - name: Test
-        run: go test ./...
+        run: go test -tags freetype ./...
       - name: Upload test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-artifacts-${{ matrix.os }}-go${{ matrix.go }}
           path: |
-            _artifacts/
+            testdata/_artifacts/
             *.png
           if-no-files-found: ignore
           retention-days: 7

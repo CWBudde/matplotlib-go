@@ -3,7 +3,6 @@ package core
 import (
 	"errors"
 
-	"matplotlib-go/backends/gobasic"
 	"matplotlib-go/render"
 )
 
@@ -21,11 +20,6 @@ func SavePNG(fig *Figure, r render.Renderer, path string) error {
 	// Check if this renderer supports PNG export
 	if exporter, ok := r.(PNGExporter); ok {
 		return exporter.SavePNG(path)
-	}
-
-	// Fallback: Check if this is a GoBasic renderer (for backwards compatibility)
-	if gb, ok := r.(*gobasic.Renderer); ok {
-		return gb.SavePNG(path)
 	}
 
 	// For other renderer types, we don't have PNG export support yet

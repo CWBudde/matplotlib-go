@@ -8,6 +8,7 @@
 //
 // Artists:
 //   - Line2D: Polyline artist for stroke-only line plots
+//   - BoxPlot2D: Statistical box plot artist with quartiles, whiskers, and fliers
 //
 // Helpers:
 //   - DrawFigure: Traverses and renders a figure with proper z-ordering
