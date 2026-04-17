@@ -315,6 +315,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		r.Restore()
 
 		// Draw ticks (outward), tick labels, and text labels outside the clip rect
+		setRendererResolution(r, ctx.RC.DPI)
 		if ax.XAxis != nil {
 			ax.XAxis.DrawTicks(r, ctx)
 			ax.XAxis.DrawTickLabels(r, ctx)
@@ -324,6 +325,19 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			ax.YAxis.DrawTickLabels(r, ctx)
 		}
 		drawAxesLabels(ax, r, ctx, px)
+	}
+}
+
+type textResolutionSetter interface {
+	SetResolution(dpi uint)
+}
+
+func setRendererResolution(r render.Renderer, dpi float64) {
+	if dpi <= 0 {
+		return
+	}
+	if setter, ok := r.(textResolutionSetter); ok {
+		setter.SetResolution(uint(math.Round(dpi)))
 	}
 }
 
@@ -347,8 +361,8 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	}
 
 	labelColor := render.Color{R: 0, G: 0, B: 0, A: 1}
-	titleSize := ctx.RC.FontSize + 2
-	labelSize := math.Round(ctx.RC.FontSize * 0.85)
+	titleSize := ctx.RC.FontSize * 1.13
+	labelSize := ctx.RC.FontSize * 0.97
 	if labelSize < 8 {
 		labelSize = 8
 	}
@@ -360,7 +374,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 		// DrawText uses the text baseline, so offset by ascent to keep the full
 		// glyph box above the axes edge instead of letting the baseline float
 		// too close to the plot.
-		y := px.Min.Y - 10 + metrics.Ascent
+		y := px.Min.Y - 32 + metrics.Ascent
 		textRen.DrawText(ax.Title, geom.Pt{X: x, Y: y}, titleSize, labelColor)
 	}
 
@@ -370,20 +384,20 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 		x := px.Min.X + (px.W()-metrics.W)/2
 		// Same baseline rule as the title: place the baseline below the axes
 		// using the ascent so the glyph box sits in the intended margin.
-		y := px.Max.Y + 35 + metrics.Ascent
+		y := px.Max.Y + 18 + metrics.Ascent
 		textRen.DrawText(ax.XLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
 	}
 
 	// YLabel: vertical text if supported, else horizontal fallback
 	if ax.YLabel != "" {
-		center := geom.Pt{X: px.Min.X - 53, Y: px.Min.Y + px.H()/2}
+		center := geom.Pt{X: px.Min.X - 36, Y: px.Min.Y + px.H()/2}
 		if rotRen, ok := r.(rotatedTextRenderer); ok {
 			rotRen.DrawTextRotated(ax.YLabel, center, labelSize, math.Pi/2, labelColor)
 		} else if vertRen, ok := r.(verticalTextRenderer); ok {
 			vertRen.DrawTextVertical(ax.YLabel, center, labelSize, labelColor)
 		} else {
 			metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
-			x := px.Min.X - 60 - metrics.W/2
+			x := px.Min.X - 42 - metrics.W/2
 			y := px.Min.Y + px.H()/2 + metrics.H/2
 			textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
 		}

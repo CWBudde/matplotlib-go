@@ -70,3 +70,7 @@ clean-examples:
     @echo "Cleaning PNG files from examples..."
     find examples/ -name "*.png" -type f -delete
     @echo "PNG files removed."
+
+fix:
+    just lint-fix
+    just fmt

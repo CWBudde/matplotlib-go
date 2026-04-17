@@ -10,8 +10,10 @@ require (
 
 require (
 	codeberg.org/go-fonts/dejavu v0.4.0
-	github.com/MeKo-Christian/agg_go v0.2.4
+	github.com/cwbudde/agg_go v0.2.4
 )
+
+replace github.com/cwbudde/agg_go => ../agg_go
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect

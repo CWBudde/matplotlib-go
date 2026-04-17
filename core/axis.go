@@ -19,18 +19,18 @@ const (
 
 // Axis renders axis spines, ticks, and labels for a single dimension.
 type Axis struct {
-	Side         AxisSide     // which side of the plot
-	Locator      Locator      // major tick position calculator
-	MinorLocator Locator      // minor tick position calculator (nil = no minor ticks)
-	Formatter    Formatter    // tick label formatter
-	Color        render.Color // axis line and tick color
-	LineWidth    float64      // width of axis line and ticks
-	TickSize     float64      // length of major tick marks (in pixels)
-	MinorTickSize float64     // length of minor tick marks (in pixels); 0 uses TickSize*0.6
-	ShowSpine    bool         // whether to draw the axis line
-	ShowTicks    bool         // whether to draw tick marks
-	ShowLabels   bool         // whether to draw tick labels
-	z            float64      // z-order
+	Side          AxisSide     // which side of the plot
+	Locator       Locator      // major tick position calculator
+	MinorLocator  Locator      // minor tick position calculator (nil = no minor ticks)
+	Formatter     Formatter    // tick label formatter
+	Color         render.Color // axis line and tick color
+	LineWidth     float64      // width of axis line and ticks
+	TickSize      float64      // length of major tick marks (in pixels)
+	MinorTickSize float64      // length of minor tick marks (in pixels); 0 uses TickSize*0.6
+	ShowSpine     bool         // whether to draw the axis line
+	ShowTicks     bool         // whether to draw tick marks
+	ShowLabels    bool         // whether to draw tick labels
+	z             float64      // z-order
 }
 
 // NewXAxis creates an axis for the bottom (x-axis).
@@ -308,9 +308,12 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		return
 	}
 
-	fontSize := ctx.RC.FontSize
+	fontSize := ctx.RC.FontSize * 0.97
 	if fontSize <= 0 {
 		fontSize = 12.0
+	}
+	if fontSize < 8 {
+		fontSize = 8
 	}
 
 	for _, tickValue := range ticks {
@@ -350,12 +353,12 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 				// Right-align to left of tick end
 				labelPos = geom.Pt{
 					X: tickPos.X - a.TickSize - metrics.W - 3,
-					Y: tickPos.Y + metrics.Ascent/2,
+					Y: tickPos.Y + (metrics.Ascent-metrics.Descent)/2,
 				}
 			case AxisRight:
 				labelPos = geom.Pt{
 					X: tickPos.X + a.TickSize + 3,
-					Y: tickPos.Y + metrics.Ascent/2,
+					Y: tickPos.Y + (metrics.Ascent-metrics.Descent)/2,
 				}
 			}
 		}

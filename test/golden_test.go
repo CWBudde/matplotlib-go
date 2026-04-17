@@ -92,6 +92,10 @@ func TestBoxPlotBasic_Golden(t *testing.T) {
 	runGoldenTest(t, "boxplot_basic", renderBoxPlotBasic)
 }
 
+func TestTextLabelsStrict_Golden(t *testing.T) {
+	runGoldenTest(t, "text_labels_strict", renderTextLabelsStrict)
+}
+
 // runGoldenTest is a helper function for golden image testing
 func runGoldenTest(t *testing.T, testName string, renderFunc func() image.Image) {
 	// Render the plot
@@ -812,6 +816,26 @@ func renderBoxPlotBasic() image.Image {
 			ShowFliers:   boolPtr(true),
 		})
 	}
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderTextLabelsStrict() image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.SetXLim(0, 1)
+	ax.SetYLim(0, 1)
+	ax.SetTitle("Box Plots")
+	ax.SetXLabel("Group")
+	ax.SetYLabel("Value")
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {

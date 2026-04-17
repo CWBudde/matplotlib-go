@@ -410,6 +410,18 @@ def boxplot_basic(out_dir):
     save(fig, out_dir, "boxplot_basic")
 
 
+def text_labels_strict(out_dir):
+    """Text-only fixture for strict font/baseline regression testing."""
+    fig = make_fig()
+    ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title("Box Plots")
+    ax.set_xlabel("Group")
+    ax.set_ylabel("Value")
+    save(fig, out_dir, "text_labels_strict")
+
+
 def multi_series_color_cycle(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
@@ -433,6 +445,7 @@ ALL_PLOTS = [
     multi_series_basic, multi_series_color_cycle,
     hist_basic, hist_density, hist_strategies,
     boxplot_basic,
+    text_labels_strict,
 ]
 
 

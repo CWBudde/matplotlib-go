@@ -47,15 +47,16 @@ func loadFontPath() (string, error) {
 
 // Renderer implements render.Renderer using the AGG rendering backend.
 type Renderer struct {
-	ctx      *agglib.Context
-	width    int
-	height   int
-	began    bool
-	viewport geom.Rect
-	stack    []state
-	clipRect *geom.Rect
-	fontPath string // path to TrueType font; empty means use GSV fallback
-	fallback bool   // true if any text path had to fall back to GSV
+	ctx        *agglib.Context
+	width      int
+	height     int
+	resolution uint
+	began      bool
+	viewport   geom.Rect
+	stack      []state
+	clipRect   *geom.Rect
+	fontPath   string // path to TrueType font; empty means use GSV fallback
+	fallback   bool   // true if any text path had to fall back to GSV
 }
 
 // state represents a saved graphics state.
@@ -79,9 +80,10 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	ctx.Clear(bgColor)
 
 	r := &Renderer{
-		ctx:    ctx,
-		width:  w,
-		height: h,
+		ctx:        ctx,
+		width:      w,
+		height:     h,
+		resolution: 72,
 	}
 
 	// Prefer DejaVu Sans (the same default font Matplotlib ships with) via the
@@ -101,6 +103,14 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	}
 
 	return r, nil
+}
+
+// SetResolution sets the font rendering resolution used for text metrics and glyph sizing.
+func (r *Renderer) SetResolution(dpi uint) {
+	if dpi > 0 {
+		r.resolution = dpi
+	}
+	r.ctx.SetResolution(r.resolution)
 }
 
 // Begin starts a drawing session with the given viewport.
@@ -301,6 +311,7 @@ func (r *Renderer) setFont(size float64) {
 
 // setFontOn configures the font engine for a specific AGG context.
 func (r *Renderer) setFontOn(ctx *agglib.Context, size float64, cacheType agglib.FontCacheType) {
+	ctx.SetResolution(r.resolution)
 	if r.fontPath != "" {
 		if err := ctx.Font(r.fontPath, size, false, false, cacheType, 0); err == nil {
 			return
@@ -316,12 +327,21 @@ func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextM
 		return render.TextMetrics{}
 	}
 
-	r.setFont(size)
+	r.setFontOn(r.ctx, size, agglib.RasterFontCache)
 	agg := r.ctx.GetAgg2D()
 	w := agg.TextWidth(text)
-	h := agg.FontHeight()
-	ascent := h * 0.8
-	descent := h * 0.2
+	ascent := r.ctx.GetAscender()
+	descent := -r.ctx.GetDescender()
+	h := ascent + descent
+	if h <= 0 {
+		h = agg.FontHeight()
+	}
+	if ascent <= 0 {
+		ascent = h
+	}
+	if descent <= 0 {
+		descent = 0
+	}
 
 	return render.TextMetrics{
 		W:       w,
@@ -351,20 +371,55 @@ func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle floa
 		return
 	}
 
-	if r.fontPath != "" {
-		if err := r.ctx.Font(r.fontPath, size, false, false, agglib.RasterFontCache, angle); err != nil {
-			r.ctx.GetAgg2D().FontGSV(size)
-		}
-	} else {
-		r.ctx.GetAgg2D().FontGSV(size)
-	}
-	r.ctx.SetTextAlignment(agglib.AlignCenter, agglib.AlignCenter)
-	r.ctx.SetColor(renderColorToAGG(textColor))
-	_ = r.ctx.DrawText(text, center.X, center.Y)
-
-	// Restore the non-rotated default text state used by the regular label path.
+	// Render the text into a temporary transparent image using the normal
+	// raster DejaVu path, then rotate the whole rendered block as one unit.
+	// This keeps punctuation and descenders tied to the same baseline as the
+	// unrotated text instead of trying to rotate individual glyph bitmaps.
 	r.setFont(size)
-	r.ctx.SetTextAlignment(agglib.AlignLeft, agglib.AlignBottom)
+	metrics := r.MeasureText(text, size, "")
+	if metrics.W <= 0 || metrics.H <= 0 {
+		return
+	}
+
+	pad := 8.0
+	srcW := metrics.W + pad*2
+	srcH := metrics.H + pad*2
+	cosA := math.Abs(math.Cos(angle))
+	sinA := math.Abs(math.Sin(angle))
+	rotW := srcW*cosA + srcH*sinA
+	rotH := srcW*sinA + srcH*cosA
+	tempW := int(math.Ceil(math.Max(srcW, rotW)))
+	tempH := int(math.Ceil(math.Max(srcH, rotH)))
+	if tempW <= 0 || tempH <= 0 {
+		return
+	}
+
+	tmp, err := New(tempW, tempH, render.Color{A: 0})
+	if err != nil {
+		return
+	}
+	tmp.SetResolution(r.resolution)
+	tmp.setFont(size)
+	tmp.ctx.SetTextAlignment(agglib.AlignCenter, agglib.AlignCenter)
+	tmp.ctx.SetColor(renderColorToAGG(textColor))
+	tmp.ctx.GetAgg2D().FillColor(renderColorToAGG(textColor))
+	tmp.ctx.GetAgg2D().LineColor(renderColorToAGG(textColor))
+	_ = tmp.ctx.DrawText(text, float64(tempW)/2, float64(tempH)/2)
+
+	rotImg, err := agglib.NewImageFromStandardImage(tmp.GetImage())
+	if err != nil {
+		return
+	}
+
+	cx := float64(tempW) / 2
+	cy := float64(tempH) / 2
+	rotAngle := -angle
+	cos := math.Cos(rotAngle)
+	sin := math.Sin(rotAngle)
+	tx := center.X - cos*cx + sin*cy
+	ty := center.Y - sin*cx - cos*cy
+	tr := agglib.NewTransformationsFromValues(cos, sin, -sin, cos, tx, ty)
+	_ = r.ctx.DrawImageTransformed(rotImg, tr)
 }
 
 // DrawTextVertical renders text vertically (one character per line, top to bottom).
