@@ -8,11 +8,12 @@ tests = true
 default = "standard"
 enable = [
   "misspell",
-  "gocritic"
+  "gocritic",
+    "revive"
 ]
 disable = [
-  "depguard",  # too restrictive for small projects
-  "errcheck"
+    "depguard",
+    "errcheck",
 ]
 
 [linters.exclusions]
@@ -33,3 +34,11 @@ linters = ["gochecknoinits", "gochecknoglobals"]
 [linters.settings.gocritic]
 enabled-tags = ["diagnostic", "style", "performance"]
 disabled-checks = ["commentedOutCode", "unnamedResult", "importShadow", "dupImport", "dupSubExpr"]
+[linters.settings.revive]
+[[linters.settings.revive.rules]]
+name = "file-length-limit"
+
+[[linters.settings.revive.rules.arguments]]
+max = 1500
+skip-comments = false
+skip-blank-lines = false
