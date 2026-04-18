@@ -140,6 +140,7 @@ func TestMpl_FillStacked(t *testing.T)     { runMplTest(t, "fill_stacked", rende
 func TestMpl_MultiSeriesBasic(t *testing.T) {
 	runMplTest(t, "multi_series_basic", renderMultiSeriesBasic)
 }
+
 func TestMpl_MultiSeriesColorCycle(t *testing.T) {
 	runMplTest(t, "multi_series_color_cycle", renderMultiSeriesColorCycle)
 }

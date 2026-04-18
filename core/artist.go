@@ -115,18 +115,18 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 func (a *Axes) Add(art Artist) { a.Artists = append(a.Artists, art); a.zsorted = false }
 
 // SetXLim sets the x-axis limits.
-func (a *Axes) SetXLim(min, max float64) {
-	a.XScale = transform.NewLinear(min, max)
+func (a *Axes) SetXLim(minVal, maxVal float64) {
+	a.XScale = transform.NewLinear(minVal, maxVal)
 }
 
 // SetYLim sets the y-axis limits.
-func (a *Axes) SetYLim(min, max float64) {
-	a.YScale = transform.NewLinear(min, max)
+func (a *Axes) SetYLim(minVal, maxVal float64) {
+	a.YScale = transform.NewLinear(minVal, maxVal)
 }
 
 // SetXLimLog sets the x-axis to logarithmic scale with given limits.
-func (a *Axes) SetXLimLog(min, max, base float64) {
-	a.XScale = transform.NewLog(min, max, base)
+func (a *Axes) SetXLimLog(minVal, maxVal, base float64) {
+	a.XScale = transform.NewLog(minVal, maxVal, base)
 	if a.XAxis != nil {
 		a.XAxis.Locator = LogLocator{Base: base, Minor: false}
 		a.XAxis.Formatter = LogFormatter{Base: base}
@@ -134,8 +134,8 @@ func (a *Axes) SetXLimLog(min, max, base float64) {
 }
 
 // SetYLimLog sets the y-axis to logarithmic scale with given limits.
-func (a *Axes) SetYLimLog(min, max, base float64) {
-	a.YScale = transform.NewLog(min, max, base)
+func (a *Axes) SetYLimLog(minVal, maxVal, base float64) {
+	a.YScale = transform.NewLog(minVal, maxVal, base)
 	if a.YAxis != nil {
 		a.YAxis.Locator = LogLocator{Base: base, Minor: false}
 		a.YAxis.Formatter = LogFormatter{Base: base}
@@ -248,9 +248,9 @@ func (a *Axes) ResetColorCycle() {
 // layout computes the pixel rectangle for this Axes inside the Figure.
 func (a *Axes) layout(f *Figure) (pixelRect geom.Rect) {
 	// Map fraction [0..1] to pixel coordinates
-	min := geom.Pt{X: f.SizePx.X * a.RectFraction.Min.X, Y: f.SizePx.Y * a.RectFraction.Min.Y}
-	max := geom.Pt{X: f.SizePx.X * a.RectFraction.Max.X, Y: f.SizePx.Y * a.RectFraction.Max.Y}
-	return geom.Rect{Min: min, Max: max}
+	minPt := geom.Pt{X: f.SizePx.X * a.RectFraction.Min.X, Y: f.SizePx.Y * a.RectFraction.Min.Y}
+	maxPt := geom.Pt{X: f.SizePx.X * a.RectFraction.Max.X, Y: f.SizePx.Y * a.RectFraction.Max.Y}
+	return geom.Rect{Min: minPt, Max: maxPt}
 }
 
 // effectiveRC resolves the RC for this axes, inheriting from the Figure if needed.

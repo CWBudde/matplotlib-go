@@ -77,27 +77,27 @@ func (a *Axis) DrawTicks(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	var min, max float64
+	var domainMin, domainMax float64
 	var isXAxis bool
 
 	switch a.Side {
 	case AxisBottom, AxisTop:
-		min, max = ctx.DataToPixel.XScale.Domain()
+		domainMin, domainMax = ctx.DataToPixel.XScale.Domain()
 		isXAxis = true
 	case AxisLeft, AxisRight:
-		min, max = ctx.DataToPixel.YScale.Domain()
+		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
 	}
 
 	// Minor ticks first
 	if a.MinorLocator != nil {
-		minorTicks := a.MinorLocator.Ticks(min, max, 30)
+		minorTicks := a.MinorLocator.Ticks(domainMin, domainMax, 30)
 		if len(minorTicks) > 0 {
 			a.drawMinorTicks(r, ctx, minorTicks, isXAxis)
 		}
 	}
 
 	// Major ticks
-	ticks := a.Locator.Ticks(min, max, 6)
+	ticks := a.Locator.Ticks(domainMin, domainMax, 6)
 	if len(ticks) > 0 {
 		a.drawTicks(r, ctx, ticks, isXAxis)
 	}
@@ -283,17 +283,17 @@ func (a *Axis) DrawTickLabels(r render.Renderer, ctx *DrawContext) {
 	if !a.ShowLabels {
 		return
 	}
-	var min, max float64
+	var domainMin, domainMax float64
 	var isXAxis bool
 	switch a.Side {
 	case AxisBottom, AxisTop:
-		min, max = ctx.DataToPixel.XScale.Domain()
+		domainMin, domainMax = ctx.DataToPixel.XScale.Domain()
 		isXAxis = true
 	case AxisLeft, AxisRight:
-		min, max = ctx.DataToPixel.YScale.Domain()
+		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
 		isXAxis = false
 	}
-	ticks := a.Locator.Ticks(min, max, 6)
+	ticks := a.Locator.Ticks(domainMin, domainMax, 6)
 	a.drawTickLabels(r, ctx, ticks, isXAxis)
 }
 

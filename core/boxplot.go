@@ -275,12 +275,12 @@ func linePath(ctx *DrawContext, p1, p2 geom.Pt) geom.Path {
 	return path
 }
 
-func rectPath(ctx *DrawContext, min, max geom.Pt) geom.Path {
+func rectPath(ctx *DrawContext, minPt, maxPt geom.Pt) geom.Path {
 	corners := []geom.Pt{
-		{X: min.X, Y: min.Y},
-		{X: max.X, Y: min.Y},
-		{X: max.X, Y: max.Y},
-		{X: min.X, Y: max.Y},
+		{X: minPt.X, Y: minPt.Y},
+		{X: maxPt.X, Y: minPt.Y},
+		{X: maxPt.X, Y: maxPt.Y},
+		{X: minPt.X, Y: maxPt.Y},
 	}
 	path := geom.Path{}
 	for i, corner := range corners {

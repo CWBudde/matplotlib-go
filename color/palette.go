@@ -46,7 +46,7 @@ func (c *ColorCycle) Next() render.Color {
 	if len(c.palette) == 0 {
 		return render.Color{R: 0, G: 0, B: 0, A: 1} // black fallback
 	}
-	
+
 	color := c.palette[c.index]
 	c.index = (c.index + 1) % len(c.palette)
 	return color
@@ -57,7 +57,7 @@ func (c *ColorCycle) Peek() render.Color {
 	if len(c.palette) == 0 {
 		return render.Color{R: 0, G: 0, B: 0, A: 1} // black fallback
 	}
-	
+
 	return c.palette[c.index]
 }
 
@@ -81,7 +81,7 @@ func (c *ColorCycle) At(index int) render.Color {
 	if len(c.palette) == 0 {
 		return render.Color{R: 0, G: 0, B: 0, A: 1} // black fallback
 	}
-	
+
 	idx := index % len(c.palette)
 	if idx < 0 {
 		idx += len(c.palette)

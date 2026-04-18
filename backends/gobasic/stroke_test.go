@@ -305,7 +305,7 @@ func TestMiterJoinEdgeCases(t *testing.T) {
 			name:     "nearly_parallel",
 			prev:     segment{Start: geom.Pt{X: 0, Y: 0}, End: geom.Pt{X: 10, Y: 0}},
 			curr:     segment{Start: geom.Pt{X: 10, Y: 0}, End: geom.Pt{X: 20, Y: 0.1}}, // 0.57 degrees
-			expected: "bevel", // Should fall back to bevel for nearly parallel lines
+			expected: "bevel",                                                           // Should fall back to bevel for nearly parallel lines
 		},
 		{
 			name:     "acute_angle",

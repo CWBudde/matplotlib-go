@@ -28,15 +28,15 @@ func TestLinearLocator_BasicRanges(t *testing.T) {
 			if !strictlyIncreasing(ticks) {
 				t.Fatalf("ticks not strictly increasing: %+v", ticks)
 			}
-			min, max := c[0], c[1]
-			if min > max {
-				min, max = max, min
+			minVal, maxVal := c[0], c[1]
+			if minVal > maxVal {
+				minVal, maxVal = maxVal, minVal
 			}
-			if ticks[0] > min+1e-12 {
-				t.Fatalf("first tick %v > min %v", ticks[0], min)
+			if ticks[0] > minVal+1e-12 {
+				t.Fatalf("first tick %v > min %v", ticks[0], minVal)
 			}
-			if ticks[len(ticks)-1] < max-1e-12 {
-				t.Fatalf("last tick %v < max %v", ticks[len(ticks)-1], max)
+			if ticks[len(ticks)-1] < maxVal-1e-12 {
+				t.Fatalf("last tick %v < max %v", ticks[len(ticks)-1], maxVal)
 			}
 			// Do not assert exact count band here; coverage and monotonicity suffice.
 		}
@@ -54,15 +54,15 @@ func TestLinearLocator_Property(t *testing.T) {
 			t.Fatalf("not increasing: %+v", ticks)
 		}
 		// Coverage
-		min, max := a, b
-		if min > max {
-			min, max = max, min
+		minVal, maxVal := a, b
+		if minVal > maxVal {
+			minVal, maxVal = maxVal, minVal
 		}
-		if ticks[0] > min+1e-9 {
-			t.Fatalf("first > min: %v > %v", ticks[0], min)
+		if ticks[0] > minVal+1e-9 {
+			t.Fatalf("first > min: %v > %v", ticks[0], minVal)
 		}
-		if ticks[len(ticks)-1] < max-1e-9 {
-			t.Fatalf("last < max: %v < %v", ticks[len(ticks)-1], max)
+		if ticks[len(ticks)-1] < maxVal-1e-9 {
+			t.Fatalf("last < max: %v < %v", ticks[len(ticks)-1], maxVal)
 		}
 	}
 }

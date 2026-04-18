@@ -240,20 +240,20 @@ func calculateJoin(prev, curr segment, halfWidth float64, joinStyle render.LineJ
 		// Calculate direction vectors
 		prevDir := geom.Pt{X: prev.End.X - prev.Start.X, Y: prev.End.Y - prev.Start.Y}
 		currDir := geom.Pt{X: curr.End.X - curr.Start.X, Y: curr.End.Y - curr.Start.Y}
-		
+
 		// Normalize direction vectors
 		prevLen := math.Sqrt(prevDir.X*prevDir.X + prevDir.Y*prevDir.Y)
 		currLen := math.Sqrt(currDir.X*currDir.X + currDir.Y*currDir.Y)
-		
+
 		if prevLen > 0 && currLen > 0 {
 			prevDir.X /= prevLen
-			prevDir.Y /= prevLen  
+			prevDir.Y /= prevLen
 			currDir.X /= currLen
 			currDir.Y /= currLen
-			
+
 			// Calculate the angle between the segments
 			dot := prevDir.X*currDir.X + prevDir.Y*currDir.Y
-			
+
 			// Avoid miter for nearly parallel or opposite directions
 			if math.Abs(dot) > 0.999 { // Nearly parallel (< 2.5 degrees)
 				// Fall back to bevel for nearly parallel lines
@@ -264,9 +264,9 @@ func calculateJoin(prev, curr segment, halfWidth float64, joinStyle render.LineJ
 				halfAngleSin := math.Sqrt((1 - dot) / 2)
 				if halfAngleSin > 0 {
 					miterLength := halfWidth / halfAngleSin
-					
+
 					// Check miter limit
-					if miterLength <= miterLimit * halfWidth {
+					if miterLength <= miterLimit*halfWidth {
 						// Calculate miter intersection points
 						leftMiter := intersectLines(
 							geom.Pt{X: prev.Start.X + prevNormal.X, Y: prev.Start.Y + prevNormal.Y},
@@ -280,7 +280,7 @@ func calculateJoin(prev, curr segment, halfWidth float64, joinStyle render.LineJ
 							geom.Pt{X: curr.Start.X - currNormal.X, Y: curr.Start.Y - currNormal.Y},
 							geom.Pt{X: curr.End.X - currNormal.X, Y: curr.End.Y - currNormal.Y},
 						)
-						
+
 						left = quantizePt(leftMiter)
 						right = quantizePt(rightMiter)
 					} else {
@@ -296,22 +296,22 @@ func calculateJoin(prev, curr segment, halfWidth float64, joinStyle render.LineJ
 		// Calculate the angle between segments to determine arc
 		prevDir := geom.Pt{X: prev.End.X - prev.Start.X, Y: prev.End.Y - prev.Start.Y}
 		currDir := geom.Pt{X: curr.End.X - curr.Start.X, Y: curr.End.Y - curr.Start.Y}
-		
+
 		// Normalize directions
 		prevLen := math.Sqrt(prevDir.X*prevDir.X + prevDir.Y*prevDir.Y)
 		currLen := math.Sqrt(currDir.X*currDir.X + currDir.Y*currDir.Y)
-		
+
 		if prevLen > 0 && currLen > 0 {
 			prevDir.X /= prevLen
 			prevDir.Y /= prevLen
 			currDir.X /= currLen
 			currDir.Y /= currLen
-			
+
 			// Calculate angle between directions using dot product and cross product
 			dot := prevDir.X*currDir.X + prevDir.Y*currDir.Y
 			cross := prevDir.X*currDir.Y - prevDir.Y*currDir.X
 			angle := math.Atan2(cross, dot)
-			
+
 			if math.Abs(angle) > 0.01 { // Only create round join if there's significant angle
 				// Use miter intersection as approximation for round join center
 				leftMiter := intersectLines(
@@ -326,7 +326,7 @@ func calculateJoin(prev, curr segment, halfWidth float64, joinStyle render.LineJ
 					geom.Pt{X: curr.Start.X - currNormal.X, Y: curr.Start.Y - currNormal.Y},
 					geom.Pt{X: curr.End.X - currNormal.X, Y: curr.End.Y - currNormal.Y},
 				)
-				
+
 				// Use the miter points if they're reasonable, otherwise default to bevel
 				if distance(joinPt, leftMiter) < miterLimit*halfWidth {
 					left = leftMiter
@@ -394,7 +394,7 @@ func calculateCap(seg segment, isStart bool, halfWidth float64, capStyle render.
 		// Create semicircle with adaptive subdivision based on radius
 		radius := halfWidth
 		numSegments := int(math.Max(8, math.Min(32, radius*2))) // Adaptive based on size
-		
+
 		result.C = append(result.C, geom.MoveTo)
 		result.V = append(result.V, geom.Pt{X: capPt.X + normal.X, Y: capPt.Y + normal.Y})
 
@@ -464,7 +464,7 @@ func applyDashesToSubpath(p geom.Path, dashes []float64) geom.Path {
 		for segConsumed < segLength-epsilon {
 			available := segLength - segConsumed
 			consume := math.Min(available, dashRemaining)
-			
+
 			// Quantize consume to avoid precision issues
 			consume = quantize(consume)
 
@@ -472,7 +472,7 @@ func applyDashesToSubpath(p geom.Path, dashes []float64) geom.Path {
 				// Add this segment to the result
 				t1 := segConsumed / segLength
 				t2 := (segConsumed + consume) / segLength
-				
+
 				// Clamp t values to [0,1]
 				t1 = math.Max(0, math.Min(1, t1))
 				t2 = math.Max(0, math.Min(1, t2))
@@ -561,10 +561,10 @@ func flattenQuadRecursive(start, ctrl, end geom.Pt, t0, t1, tolerance float64, s
 		X: (evaluateQuad(start, ctrl, end, t0).X + evaluateQuad(start, ctrl, end, t1).X) * 0.5,
 		Y: (evaluateQuad(start, ctrl, end, t0).Y + evaluateQuad(start, ctrl, end, t1).Y) * 0.5,
 	}
-	
+
 	// Calculate error (distance from curve to chord)
 	curveError := distance(curveMid, chordMid)
-	
+
 	// If error is small enough or segment is very short, create a line segment
 	if curveError <= tolerance || (t1-t0) < 0.01 {
 		p1 := evaluateQuad(start, ctrl, end, t0)
@@ -594,10 +594,10 @@ func flattenCubicRecursive(start, c1, c2, end geom.Pt, t0, t1, tolerance float64
 		X: (evaluateCubic(start, c1, c2, end, t0).X + evaluateCubic(start, c1, c2, end, t1).X) * 0.5,
 		Y: (evaluateCubic(start, c1, c2, end, t0).Y + evaluateCubic(start, c1, c2, end, t1).Y) * 0.5,
 	}
-	
+
 	// Calculate error (distance from curve to chord)
 	curveError := distance(curveMid, chordMid)
-	
+
 	// If error is small enough or segment is very short, create a line segment
 	if curveError <= tolerance || (t1-t0) < 0.01 {
 		p1 := evaluateCubic(start, c1, c2, end, t0)

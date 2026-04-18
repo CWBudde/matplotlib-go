@@ -49,6 +49,7 @@ func maxf(a, b F64) F64 {
 	}
 	return b
 }
+
 func minf(a, b F64) F64 {
 	if a < b {
 		return a

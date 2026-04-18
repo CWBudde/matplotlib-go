@@ -277,8 +277,12 @@ func renderScatterBasic() image.Image {
 	ax.YScale = transform.NewLinear(0, 10)
 
 	basicPoints := []geom.Pt{
-		{X: 2, Y: 3}, {X: 4, Y: 6}, {X: 6, Y: 4},
-		{X: 8, Y: 7}, {X: 3, Y: 8}, {X: 7, Y: 2},
+		{X: 2, Y: 3},
+		{X: 4, Y: 6},
+		{X: 6, Y: 4},
+		{X: 8, Y: 7},
+		{X: 3, Y: 8},
+		{X: 7, Y: 2},
 	}
 	scatter := &core.Scatter2D{
 		XY:     basicPoints,
@@ -350,21 +354,35 @@ func renderScatterAdvanced() image.Image {
 	ax.YScale = transform.NewLinear(0, 10)
 
 	points := []geom.Pt{
-		{X: 2, Y: 2}, {X: 4, Y: 4}, {X: 6, Y: 6}, {X: 8, Y: 8},
-		{X: 2, Y: 8}, {X: 4, Y: 6}, {X: 6, Y: 4}, {X: 8, Y: 2},
+		{X: 2, Y: 2},
+		{X: 4, Y: 4},
+		{X: 6, Y: 6},
+		{X: 8, Y: 8},
+		{X: 2, Y: 8},
+		{X: 4, Y: 6},
+		{X: 6, Y: 4},
+		{X: 8, Y: 2},
 	}
 	sizes := []float64{6, 10, 14, 18, 8, 12, 16, 20}
 	fillColors := []render.Color{
-		{R: 1, G: 0.5, B: 0.5, A: 1}, {R: 0.5, G: 1, B: 0.5, A: 1},
-		{R: 0.5, G: 0.5, B: 1, A: 1}, {R: 1, G: 1, B: 0.5, A: 1},
-		{R: 1, G: 0.5, B: 1, A: 1}, {R: 0.5, G: 1, B: 1, A: 1},
-		{R: 0.8, G: 0.8, B: 0.8, A: 1}, {R: 0.3, G: 0.3, B: 0.3, A: 1},
+		{R: 1, G: 0.5, B: 0.5, A: 1},
+		{R: 0.5, G: 1, B: 0.5, A: 1},
+		{R: 0.5, G: 0.5, B: 1, A: 1},
+		{R: 1, G: 1, B: 0.5, A: 1},
+		{R: 1, G: 0.5, B: 1, A: 1},
+		{R: 0.5, G: 1, B: 1, A: 1},
+		{R: 0.8, G: 0.8, B: 0.8, A: 1},
+		{R: 0.3, G: 0.3, B: 0.3, A: 1},
 	}
 	edgeColors := []render.Color{
-		{R: 0.5, G: 0, B: 0, A: 1}, {R: 0, G: 0.5, B: 0, A: 1},
-		{R: 0, G: 0, B: 0.5, A: 1}, {R: 0.5, G: 0.5, B: 0, A: 1},
-		{R: 0.5, G: 0, B: 0.5, A: 1}, {R: 0, G: 0.5, B: 0.5, A: 1},
-		{R: 0.4, G: 0.4, B: 0.4, A: 1}, {R: 0, G: 0, B: 0, A: 1},
+		{R: 0.5, G: 0, B: 0, A: 1},
+		{R: 0, G: 0.5, B: 0, A: 1},
+		{R: 0, G: 0, B: 0.5, A: 1},
+		{R: 0.5, G: 0.5, B: 0, A: 1},
+		{R: 0.5, G: 0, B: 0.5, A: 1},
+		{R: 0, G: 0.5, B: 0.5, A: 1},
+		{R: 0.4, G: 0.4, B: 0.4, A: 1},
+		{R: 0, G: 0, B: 0, A: 1},
 	}
 
 	scatter := &core.Scatter2D{

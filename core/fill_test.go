@@ -186,7 +186,7 @@ func TestFill2D_Bounds(t *testing.T) {
 		Y2: []float64{0, 1, 0.5},
 	}
 	bounds = fill.Bounds(nil)
-	
+
 	// Should include all X and Y values
 	if bounds.Min.X != 0 || bounds.Max.X != 2 {
 		t.Errorf("Expected X bounds [0, 2], got [%v, %v]", bounds.Min.X, bounds.Max.X)
@@ -203,7 +203,7 @@ func TestFill2D_Bounds(t *testing.T) {
 		Baseline: -1.0,
 	}
 	bounds = fill.Bounds(nil)
-	
+
 	// Should include baseline in Y bounds
 	if bounds.Min.Y != -1.0 || bounds.Max.Y != 3 {
 		t.Errorf("Expected Y bounds [-1, 3], got [%v, %v]", bounds.Min.Y, bounds.Max.Y)

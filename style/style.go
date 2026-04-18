@@ -31,6 +31,7 @@ var Default = RC{
 type Option func(*RC)
 
 // Apply copies base and applies the given options in order, returning the result.
+//
 //nolint:gocritic // RC is intentionally passed by value to preserve copy-on-apply semantics.
 func Apply(base RC, opts ...Option) RC {
 	rc := base

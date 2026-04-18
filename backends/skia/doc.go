@@ -12,7 +12,8 @@
 // # Build Tags
 //
 // Use build tags to enable Skia support:
-//   go build -tags skia ./...
+//
+//	go build -tags skia ./...
 //
 // # Dependencies
 //

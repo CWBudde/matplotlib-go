@@ -35,7 +35,7 @@ func (r *Renderer) Save() {
 }
 
 func (r *Renderer) Restore() {
-	// No-op  
+	// No-op
 }
 
 func (r *Renderer) ClipRect(_ geom.Rect) {

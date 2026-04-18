@@ -174,7 +174,7 @@ func TestScatter2D_Bounds(t *testing.T) {
 		Size: 5.0,
 	}
 	bounds = scatter.Bounds(nil)
-	
+
 	// Should expand bounds by approximately the marker size
 	if bounds.Min.X > 0 || bounds.Min.Y > 0 {
 		t.Errorf("Expected bounds to expand below data minimum, got %v", bounds)
@@ -193,7 +193,7 @@ func TestScatter2D_Bounds(t *testing.T) {
 		Size:  5.0,                  // fallback size
 	}
 	bounds = scatter.Bounds(nil)
-	
+
 	// Should use the maximum size for bounds expansion
 	if bounds.Min.X >= 0 || bounds.Min.Y >= 0 {
 		t.Errorf("Expected bounds to expand below origin with max size, got %v", bounds)

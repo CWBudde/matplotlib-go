@@ -9,7 +9,7 @@ import (
 
 // Locator computes tick positions for a numeric range.
 type Locator interface {
-	Ticks(min, max float64, targetCount int) []float64
+	Ticks(minVal, maxVal float64, targetCount int) []float64
 }
 
 // Formatter converts numeric tick values to strings.
@@ -22,23 +22,23 @@ type LinearLocator struct{}
 
 // Ticks returns a strictly increasing slice of ticks that cover [min,max]
 // using a step chosen from {1,2,5}×10^k close to span/targetCount.
-func (LinearLocator) Ticks(min, max float64, targetCount int) []float64 {
+func (LinearLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 	if targetCount <= 0 {
 		targetCount = 1
 	}
-	if math.IsNaN(min) || math.IsNaN(max) {
+	if math.IsNaN(minVal) || math.IsNaN(maxVal) {
 		return nil
 	}
-	if min == max {
-		return []float64{min}
+	if minVal == maxVal {
+		return []float64{minVal}
 	}
-	if min > max {
-		min, max = max, min
+	if minVal > maxVal {
+		minVal, maxVal = maxVal, minVal
 	}
-	span := max - min
+	span := maxVal - minVal
 	raw := span / float64(targetCount)
 	if raw <= 0 || math.IsInf(raw, 0) || math.IsNaN(raw) {
-		return []float64{min, max}
+		return []float64{minVal, maxVal}
 	}
 	// Determine exponent of 10 for raw step.
 	exp := math.Floor(math.Log10(raw))
@@ -53,8 +53,8 @@ func (LinearLocator) Ticks(min, max float64, targetCount int) []float64 {
 		}
 	}
 	// Align start/end to cover [min,max]
-	start := math.Floor(min/step) * step
-	end := math.Ceil(max/step) * step
+	start := math.Floor(minVal/step) * step
+	end := math.Ceil(maxVal/step) * step
 	// Generate ticks
 	// Guard against pathological loops
 	nmax := int(2*float64(targetCount) + 20)
@@ -86,13 +86,13 @@ type MinorLinearLocator struct {
 	N int // subdivisions per major interval
 }
 
-func (m MinorLinearLocator) Ticks(min, max float64, _ int) []float64 {
+func (m MinorLinearLocator) Ticks(minVal, maxVal float64, _ int) []float64 {
 	n := m.N
 	if n <= 1 {
 		n = 5
 	}
 	// Get major ticks to subdivide between them
-	majors := (LinearLocator{}).Ticks(min, max, 6)
+	majors := (LinearLocator{}).Ticks(minVal, maxVal, 6)
 	if len(majors) < 2 {
 		return nil
 	}
@@ -115,7 +115,7 @@ func (m MinorLinearLocator) Ticks(min, max float64, _ int) []float64 {
 				break
 			}
 		}
-		if !isMajor && v >= min && v <= max {
+		if !isMajor && v >= minVal && v <= maxVal {
 			ticks = append(ticks, v)
 		}
 	}
@@ -130,36 +130,36 @@ type LogLocator struct {
 	Minor bool
 }
 
-func (l LogLocator) Ticks(min, max float64, targetCount int) []float64 {
+func (l LogLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 	base := l.Base
 	if base <= 1 {
 		return nil
 	}
-	if min > max {
-		min, max = max, min
+	if minVal > maxVal {
+		minVal, maxVal = maxVal, minVal
 	}
-	if min <= 0 || max <= 0 {
+	if minVal <= 0 || maxVal <= 0 {
 		return nil
 	}
 	// Find exponent range
 	lb := math.Log(base)
-	kmin := math.Ceil(math.Log(min) / lb)
-	kmax := math.Floor(math.Log(max)/lb + 1e-10) // Add small epsilon to handle floating point precision
+	kmin := math.Ceil(math.Log(minVal) / lb)
+	kmax := math.Floor(math.Log(maxVal)/lb + 1e-10) // Add small epsilon to handle floating point precision
 	var ticks []float64
 	// Majors
 	for k := kmin; k <= kmax; k++ {
 		v := math.Pow(base, k)
-		if v >= min && v <= max {
+		if v >= minVal && v <= maxVal {
 			ticks = append(ticks, v)
 		}
 		if l.Minor {
 			// Minors at 2,5 per decade (common convention)
 			m2 := 2 * math.Pow(base, k)
 			m5 := 5 * math.Pow(base, k)
-			if m2 > v && m2 < math.Pow(base, k+1) && m2 >= min && m2 <= max {
+			if m2 > v && m2 < math.Pow(base, k+1) && m2 >= minVal && m2 <= maxVal {
 				ticks = append(ticks, m2)
 			}
-			if m5 > v && m5 < math.Pow(base, k+1) && m5 >= min && m5 <= max {
+			if m5 > v && m5 < math.Pow(base, k+1) && m5 >= minVal && m5 <= maxVal {
 				ticks = append(ticks, m5)
 			}
 		}

@@ -171,8 +171,10 @@ func (s *BackendTestSuite) TestPathDrawing(t *testing.T) {
 	rectPath := geom.Path{
 		C: []geom.Cmd{geom.MoveTo, geom.LineTo, geom.LineTo, geom.LineTo, geom.ClosePath},
 		V: []geom.Pt{
-			{X: 20, Y: 20}, {X: 80, Y: 20},
-			{X: 80, Y: 80}, {X: 20, Y: 80},
+			{X: 20, Y: 20},
+			{X: 80, Y: 20},
+			{X: 80, Y: 80},
+			{X: 20, Y: 80},
 		},
 	}
 
@@ -204,7 +206,7 @@ func (s *BackendTestSuite) TestErrorHandling(t *testing.T) {
 	// (backend-specific behavior, but should not crash)
 	renderer.Save()
 	renderer.Restore()
-	
+
 	emptyPath := geom.Path{}
 	emptyPaint := &render.Paint{}
 	renderer.Path(emptyPath, emptyPaint)

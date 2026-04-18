@@ -41,15 +41,15 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	var min, max float64
+	var domainMin, domainMax float64
 	var isXAxis bool
 
 	switch g.Axis {
 	case AxisBottom, AxisTop:
-		min, max = ctx.DataToPixel.XScale.Domain()
+		domainMin, domainMax = ctx.DataToPixel.XScale.Domain()
 		isXAxis = true
 	case AxisLeft, AxisRight:
-		min, max = ctx.DataToPixel.YScale.Domain()
+		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
 	}
 
 	majorColor := g.Color
@@ -63,7 +63,7 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 		if minorLoc == nil {
 			minorLoc = MinorLinearLocator{N: 5}
 		}
-		minorTicks := minorLoc.Ticks(min, max, 30)
+		minorTicks := minorLoc.Ticks(domainMin, domainMax, 30)
 
 		minorColor := g.MinorColor
 		if minorColor == (render.Color{}) {
@@ -86,7 +86,7 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 		if loc == nil {
 			loc = LinearLocator{}
 		}
-		ticks := loc.Ticks(min, max, 8)
+		ticks := loc.Ticks(domainMin, domainMax, 8)
 
 		for _, v := range ticks {
 			g.drawLine(r, ctx, v, isXAxis, majorColor, g.LineWidth, g.Dashes)
