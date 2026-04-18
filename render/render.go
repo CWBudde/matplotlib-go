@@ -1,6 +1,7 @@
 package render
 
 import (
+	"image"
 	"errors"
 
 	"matplotlib-go/internal/geom"
@@ -80,6 +81,46 @@ type TextMetrics struct{ W, H, Ascent, Descent float64 }
 // Image is a minimal interface for raster images passed to renderers.
 type Image interface {
 	Size() (w, h int)
+}
+
+// RGBAImage is an optional renderer-facing image interface that exposes direct
+// RGBA pixel access. Renderers may use this for efficient conversion and
+// image-space transforms.
+type RGBAImage interface {
+	Image
+	RGBA() *image.RGBA
+}
+
+// ImageData is a concrete raster image implementation that satisfies both Image
+// and RGBAImage. It is the primary raster type used by heatmaps and image
+// artists in this package.
+type ImageData struct {
+	rgba *image.RGBA
+}
+
+// NewImageData creates a new ImageData from an RGBA source image.
+// A nil image results in an empty image.
+func NewImageData(img *image.RGBA) *ImageData {
+	if img == nil {
+		return &ImageData{rgba: image.NewRGBA(image.Rect(0, 0, 0, 0))}
+	}
+	return &ImageData{rgba: img}
+}
+
+// Size returns the raster dimensions in pixels.
+func (i *ImageData) Size() (w, h int) {
+	if i == nil || i.rgba == nil {
+		return 0, 0
+	}
+	return i.rgba.Bounds().Dx(), i.rgba.Bounds().Dy()
+}
+
+// RGBA returns the backing RGBA image.
+func (i *ImageData) RGBA() *image.RGBA {
+	if i == nil {
+		return nil
+	}
+	return i.rgba
 }
 
 // Renderer defines the core drawing verbs.

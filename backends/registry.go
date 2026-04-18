@@ -204,9 +204,9 @@ func GetBestBackend(required []Capability) (Backend, error) {
 }
 
 // DefaultBackend returns the backend used when callers do not specify one.
-// AGG is the preferred default in this port.
+// GoBasic is the default in this project to keep the renderer pure-Go.
 func DefaultBackend() Backend {
-	return AGG
+	return GoBasic
 }
 
 // SimpleConfig creates a basic config for testing/simple use.
@@ -220,10 +220,10 @@ func SimpleConfig(width, height int, bg render.Color) Config {
 }
 
 func preferredBackendLess(a, b Backend) bool {
-	if a == AGG && b != AGG {
+	if a == GoBasic && b != GoBasic {
 		return true
 	}
-	if b == AGG && a != AGG {
+	if b == GoBasic && a != GoBasic {
 		return false
 	}
 	return a < b

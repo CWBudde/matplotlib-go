@@ -87,6 +87,9 @@ type Axes struct {
 
 	// Color cycling for multiple series
 	ColorCycle *color.ColorCycle
+
+	shareX *Axes
+	shareY *Axes
 }
 
 // AddAxes appends an Axes to the Figure. If opts are provided, the Axes gets its
@@ -116,29 +119,33 @@ func (a *Axes) Add(art Artist) { a.Artists = append(a.Artists, art); a.zsorted =
 
 // SetXLim sets the x-axis limits.
 func (a *Axes) SetXLim(minVal, maxVal float64) {
-	a.XScale = transform.NewLinear(minVal, maxVal)
+	target := a.xScaleRoot()
+	target.XScale = transform.NewLinear(minVal, maxVal)
 }
 
 // SetYLim sets the y-axis limits.
 func (a *Axes) SetYLim(minVal, maxVal float64) {
-	a.YScale = transform.NewLinear(minVal, maxVal)
+	target := a.yScaleRoot()
+	target.YScale = transform.NewLinear(minVal, maxVal)
 }
 
 // SetXLimLog sets the x-axis to logarithmic scale with given limits.
 func (a *Axes) SetXLimLog(minVal, maxVal, base float64) {
-	a.XScale = transform.NewLog(minVal, maxVal, base)
-	if a.XAxis != nil {
-		a.XAxis.Locator = LogLocator{Base: base, Minor: false}
-		a.XAxis.Formatter = LogFormatter{Base: base}
+	target := a.xScaleRoot()
+	target.XScale = transform.NewLog(minVal, maxVal, base)
+	if target.XAxis != nil {
+		target.XAxis.Locator = LogLocator{Base: base, Minor: false}
+		target.XAxis.Formatter = LogFormatter{Base: base}
 	}
 }
 
 // SetYLimLog sets the y-axis to logarithmic scale with given limits.
 func (a *Axes) SetYLimLog(minVal, maxVal, base float64) {
-	a.YScale = transform.NewLog(minVal, maxVal, base)
-	if a.YAxis != nil {
-		a.YAxis.Locator = LogLocator{Base: base, Minor: false}
-		a.YAxis.Formatter = LogFormatter{Base: base}
+	target := a.yScaleRoot()
+	target.YScale = transform.NewLog(minVal, maxVal, base)
+	if target.YAxis != nil {
+		target.YAxis.Locator = LogLocator{Base: base, Minor: false}
+		target.YAxis.Formatter = LogFormatter{Base: base}
 	}
 }
 
@@ -147,6 +154,9 @@ func (a *Axes) SetYLimLog(minVal, maxVal, base float64) {
 // A margin of 0 fits exactly to the data. If no artists have non-zero bounds,
 // limits remain unchanged.
 func (a *Axes) AutoScale(margin float64) {
+	targetX := a.xScaleRoot()
+	targetY := a.yScaleRoot()
+
 	var xMin, xMax, yMin, yMax float64
 	first := true
 
@@ -192,8 +202,8 @@ func (a *Axes) AutoScale(margin float64) {
 	yMin -= ySpan * margin
 	yMax += ySpan * margin
 
-	a.XScale = transform.NewLinear(xMin, xMax)
-	a.YScale = transform.NewLinear(yMin, yMax)
+	targetX.XScale = transform.NewLinear(xMin, xMax)
+	targetY.YScale = transform.NewLinear(yMin, yMax)
 }
 
 // AddGrid adds grid lines for the specified axis.
@@ -253,6 +263,62 @@ func (a *Axes) layout(f *Figure) (pixelRect geom.Rect) {
 	return geom.Rect{Min: minPt, Max: maxPt}
 }
 
+func (a *Axes) xScaleRoot() *Axes {
+	if a == nil {
+		return nil
+	}
+	cur := a
+	for cur.shareX != nil {
+		cur = cur.shareX
+		if cur == nil {
+			return a
+		}
+	}
+	return cur
+}
+
+func (a *Axes) yScaleRoot() *Axes {
+	if a == nil {
+		return nil
+	}
+	cur := a
+	for cur.shareY != nil {
+		cur = cur.shareY
+		if cur == nil {
+			return a
+		}
+	}
+	return cur
+}
+
+func (a *Axes) effectiveXAxis() *Axis {
+	if a.shareX != nil {
+		return a.shareX.effectiveXAxis()
+	}
+	return a.XAxis
+}
+
+func (a *Axes) effectiveYAxis() *Axis {
+	if a.shareY != nil {
+		return a.shareY.effectiveYAxis()
+	}
+	return a.YAxis
+}
+
+func (a *Axes) effectiveXScale() transform.Scale {
+	if a.shareX != nil {
+		return a.shareX.effectiveXScale()
+	}
+	return a.XScale
+}
+
+func (a *Axes) effectiveYScale() transform.Scale {
+	if a.shareY != nil {
+		return a.shareY.effectiveYScale()
+	}
+	return a.YScale
+}
+
 // effectiveRC resolves the RC for this axes, inheriting from the Figure if needed.
 func (a *Axes) effectiveRC(f *Figure) style.RC {
 	if a.RC != nil {
@@ -269,12 +335,14 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 
 	for _, ax := range fig.Children {
 		px := ax.layout(fig)
+		xAxis := ax.effectiveXAxis()
+		yAxis := ax.effectiveYAxis()
 
 		// Build DrawContext with composed transform
 		ctx := &DrawContext{
 			DataToPixel: Transform2D{
-				XScale:      ax.XScale,
-				YScale:      ax.YScale,
+				XScale:      ax.effectiveXScale(),
+				YScale:      ax.effectiveYScale(),
 				AxesToPixel: transform.NewAffine(axesToPixel(px)),
 			},
 			RC:   ax.effectiveRC(fig),
@@ -299,16 +367,16 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			art.Draw(r, ctx)
 		}
 
-		if ax.XAxis != nil {
-			ax.XAxis.Draw(r, ctx)
+		if xAxis != nil {
+			xAxis.Draw(r, ctx)
 		}
-		if ax.YAxis != nil {
-			ax.YAxis.Draw(r, ctx)
+		if yAxis != nil {
+			yAxis.Draw(r, ctx)
 		}
 		if ax.ShowFrame {
-			ref := ax.XAxis
+			ref := xAxis
 			if ref == nil {
-				ref = ax.YAxis
+				ref = yAxis
 			}
 			DrawFrame(r, ctx, ref)
 		}
@@ -316,13 +384,13 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 
 		// Draw ticks (outward), tick labels, and text labels outside the clip rect
 		setRendererResolution(r, ctx.RC.DPI)
-		if ax.XAxis != nil {
-			ax.XAxis.DrawTicks(r, ctx)
-			ax.XAxis.DrawTickLabels(r, ctx)
+		if xAxis != nil {
+			xAxis.DrawTicks(r, ctx)
+			xAxis.DrawTickLabels(r, ctx)
 		}
-		if ax.YAxis != nil {
-			ax.YAxis.DrawTicks(r, ctx)
-			ax.YAxis.DrawTickLabels(r, ctx)
+		if yAxis != nil {
+			yAxis.DrawTicks(r, ctx)
+			yAxis.DrawTickLabels(r, ctx)
 		}
 		drawAxesLabels(ax, r, ctx, px)
 	}

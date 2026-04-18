@@ -160,21 +160,21 @@ core.SavePNG(fig, r, "output.png")
 
 ### 3.3 Error Bars
 
-- [ ] `ErrorBar` artist for scientific plots
-- [ ] X and Y error bars with caps
-- [ ] Combine with scatter/line plots
-- [ ] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
-- [ ] Comprehensive unit tests and golden tests
-- [ ] Example: `examples/errorbar/basic.go`
+- [x] `ErrorBar` artist for scientific plots
+- [x] X and Y error bars with caps
+- [x] Combine with scatter/line plots
+- [x] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
+- [x] Comprehensive unit tests and golden tests
+- [x] Example: `examples/errorbar/basic.go`
 
 ### 3.4 Images and Heatmaps
 
-- [ ] `Image2D` artist for imshow functionality
-- [ ] AGG image transformation for scaling/rotation
-- [ ] Colormaps (using AGG gradients)
-- [ ] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
-- [ ] Comprehensive unit tests and golden tests
-- [ ] Example: `examples/image/basic.go`
+- [x] `Image2D` artist for imshow functionality
+- [x] AGG image transformation for scaling/rotation
+- [x] Colormaps (using AGG gradients)
+- [x] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
+- [x] Comprehensive unit tests and golden tests
+- [x] Example: `examples/image/basic.go`
 
 **Exit Criteria:**
 

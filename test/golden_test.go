@@ -92,8 +92,15 @@ func TestBoxPlotBasic_Golden(t *testing.T) {
 	runGoldenTest(t, "boxplot_basic", renderBoxPlotBasic)
 }
 
+func TestErrorBars_Golden(t *testing.T) {
+	runGoldenTest(t, "errorbar_basic", renderErrorBars)
+}
+
 func TestTextLabelsStrict_Golden(t *testing.T) {
 	runGoldenTest(t, "text_labels_strict", renderTextLabelsStrict)
+}
+func TestImageHeatmap_Golden(t *testing.T) {
+	runGoldenTest(t, "image_heatmap", renderImageHeatmap)
 }
 
 // runGoldenTest is a helper function for golden image testing
@@ -891,6 +898,78 @@ func renderMultiSeriesColorCycle() image.Image {
 		label := fmt.Sprintf("f=%d", freq)
 		ax.Plot(x, y, core.PlotOptions{Label: label})
 	}
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderErrorBars() image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.XScale = transform.NewLinear(0, 7)
+	ax.YScale = transform.NewLinear(0, 6)
+
+	x := []float64{1, 2, 3, 4, 5, 6}
+	y := []float64{1.8, 2.5, 2.2, 3.1, 2.8, 3.7}
+	xErr := []float64{0.20, 0.25, 0.15, 0.22, 0.30, 0.18}
+	yErr := []float64{0.28, 0.20, 0.35, 0.24, 0.30, 0.22}
+
+	lineColor := render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1}
+	black := render.Color{R: 0, G: 0, B: 0, A: 1}
+	pointColor := render.Color{R: 0.17, G: 0.63, B: 0.17, A: 1}
+	lineWidth := 2.0
+	errorWidth := 1.2
+	pointSize := 4.5
+	errorCap := 6.0
+
+	ax.Plot(x, y, core.PlotOptions{
+		Color:     &lineColor,
+		LineWidth: &lineWidth,
+		Label:     "Trend",
+	})
+	ax.Scatter(x, y, core.ScatterOptions{
+		Color: &pointColor,
+		Size:  &pointSize,
+		Label: "Samples",
+	})
+	ax.ErrorBar(x, y, xErr, yErr, core.ErrorBarOptions{
+		Color:     &black,
+		LineWidth: &errorWidth,
+		CapSize:   &errorCap,
+		Label:     "1σ Uncertainty",
+	})
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderImageHeatmap() image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.15},
+		Max: geom.Pt{X: 0.95, Y: 0.9},
+	})
+	ax.XScale = transform.NewLinear(0, 3)
+	ax.YScale = transform.NewLinear(0, 3)
+
+	data := [][]float64{
+		{0, 1, 2},
+		{3, 4, 5},
+		{6, 7, 8},
+	}
+
+	ax.Image(data)
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {

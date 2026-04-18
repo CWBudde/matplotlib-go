@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import json
 import math
 import os
 import sys
@@ -40,6 +41,88 @@ TAB10 = [
     (0.74, 0.74, 0.13),  # olive
     (0.09, 0.75, 0.81),  # cyan
 ]
+
+MASK64 = (1 << 64) - 1
+
+
+def _pcg_step(hi: int, lo: int) -> tuple[int, int]:
+    """Advance Go's math/rand/v2.PCG state and return the next tuple.
+
+    Mirrors the exact state transition from /usr/local/go1.25.0/src/math/rand/v2/pcg.go.
+    """
+    mul_hi = 2549297995355413924
+    mul_lo = 4865540595714422341
+    inc_hi = 6364136223846793005
+    inc_lo = 1442695040888963407
+
+    # bits.Mul64(p.lo, mulLo)
+    mul_lo_lo = (lo * mul_lo) & MASK64
+    mul_lo_hi = (lo * mul_lo) >> 64
+
+    hi_new = (mul_lo_hi + (hi * mul_lo) + (lo * mul_hi)) & MASK64
+
+    lo_new = mul_lo_lo + inc_lo
+    carry = 1 if lo_new > MASK64 else 0
+    lo_new &= MASK64
+    hi_new = (hi_new + inc_hi + carry) & MASK64
+    return hi_new, lo_new
+
+
+def _pcg_uint64(hi: int, lo: int) -> tuple[int, int, int]:
+    """Generate one PCG output value and return (value, next_hi, next_lo)."""
+    hi, lo = _pcg_step(hi, lo)
+    cheap_mul = 0xDA942042E4DD58B5
+    val = hi ^ (hi >> 32)
+    val = (val * cheap_mul) & MASK64
+    val ^= val >> 48
+    val = (val * (lo | 1)) & MASK64
+    return val, hi, lo
+
+
+def _pcg_float64(hi: int, lo: int) -> tuple[float, int, int]:
+    """Return a Go-compatible rand.Float64 and updated PCG state.
+
+    Go's Float64 uses:
+    float64(r.Uint64()<<11>>11) / (1 << 53)
+    """
+    value, hi, lo = _pcg_uint64(hi, lo)
+    return float((value & ((1 << 53) - 1)) / float(1 << 53)), hi, lo
+
+
+def normal_data(seed1: int, seed2: int, n: int, mean: float, std: float) -> np.ndarray:
+    """Generate normally distributed samples using the Go Box-Muller path."""
+    hi, lo = seed1 & MASK64, seed2 & MASK64
+    out = np.empty(n, dtype=np.float64)
+    for _ in range(n):
+        u1, hi, lo = _pcg_float64(hi, lo)
+        u2, hi, lo = _pcg_float64(hi, lo)
+        out[_] = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2) * std + mean
+    return out
+
+
+def pcg_float64_values(seed1: int, seed2: int, n: int) -> list[float]:
+    """Generate n Go-compatible Float64 values from the PCG stream."""
+    hi, lo = seed1 & MASK64, seed2 & MASK64
+    out = []
+    for _ in range(n):
+        value, hi, lo = _pcg_float64(hi, lo)
+        out.append(value)
+    return out
+
+
+def histogram_payload(data: list[float], bins, density: bool = False, weights: np.ndarray | None = None) -> dict[str, list[float]]:
+    """Return histogram bin edges and bin heights for parity comparisons."""
+    counts, edges = np.histogram(data, bins=bins, density=density, weights=weights)
+    return {
+        "edges": edges.tolist(),
+        "heights": counts.tolist(),
+    }
+
+
+def _to_list(values: np.ndarray | list[float]) -> list[float]:
+    if isinstance(values, np.ndarray):
+        return values.tolist()
+    return values
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -290,8 +373,7 @@ def multi_series_basic(out_dir):
 
 def hist_basic(out_dir):
     """Count histogram matching renderHistBasic in golden_test.go."""
-    rng = np.random.default_rng(42)
-    data = rng.normal(loc=5.0, scale=1.5, size=500)
+    data = normal_data(42, 0, 500, 5.0, 1.5)
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
     n, bins, patches = ax.hist(
@@ -312,8 +394,7 @@ def hist_basic(out_dir):
 
 def hist_density(out_dir):
     """Density histogram matching renderHistDensity in golden_test.go."""
-    rng = np.random.default_rng(42)
-    data = rng.normal(loc=5.0, scale=1.5, size=500)
+    data = normal_data(42, 0, 500, 5.0, 1.5)
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
     n, bins, patches = ax.hist(
@@ -334,10 +415,8 @@ def hist_density(out_dir):
 
 def hist_strategies(out_dir):
     """Two overlapping probability histograms matching renderHistStrategies."""
-    rng = np.random.default_rng(42)
-    data1 = rng.normal(loc=4.0, scale=1.0, size=300)
-    rng2 = np.random.default_rng(7)
-    data2 = rng2.normal(loc=7.0, scale=1.2, size=300)
+    data1 = normal_data(42, 0, 300, 4.0, 1.0)
+    data2 = normal_data(7, 0, 300, 7.0, 1.2)
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
     n1, _, _ = ax.hist(
@@ -359,6 +438,40 @@ def hist_strategies(out_dir):
     ax.set_xlim(all_data.min() - margin, all_data.max() + margin)
     ax.set_ylim(0, max(n1.max(), n2.max()) * 1.05)
     save(fig, out_dir, "hist_strategies")
+
+
+def errorbar_basic(out_dir):
+    """Combined line+scatter with symmetric error bars."""
+    fig = make_fig()
+    ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_xlim(0, 7)
+    ax.set_ylim(0, 6)
+
+    x = [1, 2, 3, 4, 5, 6]
+    y = [1.8, 2.5, 2.2, 3.1, 2.8, 3.7]
+    xerr = [0.20, 0.25, 0.15, 0.22, 0.30, 0.18]
+    yerr = [0.28, 0.20, 0.35, 0.24, 0.30, 0.22]
+
+    ax.plot(x, y, color=TAB10[0], linewidth=lw(2))
+    ax.scatter(
+        x,
+        y,
+        s=ss(4.5),
+        c=[TAB10[2]],
+        linewidths=0,
+    )
+    cap = (6 * 72.0 / DPI) / 2
+    ax.errorbar(
+        x,
+        y,
+        xerr=xerr,
+        yerr=yerr,
+        fmt="none",
+        ecolor=(0, 0, 0, 1),
+        elinewidth=lw(1.2),
+        capsize=cap,
+    )
+    save(fig, out_dir, "errorbar_basic")
 
 
 def boxplot_basic(out_dir):
@@ -435,6 +548,29 @@ def multi_series_color_cycle(out_dir):
     save(fig, out_dir, "multi_series_color_cycle")
 
 
+def image_heatmap(out_dir):
+    fig = make_fig()
+    ax = fig.add_axes(go_rect(0.1, 0.15, 0.95, 0.9))
+    ax.set_xlim(0, 3)
+    ax.set_ylim(0, 3)
+    data = np.array([
+        [0, 1, 2],
+        [3, 4, 5],
+        [6, 7, 8],
+    ], dtype=float)
+    ax.imshow(
+        data,
+        cmap="viridis",
+        interpolation="nearest",
+        origin="lower",
+        extent=(0, 3, 0, 3),
+        aspect="auto",
+        vmin=data.min(),
+        vmax=data.max(),
+    )
+    save(fig, out_dir, "image_heatmap")
+
+
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 ALL_PLOTS = [
@@ -442,18 +578,58 @@ ALL_PLOTS = [
     scatter_basic, scatter_marker_types, scatter_advanced,
     bar_basic, bar_horizontal, bar_grouped,
     fill_basic, fill_between, fill_stacked,
+    errorbar_basic,
     multi_series_basic, multi_series_color_cycle,
     hist_basic, hist_density, hist_strategies,
     boxplot_basic,
     text_labels_strict,
+    image_heatmap,
 ]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", required=True, help="Directory to write PNG files")
+    parser.add_argument("--output-dir", default="", help="Directory to write PNG files")
+    parser.add_argument(
+        "--emit-rng-debug",
+        action="store_true",
+        help="Emit RNG parity payload as JSON and exit",
+    )
     parser.add_argument("--plots", nargs="*", help="Subset of plot names to generate (default: all)")
     args = parser.parse_args()
+
+    if args.emit_rng_debug:
+        payload = {
+            "normal_data": {
+                "hist_basic": _to_list(normal_data(42, 0, 500, 5.0, 1.5)),
+                "hist_density": _to_list(normal_data(42, 0, 500, 5.0, 1.5)),
+                "hist_strategies_data1": _to_list(normal_data(42, 0, 300, 4.0, 1.0)),
+                "hist_strategies_data2": _to_list(normal_data(7, 0, 300, 7.0, 1.2)),
+            },
+            "uniform_data": {
+                "pcg_42_0_1000": pcg_float64_values(42, 0, 1000),
+                "pcg_7_0_600": pcg_float64_values(7, 0, 600),
+            },
+            "histogram_data": {
+                "hist_basic": histogram_payload(normal_data(42, 0, 500, 5.0, 1.5), bins="sturges"),
+                "hist_density": histogram_payload(normal_data(42, 0, 500, 5.0, 1.5), bins=20, density=True),
+                "hist_strategies_data1": histogram_payload(
+                    normal_data(42, 0, 300, 4.0, 1.0),
+                    bins=15,
+                    weights=np.ones(300) / 300,
+                ),
+                "hist_strategies_data2": histogram_payload(
+                    normal_data(7, 0, 300, 7.0, 1.2),
+                    bins=15,
+                    weights=np.ones(300) / 300,
+                ),
+            },
+        }
+        print(json.dumps(payload))
+        return
+
+    if not args.output_dir:
+        parser.error("--output-dir is required unless --emit-rng-debug is set")
 
     os.makedirs(args.output_dir, exist_ok=True)
 

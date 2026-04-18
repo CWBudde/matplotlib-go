@@ -16,6 +16,7 @@ import (
 // quantizationEpsilon is the precision limit for float values to ensure determinism.
 // All floating point coordinates and measurements are snapped to this precision.
 const quantizationEpsilon = 1e-6
+const defaultFontHeight = 13.0
 
 // quantize snaps a float64 value to quantizationEpsilon precision to eliminate
 // tiny differences that could lead to cross-platform rendering variations.
@@ -53,12 +54,13 @@ type state struct {
 
 // Renderer implements render.Renderer using pure Go dependencies.
 type Renderer struct {
-	dst        *image.RGBA
-	viewport   geom.Rect
-	began      bool
-	stack      []state
-	clipRect   *geom.Rect
-	rasterizer *vector.Rasterizer
+	dst         *image.RGBA
+	viewport    geom.Rect
+	began       bool
+	stack       []state
+	clipRect    *geom.Rect
+	rasterizer  *vector.Rasterizer
+	lastFontKey string
 }
 
 var _ render.Renderer = (*Renderer)(nil)
@@ -256,40 +258,71 @@ func (r *Renderer) drawStroke(p geom.Path, paint *render.Paint) {
 	r.fillPath(strokePath, paint.Stroke)
 }
 
-// Image draws an image within the destination rectangle (stub implementation).
+// Image draws an image within the destination rectangle.
 func (r *Renderer) Image(img render.Image, dst geom.Rect) {
-	// Stub implementation for Phase B
-	// Will be implemented in later phases
+	if img == nil {
+		return
+	}
+
+	src := asRGBAImage(img)
+	if src == nil {
+		return
+	}
+
+	// Destination rectangle in integer coordinates.
+	minX := int(math.Floor(dst.Min.X))
+	minY := int(math.Floor(dst.Min.Y))
+	maxX := int(math.Ceil(dst.Max.X))
+	maxY := int(math.Ceil(dst.Max.Y))
+	if maxX <= minX || maxY <= minY {
+		return
+	}
+
+	r.drawBitmapScaled(src, minX, minY, maxX-minX, maxY-minY)
 }
 
-// GlyphRun is a no-op in GoBasic.
-// Text rendering is expected to go through the AGG backend.
+// GlyphRun renders glyph IDs as code points where available.
+// The mapping is a practical fallback for renderers that expose only glyph IDs.
 func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
 	if len(run.Glyphs) == 0 {
 		return
 	}
+	penX := run.Origin.X + run.Glyphs[0].Offset.X
+	penY := run.Origin.Y + run.Glyphs[0].Offset.Y
+	size := run.Size
+	if size <= 0 {
+		size = 12
+	}
 
-	// For a basic implementation, we can't easily map glyph IDs back to characters
-	// without additional font metadata. This method provides the interface but
-	// requires higher-level text drawing to work through other means.
-	// A complete implementation would need a glyph ID to character mapping.
+	for _, glyph := range run.Glyphs {
+		advance := glyph.Advance
+		ch := rune(glyph.ID)
+		if ch > 0 {
+			_ = r.MeasureText(string(ch), size, run.FontKey)
+			r.DrawText(string(ch), geom.Pt{
+				X: penX + glyph.Offset.X,
+				Y: penY + glyph.Offset.Y,
+			}, size, textColor)
 
-	// For now, this is a stub that maintains the interface contract
-	// Real text rendering would happen through higher-level text drawing functions
+			if advance <= 0 {
+				advance = r.MeasureText(string(ch), size, run.FontKey).W
+			}
+		}
+		penX += glyph.Offset.X + advance
+	}
 }
 
-// MeasureText returns coarse text metrics for layout only.
+// MeasureText returns approximate text metrics for layout.
 func (r *Renderer) MeasureText(text string, size float64, fontKey string) render.TextMetrics {
-	if text == "" {
+	if text == "" || size <= 0 {
 		return render.TextMetrics{}
 	}
-
-	return render.TextMetrics{
-		W:       quantize(float64(len([]rune(text))) * size * 0.6),
-		H:       quantize(size),
-		Ascent:  quantize(size * 0.8),
-		Descent: quantize(size * 0.2),
+	if fontKey == "" {
+		fontKey = "DejaVuSans"
 	}
+	r.lastFontKey = fontKey
+
+	return measureText(text, size, fontKey)
 }
 
 // GetImage returns the underlying image.RGBA for PNG export.
@@ -308,7 +341,368 @@ func (r *Renderer) SavePNG(path string) error {
 	return png.Encode(file, r.dst)
 }
 
-// DrawText is intentionally a no-op in GoBasic.
-// Text rendering is expected to go through the AGG backend so Matplotlib-style
-// TrueType fonts are used consistently.
-func (r *Renderer) DrawText(_ string, _ geom.Pt, _ float64, _ render.Color) {}
+// DrawText renders text at the requested origin.
+func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor render.Color) {
+	if text == "" || size <= 0 {
+		return
+	}
+
+	metrics := r.MeasureText(text, size, r.lastFontKey)
+	if metrics.W <= 0 || metrics.H <= 0 {
+		return
+	}
+
+	src := r.renderTextBitmap(text, size, textColor, r.lastFontKey)
+	if src == nil {
+		return
+	}
+
+	x := int(math.Round(origin.X))
+	y := int(math.Round(origin.Y - metrics.Ascent))
+	r.drawBitmapScaled(src, x, y, src.Bounds().Dx(), src.Bounds().Dy())
+}
+
+// DrawTextRotated renders text by rasterizing and rotating around center.
+func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size float64, angle float64, textColor render.Color) {
+	if text == "" || size <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
+		return
+	}
+
+	src := r.renderTextBitmap(text, size, textColor, r.lastFontKey)
+	if src == nil {
+		return
+	}
+
+	const epsilon = 1e-12
+	if math.Abs(angle) <= epsilon {
+		x := int(math.Round(center.X - float64(src.Bounds().Dx())/2))
+		y := int(math.Round(center.Y - float64(src.Bounds().Dy())/2))
+		r.drawBitmapScaled(src, x, y, src.Bounds().Dx(), src.Bounds().Dy())
+		return
+	}
+
+	r.drawBitmapRotated(src, center, angle)
+}
+
+// DrawTextVertical renders one character per line.
+func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, textColor render.Color) {
+	runes := []rune(text)
+	if len(runes) == 0 || size <= 0 {
+		return
+	}
+
+	lineHeight := r.MeasureText("M", size, r.lastFontKey).H
+	if lineHeight <= 0 {
+		return
+	}
+
+	totalHeight := lineHeight * float64(len(runes))
+	y := center.Y - totalHeight/2
+	for i, ch := range runes {
+		chMetrics := r.MeasureText(string(ch), size, r.lastFontKey)
+		if chMetrics.W <= 0 || chMetrics.H <= 0 {
+			continue
+		}
+
+		x := center.X - chMetrics.W/2
+		r.DrawText(string(ch), geom.Pt{
+			X: x,
+			Y: y + float64(i)*lineHeight + chMetrics.Ascent,
+		}, size, textColor)
+	}
+}
+
+// SetResolution supports the optional renderer text-resolution hook used by cores.
+// For bitmap text it has no effect.
+func (r *Renderer) SetResolution(_ uint) {}
+
+func (r *Renderer) renderTextBitmap(text string, size float64, textColor render.Color, fontKey string) *image.RGBA {
+	if text == "" || size <= 0 {
+		return nil
+	}
+	if fontKey == "" {
+		fontKey = "DejaVuSans"
+	}
+	return renderTextBitmap(text, size, textColor, fontKey)
+}
+
+func (r *Renderer) drawBitmapScaled(src *image.RGBA, dstX, dstY, dstW, dstH int) {
+	if src == nil || dstW <= 0 || dstH <= 0 {
+		return
+	}
+
+	srcW := src.Bounds().Dx()
+	srcH := src.Bounds().Dy()
+	if srcW <= 0 || srcH <= 0 {
+		return
+	}
+
+	dst, ok := r.drawTargetRect(dstX, dstY, dstX+dstW, dstY+dstH)
+	if !ok {
+		return
+	}
+
+	srcMin := src.Bounds().Min
+	for y := dst.Min.Y; y < dst.Max.Y; y++ {
+		syF := (float64(y-dstY) + 0.5) * float64(srcH) / float64(dstH)
+		sy := int(math.Floor(syF - 0.5))
+		if sy < 0 {
+			sy = 0
+		}
+		if sy >= srcH {
+			sy = srcH - 1
+		}
+
+		srcIdxBase := src.PixOffset(srcMin.X, srcMin.Y+sy)
+		srcRow := src.Pix[srcIdxBase : srcIdxBase+srcW*4]
+		for x := dst.Min.X; x < dst.Max.X; x++ {
+			sxF := (float64(x-dstX) + 0.5) * float64(srcW) / float64(dstW)
+			sx := int(math.Floor(sxF - 0.5))
+			if sx < 0 {
+				sx = 0
+			}
+			if sx >= srcW {
+				sx = srcW - 1
+			}
+
+			srcOffset := sx * 4
+			srcColor := color.RGBA{
+				R: srcRow[srcOffset],
+				G: srcRow[srcOffset+1],
+				B: srcRow[srcOffset+2],
+				A: srcRow[srcOffset+3],
+			}
+			r.blendPixel(x, y, srcColor)
+		}
+	}
+}
+
+func (r *Renderer) drawBitmapRotated(src *image.RGBA, center geom.Pt, angle float64) {
+	if src == nil {
+		return
+	}
+
+	srcW := float64(src.Bounds().Dx())
+	srcH := float64(src.Bounds().Dy())
+	if srcW <= 0 || srcH <= 0 {
+		return
+	}
+
+	cos, sin := math.Cos(angle), math.Sin(angle)
+	halfW := srcW / 2
+	halfH := srcH / 2
+
+	corners := [4]struct{ x, y float64 }{
+		{-halfW, -halfH},
+		{halfW, -halfH},
+		{halfW, halfH},
+		{-halfW, halfH},
+	}
+
+	minX := math.Inf(1)
+	maxX := math.Inf(-1)
+	minY := math.Inf(1)
+	maxY := math.Inf(-1)
+	for _, corner := range corners {
+		rx := corner.x*cos - corner.y*sin
+		ry := corner.x*sin + corner.y*cos
+		if rx < minX {
+			minX = rx
+		}
+		if rx > maxX {
+			maxX = rx
+		}
+		if ry < minY {
+			minY = ry
+		}
+		if ry > maxY {
+			maxY = ry
+		}
+	}
+
+	boundsW := int(math.Ceil(maxX - minX))
+	boundsH := int(math.Ceil(maxY - minY))
+	if boundsW <= 0 || boundsH <= 0 {
+		return
+	}
+
+	minXInt := int(math.Floor(center.X + minX))
+	minYInt := int(math.Floor(center.Y + minY))
+	drawBounds, ok := r.drawTargetRect(minXInt, minYInt, minXInt+boundsW, minYInt+boundsH)
+	if !ok {
+		return
+	}
+
+	srcMin := src.Bounds().Min
+	for y := drawBounds.Min.Y; y < drawBounds.Max.Y; y++ {
+		for x := drawBounds.Min.X; x < drawBounds.Max.X; x++ {
+			localX := float64(x) - center.X
+			localY := float64(y) - center.Y
+
+			// Inverse rotation from destination to source coordinates.
+			sxF := localX*cos + localY*sin
+			syF := -localX*sin + localY*cos
+
+			srcX := int(math.Round(sxF + halfW - 0.5))
+			srcY := int(math.Round(syF + halfH - 0.5))
+			if srcX < 0 || srcY < 0 || srcX >= int(srcW) || srcY >= int(srcH) {
+				continue
+			}
+
+			p := src.PixOffset(srcMin.X+srcX, srcMin.Y+srcY)
+			r.blendPixel(x, y, color.RGBA{
+				R: src.Pix[p],
+				G: src.Pix[p+1],
+				B: src.Pix[p+2],
+				A: src.Pix[p+3],
+			})
+		}
+	}
+}
+
+func (r *Renderer) textScale(size float64) float64 {
+	scale := size / defaultFontHeight
+	if size <= 0 || scale <= 0 {
+		return 0
+	}
+	return scale
+}
+
+func (r *Renderer) drawTargetRect(minX, minY, maxX, maxY int) (image.Rectangle, bool) {
+	if minX >= maxX || minY >= maxY {
+		return image.Rectangle{}, false
+	}
+
+	bounds := image.Rect(minX, minY, maxX, maxY).Intersect(r.dst.Bounds())
+	if bounds.Empty() {
+		return image.Rectangle{}, false
+	}
+
+	if r.clipRect != nil {
+		clipBounds := image.Rect(
+			int(math.Floor(r.clipRect.Min.X)),
+			int(math.Floor(r.clipRect.Min.Y)),
+			int(math.Ceil(r.clipRect.Max.X)),
+			int(math.Ceil(r.clipRect.Max.Y)),
+		)
+		bounds = bounds.Intersect(clipBounds)
+	}
+
+	if bounds.Empty() {
+		return image.Rectangle{}, false
+	}
+
+	return bounds, true
+}
+
+func (r *Renderer) blendPixel(x, y int, src color.RGBA) {
+	if src.A == 0 {
+		return
+	}
+
+	i := r.dst.PixOffset(x, y)
+	dr := uint32(r.dst.Pix[i])
+	dg := uint32(r.dst.Pix[i+1])
+	db := uint32(r.dst.Pix[i+2])
+	da := uint32(r.dst.Pix[i+3])
+
+	sr := uint32(src.R)
+	sg := uint32(src.G)
+	sb := uint32(src.B)
+	sa := uint32(src.A)
+
+	if sa == 255 {
+		r.dst.Pix[i] = src.R
+		r.dst.Pix[i+1] = src.G
+		r.dst.Pix[i+2] = src.B
+		r.dst.Pix[i+3] = src.A
+		return
+	}
+
+	outA := sa + ((255 - sa) * da / 255)
+	if outA == 0 {
+		r.dst.Pix[i] = 0
+		r.dst.Pix[i+1] = 0
+		r.dst.Pix[i+2] = 0
+		r.dst.Pix[i+3] = 0
+		return
+	}
+
+	r.dst.Pix[i] = uint8((sr*sa + dr*(255-sa)*da/255) / outA)
+	r.dst.Pix[i+1] = uint8((sg*sa + dg*(255-sa)*da/255) / outA)
+	r.dst.Pix[i+2] = uint8((sb*sa + db*(255-sa)*da/255) / outA)
+	r.dst.Pix[i+3] = uint8(outA)
+}
+
+func asRGBAImage(img render.Image) *image.RGBA {
+	rgbaImage, ok := img.(interface {
+		RGBA() *image.RGBA
+	})
+	if ok {
+		return rgbaImage.RGBA()
+	}
+	return nil
+}
+
+func renderColorToRGBA(c render.Color) color.RGBA {
+	return color.RGBA{
+		R: toByte(c.R),
+		G: toByte(c.G),
+		B: toByte(c.B),
+		A: toByte(c.A),
+	}
+}
+
+func toByte(v float64) uint8 {
+	if v <= 0 {
+		return 0
+	}
+	if v >= 1 {
+		return 255
+	}
+	return uint8(v*255 + 0.5)
+}
+
+func scaleImageNearest(src *image.RGBA, scaleX, scaleY float64) *image.RGBA {
+	if src == nil || scaleX <= 0 || scaleY <= 0 {
+		return nil
+	}
+
+	srcW := src.Bounds().Dx()
+	srcH := src.Bounds().Dy()
+	dstW := int(math.Ceil(float64(srcW) * scaleX))
+	dstH := int(math.Ceil(float64(srcH) * scaleY))
+	if dstW <= 0 || dstH <= 0 {
+		return nil
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
+	for y := 0; y < dstH; y++ {
+		srcY := int(math.Round((float64(y)+0.5)/scaleY - 0.5))
+		if srcY < 0 {
+			srcY = 0
+		}
+		if srcY >= srcH {
+			srcY = srcH - 1
+		}
+		srcRow := src.Pix[src.PixOffset(src.Bounds().Min.X, src.Bounds().Min.Y+srcY):]
+		for x := 0; x < dstW; x++ {
+			srcX := int(math.Round((float64(x)+0.5)/scaleX - 0.5))
+			if srcX < 0 {
+				srcX = 0
+			}
+			if srcX >= srcW {
+				srcX = srcW - 1
+			}
+
+			srcOffset := srcRow[srcX*4:]
+			dstOffset := dst.PixOffset(x, y)
+			dst.Pix[dstOffset] = srcOffset[0]
+			dst.Pix[dstOffset+1] = srcOffset[1]
+			dst.Pix[dstOffset+2] = srcOffset[2]
+			dst.Pix[dstOffset+3] = srcOffset[3]
+		}
+	}
+
+	return dst
+}

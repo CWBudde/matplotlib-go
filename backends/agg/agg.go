@@ -293,9 +293,68 @@ func (r *Renderer) buildAGGPath(p geom.Path) {
 	}
 }
 
-// Image draws an image within the destination rectangle.
-func (r *Renderer) Image(_ render.Image, _ geom.Rect) {
-	// Will be implemented in later phases when image support is needed.
+func (r *Renderer) Image(img render.Image, dst geom.Rect) {
+	aggImg, ok := renderImageToAGG(img)
+	if !ok {
+		return
+	}
+
+	agg := r.ctx
+	prevFilter := agg.GetImageFilter()
+	prevResample := agg.GetImageResample()
+	agg.SetImageFilter(agglib.NoFilter)
+	agg.SetImageResample(agglib.NoResample)
+	defer func() {
+		agg.SetImageFilter(prevFilter)
+		agg.SetImageResample(prevResample)
+	}()
+
+	x := dst.Min.X
+	y := dst.Min.Y
+	w := dst.W()
+	h := dst.H()
+	if w < 0 {
+		x += w
+		w = -w
+	}
+	if h < 0 {
+		y += h
+		h = -h
+	}
+	if w <= 0 || h <= 0 {
+		return
+	}
+
+	_ = agg.DrawImageScaled(aggImg, x, y, w, h)
+}
+
+// ImageTransformed draws an image using the provided affine transformation.
+// Used by core.Image2D when rotation is requested.
+func (r *Renderer) ImageTransformed(img render.Image, _ geom.Rect, affine geom.Affine) {
+	aggImg, ok := renderImageToAGG(img)
+	if !ok {
+		return
+	}
+
+	agg := r.ctx
+	prevFilter := agg.GetImageFilter()
+	prevResample := agg.GetImageResample()
+	agg.SetImageFilter(agglib.NoFilter)
+	agg.SetImageResample(agglib.NoResample)
+	defer func() {
+		agg.SetImageFilter(prevFilter)
+		agg.SetImageResample(prevResample)
+	}()
+
+	transform := agglib.NewTransformationsFromValues(
+		affine.A,
+		affine.B,
+		affine.C,
+		affine.D,
+		affine.E,
+		affine.F,
+	)
+	_ = agg.DrawImageTransformed(aggImg, transform)
 }
 
 // GlyphRun draws a run of glyphs.
@@ -494,4 +553,27 @@ func quantize(v float64) float64 {
 
 func quantizePt(p geom.Pt) geom.Pt {
 	return geom.Pt{X: quantize(p.X), Y: quantize(p.Y)}
+}
+
+// renderImageToAGG converts a renderer image into an AGG image type.
+func renderImageToAGG(img render.Image) (*agglib.Image, bool) {
+	if img == nil {
+		return nil, false
+	}
+
+	rgbaImage, ok := img.(render.RGBAImage)
+	if !ok {
+		return nil, false
+	}
+
+	rgba := rgbaImage.RGBA()
+	if rgba == nil || rgba.Bounds().Dx() <= 0 || rgba.Bounds().Dy() <= 0 {
+		return nil, false
+	}
+
+	aggImg, err := agglib.NewImageFromStandardImage(rgba)
+	if err != nil {
+		return nil, false
+	}
+	return aggImg, true
 }

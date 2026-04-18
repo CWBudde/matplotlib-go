@@ -355,6 +355,69 @@ func (a *Axes) Hist(data []float64, opts ...HistOptions) *Hist2D {
 	return hist
 }
 
+// ErrorBarOptions holds optional parameters for error bar plots.
+type ErrorBarOptions struct {
+	Color     *render.Color // if nil, uses automatic color cycling
+	LineWidth *float64      // error bar line width (px)
+	CapSize   *float64      // cap size in pixels
+	Alpha     *float64      // alpha transparency
+	Label     string        // series label for legend
+}
+
+// ErrorBar renders symmetric error bars for x and/or y values.
+func (a *Axes) ErrorBar(x, y, xErr, yErr []float64, opts ...ErrorBarOptions) *ErrorBar {
+	if len(x) == 0 || len(y) == 0 {
+		return nil
+	}
+
+	var opt ErrorBarOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	color := a.NextColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+
+	lineWidth := 1.0
+	if opt.LineWidth != nil {
+		lineWidth = *opt.LineWidth
+	}
+
+	capSize := 6.0
+	if opt.CapSize != nil {
+		capSize = *opt.CapSize
+	}
+
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+
+	n := len(x)
+	if len(y) < n {
+		n = len(y)
+	}
+	pts := make([]geom.Pt, n)
+	for i := 0; i < n; i++ {
+		pts[i] = geom.Pt{X: x[i], Y: y[i]}
+	}
+
+	bar := &ErrorBar{
+		XY:        pts,
+		XErr:      xErr,
+		YErr:      yErr,
+		Color:     color,
+		LineWidth: lineWidth,
+		CapSize:   capSize,
+		Alpha:     alpha,
+		Label:     opt.Label,
+	}
+	a.Add(bar)
+	return bar
+}
+
 // BoxPlotOptions holds optional parameters for box plots.
 type BoxPlotOptions struct {
 	Position     *float64      // x position of the box center

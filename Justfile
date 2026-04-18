@@ -30,6 +30,7 @@ lint-fix:
     fi
 
 build:
+    # Use freetype-aware rendering paths (including GoBasic text-family/size handling).
     CGO_ENABLED=1 go build -tags freetype ./...
 
 build-skia:
@@ -46,6 +47,14 @@ backend-info:
 
 cli:
     go run ./main.go --help
+
+# Start parity comparison viewer for matplotlib-go golden vs reference images.
+parity-viewer PORT="8090" FILTER="":
+    PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --name-filter "{{FILTER}}"
+
+# Print parity comparison rows for filtered cases (no server) and exit.
+parity-viewer-print PORT="8090" FILTER="" PREFIX="":
+    PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --name-filter "{{FILTER}}" --name-prefix "{{PREFIX}}" --print
 
 examples:
     @echo "Running examples..."

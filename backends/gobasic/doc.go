@@ -10,6 +10,5 @@
 //   - State stack for Save/Restore operations
 //   - PNG export via image/png package
 //
-// This backend is kept as a pure-Go reference implementation and compatibility
-// fallback, while AGG is the default renderer in the current port.
+// This backend is the default pure-Go renderer used by default.
 package gobasic

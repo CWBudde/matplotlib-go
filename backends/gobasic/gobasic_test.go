@@ -1,6 +1,7 @@
 package gobasic
 
 import (
+	"math"
 	"image"
 	"image/color"
 	"testing"
@@ -200,7 +201,7 @@ func TestMeasureText(t *testing.T) {
 	}
 }
 
-func TestDrawTextNoOp(t *testing.T) {
+func TestDrawTextRenders(t *testing.T) {
 	r := New(200, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
 
 	err := r.Begin(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 200, Y: 100}})
@@ -209,23 +210,63 @@ func TestDrawTextNoOp(t *testing.T) {
 	}
 	defer r.End()
 
-	// Text is intentionally a no-op in GoBasic.
+	// Text should render visible glyphs in GoBasic.
 	textColor := render.Color{R: 0, G: 0, B: 0, A: 1} // black
 	origin := geom.Pt{X: 10, Y: 50}
 	r.DrawText("Hello, World!", origin, 13, textColor)
 
-	// Verify that the image has not been modified.
+	// Verify that the image has changed from the white background.
 	img := r.GetImage()
-	bounds := img.Bounds()
-
 	whiteColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	changed := false
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+	for y := 0; y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
 			if c := img.RGBAAt(x, y); c != whiteColor {
-				t.Fatalf("Expected no pixels to change after DrawText, but found %v at %d,%d", c, x, y)
+				changed = true
+				break
 			}
 		}
+		if changed {
+			break
+		}
+	}
+
+	if !changed {
+		t.Fatal("Expected at least one pixel to change after DrawText")
+	}
+}
+
+func TestDrawTextRotatedRenders(t *testing.T) {
+	r := New(200, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
+
+	err := r.Begin(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 200, Y: 100}})
+	if err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+	defer r.End()
+
+	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+	r.DrawTextRotated("Hello", geom.Pt{X: 100, Y: 50}, 13, math.Pi/4, textColor)
+
+	img := r.GetImage()
+	whiteColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	changed := false
+
+	for y := 0; y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			if c := img.RGBAAt(x, y); c != whiteColor {
+				changed = true
+				break
+			}
+		}
+		if changed {
+			break
+		}
+	}
+
+	if !changed {
+		t.Fatal("Expected at least one pixel to change after DrawTextRotated")
 	}
 }
 
@@ -240,13 +281,31 @@ func TestGlyphRun(t *testing.T) {
 
 	// Test GlyphRun - should not panic even with limited implementation
 	glyphRun := render.GlyphRun{
-		Glyphs:  []render.Glyph{{ID: 1, Advance: 7, Offset: geom.Pt{}}},
+		Glyphs:  []render.Glyph{{ID: 'H', Advance: 7, Offset: geom.Pt{}}},
 		Origin:  geom.Pt{X: 10, Y: 50},
 		Size:    13,
 		FontKey: "default",
 	}
 	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
 
-	// Should not panic
+	// Should render a glyph when the ID maps to a visible rune.
 	r.GlyphRun(glyphRun, textColor)
+
+	img := r.GetImage()
+	whiteColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	changed := false
+	for y := 0; y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			if c := img.RGBAAt(x, y); c != whiteColor {
+				changed = true
+				break
+			}
+		}
+		if changed {
+			break
+		}
+	}
+	if !changed {
+		t.Fatal("Expected DrawText to render at least one pixel")
+	}
 }

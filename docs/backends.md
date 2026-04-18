@@ -4,21 +4,21 @@ Matplotlib-Go uses a pluggable backend architecture that allows different render
 
 ## Available Backends
 
-### AGG (Default)
+### AGG (Advanced optional backend)
 
 - **Type**: Anti-Grain Geometry renderer
-- **Status**: ✅ Fully implemented
-- **Capabilities**: Anti-aliasing, Sub-pixel rendering, Gradient fill, Path clipping
-- **Dependencies**: None
-- **Use cases**: Primary plotting backend, regression tests, publication-quality output
+- **Status**: ✅ Implemented
+- **Capabilities**: Anti-aliasing, Sub-pixel rendering, Gradient fill, Path clipping, advanced text
+- **Dependencies**: Optional `agg_go`
+- **Use cases**: Publication-quality output and advanced text fidelity
 
-### GoBasic (Legacy/reference)
+### GoBasic (Default)
 
 - **Type**: Pure Go renderer using `golang.org/x/image/vector`
-- **Status**: ✅ Fully implemented
-- **Capabilities**: Anti-aliasing, Path clipping, Vector output
+- **Status**: ✅ Implemented
+- **Capabilities**: Anti-aliasing, Path clipping, Vector output, basic text/image support
 - **Dependencies**: None (pure Go)
-- **Use cases**: Compatibility fallback, simple reference backend
+- **Use cases**: Default backend and pure-Go compatibility
 
 ### Skia (Future)
 
@@ -48,12 +48,12 @@ go run ./examples/lines/basic-backend/main.go --backend=agg
 ```go
 import (
     "matplotlib-go/backends"
-    _ "matplotlib-go/backends/agg"     // Register default backend
-    _ "matplotlib-go/backends/gobasic" // Optional compatibility backend
+    _ "matplotlib-go/backends/agg"     // Optional advanced backend
+    _ "matplotlib-go/backends/gobasic" // Register default backend
 )
 
-// Auto-select best backend
-backend, err := backends.GetRecommendedBackend("publication")
+// Auto-select best available backend (falls back to GoBasic)
+backend, err := backends.GetBestBackend(nil)
 
 // Create renderer
 config := backends.Config{
@@ -70,8 +70,8 @@ err = core.SavePNG(fig, renderer, "output.png")
 
 | Backend | Anti-aliasing | GPU Accel | Text Shaping | Vector Output |
 | ------- | ------------- | --------- | ------------ | ------------- |
-| AGG     | ✅            | ❌        | ❌           | ✅            |
-| GoBasic | ✅            | ❌        | ❌           | ✅            |
+| AGG     | ✅            | ❌        | ✅           | ✅            |
+| GoBasic | ✅            | ❌        | ✅           | ✅            |
 | Skia    | ✅            | ✅        | ✅           | ✅            |
 
 ## Adding New Backends
@@ -97,7 +97,7 @@ err = core.SavePNG(fig, renderer, "output.png")
 Use build tags for optional backends:
 
 - `go build -tags skia ./...` - Include Skia backend
-- `go build ./...` - AGG default backend
+- `go build ./...` - Register and use GoBasic by default
 
 ## Testing
 

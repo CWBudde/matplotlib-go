@@ -1,0 +1,84 @@
+package core
+
+import (
+	"testing"
+
+	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
+)
+
+func TestLegendCollectEntries(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+
+	ax.Plot([]float64{0, 1}, []float64{0, 1}, PlotOptions{Label: "line"})
+	ax.Scatter([]float64{0.5}, []float64{0.5}, ScatterOptions{Label: "points"})
+	ax.Bar([]float64{1}, []float64{2}, BarOptions{Label: "bars"})
+	ax.Plot([]float64{0, 1}, []float64{1, 0})
+
+	legend := ax.AddLegend()
+	entries := legend.collectEntries()
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 legend entries, got %d", len(entries))
+	}
+
+	if entries[0].Label != "line" || entries[0].kind != legendEntryLine {
+		t.Fatalf("unexpected first legend entry: %+v", entries[0])
+	}
+	if entries[1].Label != "points" || entries[1].kind != legendEntryMarker {
+		t.Fatalf("unexpected second legend entry: %+v", entries[1])
+	}
+	if entries[2].Label != "bars" || entries[2].kind != legendEntryPatch {
+		t.Fatalf("unexpected third legend entry: %+v", entries[2])
+	}
+}
+
+func TestLegendDrawRendersLabelsAndSamples(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.Plot([]float64{0, 1}, []float64{0, 1}, PlotOptions{Label: "signal"})
+	ax.Scatter([]float64{0.5}, []float64{0.5}, ScatterOptions{Label: "samples"})
+	ax.AddLegend()
+
+	var r legendRecordingRenderer
+	DrawFigure(fig, &r)
+
+	if len(r.texts) != 2 {
+		t.Fatalf("expected 2 legend labels, got %d", len(r.texts))
+	}
+	if r.texts[0] != "signal" || r.texts[1] != "samples" {
+		t.Fatalf("unexpected legend labels: %v", r.texts)
+	}
+	if r.pathCount < 4 {
+		t.Fatalf("expected legend to draw box and sample paths, got %d paths", r.pathCount)
+	}
+}
+
+type legendRecordingRenderer struct {
+	render.NullRenderer
+	pathCount int
+	texts     []string
+}
+
+func (r *legendRecordingRenderer) Path(_ geom.Path, _ *render.Paint) {
+	r.pathCount++
+}
+
+func (r *legendRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
+	return render.TextMetrics{
+		W:       float64(len(text)) * size * 0.5,
+		H:       size,
+		Ascent:  size * 0.8,
+		Descent: size * 0.2,
+	}
+}
+
+func (r *legendRecordingRenderer) DrawText(text string, _ geom.Pt, _ float64, _ render.Color) {
+	r.texts = append(r.texts, text)
+}
