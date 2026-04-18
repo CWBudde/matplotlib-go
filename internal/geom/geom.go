@@ -31,16 +31,16 @@ func (r Rect) Contains(p Pt) bool {
 
 // Intersect returns the intersection of r and b with Max-exclusive semantics.
 func (r Rect) Intersect(b Rect) Rect {
-	min := Pt{X: maxf(r.Min.X, b.Min.X), Y: maxf(r.Min.Y, b.Min.Y)}
-	max := Pt{X: minf(r.Max.X, b.Max.X), Y: minf(r.Max.Y, b.Max.Y)}
+	minPt := Pt{X: maxf(r.Min.X, b.Min.X), Y: maxf(r.Min.Y, b.Min.Y)}
+	maxPt := Pt{X: minf(r.Max.X, b.Max.X), Y: minf(r.Max.Y, b.Max.Y)}
 	// If empty, collapse to empty at boundary (Min >= Max per axis)
-	if max.X < min.X {
-		max.X = min.X
+	if maxPt.X < minPt.X {
+		maxPt.X = minPt.X
 	}
-	if max.Y < min.Y {
-		max.Y = min.Y
+	if maxPt.Y < minPt.Y {
+		maxPt.Y = minPt.Y
 	}
-	return Rect{Min: min, Max: max}
+	return Rect{Min: minPt, Max: maxPt}
 }
 
 func maxf(a, b F64) F64 {

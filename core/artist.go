@@ -391,11 +391,12 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	// YLabel: vertical text if supported, else horizontal fallback
 	if ax.YLabel != "" {
 		center := geom.Pt{X: px.Min.X - 36, Y: px.Min.Y + px.H()/2}
-		if rotRen, ok := r.(rotatedTextRenderer); ok {
-			rotRen.DrawTextRotated(ax.YLabel, center, labelSize, math.Pi/2, labelColor)
-		} else if vertRen, ok := r.(verticalTextRenderer); ok {
-			vertRen.DrawTextVertical(ax.YLabel, center, labelSize, labelColor)
-		} else {
+		switch ren := r.(type) {
+		case rotatedTextRenderer:
+			ren.DrawTextRotated(ax.YLabel, center, labelSize, math.Pi/2, labelColor)
+		case verticalTextRenderer:
+			ren.DrawTextVertical(ax.YLabel, center, labelSize, labelColor)
+		default:
 			metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
 			x := px.Min.X - 42 - metrics.W/2
 			y := px.Min.Y + px.H()/2 + metrics.H/2

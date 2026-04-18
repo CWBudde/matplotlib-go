@@ -15,7 +15,7 @@ type T interface {
 // AffineT wraps a geom.Affine to satisfy T.
 type AffineT struct{ M geom.Affine }
 
-func NewAffine(M geom.Affine) AffineT { return AffineT{M: M} }
+func NewAffine(m geom.Affine) AffineT { return AffineT{M: m} }
 
 func (a AffineT) Apply(p geom.Pt) geom.Pt { return a.M.Apply(p) }
 
@@ -37,7 +37,7 @@ type Scale interface {
 // Linear maps [Min,Max] linearly to [0,1].
 type Linear struct{ Min, Max float64 }
 
-func NewLinear(min, max float64) Linear { return Linear{Min: min, Max: max} }
+func NewLinear(minVal, maxVal float64) Linear { return Linear{Min: minVal, Max: maxVal} }
 
 func (s Linear) Domain() (float64, float64) { return s.Min, s.Max }
 
@@ -60,7 +60,7 @@ func (s Linear) Inv(u float64) (float64, bool) {
 // Log maps (Min,Max], Min>0, Base>1 to [0,1] using log with the given base.
 type Log struct{ Min, Max, Base float64 }
 
-func NewLog(min, max, base float64) Log { return Log{Min: min, Max: max, Base: base} }
+func NewLog(minVal, maxVal, base float64) Log { return Log{Min: minVal, Max: maxVal, Base: base} }
 
 func (s Log) Domain() (float64, float64) { return s.Min, s.Max }
 
@@ -136,12 +136,14 @@ func NewAxes2D(xs, ys Scale, axesToPixel AffineT) Axes2D {
 	return Axes2D{X: xs, Y: ys, AxesToPixel: axesToPixel}
 }
 
+//nolint:gocritic // Axes2D is stored by value throughout draw state; keeping value receivers avoids API churn.
 func (t Axes2D) Apply(p geom.Pt) geom.Pt {
 	u := t.X.Fwd(p.X)
 	v := t.Y.Fwd(p.Y)
 	return t.AxesToPixel.Apply(geom.Pt{X: u, Y: v})
 }
 
+//nolint:gocritic // Axes2D is stored by value throughout draw state; keeping value receivers avoids API churn.
 func (t Axes2D) Invert(p geom.Pt) (geom.Pt, bool) {
 	up, ok := t.AxesToPixel.Invert(p)
 	if !ok {

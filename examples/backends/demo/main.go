@@ -164,7 +164,7 @@ func createDemoFigure(width, height int) *core.Figure {
 // Simple sin approximation (since we're not importing math)
 func sin(x float64) float64 {
 	// Taylor series approximation for sin(x) - good enough for demo
-	x = x - float64(int(x/(2*3.14159)))*2*3.14159 // normalize to [-2π, 2π]
+	x -= float64(int(x/(2*3.14159))) * 2 * 3.14159 // normalize to [-2π, 2π]
 	if x < 0 {
 		x = -x
 		return -(x - x*x*x/6 + x*x*x*x*x/120)

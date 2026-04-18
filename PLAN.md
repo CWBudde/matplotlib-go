@@ -1,6 +1,6 @@
 # Matplotlib-Go Development Plan
 
-This plan prioritizes getting useful plotting functionality working quickly. The AGG backend (via `github.com/MeKo-Christian/agg_go`) is now available and provides high-quality anti-aliased rendering as the primary backend, replacing the GoBasic PoC renderer.
+This plan prioritizes getting useful plotting functionality working quickly. The AGG backend (via `github.com/cwbudde/agg_go`) is now available and provides high-quality anti-aliased rendering as the primary backend, replacing the GoBasic PoC renderer.
 
 ---
 
@@ -11,7 +11,7 @@ This plan prioritizes getting useful plotting functionality working quickly. The
 - ✅ Artist hierarchy (Figure→Axes→Artists) with proper traversal
 - ✅ Transform system (Linear/Log scales, data→pixel transforms)
 - ✅ GoBasic renderer using `golang.org/x/image/vector` (PoC)
-- ✅ **AGG renderer** using `github.com/MeKo-Christian/agg_go` v0.2.2 — anti-aliased, sub-pixel accurate
+- ✅ **AGG renderer** using `github.com/cwbudde/agg_go` v0.2.2 — anti-aliased, sub-pixel accurate
 - ✅ Line2D artist with stroke support (joins, caps, dashes)
 - ✅ Golden image testing infrastructure
 - ✅ Working example: `examples/lines/basic.go` produces clean line plots
@@ -80,7 +80,7 @@ core.SavePNG(fig, r, "output.png")
 
 ### 2.1 AGG Backend Integration ✅
 
-- [x] Add `github.com/MeKo-Christian/agg_go` v0.2.2 dependency
+- [x] Add `github.com/cwbudde/agg_go` v0.2.2 dependency
 - [x] Implement `render.Renderer` interface using AGG's Agg2D
 - [x] Path rendering (fill + stroke) with proper joins, caps, dashes
 - [x] Register AGG backend in the backend registry

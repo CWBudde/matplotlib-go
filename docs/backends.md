@@ -98,6 +98,5 @@ Use build tags for optional backends:
 The backend system includes a comprehensive test suite:
 ```bash
 go test ./backends/...        # Test backend system
-make backend-info             # Show available backends
-just backend-info             # Alternative using justfile
+just backend-info             # Show available backends
 ```

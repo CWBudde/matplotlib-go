@@ -8,7 +8,7 @@ import (
 	"matplotlib-go/internal/geom"
 )
 
-func approx(a, b float64, eps float64) bool {
+func approx(a, b, eps float64) bool {
 	d := a - b
 	if d < 0 {
 		d = -d
@@ -21,12 +21,12 @@ func approxPt(a, b geom.Pt, eps float64) bool { return approx(a.X, b.X, eps) && 
 func TestLinearScale_RoundTrip(t *testing.T) {
 	r := rand.New(rand.NewSource(2))
 	for i := 0; i < 200; i++ {
-		min := r.Float64()*2e6 - 1e6
+		minVal := r.Float64()*2e6 - 1e6
 		span := r.Float64()*2e6 + 1e-6 // ensure >0
-		max := min + span
-		s := NewLinear(min, max)
+		maxVal := minVal + span
+		s := NewLinear(minVal, maxVal)
 		for j := 0; j < 10; j++ {
-			x := min + r.Float64()*(max-min)
+			x := minVal + r.Float64()*(maxVal-minVal)
 			u := s.Fwd(x)
 			xr, ok := s.Inv(u)
 			if !ok {
@@ -43,11 +43,11 @@ func TestLogScale_RoundTrip(t *testing.T) {
 	r := rand.New(rand.NewSource(3))
 	bases := []float64{2, math.E, 10}
 	for i := 0; i < 100; i++ {
-		min := math.Exp(r.Float64()*10 - 2) // ~[e^-2, e^8]
+		minVal := math.Exp(r.Float64()*10 - 2) // ~[e^-2, e^8]
 		span := r.Float64()*5 + 0.1
-		max := min * (1 + span)
+		maxVal := minVal * (1 + span)
 		base := bases[i%len(bases)]
-		s := NewLog(min, max, base)
+		s := NewLog(minVal, maxVal, base)
 		for j := 0; j < 10; j++ {
 			// pick x in (min,max]
 			u := r.Float64()

@@ -309,15 +309,15 @@ func TestHist2D_AllBinStrategies(t *testing.T) {
 		BinStrategySqrt,
 	}
 
-	for _, strat := range strategies {
+	for _, start := range strategies {
 		hist := &Hist2D{
 			Data:     data,
-			BinStrat: strat,
+			BinStrat: start,
 			Color:    render.Color{R: 0.5, G: 0.5, B: 0.5, A: 1},
 		}
 		_, counts := hist.BinCounts()
 		if len(counts) == 0 {
-			t.Errorf("strategy %d produced 0 bins", strat)
+			t.Errorf("strategy %d produced 0 bins", start)
 		}
 	}
 }

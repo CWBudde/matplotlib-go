@@ -1,5 +1,5 @@
 // Package agg implements the render.Renderer interface using the AGG (Anti-Grain Geometry)
-// rendering library via github.com/MeKo-Christian/agg_go. AGG provides high-quality
+// rendering library via github.com/cwbudde/agg_go. AGG provides high-quality
 // anti-aliased 2D rendering with sub-pixel accuracy.
 package agg
 
@@ -12,10 +12,11 @@ import (
 	"os"
 	"sync"
 
-	"codeberg.org/go-fonts/dejavu/dejavusans"
-	agglib "github.com/MeKo-Christian/agg_go"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
+
+	"codeberg.org/go-fonts/dejavu/dejavusans"
+	agglib "github.com/cwbudde/agg_go"
 )
 
 // dejaVuFontPath holds the path to the extracted DejaVu Sans TTF, initialised once.

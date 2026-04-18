@@ -17,6 +17,12 @@ type textRenderer interface {
 }
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	// Create a renderer from the registry with white background
 	width, height := 400, 200
 	bgColor := render.Color{R: 1, G: 1, B: 1, A: 1} // white
@@ -27,12 +33,12 @@ func main() {
 		DPI:        72.0,
 	}, backends.TextCapabilities)
 	if createErr != nil {
-		log.Fatalf("Failed to create renderer: %v", createErr)
+		return fmt.Errorf("create renderer: %w", createErr)
 	}
 
 	textRen, ok := renderer.(textRenderer)
 	if !ok {
-		log.Fatalf("Selected backend does not support direct text drawing")
+		return fmt.Errorf("selected backend does not support direct text drawing")
 	}
 
 	// Begin rendering
@@ -41,7 +47,7 @@ func main() {
 		Max: geom.Pt{X: float64(width), Y: float64(height)},
 	}
 	if err := renderer.Begin(viewport); err != nil {
-		log.Fatalf("Failed to begin rendering: %v", err)
+		return fmt.Errorf("begin rendering: %w", err)
 	}
 	defer renderer.End()
 
@@ -75,8 +81,9 @@ func main() {
 
 	// Save the result as PNG
 	if err := textRen.SavePNG("text-demo.png"); err != nil {
-		log.Fatalf("Failed to save PNG: %v", err)
+		return fmt.Errorf("save PNG: %w", err)
 	}
 
 	fmt.Println("Text rendering demo saved as 'text-demo.png'")
+	return nil
 }

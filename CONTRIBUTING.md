@@ -11,10 +11,10 @@ Thanks for your interest in contributing! This project aims to build a Matplotli
 
 ## Commands
 
-- `make build` or `just build`: compile all packages.
-- `make test` or `just test`: run tests.
-- `make lint` or `just lint`: run `golangci-lint`.
-- `make fmt` or `just fmt`: run formatters via `treefmt`.
+- `just build`: compile all packages.
+- `just test`: run tests.
+- `just lint`: run `golangci-lint`.
+- `just fmt`: run formatters via `treefmt`.
 
 ## Style
 

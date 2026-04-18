@@ -11,11 +11,11 @@
 
 ## Build, Test, and Development Commands
 
-- `make build` / `just build`: compile all packages (`go build ./...`).
-- `make test` / `just test`: run unit tests (`go test ./...`).
-- `make lint` / `just lint`: run `golangci-lint` checks.
-- `make fmt` / `just fmt`: format via `treefmt` (uses `gofumpt` + `gci`).
-- `make cli` / `just cli`: run the CLI (`go run ./main.go --help`).
+- `just build`: compile all packages (`go build ./...`).
+- `just test`: run unit tests (`go test ./...`).
+- `just lint`: run `golangci-lint` checks.
+- `just fmt`: format via `treefmt` (uses `gofumpt` + `gci`).
+- `just cli`: run the CLI (`go run ./main.go --help`).
 
 ## Coding Style & Naming Conventions
 
@@ -36,7 +36,7 @@
 - Commits: imperative mood, concise scope (e.g., `render: add NullRenderer stack checks`). Group mechanical changes separately from logic.
 - PRs: include a clear description, linked issue (if any), and before/after screenshots for rendering/visual changes.
 - Requirements:
-  - All checks pass locally: `make fmt && make lint && make test`.
+  - All checks pass locally: `just fmt && just lint && just test`.
   - Add/adjust tests when changing behavior. Update `README.md`/docs when user-facing APIs change.
   - Keep changes focused; avoid drive-by refactors.
 

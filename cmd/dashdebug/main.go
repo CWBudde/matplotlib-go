@@ -5,7 +5,7 @@ import (
 	"image/png"
 	"os"
 
-	agglib "github.com/MeKo-Christian/agg_go"
+	agglib "github.com/cwbudde/agg_go"
 )
 
 func main() {
@@ -15,7 +15,7 @@ func main() {
 	agg := ctx.GetAgg2D()
 
 	// Solid black (y=4, from pixel ~114 to ~525 based on axes 10-90% of 640, ylim 0-5)
-	agg.LineColor(agglib.Color{0, 0, 0, 255})
+	agg.LineColor(agglib.Color{R: 0, G: 0, B: 0, A: 255})
 	agg.LineWidth(3.0)
 	agg.RemoveAllDashes()
 	agg.ResetPath()
@@ -24,7 +24,7 @@ func main() {
 	agg.DrawPath(agglib.StrokeOnly)
 
 	// Red {5, 2} dashes (y=3)
-	agg.LineColor(agglib.Color{204, 0, 0, 255})
+	agg.LineColor(agglib.Color{R: 204, G: 0, B: 0, A: 255})
 	agg.LineWidth(3.0)
 	agg.RemoveAllDashes()
 	agg.AddDash(5, 2)

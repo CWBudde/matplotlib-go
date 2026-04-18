@@ -50,11 +50,12 @@ func main() {
 
 	for _, backend := range available {
 		renderer, err := backends.Create(backend, config)
-		if err != nil {
+		switch {
+		case err != nil:
 			fmt.Printf("  %s: FAILED - %v\n", backend, err)
-		} else if renderer == nil {
+		case renderer == nil:
 			fmt.Printf("  %s: FAILED - nil renderer\n", backend)
-		} else {
+		default:
 			fmt.Printf("  %s: OK\n", backend)
 		}
 	}

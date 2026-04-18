@@ -123,7 +123,7 @@ func findBin(v float64, edges []float64) int {
 }
 
 // computeBinEdges computes evenly-spaced bin edges from data.
-func computeBinEdges(data []float64, nBins int, strat BinStrategy) []float64 {
+func computeBinEdges(data []float64, nBins int, start BinStrategy) []float64 {
 	// Find data range.
 	minV, maxV := data[0], data[0]
 	for _, v := range data[1:] {
@@ -144,7 +144,7 @@ func computeBinEdges(data []float64, nBins int, strat BinStrategy) []float64 {
 	}
 
 	if nBins <= 0 {
-		nBins = autoBinCount(data, strat)
+		nBins = autoBinCount(data, start)
 	}
 	if nBins < 1 {
 		nBins = 1
@@ -161,13 +161,13 @@ func computeBinEdges(data []float64, nBins int, strat BinStrategy) []float64 {
 }
 
 // autoBinCount chooses bin count based on strategy.
-func autoBinCount(data []float64, strat BinStrategy) int {
+func autoBinCount(data []float64, start BinStrategy) int {
 	n := len(data)
 	if n == 0 {
 		return 1
 	}
 
-	switch strat {
+	switch start {
 	case BinStrategySturges:
 		return sturgesBins(n)
 	case BinStrategyScott:

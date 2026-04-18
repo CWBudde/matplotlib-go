@@ -51,7 +51,7 @@ This project uses golden image testing to ensure visual consistency across platf
 
 ```bash
 # Run all tests
-make test
+just test
 
 # Run only golden image tests
 go test -tags freetype ./test/

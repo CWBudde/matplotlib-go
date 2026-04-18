@@ -4,6 +4,8 @@ set shell := ["bash", "-cu"]
 
 default: build
 
+all: build
+
 fmt:
     if command -v treefmt >/dev/null 2>&1; then \
       treefmt --allow-missing-formatter; \
