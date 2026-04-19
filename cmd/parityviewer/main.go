@@ -1021,6 +1021,58 @@ code { color: #f4f7fb; }
 const pageFooter = `</div>
 <script>
 (function() {
+  var viewerStateStorageKey = 'mpl-parity-viewer-state-v1';
+  var viewerStateControlIDs = ['search', 'sort-select', 'diff-mode', 'matte-mode', 'resample-mode', 'original-size'];
+
+  function loadViewerState() {
+    try {
+      var raw = window.sessionStorage.getItem(viewerStateStorageKey);
+      if (!raw) return {};
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return {};
+      return parsed;
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function saveViewerState() {
+    var state = {};
+    viewerStateControlIDs.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      state[id] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    try {
+      window.sessionStorage.setItem(viewerStateStorageKey, JSON.stringify(state));
+    } catch (err) {
+    }
+  }
+
+  function restoreViewerState() {
+    var state = loadViewerState();
+    viewerStateControlIDs.forEach(function(id) {
+      if (!Object.prototype.hasOwnProperty.call(state, id)) return;
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') {
+        el.checked = !!state[id];
+        return;
+      }
+      if (typeof state[id] === 'string') {
+        el.value = state[id];
+      }
+    });
+  }
+
+  function bindViewerStatePersistence() {
+    viewerStateControlIDs.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener(el.type === 'text' ? 'input' : 'change', saveViewerState);
+    });
+  }
+
   function metric(card, attr) {
     return parseFloat(card.dataset[attr] || 0);
   }
@@ -1174,6 +1226,7 @@ const pageFooter = `</div>
       event.stopPropagation();
       var name = button.dataset.name || '';
       if (!name) return;
+      saveViewerState();
       setRerenderButtonsDisabled(true);
       rerenderArtifact(name).then(function() {
         window.location.reload();
@@ -1186,6 +1239,7 @@ const pageFooter = `</div>
 
   var bulkButton = document.getElementById('rerender-all-btn');
   bulkButton.addEventListener('click', function() {
+    saveViewerState();
     setRerenderButtonsDisabled(true);
     var cards = Array.from(document.querySelectorAll('.card'));
     var chain = Promise.resolve();
@@ -1206,9 +1260,8 @@ const pageFooter = `</div>
     var divider = wrap.querySelector('.slider-divider');
     var overlay = wrap.querySelector('.slider-overlay');
     var dragging = false;
-    function setPos(x) {
-      var rect = wrap.getBoundingClientRect();
-      var pct = Math.max(0, Math.min(1, (x - rect.left) / rect.width));
+    function applyPos(pct) {
+      pct = Math.max(0, Math.min(1, pct));
       overlay.style.width = (pct * 100) + '%';
       divider.style.left = (pct * 100) + '%';
       if (pct > 0) {
@@ -1217,6 +1270,14 @@ const pageFooter = `</div>
         overlay.querySelector('img').style.width = '100%';
       }
     }
+    function setPos(x) {
+      var rect = wrap.getBoundingClientRect();
+      if (rect.width <= 0) {
+        applyPos(0.5);
+        return;
+      }
+      applyPos((x - rect.left) / rect.width);
+    }
     divider.addEventListener('mousedown', function(e) {
       dragging = true;
       e.preventDefault();
@@ -1224,7 +1285,7 @@ const pageFooter = `</div>
     document.addEventListener('mousemove', function(e) { if (dragging) { setPos(e.clientX); } });
     document.addEventListener('mouseup', function() { dragging = false; });
     wrap.addEventListener('click', function(e) { setPos(e.clientX); });
-    setPos(wrap.getBoundingClientRect().width / 2);
+    applyPos(0.5);
   });
 
   window.filterCards = filterCards;
@@ -1234,10 +1295,13 @@ const pageFooter = `</div>
   window.setOriginalSize = setOriginalSize;
   window.setResampleMode = setResampleMode;
 
+  restoreViewerState();
+  bindViewerStatePersistence();
   sortCards();
   setDiffMode(document.getElementById('diff-mode').value);
   setMatteMode(document.getElementById('matte-mode').value);
   setResampleMode(document.getElementById('resample-mode').value);
+  setOriginalSize(document.getElementById('original-size').checked);
   filterCards();
 })();
 </script>

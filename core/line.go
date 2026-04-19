@@ -35,7 +35,7 @@ func (l *Line2D) Draw(r render.Renderer, ctx *DrawContext) {
 	paint := render.Paint{
 		LineWidth:  l.W,
 		LineJoin:   render.JoinRound, // Default to round joins
-		LineCap:    render.CapRound,  // Default to round caps
+		LineCap:    render.CapButt,   // Default to butt caps
 		MiterLimit: 10.0,             // Standard miter limit
 		Stroke:     l.Col,
 		Dashes:     l.Dashes, // Use dash pattern if provided

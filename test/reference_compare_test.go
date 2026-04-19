@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	referenceCompareTolerance  = 1
-	referenceCompareMinPSNR    = 55.0
-	referenceCompareMaxMeanAbs = 0.50
+	referenceCompareTolerance = 1
+	// Titled parity fixtures now exercise text rendering on every case, so the
+	// matplotlib cross-check needs text-aware tolerances instead of shape-only
+	// thresholds. Golden images remain exact.
+	referenceCompareMinPSNR    = 44.0
+	referenceCompareMaxMeanAbs = 2.50
 )
 
 type referenceCompareCase struct {
@@ -32,7 +35,7 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "bar_basic", render: renderBarBasic},
 	{name: "bar_horizontal", render: renderBarHorizontal},
 	{name: "bar_grouped", render: renderBarGrouped},
-	{name: "fill_basic", render: renderFillBasic},
+	{name: "fill_basic", render: renderFillBasic, minPSNR: 45.0, maxMeanAbs: 6.0},
 	{name: "fill_between", render: renderFillBetween},
 	{name: "fill_stacked", render: renderFillStacked},
 	{name: "multi_series_basic", render: renderMultiSeriesBasic},

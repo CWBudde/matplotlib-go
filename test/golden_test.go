@@ -169,6 +169,7 @@ func renderBasicLine() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.15},
 		Max: geom.Pt{X: 0.95, Y: 0.9},
 	})
+	ax.SetTitle("Basic Line")
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(0, 1)
 
@@ -200,6 +201,7 @@ func renderJoinsCaps() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Line Joins and Caps")
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(0, 6)
 
@@ -238,6 +240,7 @@ func renderDashes() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Dash Patterns")
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(0, 5)
 
@@ -280,6 +283,7 @@ func renderScatterBasic() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Basic Scatter")
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(0, 10)
 
@@ -315,6 +319,7 @@ func renderScatterMarkerTypes() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Scatter Marker Types")
 	ax.XScale = transform.NewLinear(0, 8)
 	ax.YScale = transform.NewLinear(0, 8)
 
@@ -357,6 +362,7 @@ func renderScatterAdvanced() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Advanced Scatter")
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(0, 10)
 
@@ -418,6 +424,7 @@ func renderBarBasic() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Basic Bars")
 	ax.XScale = transform.NewLinear(0, 6)
 	ax.YScale = transform.NewLinear(0, 10)
 
@@ -446,6 +453,7 @@ func renderBarHorizontal() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Horizontal Bars")
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(0, 6)
 
@@ -474,6 +482,7 @@ func renderBarGrouped() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Grouped Bars")
 	ax.XScale = transform.NewLinear(0, 7)
 	ax.YScale = transform.NewLinear(0, 10)
 
@@ -516,6 +525,7 @@ func renderFillBasic() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Fill to Baseline")
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(-1, 3)
 
@@ -548,6 +558,7 @@ func renderFillBetween() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Fill Between Curves")
 	ax.XScale = transform.NewLinear(0, 6.28)
 	ax.YScale = transform.NewLinear(-1.5, 1.5)
 
@@ -591,6 +602,7 @@ func renderFillStacked() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Stacked Fills")
 	ax.XScale = transform.NewLinear(0, 8)
 	ax.YScale = transform.NewLinear(0, 8)
 
@@ -634,6 +646,7 @@ func renderMultiSeriesBasic() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Multi-Series Plot")
 	ax.XScale = transform.NewLinear(0, 8)
 	ax.YScale = transform.NewLinear(0, 6)
 
@@ -676,6 +689,7 @@ func renderHistBasic() image.Image {
 		Min: geom.Pt{X: 0.12, Y: 0.12},
 		Max: geom.Pt{X: 0.95, Y: 0.90},
 	})
+	ax.SetTitle("Basic Histogram")
 
 	data := normalData(42, 0, 500, 5.0, 1.5)
 
@@ -706,6 +720,7 @@ func renderHistDensity() image.Image {
 		Min: geom.Pt{X: 0.12, Y: 0.12},
 		Max: geom.Pt{X: 0.95, Y: 0.90},
 	})
+	ax.SetTitle("Density Histogram")
 
 	data := normalData(42, 0, 500, 5.0, 1.5)
 
@@ -739,6 +754,7 @@ func renderHistStrategies() image.Image {
 		Min: geom.Pt{X: 0.12, Y: 0.12},
 		Max: geom.Pt{X: 0.95, Y: 0.90},
 	})
+	ax.SetTitle("Histogram Strategies")
 
 	data1 := normalData(42, 0, 300, 4.0, 1.0)
 	data2 := normalData(7, 0, 300, 7.0, 1.2)
@@ -858,7 +874,7 @@ func renderTextLabelsStrict() image.Image {
 	})
 	ax.SetXLim(0, 1)
 	ax.SetYLim(0, 1)
-	ax.SetTitle("Box Plots")
+	ax.SetTitle("Text Labels")
 	ax.SetXLabel("Group")
 	ax.SetYLabel("Value")
 
@@ -881,6 +897,7 @@ func renderMultiSeriesColorCycle() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Color Cycle")
 	ax.XScale = transform.NewLinear(0, 2*math.Pi)
 	ax.YScale = transform.NewLinear(-1.2, 1.2)
 
@@ -913,6 +930,7 @@ func renderErrorBars() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
+	ax.SetTitle("Error Bars")
 	ax.XScale = transform.NewLinear(0, 7)
 	ax.YScale = transform.NewLinear(0, 6)
 
@@ -960,6 +978,7 @@ func renderImageHeatmap() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.15},
 		Max: geom.Pt{X: 0.95, Y: 0.9},
 	})
+	ax.SetTitle("Image Heatmap")
 	ax.XScale = transform.NewLinear(0, 3)
 	ax.YScale = transform.NewLinear(0, 3)
 

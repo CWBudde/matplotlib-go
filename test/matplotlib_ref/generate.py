@@ -172,6 +172,7 @@ def save(fig, out_dir, name):
 def basic_line(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.15, 0.95, 0.9))
+    ax.set_title("Basic Line")
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 1)
     ax.plot(
@@ -186,6 +187,7 @@ def basic_line(out_dir):
 def joins_caps(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Line Joins and Caps")
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 6)
     ax.plot([1, 3, 3, 5], [5, 5, 3, 3], color=(0.8, 0.2, 0.2), linewidth=lw(8))
@@ -196,6 +198,7 @@ def joins_caps(out_dir):
 def dashes(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Dash Patterns")
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 5)
 
@@ -219,6 +222,7 @@ def dashes(out_dir):
 def scatter_basic(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Basic Scatter")
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 10)
     ax.scatter(
@@ -234,6 +238,7 @@ def scatter_basic(out_dir):
 def scatter_marker_types(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Scatter Marker Types")
     ax.set_xlim(0, 8)
     ax.set_ylim(0, 8)
     markers = ["o", "s", "^", "D", "+", "x"]
@@ -248,6 +253,7 @@ def scatter_marker_types(out_dir):
 def scatter_advanced(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Advanced Scatter")
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 10)
     xs = [2, 4, 6, 8, 2, 4, 6, 8]
@@ -275,6 +281,7 @@ def scatter_advanced(out_dir):
 def bar_basic(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Basic Bars")
     ax.set_xlim(0, 6)
     ax.set_ylim(0, 10)
     ax.bar([1, 2, 3, 4, 5], [3, 7, 2, 8, 5], width=0.6, color=(0.2, 0.6, 0.8))
@@ -284,6 +291,7 @@ def bar_basic(out_dir):
 def bar_horizontal(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Horizontal Bars")
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 6)
     ax.barh([1, 2, 3, 4, 5], [3, 7, 2, 8, 5], height=0.6, color=(0.8, 0.4, 0.2))
@@ -293,6 +301,7 @@ def bar_horizontal(out_dir):
 def bar_grouped(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Grouped Bars")
     ax.set_xlim(0, 7)
     ax.set_ylim(0, 10)
     ax.bar(
@@ -311,6 +320,7 @@ def bar_grouped(out_dir):
 def fill_basic(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Fill to Baseline")
     ax.set_xlim(0, 10)
     ax.set_ylim(-1, 3)
     x  = [1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -327,6 +337,7 @@ def fill_basic(out_dir):
 def fill_between(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Fill Between Curves")
     ax.set_xlim(0, 6.28)
     ax.set_ylim(-1.5, 1.5)
     n  = 50
@@ -347,6 +358,7 @@ def fill_between(out_dir):
 def fill_stacked(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Stacked Fills")
     ax.set_xlim(0, 8)
     ax.set_ylim(0, 8)
     x      = [1, 2, 3, 4, 5, 6, 7]
@@ -362,6 +374,7 @@ def fill_stacked(out_dir):
 def multi_series_basic(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Multi-Series Plot")
     ax.set_xlim(0, 8)
     ax.set_ylim(0, 6)
     ax.plot([1, 2, 3, 4, 5, 6], [1.5, 2.8, 2.2, 3.5, 3.8, 4.2], color=TAB10[0], linewidth=lw(2))
@@ -376,6 +389,7 @@ def hist_basic(out_dir):
     data = normal_data(42, 0, 500, 5.0, 1.5)
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
+    ax.set_title("Basic Histogram")
     n, bins, patches = ax.hist(
         data,
         bins="sturges",
@@ -397,6 +411,7 @@ def hist_density(out_dir):
     data = normal_data(42, 0, 500, 5.0, 1.5)
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
+    ax.set_title("Density Histogram")
     n, bins, patches = ax.hist(
         data,
         bins=20,
@@ -419,6 +434,7 @@ def hist_strategies(out_dir):
     data2 = normal_data(7, 0, 300, 7.0, 1.2)
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.12, 0.12, 0.95, 0.90))
+    ax.set_title("Histogram Strategies")
     n1, _, _ = ax.hist(
         data1, bins=15, density=False, weights=np.ones(len(data1)) / len(data1),
         color=(0.26, 0.53, 0.80, 0.6),
@@ -444,6 +460,7 @@ def errorbar_basic(out_dir):
     """Combined line+scatter with symmetric error bars."""
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Error Bars")
     ax.set_xlim(0, 7)
     ax.set_ylim(0, 6)
 
@@ -529,7 +546,7 @@ def text_labels_strict(out_dir):
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    ax.set_title("Box Plots")
+    ax.set_title("Text Labels")
     ax.set_xlabel("Group")
     ax.set_ylabel("Value")
     save(fig, out_dir, "text_labels_strict")
@@ -538,6 +555,7 @@ def text_labels_strict(out_dir):
 def multi_series_color_cycle(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_title("Color Cycle")
     ax.set_xlim(0, 2 * math.pi)
     ax.set_ylim(-1.2, 1.2)
     n = 50
@@ -551,6 +569,7 @@ def multi_series_color_cycle(out_dir):
 def image_heatmap(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.15, 0.95, 0.9))
+    ax.set_title("Image Heatmap")
     ax.set_xlim(0, 3)
     ax.set_ylim(0, 3)
     data = np.array([

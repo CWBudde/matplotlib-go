@@ -9,6 +9,27 @@ import (
 	"matplotlib-go/transform"
 )
 
+type recordingRenderer struct {
+	render.NullRenderer
+	pathCalls []recordedPathCall
+}
+
+type recordedPathCall struct {
+	path  geom.Path
+	paint render.Paint
+}
+
+func (r *recordingRenderer) Path(p geom.Path, paint *render.Paint) {
+	if paint == nil {
+		r.pathCalls = append(r.pathCalls, recordedPathCall{path: p})
+		return
+	}
+	r.pathCalls = append(r.pathCalls, recordedPathCall{
+		path:  p,
+		paint: *paint,
+	})
+}
+
 func TestLine2D_EmptyData(t *testing.T) {
 	line := &Line2D{
 		XY:  []geom.Pt{}, // empty data
@@ -30,6 +51,40 @@ func TestLine2D_EmptyData(t *testing.T) {
 
 	// This should not panic
 	line.Draw(&r, ctx)
+}
+
+func TestLine2D_DefaultsToButtCaps(t *testing.T) {
+	line := &Line2D{
+		XY: []geom.Pt{
+			{X: 0, Y: 0},
+			{X: 1, Y: 1},
+		},
+		W:   2.0,
+		Col: render.Color{R: 1, G: 0, B: 0, A: 1},
+	}
+
+	r := &recordingRenderer{}
+	ctx := &DrawContext{
+		DataToPixel: Transform2D{
+			XScale:      transform.NewLinear(0, 10),
+			YScale:      transform.NewLinear(0, 10),
+			AxesToPixel: transform.NewAffine(geom.Identity()),
+		},
+		RC:   style.Default,
+		Clip: geom.Rect{},
+	}
+
+	line.Draw(r, ctx)
+
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("expected one Path call, got %d", len(r.pathCalls))
+	}
+	if r.pathCalls[0].paint.LineCap != render.CapButt {
+		t.Fatalf("expected default line cap %v, got %v", render.CapButt, r.pathCalls[0].paint.LineCap)
+	}
+	if r.pathCalls[0].paint.LineJoin != render.JoinRound {
+		t.Fatalf("expected default line join %v, got %v", render.JoinRound, r.pathCalls[0].paint.LineJoin)
+	}
 }
 
 func TestLine2D_SingletonData(t *testing.T) {

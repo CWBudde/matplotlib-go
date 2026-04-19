@@ -2,6 +2,7 @@ package main
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -36,3 +37,31 @@ func TestNewGoldenUpdateCommandIncludesFreetypeTag(t *testing.T) {
 	}
 }
 
+func TestPageFooterPersistsViewerStateAcrossRerender(t *testing.T) {
+	requiredSnippets := []string{
+		"var viewerStateStorageKey = 'mpl-parity-viewer-state-v1';",
+		"var viewerStateControlIDs = ['search', 'sort-select', 'diff-mode', 'matte-mode', 'resample-mode', 'original-size'];",
+		"window.sessionStorage.setItem(viewerStateStorageKey, JSON.stringify(state));",
+		"restoreViewerState();",
+		"bindViewerStatePersistence();",
+		"setOriginalSize(document.getElementById('original-size').checked);",
+		"saveViewerState();",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(pageFooter, snippet) {
+			t.Fatalf("pageFooter missing snippet %q", snippet)
+		}
+	}
+}
+
+func TestPageFooterInitializesSliderAtCenteredPercentage(t *testing.T) {
+	if !strings.Contains(pageFooter, "function applyPos(pct)") {
+		t.Fatalf("pageFooter missing applyPos helper")
+	}
+	if !strings.Contains(pageFooter, "applyPos(0.5);") {
+		t.Fatalf("pageFooter missing centered slider initialization")
+	}
+	if strings.Contains(pageFooter, "setPos(wrap.getBoundingClientRect().width / 2);") {
+		t.Fatalf("pageFooter still initializes slider with width-based clientX")
+	}
+}
