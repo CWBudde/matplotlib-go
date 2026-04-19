@@ -58,6 +58,7 @@ type Renderer struct {
 	fontPath    string // path to TrueType font; empty means use GSV fallback
 	fallback    bool   // true if any text path had to fall back to GSV
 	lastFontKey string
+	outlineText *agglib.FreeTypeOutlineText
 }
 
 // state represents a saved graphics state.
@@ -100,7 +101,7 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	if err == nil {
 		r.fontPath = fp
 	}
-	if r.ctx.ConfigureTextFont(r.fontPath, 12, r.resolution) != nil {
+	if _, err := r.configureOutlineFont(r.fontPath, 12); err != nil {
 		r.fallback = true
 	}
 
@@ -373,9 +374,9 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 	)
 	switch font.backend {
 	case textBackendTrueType:
-		w = r.ctx.TextWidth(text)
-		ascent = r.ctx.TextAscent()
-		descent = r.ctx.TextDescent()
+		w = font.outline.MeasureText(text)
+		ascent = font.outline.GetAscender()
+		descent = -font.outline.GetDescender()
 	case textBackendRaster:
 		if metrics, ok := r.measureRasterText(text, font.fontPath, size); ok {
 			return metrics
@@ -421,7 +422,11 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 	switch font.backend {
 	case textBackendTrueType:
 		r.ctx.SetFillColor(renderColorToAGG(textColor))
-		r.ctx.DrawText(text, origin.X, origin.Y)
+		if drawTrueTypeOutlineText(r.ctx, font.outline, origin.X, origin.Y, text) {
+			return
+		}
+		r.fallback = true
+		fallthrough
 	case textBackendRaster:
 		if r.drawRasterText(text, font.fontPath, origin, size, textColor) {
 			return

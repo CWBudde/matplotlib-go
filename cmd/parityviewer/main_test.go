@@ -96,3 +96,21 @@ func TestPageFooterPersistsOpenCardsAcrossReload(t *testing.T) {
 		}
 	}
 }
+
+func TestPageFooterIncludesSynchronizedCardZoom(t *testing.T) {
+	requiredSnippets := []string{
+		"var minZoomDragPixels = 4;",
+		"function setCardZoomFromSelection(card, rect) {",
+		"function resetCardZoom(card) {",
+		"surface.querySelectorAll('.zoom-transform').forEach(function(layer) {",
+		"if (width > minZoomDragPixels && height > minZoomDragPixels) {",
+		"surface.addEventListener('contextmenu', function(e) {",
+		"resetCardZoom(surface.closest('.card'));",
+		"if (drag.surface.classList.contains('slider-wrap') && typeof drag.surface.__setSliderClientX === 'function') {",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(pageFooter, snippet) {
+			t.Fatalf("pageFooter missing synchronized zoom snippet %q", snippet)
+		}
+	}
+}

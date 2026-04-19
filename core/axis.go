@@ -124,12 +124,13 @@ func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext) {
 }
 
 // spinePixelEndpoints returns the two pixel-space endpoints for a spine on the
-// given side of px, aligned to the axes boundary.
+// given side of px. AGG strokes align crisply when centered on pixel centers,
+// so boundaries are shifted by 0.5 px instead of landing on pixel edges.
 func spinePixelEndpoints(side AxisSide, px geom.Rect) (geom.Pt, geom.Pt) {
-	x1 := math.Round(px.Min.X)
-	y1 := math.Round(px.Min.Y)
-	x2 := math.Round(px.Max.X)
-	y2 := math.Round(px.Max.Y)
+	x1 := math.Round(px.Min.X) + 0.5
+	y1 := math.Round(px.Min.Y) + 0.5
+	x2 := math.Round(px.Max.X) + 0.5
+	y2 := math.Round(px.Max.Y) + 0.5
 
 	switch side {
 	case AxisBottom:
@@ -296,13 +297,8 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		return
 	}
 
-	fontSize := ctx.RC.FontSize * 0.97
-	if fontSize <= 0 {
-		fontSize = 12.0
-	}
-	if fontSize < 8 {
-		fontSize = 8
-	}
+	fontSize := tickLabelFontSize(ctx)
+	labelPadPx := tickLabelPadPx(a, ctx)
 
 	step := 0.0
 	if len(ticks) >= 2 {
@@ -329,15 +325,16 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 
 			switch a.Side {
 			case AxisBottom:
-				// Center horizontally, below tick end + gap for ascent
+				// Matplotlib defaults: medium tick labels, centered, with
+				// 3.5 pt pad beyond the outward tick length.
 				labelPos = geom.Pt{
 					X: tickPos.X - metrics.W/2,
-					Y: tickPos.Y + a.TickSize + metrics.Ascent + 2,
+					Y: tickPos.Y + labelPadPx + metrics.Ascent,
 				}
 			case AxisTop:
 				labelPos = geom.Pt{
 					X: tickPos.X - metrics.W/2,
-					Y: tickPos.Y - a.TickSize - metrics.Descent - 2,
+					Y: tickPos.Y - labelPadPx - metrics.Descent,
 				}
 			}
 		} else {
@@ -346,14 +343,15 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 
 			switch a.Side {
 			case AxisLeft:
-				// Right-align to left of tick end
+				// Matplotlib uses right alignment with center-baseline
+				// positioning for default left-side y tick labels.
 				labelPos = geom.Pt{
-					X: tickPos.X - a.TickSize - metrics.W - 3,
+					X: tickPos.X - labelPadPx - metrics.W,
 					Y: tickPos.Y + (metrics.Ascent-metrics.Descent)/2,
 				}
 			case AxisRight:
 				labelPos = geom.Pt{
-					X: tickPos.X + a.TickSize + 3,
+					X: tickPos.X + labelPadPx,
 					Y: tickPos.Y + (metrics.Ascent-metrics.Descent)/2,
 				}
 			}
@@ -361,4 +359,27 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 
 		textRen.DrawText(label, labelPos, fontSize, a.Color)
 	}
+}
+
+func tickLabelFontSize(ctx *DrawContext) float64 {
+	const mediumOverLarge = 10.0 / 12.0
+
+	fontSize := 12.0
+	if ctx != nil && ctx.RC.FontSize > 0 {
+		fontSize = ctx.RC.FontSize * mediumOverLarge
+	}
+	if fontSize < 8 {
+		return 8
+	}
+	return fontSize
+}
+
+func tickLabelPadPx(a *Axis, ctx *DrawContext) float64 {
+	const majorLabelPadPt = 3.5
+
+	padPx := majorLabelPadPt * 96.0 / 72.0
+	if ctx != nil && ctx.RC.DPI > 0 {
+		padPx = majorLabelPadPt * ctx.RC.DPI / 72.0
+	}
+	return a.TickSize + padPx
 }

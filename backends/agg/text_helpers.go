@@ -1,6 +1,7 @@
 package agg
 
 import (
+	"errors"
 	"math"
 
 	agglib "github.com/cwbudde/agg_go"
@@ -19,17 +20,21 @@ type configuredTextFont struct {
 	fontPath string
 	size     float64
 	fallback bool
+	outline  *agglib.FreeTypeOutlineText
 }
 
 func (r *Renderer) configureTextFont(size float64, fontKey string) configuredTextFont {
 	if size <= 0 {
 		return configuredTextFont{}
 	}
-	if fontPath := r.resolveTextFontPath(fontKey); fontPath != "" && r.ctx.ConfigureTextFont(fontPath, size, r.resolution) == nil {
-		return configuredTextFont{
-			backend:  textBackendTrueType,
-			fontPath: fontPath,
-			size:     size,
+	if fontPath := r.resolveTextFontPath(fontKey); fontPath != "" {
+		if outline, err := r.configureOutlineFont(fontPath, size); err == nil {
+			return configuredTextFont{
+				backend:  textBackendTrueType,
+				fontPath: fontPath,
+				size:     size,
+				outline:  outline,
+			}
 		}
 	}
 	if fontPath := r.resolveTextFontPath(fontKey); fontPath != "" {
@@ -54,6 +59,29 @@ func measureLocalGSVTextWidth(text string, size float64) float64 {
 	gsv.SetFlip(true)
 	gsv.SetSize(size, 0)
 	return gsv.MeasureText(text)
+}
+
+func (r *Renderer) configureOutlineFont(fontPath string, size float64) (*agglib.FreeTypeOutlineText, error) {
+	if fontPath == "" || size <= 0 {
+		return nil, errors.New("outline font is unavailable")
+	}
+
+	if r.outlineText == nil {
+		txt, err := agglib.NewFreeTypeOutlineText()
+		if err != nil {
+			return nil, err
+		}
+		r.outlineText = txt
+	}
+
+	r.outlineText.SetHinting(true)
+	r.outlineText.SetFlip(true)
+	r.outlineText.SetResolution(r.resolution)
+	r.outlineText.SetSize(size, 0)
+	if err := r.outlineText.LoadFont(fontPath); err != nil {
+		return nil, err
+	}
+	return r.outlineText, nil
 }
 
 func appendLocalGSVText(ctx *aggSurface, x, y, size float64, text string) bool {
@@ -82,6 +110,64 @@ func appendLocalGSVText(ctx *aggSurface, x, y, size float64, text string) bool {
 		case agglib.GSVPathCmdLineTo:
 			ctx.LineTo(vx, vy)
 			hasVertices = true
+		}
+	}
+}
+
+func drawTrueTypeOutlineText(ctx *aggSurface, face *agglib.FreeTypeOutlineText, x, y float64, text string) bool {
+	if ctx == nil || face == nil || text == "" {
+		return false
+	}
+
+	face.SetText(text)
+	face.SetStartPoint(float64(int(x)), float64(int(y)))
+
+	if appendFreeTypeOutlineText(ctx, face) {
+		ctx.Fill()
+		return true
+	}
+	return false
+}
+
+func appendFreeTypeOutlineText(ctx *aggSurface, text *agglib.FreeTypeOutlineText) bool {
+	if ctx == nil || text == nil {
+		return false
+	}
+
+	ctx.BeginPath()
+	text.Rewind(0)
+
+	hasVertices := false
+	for {
+		x1, y1, cmd := text.Vertex()
+		switch {
+		case cmd == agglib.PathCmdStop:
+			return hasVertices
+		case cmd == agglib.PathCmdMoveTo:
+			ctx.MoveTo(x1, y1)
+			hasVertices = true
+		case cmd == agglib.PathCmdLineTo:
+			ctx.LineTo(x1, y1)
+			hasVertices = true
+		case agglib.IsPathCurve3(cmd):
+			x2, y2, cmd2 := text.Vertex()
+			if !agglib.IsPathCurve3(cmd2) {
+				return hasVertices
+			}
+			ctx.QuadricCurveTo(x1, y1, x2, y2)
+			hasVertices = true
+		case agglib.IsPathCurve4(cmd):
+			x2, y2, cmd2 := text.Vertex()
+			x3, y3, cmd3 := text.Vertex()
+			if !agglib.IsPathCurve4(cmd2) || !agglib.IsPathCurve4(cmd3) {
+				return hasVertices
+			}
+			ctx.CubicCurveTo(x1, y1, x2, y2, x3, y3)
+			hasVertices = true
+		case agglib.IsPathEndPoly(cmd):
+			if agglib.IsPathClose(cmd) {
+				ctx.ClosePath()
+			}
 		}
 	}
 }

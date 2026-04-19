@@ -739,45 +739,45 @@ func renderCard(w io.Writer, entry *caseEntry) {
 
 	fmt.Fprint(w, `<div class="img-col col-ref">`)
 	fmt.Fprint(w, `<label>Baseline</label>`)
-	fmt.Fprintf(
-		w,
-		`<img class="parity-image" src="data:image/png;base64,%s" alt="baseline">`,
-		entry.RefB64,
-	)
+	fmt.Fprint(w, `<div class="zoom-surface">`)
+	fmt.Fprint(w, `<div class="zoom-transform">`)
+	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="baseline">`, entry.RefB64)
+	fmt.Fprint(w, `</div><div class="zoom-selection"></div></div>`)
 	fmt.Fprint(w, `</div>`)
 
 	fmt.Fprint(w, `<div class="img-col col-artifact">`)
 	fmt.Fprint(w, `<label>Artifact</label>`)
-	fmt.Fprintf(
-		w,
-		`<img class="parity-image" src="data:image/png;base64,%s" alt="artifact">`,
-		entry.ActB64,
-	)
+	fmt.Fprint(w, `<div class="zoom-surface">`)
+	fmt.Fprint(w, `<div class="zoom-transform">`)
+	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="artifact">`, entry.ActB64)
+	fmt.Fprint(w, `</div><div class="zoom-selection"></div></div>`)
 	fmt.Fprint(w, `</div>`)
 
 	fmt.Fprint(w, `<div class="img-col col-overlay">`)
 	fmt.Fprint(w, `<label>Overlay</label>`)
-	fmt.Fprint(w, `<div class="slider-wrap">`)
-	fmt.Fprintf(
-		w,
-		`<img class="base" src="data:image/png;base64,%s" alt="base">`,
-		entry.RefB64,
-	)
-	fmt.Fprintf(
-		w,
-		`<div class="slider-overlay"><img src="data:image/png;base64,%s" alt="overlay"></div>`,
-		entry.ActB64,
-	)
-	fmt.Fprint(w, `<div class="slider-divider"></div></div></div>`)
+	fmt.Fprint(w, `<div class="slider-wrap zoom-surface">`)
+	fmt.Fprint(w, `<div class="zoom-transform zoom-base-layer">`)
+	fmt.Fprintf(w, `<img class="base" src="data:image/png;base64,%s" alt="base">`, entry.RefB64)
+	fmt.Fprint(w, `</div>`)
+	fmt.Fprint(w, `<div class="slider-overlay">`)
+	fmt.Fprint(w, `<div class="zoom-transform zoom-overlay-layer">`)
+	fmt.Fprintf(w, `<img src="data:image/png;base64,%s" alt="overlay">`, entry.ActB64)
+	fmt.Fprint(w, `</div></div><div class="slider-divider"></div><div class="zoom-selection"></div></div></div>`)
 
 	fmt.Fprint(w, `<div class="img-col col-amp">`)
 	fmt.Fprint(w, `<label>Diff amplified</label>`)
+	fmt.Fprint(w, `<div class="zoom-surface">`)
+	fmt.Fprint(w, `<div class="zoom-transform">`)
 	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="amplified-diff">`, entry.AmpDiffB64)
+	fmt.Fprint(w, `</div><div class="zoom-selection"></div></div>`)
 	fmt.Fprint(w, `</div>`)
 
 	fmt.Fprint(w, `<div class="img-col col-raw">`)
 	fmt.Fprint(w, `<label>Diff raw</label>`)
+	fmt.Fprint(w, `<div class="zoom-surface">`)
+	fmt.Fprint(w, `<div class="zoom-transform">`)
 	fmt.Fprintf(w, `<img class="parity-image" src="data:image/png;base64,%s" alt="raw-diff">`, entry.RawDiffB64)
+	fmt.Fprint(w, `</div><div class="zoom-selection"></div></div>`)
 	fmt.Fprint(w, `</div>`)
 
 	fmt.Fprint(w, `</div></div></div>`)
@@ -866,27 +866,30 @@ body { background: #101216; color: #d7dce4; font-family: ui-monospace, SFMono-Re
 .img-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; overflow-x: auto; }
 .img-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow: auto; }
 .img-col label { font-size: 11px; color: #93a1b5; text-align: center; }
-.parity-image { display: block; image-rendering: auto; width: 100%; height: auto; border-radius: 6px; background-color: #fff; background-image: none; max-width: 100%; }
+.zoom-surface { position: relative; overflow: hidden; border-radius: 6px; background-color: #fff; cursor: crosshair; max-width: 100%; }
+.zoom-transform { position: relative; transform-origin: 0 0; will-change: transform; }
+.zoom-selection { display: none; position: absolute; border: 1px solid #93c5fd; background: rgba(96, 165, 250, 0.18); pointer-events: none; z-index: 4; }
+.parity-image { display: block; image-rendering: auto; width: 100%; height: auto; background-color: #fff; background-image: none; max-width: 100%; }
 .resample-pixelated .parity-image { image-rendering: pixelated; }
 .original-size .img-grid { grid-template-columns: repeat(5, max-content); }
 .original-size .img-col { min-width: max-content; }
-.original-size .parity-image, .original-size .slider-wrap { align-self: flex-start; }
+.original-size .zoom-surface, .original-size .slider-wrap { align-self: flex-start; }
 .original-size .parity-image { width: auto; height: auto; max-width: none; }
 .col-raw, .col-amp { display: none; }
-.slider-wrap { position: relative; overflow: hidden; width: 100%; cursor: col-resize; border-radius: 6px; background-color: #fff; background-image: none; }
-.slider-wrap img.base { display: block; image-rendering: auto; width: 100%; height: auto; }
+.slider-wrap { width: 100%; background-color: #fff; background-image: none; }
+.slider-wrap img.base, .slider-wrap .zoom-overlay-layer img { display: block; image-rendering: auto; width: 100%; height: auto; }
 .resample-pixelated .slider-wrap img.base { image-rendering: pixelated; }
-.original-size .slider-wrap { width: auto; }
+.resample-pixelated .slider-wrap .zoom-overlay-layer img { image-rendering: pixelated; }
+.original-size .slider-wrap, .original-size .zoom-surface { width: auto; }
 .original-size .slider-wrap img.base { width: auto; height: auto; max-width: none; }
-.slider-overlay { position: absolute; top: 0; left: 0; height: 100%; overflow: hidden; width: 50%; }
-.slider-overlay img { display: block; position: absolute; top: 0; left: 0; image-rendering: auto; width: 200%; }
-.resample-pixelated .slider-overlay img { image-rendering: pixelated; }
-.original-size .slider-overlay img { width: auto !important; }
+.original-size .slider-wrap .zoom-overlay-layer img { width: auto; height: auto; max-width: none; }
+.slider-overlay { position: absolute; top: 0; left: 0; height: 100%; overflow: hidden; width: 50%; z-index: 2; pointer-events: none; }
 .slider-divider { position: absolute; top: 0; left: 50%; height: 100%; width: 3px; background: #f8fafc; cursor: col-resize; transform: translateX(-50%); }
 .slider-divider::before {
   content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: 18px; height: 18px; border-radius: 50%; background: #f8fafc; border: 2px solid #111827;
 }
+.zoom-dragging, .zoom-dragging * { user-select: none; }
 .empty-state { border: 1px dashed #425168; border-radius: 10px; padding: 24px; color: #93a1b5; background: #141922; }
 button.rerender-btn { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-family: inherit; font-size: 11px; }
 button.rerender-btn:hover { background: #273244; }
@@ -932,6 +935,9 @@ const pageFooter = `</div>
 (function() {
   var viewerStateStorageKey = 'mpl-parity-viewer-state-v1';
   var viewerStateControlIDs = ['search', 'sort-select', 'diff-mode', 'resample-mode', 'original-size'];
+  var minZoomDragPixels = 4;
+  var activeSlider = null;
+  var activeZoomSelection = null;
 
   function cardStateKey(card) {
     return [card.dataset.suite || '', card.dataset.baseline || '', card.dataset.name || ''].join('::');
@@ -994,6 +1000,10 @@ const pageFooter = `</div>
 
   function metric(card, attr) {
     return parseFloat(card.dataset[attr] || 0);
+  }
+
+  function clamp(value, minValue, maxValue) {
+    return Math.min(Math.max(value, minValue), maxValue);
   }
 
   function filterCards() {
@@ -1083,6 +1093,7 @@ const pageFooter = `</div>
     document.querySelectorAll('.col-raw').forEach(function(el) {
       el.style.display = (mode === 'raw' || mode === 'both') ? 'flex' : 'none';
     });
+    refreshCardZooms();
   }
 
   function updateSummary() {
@@ -1100,6 +1111,7 @@ const pageFooter = `</div>
   function setOriginalSize(on) {
     var container = document.getElementById('cards-container');
     if (on) container.classList.add('original-size'); else container.classList.remove('original-size');
+    refreshCardZooms();
   }
 
   function setRerenderButtonsDisabled(disabled) {
@@ -1167,19 +1179,87 @@ const pageFooter = `</div>
     });
   });
 
+  function ensureCardZoomState(card) {
+    if (!card.__zoomState) {
+      card.__zoomState = { scale: 1, x: 0, y: 0 };
+    }
+    return card.__zoomState;
+  }
+
+  function applyCardZoom(card) {
+    var state = ensureCardZoomState(card);
+    card.querySelectorAll('.zoom-surface').forEach(function(surface) {
+      var width = surface.clientWidth;
+      var height = surface.clientHeight;
+      surface.querySelectorAll('.zoom-transform').forEach(function(layer) {
+        if (!width || !height || state.scale <= 1) {
+          layer.style.transform = '';
+          return;
+        }
+        var tx = -state.x * width * state.scale;
+        var ty = -state.y * height * state.scale;
+        layer.style.transform = 'matrix(' + state.scale + ',0,0,' + state.scale + ',' + tx + ',' + ty + ')';
+      });
+    });
+  }
+
+  function refreshCardZooms() {
+    document.querySelectorAll('.card').forEach(applyCardZoom);
+  }
+
+  function setCardZoomFromSelection(card, rect) {
+    var width = clamp(rect.width, 0, 1);
+    var height = clamp(rect.height, 0, 1);
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    var scale = 1 / Math.max(width, height);
+    var visibleWidth = 1 / scale;
+    var visibleHeight = 1 / scale;
+    var centerX = rect.x + width / 2;
+    var centerY = rect.y + height / 2;
+    var state = ensureCardZoomState(card);
+    state.scale = scale;
+    state.x = clamp(centerX - visibleWidth / 2, 0, Math.max(0, 1 - visibleWidth));
+    state.y = clamp(centerY - visibleHeight / 2, 0, Math.max(0, 1 - visibleHeight));
+    applyCardZoom(card);
+  }
+
+  function resetCardZoom(card) {
+    var state = ensureCardZoomState(card);
+    state.scale = 1;
+    state.x = 0;
+    state.y = 0;
+    applyCardZoom(card);
+  }
+
+  function showSelectionBox(selection, x0, y0, x1, y1) {
+    var left = Math.min(x0, x1);
+    var top = Math.min(y0, y1);
+    selection.style.display = 'block';
+    selection.style.left = left + 'px';
+    selection.style.top = top + 'px';
+    selection.style.width = Math.abs(x1 - x0) + 'px';
+    selection.style.height = Math.abs(y1 - y0) + 'px';
+  }
+
+  function hideSelectionBox(selection) {
+    if (!selection) return;
+    selection.style.display = 'none';
+    selection.style.left = '0';
+    selection.style.top = '0';
+    selection.style.width = '0';
+    selection.style.height = '0';
+  }
+
   document.querySelectorAll('.slider-wrap').forEach(function(wrap) {
     var divider = wrap.querySelector('.slider-divider');
     var overlay = wrap.querySelector('.slider-overlay');
-    var dragging = false;
     function applyPos(pct) {
       pct = Math.max(0, Math.min(1, pct));
+      wrap.__sliderPct = pct;
       overlay.style.width = (pct * 100) + '%';
       divider.style.left = (pct * 100) + '%';
-      if (pct > 0) {
-        overlay.querySelector('img').style.width = (100 / pct) + '%';
-      } else {
-        overlay.querySelector('img').style.width = '100%';
-      }
     }
     function setPos(x) {
       var rect = wrap.getBoundingClientRect();
@@ -1189,15 +1269,98 @@ const pageFooter = `</div>
       }
       applyPos((x - rect.left) / rect.width);
     }
+    wrap.__setSliderClientX = setPos;
     divider.addEventListener('mousedown', function(e) {
-      dragging = true;
+      activeSlider = { wrap: wrap, setPos: setPos };
       e.preventDefault();
+      e.stopPropagation();
     });
-    document.addEventListener('mousemove', function(e) { if (dragging) { setPos(e.clientX); } });
-    document.addEventListener('mouseup', function() { dragging = false; });
-    wrap.addEventListener('click', function(e) { setPos(e.clientX); });
     applyPos(0.5);
   });
+
+  document.addEventListener('mousemove', function(e) {
+    if (activeSlider) {
+      activeSlider.setPos(e.clientX);
+    }
+    if (!activeZoomSelection) {
+      return;
+    }
+    var rect = activeZoomSelection.rect;
+    var x = clamp(e.clientX - rect.left, 0, rect.width);
+    var y = clamp(e.clientY - rect.top, 0, rect.height);
+    activeZoomSelection.currentX = x;
+    activeZoomSelection.currentY = y;
+    showSelectionBox(activeZoomSelection.selection, activeZoomSelection.startX, activeZoomSelection.startY, x, y);
+  });
+
+  document.addEventListener('mouseup', function(e) {
+    if (activeSlider && e.button === 0) {
+      activeSlider = null;
+    }
+    if (!activeZoomSelection || e.button !== 0) {
+      return;
+    }
+    var drag = activeZoomSelection;
+    var width = Math.abs(drag.currentX - drag.startX);
+    var height = Math.abs(drag.currentY - drag.startY);
+    hideSelectionBox(drag.selection);
+    document.body.classList.remove('zoom-dragging');
+    activeZoomSelection = null;
+
+    if (width > minZoomDragPixels && height > minZoomDragPixels) {
+      setCardZoomFromSelection(drag.card, {
+        x: Math.min(drag.startX, drag.currentX) / drag.rect.width,
+        y: Math.min(drag.startY, drag.currentY) / drag.rect.height,
+        width: width / drag.rect.width,
+        height: height / drag.rect.height,
+      });
+      return;
+    }
+
+    if (drag.surface.classList.contains('slider-wrap') && typeof drag.surface.__setSliderClientX === 'function') {
+      drag.surface.__setSliderClientX(e.clientX);
+    }
+  });
+
+  document.querySelectorAll('.zoom-surface').forEach(function(surface) {
+    surface.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) {
+        return;
+      }
+      if (e.target.closest('.slider-divider')) {
+        return;
+      }
+      var rect = surface.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+      var selection = surface.querySelector('.zoom-selection');
+      if (!selection) {
+        return;
+      }
+      var startX = clamp(e.clientX - rect.left, 0, rect.width);
+      var startY = clamp(e.clientY - rect.top, 0, rect.height);
+      activeZoomSelection = {
+        card: surface.closest('.card'),
+        surface: surface,
+        rect: rect,
+        selection: selection,
+        startX: startX,
+        startY: startY,
+        currentX: startX,
+        currentY: startY,
+      };
+      showSelectionBox(selection, startX, startY, startX, startY);
+      document.body.classList.add('zoom-dragging');
+      e.preventDefault();
+    });
+    surface.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      resetCardZoom(surface.closest('.card'));
+    });
+  });
+
+  window.addEventListener('resize', refreshCardZooms);
 
   window.filterCards = filterCards;
   window.sortCards = sortCards;
@@ -1211,6 +1374,7 @@ const pageFooter = `</div>
   setDiffMode(document.getElementById('diff-mode').value);
   setResampleMode(document.getElementById('resample-mode').value);
   setOriginalSize(document.getElementById('original-size').checked);
+  refreshCardZooms();
   filterCards();
 })();
 </script>
