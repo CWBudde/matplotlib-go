@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -15,6 +16,11 @@ type Locator interface {
 // Formatter converts numeric tick values to strings.
 type Formatter interface {
 	Format(x float64) string
+}
+
+// IndexedFormatter can tailor labels to a tick's position in the sequence.
+type IndexedFormatter interface {
+	FormatTick(x float64, index int, ticks []float64) string
 }
 
 // LinearLocator places ticks at nice multiples of 1,2,2.5,5×10^k.
@@ -77,6 +83,146 @@ func (LinearLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 		}
 	}
 	return out
+}
+
+// FixedLocator returns a predefined set of tick positions.
+type FixedLocator struct {
+	TicksList []float64
+}
+
+func (l FixedLocator) Ticks(minVal, maxVal float64, _ int) []float64 {
+	if len(l.TicksList) == 0 {
+		return nil
+	}
+	ticks := append([]float64(nil), l.TicksList...)
+	sort.Float64s(ticks)
+	return dedupeTicks(ticks)
+}
+
+// NullLocator suppresses ticks entirely.
+type NullLocator struct{}
+
+func (NullLocator) Ticks(float64, float64, int) []float64 { return nil }
+
+// MultipleLocator places ticks at integer multiples of Base, optionally offset.
+type MultipleLocator struct {
+	Base   float64
+	Offset float64
+}
+
+func (l MultipleLocator) Ticks(minVal, maxVal float64, _ int) []float64 {
+	if l.Base <= 0 || math.IsNaN(l.Base) || math.IsInf(l.Base, 0) {
+		return nil
+	}
+	if math.IsNaN(minVal) || math.IsNaN(maxVal) {
+		return nil
+	}
+	if minVal == maxVal {
+		return []float64{minVal}
+	}
+	if minVal > maxVal {
+		minVal, maxVal = maxVal, minVal
+	}
+
+	startN := math.Ceil((minVal - l.Offset) / l.Base)
+	endN := math.Floor((maxVal - l.Offset) / l.Base)
+	if endN < startN {
+		return nil
+	}
+
+	nmax := int(endN-startN) + 2
+	ticks := make([]float64, 0, nmax)
+	for n := startN; n <= endN; n++ {
+		v := l.Offset + n*l.Base
+		if approx(v, 0, 1e-12*math.Max(1, math.Abs(l.Base))) {
+			v = 0
+		}
+		ticks = append(ticks, v)
+	}
+	return dedupeTicks(ticks)
+}
+
+// MaxNLocator places up to N+1 nice ticks across the view limits.
+type MaxNLocator struct {
+	N       int
+	Integer bool
+	Steps   []float64
+}
+
+func (l MaxNLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
+	if math.IsNaN(minVal) || math.IsNaN(maxVal) {
+		return nil
+	}
+	if minVal == maxVal {
+		return []float64{minVal}
+	}
+	if minVal > maxVal {
+		minVal, maxVal = maxVal, minVal
+	}
+
+	maxIntervals := l.N
+	if maxIntervals <= 0 {
+		maxIntervals = targetCount
+	}
+	if maxIntervals <= 0 {
+		maxIntervals = 6
+	}
+
+	span := maxVal - minVal
+	raw := span / float64(maxIntervals)
+	if raw <= 0 || math.IsInf(raw, 0) || math.IsNaN(raw) {
+		return []float64{minVal, maxVal}
+	}
+
+	step := niceStepCeil(raw, l.normalizedSteps())
+	if l.Integer && step < 1 {
+		step = 1
+	}
+
+	ticks := generateBoundedTicks(minVal, maxVal, step)
+	if l.Integer {
+		filtered := ticks[:0]
+		for _, tick := range ticks {
+			if approx(tick, math.Round(tick), 1e-9) {
+				filtered = append(filtered, math.Round(tick))
+			}
+		}
+		ticks = filtered
+	}
+	return dedupeTicks(ticks)
+}
+
+func (l MaxNLocator) normalizedSteps() []float64 {
+	if len(l.Steps) == 0 {
+		return []float64{1, 2, 2.5, 5, 10}
+	}
+	out := make([]float64, 0, len(l.Steps))
+	for _, step := range l.Steps {
+		if step > 0 && !math.IsNaN(step) && !math.IsInf(step, 0) {
+			out = append(out, step)
+		}
+	}
+	if len(out) == 0 {
+		return []float64{1, 2, 2.5, 5, 10}
+	}
+	sort.Float64s(out)
+	return dedupeTicks(out)
+}
+
+// AutoLocator is a MaxNLocator tuned for general linear axes.
+type AutoLocator struct {
+	MaxNLocator
+}
+
+func (l AutoLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
+	loc := l.MaxNLocator
+	if loc.N <= 0 {
+		loc.N = 6
+	}
+	if len(loc.Steps) == 0 {
+		loc.Steps = []float64{1, 2, 2.5, 5, 10}
+	}
+	return loc.Ticks(minVal, maxVal, targetCount)
 }
 
 func scalarUsesScientific(x float64) bool {
@@ -159,6 +305,46 @@ func (m MinorLinearLocator) Ticks(minVal, maxVal float64, _ int) []float64 {
 		}
 	}
 	return ticks
+}
+
+// AutoMinorLocator subdivides automatically chosen major intervals.
+type AutoMinorLocator struct {
+	N     int
+	Major Locator
+}
+
+func (l AutoMinorLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
+	n := l.N
+	if n <= 1 {
+		n = 5
+	}
+
+	major := l.Major
+	if major == nil {
+		major = AutoLocator{}
+	}
+	majors := major.Ticks(minVal, maxVal, targetCount)
+	if len(majors) < 2 {
+		return nil
+	}
+
+	ticks := make([]float64, 0, len(majors)*(n-1))
+	for i := 0; i < len(majors)-1; i++ {
+		start := majors[i]
+		end := majors[i+1]
+		step := (end - start) / float64(n)
+		if step <= 0 || math.IsNaN(step) || math.IsInf(step, 0) {
+			continue
+		}
+		for j := 1; j < n; j++ {
+			v := start + step*float64(j)
+			if v >= minVal && v <= maxVal {
+				ticks = append(ticks, v)
+			}
+		}
+	}
+	sort.Float64s(ticks)
+	return dedupeTicks(ticks)
 }
 
 // LogLocator produces logarithmic ticks for positive domains. Major ticks
@@ -285,6 +471,131 @@ func (f ScalarFormatter) Format(x float64) string {
 	return s
 }
 
+// FixedFormatter returns labels by tick index.
+type FixedFormatter struct {
+	Labels []string
+}
+
+func (f FixedFormatter) Format(float64) string { return "" }
+
+func (f FixedFormatter) FormatTick(_ float64, index int, _ []float64) string {
+	if index < 0 || index >= len(f.Labels) {
+		return ""
+	}
+	return f.Labels[index]
+}
+
+// NullFormatter suppresses tick labels entirely.
+type NullFormatter struct{}
+
+func (NullFormatter) Format(float64) string { return "" }
+
+// FuncFormatter adapts a function into a Formatter.
+type FuncFormatter func(float64) string
+
+func (f FuncFormatter) Format(x float64) string {
+	if f == nil {
+		return ""
+	}
+	return f(x)
+}
+
+// FormatStrFormatter uses fmt.Sprintf formatting.
+type FormatStrFormatter struct {
+	Pattern string
+}
+
+func (f FormatStrFormatter) Format(x float64) string {
+	if f.Pattern == "" {
+		return ""
+	}
+	return fmt.Sprintf(f.Pattern, x)
+}
+
+// StrMethodFormatter implements a small subset of Matplotlib's "{x:.2f}" style.
+type StrMethodFormatter struct {
+	Template string
+}
+
+func (f StrMethodFormatter) Format(x float64) string {
+	if f.Template == "" {
+		return ""
+	}
+
+	out := f.Template
+	for {
+		start := strings.Index(out, "{x")
+		if start < 0 {
+			return out
+		}
+		end := strings.IndexByte(out[start:], '}')
+		if end < 0 {
+			return out
+		}
+		end += start
+
+		spec := out[start+2 : end]
+		repl := formatStrMethodValue(x, spec)
+		out = out[:start] + repl + out[end+1:]
+	}
+}
+
+// EngFormatter formats values with SI engineering prefixes.
+type EngFormatter struct {
+	Unit   string
+	Places int
+	Sep    string
+}
+
+func (f EngFormatter) Format(x float64) string {
+	if x == 0 {
+		return "0" + f.Sep + f.Unit
+	}
+	if math.IsNaN(x) || math.IsInf(x, 0) {
+		return (ScalarFormatter{Prec: 6}).Format(x)
+	}
+
+	sep := f.Sep
+	absX := math.Abs(x)
+	exp := int(math.Floor(math.Log10(absX)/3.0) * 3)
+	if exp > 24 {
+		exp = 24
+	}
+	if exp < -24 {
+		exp = -24
+	}
+
+	prefix := engineeringPrefix(exp)
+	scaled := x / math.Pow(10, float64(exp))
+	if f.Places >= 0 {
+		return strconv.FormatFloat(scaled, 'f', f.Places, 64) + sep + prefix + f.Unit
+	}
+	return (ScalarFormatter{Prec: 6}).Format(scaled) + sep + prefix + f.Unit
+}
+
+// PercentFormatter formats values as percentages of XMax.
+type PercentFormatter struct {
+	XMax     float64
+	Decimals int
+	Symbol   string
+}
+
+func (f PercentFormatter) Format(x float64) string {
+	xMax := f.XMax
+	if xMax == 0 {
+		xMax = 1
+	}
+	symbol := f.Symbol
+	if symbol == "" {
+		symbol = "%"
+	}
+	decimals := f.Decimals
+	if decimals < 0 {
+		decimals = 0
+	}
+	return strconv.FormatFloat((x/xMax)*100, 'f', decimals, 64) + symbol
+}
+
 // LogFormatter formats tick labels on a log axis. For Base==10 it prefers
 // forms like 1e3, 2e3, 5e3 when values are exact multiples. Otherwise it
 // falls back to ScalarFormatter.
@@ -319,4 +630,129 @@ func approx(a, b, eps float64) bool {
 		d = -d
 	}
 	return d <= eps
+}
+
+func formatTickLabel(formatter Formatter, x float64, index int, ticks []float64) string {
+	if formatter == nil {
+		return ""
+	}
+	if indexed, ok := formatter.(IndexedFormatter); ok {
+		return indexed.FormatTick(x, index, ticks)
+	}
+	return formatter.Format(x)
+}
+
+func dedupeTicks(ticks []float64) []float64 {
+	if len(ticks) == 0 {
+		return nil
+	}
+	out := ticks[:0]
+	var last float64
+	first := true
+	for _, tick := range ticks {
+		if first || !approx(tick, last, 1e-12*math.Max(1, math.Abs(tick))) {
+			out = append(out, tick)
+			last = tick
+			first = false
+		}
+	}
+	return out
+}
+
+func niceStepCeil(raw float64, steps []float64) float64 {
+	exp := math.Floor(math.Log10(raw))
+	base := math.Pow(10, exp)
+	scaled := raw / base
+	for _, step := range steps {
+		if scaled <= step {
+			return step * base
+		}
+	}
+	return steps[len(steps)-1] * base
+}
+
+func generateBoundedTicks(minVal, maxVal, step float64) []float64 {
+	if step <= 0 || math.IsNaN(step) || math.IsInf(step, 0) {
+		return nil
+	}
+	start := math.Floor(minVal/step) * step
+	end := math.Ceil(maxVal/step) * step
+	nmax := int(math.Ceil((end-start)/step)) + 3
+	ticks := make([]float64, 0, nmax)
+	for v, i := start, 0; v <= end+0.5*step && i < nmax; v, i = v+step, i+1 {
+		if approx(v, 0, 1e-12*math.Max(1, math.Abs(step))) {
+			v = 0
+		}
+		ticks = append(ticks, v)
+	}
+	return ticks
+}
+
+func formatStrMethodValue(x float64, spec string) string {
+	spec = strings.TrimPrefix(spec, ":")
+	if spec == "" {
+		return (ScalarFormatter{Prec: 6}).Format(x)
+	}
+
+	verb := spec[len(spec)-1]
+	precision := -1
+	if dot := strings.IndexByte(spec, '.'); dot >= 0 && dot+1 < len(spec) {
+		num := spec[dot+1 : len(spec)-1]
+		if p, err := strconv.Atoi(num); err == nil {
+			precision = p
+		}
+	}
+
+	switch verb {
+	case 'f', 'F', 'e', 'E', 'g', 'G':
+		return strconv.FormatFloat(x, byte(verb), precision, 64)
+	case '%':
+		if precision < 0 {
+			precision = 0
+		}
+		return strconv.FormatFloat(x*100, 'f', precision, 64) + "%"
+	default:
+		return (ScalarFormatter{Prec: 6}).Format(x)
+	}
+}
+
+func engineeringPrefix(exp int) string {
+	switch exp {
+	case -24:
+		return "y"
+	case -21:
+		return "z"
+	case -18:
+		return "a"
+	case -15:
+		return "f"
+	case -12:
+		return "p"
+	case -9:
+		return "n"
+	case -6:
+		return "u"
+	case -3:
+		return "m"
+	case 0:
+		return ""
+	case 3:
+		return "k"
+	case 6:
+		return "M"
+	case 9:
+		return "G"
+	case 12:
+		return "T"
+	case 15:
+		return "P"
+	case 18:
+		return "E"
+	case 21:
+		return "Z"
+	case 24:
+		return "Y"
+	default:
+		return ""
+	}
 }

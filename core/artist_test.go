@@ -7,6 +7,7 @@ import (
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 	"matplotlib-go/style"
+	"matplotlib-go/transform"
 )
 
 func TestRCEffectivePrecedence(t *testing.T) {
@@ -138,5 +139,31 @@ func TestDrawAxesLabels_YLabelUsesTickBoundsAndLabelPad(t *testing.T) {
 	}
 	if r.rotatedAnchors[0] != want {
 		t.Fatalf("ylabel anchor = %+v, want %+v", r.rotatedAnchors[0], want)
+	}
+}
+
+func TestDrawContextTransformsExposeCoordinateSpaces(t *testing.T) {
+	ctx := &DrawContext{
+		DataToPixel: Transform2D{
+			XScale:      transform.NewLinear(0, 10),
+			YScale:      transform.NewLinear(-5, 5),
+			DataToAxes:  transform.NewScaleTransform(transform.NewLinear(0, 10), transform.NewLinear(-5, 5)),
+			AxesToPixel: transform.NewDisplayRectTransform(geom.Rect{Min: geom.Pt{X: 50, Y: 100}, Max: geom.Pt{X: 250, Y: 300}}),
+		},
+		Clip:       geom.Rect{Min: geom.Pt{X: 50, Y: 100}, Max: geom.Pt{X: 250, Y: 300}},
+		FigureRect: geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 400, Y: 500}},
+	}
+
+	if got := ctx.TransData().Apply(geom.Pt{X: 2.5, Y: 0}); got != (geom.Pt{X: 100, Y: 200}) {
+		t.Fatalf("transData point = %+v, want {100 200}", got)
+	}
+	if got := ctx.TransAxes().Apply(geom.Pt{X: 0.25, Y: 0.75}); got != (geom.Pt{X: 100, Y: 150}) {
+		t.Fatalf("transAxes point = %+v, want {100 150}", got)
+	}
+	if got := ctx.TransFigure().Apply(geom.Pt{X: 0.25, Y: 0.75}); got != (geom.Pt{X: 100, Y: 125}) {
+		t.Fatalf("transFigure point = %+v, want {100 125}", got)
+	}
+	if got := ctx.TransformFor(BlendCoords(CoordFigure, CoordAxes)).Apply(geom.Pt{X: 0.5, Y: 0.25}); got != (geom.Pt{X: 200, Y: 250}) {
+		t.Fatalf("blended transform point = %+v, want {200 250}", got)
 	}
 }

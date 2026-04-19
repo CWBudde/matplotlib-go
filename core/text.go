@@ -6,6 +6,7 @@ import (
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
+	"matplotlib-go/transform"
 )
 
 // TextAlign controls horizontal text anchoring.
@@ -33,10 +34,14 @@ type TextOptions struct {
 	Color    render.Color
 	HAlign   TextAlign
 	VAlign   TextVerticalAlign
+	Coords   CoordinateSpec
+	OffsetX  float64
+	OffsetY  float64
 }
 
 // AnnotationOptions configures an Annotation artist.
 type AnnotationOptions struct {
+	Coords        CoordinateSpec
 	OffsetX       float64
 	OffsetY       float64
 	FontSize      float64
@@ -57,6 +62,9 @@ type Text struct {
 	Color    render.Color
 	HAlign   TextAlign
 	VAlign   TextVerticalAlign
+	Coords   CoordinateSpec
+	OffsetX  float64
+	OffsetY  float64
 	z        float64
 }
 
@@ -74,6 +82,7 @@ type Annotation struct {
 	ArrowHeadSize float64
 	HAlign        TextAlign
 	VAlign        TextVerticalAlign
+	Coords        CoordinateSpec
 	z             float64
 }
 
@@ -120,6 +129,9 @@ func (a *Axes) Text(x, y float64, text string, opts ...TextOptions) *Text {
 		Color:    opt.Color,
 		HAlign:   opt.HAlign,
 		VAlign:   opt.VAlign,
+		Coords:   opt.Coords,
+		OffsetX:  opt.OffsetX,
+		OffsetY:  opt.OffsetY,
 		z:        500,
 	}
 	a.Add(artist)
@@ -160,6 +172,7 @@ func (a *Axes) Annotate(text string, x, y float64, opts ...AnnotationOptions) *A
 		ArrowHeadSize: opt.ArrowHeadSize,
 		HAlign:        annotationHAlign(opt),
 		VAlign:        annotationVAlign(opt),
+		Coords:        opt.Coords,
 		z:             900,
 	}
 	a.Add(artist)
@@ -183,7 +196,7 @@ func (t *Text) Draw(r render.Renderer, ctx *DrawContext) {
 	}
 
 	fontSize := resolvedFontSize(t.FontSize, ctx)
-	anchor := ctx.DataToPixel.Apply(t.Position)
+	anchor := transformedPoint(ctx, t.Coords, t.Position, t.OffsetX, t.OffsetY)
 	metrics := r.MeasureText(content, fontSize, ctx.RC.FontKey)
 	origin := alignedTextOrigin(anchor, metrics, t.HAlign, t.VAlign)
 	textRen.DrawText(content, origin, fontSize, resolvedTextColor(t.Color, ctx))
@@ -215,8 +228,8 @@ func (a *Annotation) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	}
 
 	fontSize := resolvedFontSize(a.FontSize, ctx)
-	target := ctx.DataToPixel.Apply(a.Point)
-	anchor := geom.Pt{X: target.X + a.OffsetX, Y: target.Y + a.OffsetY}
+	target := transformedPoint(ctx, a.Coords, a.Point, 0, 0)
+	anchor := transformedPoint(ctx, a.Coords, a.Point, a.OffsetX, a.OffsetY)
 	metrics := r.MeasureText(content, fontSize, ctx.RC.FontKey)
 	origin := alignedTextOrigin(anchor, metrics, a.HAlign, a.VAlign)
 	box := textBounds(origin, metrics)
@@ -393,4 +406,19 @@ func clampFloat(v, minVal, maxVal float64) float64 {
 		return maxVal
 	}
 	return v
+}
+
+func transformedPoint(ctx *DrawContext, spec CoordinateSpec, p geom.Pt, dxPx, dyPx float64) geom.Pt {
+	if ctx == nil {
+		return p
+	}
+
+	base := ctx.TransformFor(spec)
+	if base == nil {
+		return p
+	}
+	if dxPx != 0 || dyPx != 0 {
+		return transform.NewOffset(base, geom.Pt{X: dxPx, Y: dyPx}).Apply(p)
+	}
+	return base.Apply(p)
 }

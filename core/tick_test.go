@@ -155,6 +155,60 @@ func TestMinorLinearLocator_DefaultN(t *testing.T) {
 	}
 }
 
+func TestFixedLocator_SortsAndDedupes(t *testing.T) {
+	ticks := (FixedLocator{TicksList: []float64{3, 1, 2, 2}}).Ticks(0, 10, 0)
+	want := []float64{1, 2, 3}
+	if len(ticks) != len(want) {
+		t.Fatalf("FixedLocator tick count = %d, want %d (%v)", len(ticks), len(want), ticks)
+	}
+	for i := range want {
+		if ticks[i] != want[i] {
+			t.Fatalf("FixedLocator tick %d = %v, want %v", i, ticks[i], want[i])
+		}
+	}
+}
+
+func TestMultipleLocator_Basic(t *testing.T) {
+	ticks := (MultipleLocator{Base: 2.5}).Ticks(0.5, 8.5, 0)
+	want := []float64{2.5, 5, 7.5}
+	if len(ticks) != len(want) {
+		t.Fatalf("MultipleLocator tick count = %d, want %d (%v)", len(ticks), len(want), ticks)
+	}
+	for i := range want {
+		if math.Abs(ticks[i]-want[i]) > 1e-12 {
+			t.Fatalf("MultipleLocator tick %d = %v, want %v", i, ticks[i], want[i])
+		}
+	}
+}
+
+func TestMaxNLocator_RespectsIntervalBudget(t *testing.T) {
+	ticks := (MaxNLocator{N: 4}).Ticks(0.3, 9.6, 0)
+	if len(ticks) == 0 {
+		t.Fatal("expected ticks from MaxNLocator")
+	}
+	if len(ticks) > 5 {
+		t.Fatalf("MaxNLocator produced %d ticks, want <= 5: %v", len(ticks), ticks)
+	}
+	if ticks[0] > 0.3 || ticks[len(ticks)-1] < 9.6 {
+		t.Fatalf("MaxNLocator does not cover range: %v", ticks)
+	}
+}
+
+func TestAutoMinorLocator_SubdividesAutoMajors(t *testing.T) {
+	ticks := (AutoMinorLocator{N: 4}).Ticks(0, 10, 5)
+	if len(ticks) == 0 {
+		t.Fatal("expected minor ticks from AutoMinorLocator")
+	}
+	majors := (AutoLocator{}).Ticks(0, 10, 5)
+	for _, tick := range ticks {
+		for _, major := range majors {
+			if math.Abs(tick-major) < 1e-9 {
+				t.Fatalf("AutoMinorLocator tick %v should not coincide with major tick %v", tick, major)
+			}
+		}
+	}
+}
+
 func TestScalarFormatter_TrimAndScientific(t *testing.T) {
 	f := ScalarFormatter{Prec: 6}
 	if got := f.Format(1.0); got != "1" {
@@ -188,5 +242,34 @@ func TestFormatScalarTickLabel_UsesStepPrecision(t *testing.T) {
 		if got := formatScalarTickLabel(f, tc.value, tc.step); got != tc.want {
 			t.Fatalf("formatScalarTickLabel(%v, %v)=%q want %q", tc.value, tc.step, got, tc.want)
 		}
+	}
+}
+
+func TestFixedFormatter_UsesTickIndex(t *testing.T) {
+	formatter := FixedFormatter{Labels: []string{"low", "mid", "high"}}
+	ticks := []float64{1, 2, 3}
+	if got := formatTickLabel(formatter, 2, 1, ticks); got != "mid" {
+		t.Fatalf("FixedFormatter label = %q, want %q", got, "mid")
+	}
+}
+
+func TestExtraFormatters(t *testing.T) {
+	if got := (NullFormatter{}).Format(12); got != "" {
+		t.Fatalf("NullFormatter = %q, want empty", got)
+	}
+	if got := (FuncFormatter(func(v float64) string { return strings.ToUpper((ScalarFormatter{Prec: 0}).Format(v)) })).Format(12); got != "12" {
+		t.Fatalf("FuncFormatter = %q, want %q", got, "12")
+	}
+	if got := (FormatStrFormatter{Pattern: "%.1f m"}).Format(2.25); got != "2.2 m" {
+		t.Fatalf("FormatStrFormatter = %q, want %q", got, "2.2 m")
+	}
+	if got := (StrMethodFormatter{Template: "{x:.2f} s"}).Format(1.234); got != "1.23 s" {
+		t.Fatalf("StrMethodFormatter = %q, want %q", got, "1.23 s")
+	}
+	if got := (EngFormatter{Unit: "Hz", Places: 1}).Format(1200); got != "1.2kHz" {
+		t.Fatalf("EngFormatter = %q, want %q", got, "1.2kHz")
+	}
+	if got := (PercentFormatter{XMax: 1, Decimals: 0}).Format(0.375); got != "38%" {
+		t.Fatalf("PercentFormatter = %q, want %q", got, "38%")
 	}
 }

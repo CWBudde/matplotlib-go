@@ -139,10 +139,11 @@ core.SavePNG(fig, r, "output.png")
 - [x] Public API for top/right spines, ticks, and labels instead of only internal `AxisSide` support
 - [x] Axis inversion helpers (`InvertX`, `InvertY`)
 - [x] Visual regression fixture for the new top/right-axis + inversion slice (`axes_top_right_inverted`)
-- [ ] Broader explicit axis direction control beyond inversion
-- [ ] Aspect controls (`SetAspect`, `SetBoxAspect`, axis-equal helpers)
-- [ ] `TickParams`, `LocatorParams`, and minor tick toggles (`MinorticksOn` / `MinorticksOff`)
-- [ ] Twin/secondary axis support (`TwinX`, `TwinY`, `SecondaryXAxis`, `SecondaryYAxis`)
+- [x] Broader explicit axis direction control beyond inversion
+- [x] Aspect controls (`SetAspect`, `SetBoxAspect`, axis-equal helpers)
+- [x] `TickParams`, `LocatorParams`, and minor tick toggles (`MinorticksOn` / `MinorticksOff`)
+- [x] Twin/secondary axis support (`TwinX`, `TwinY`, `SecondaryXAxis`, `SecondaryYAxis`)
+- [x] Visual regression fixture for the broader axes-control surface (`axes_control_surface`)
 
 ### 2.8 Scale System Parity ✅
 
@@ -153,17 +154,17 @@ core.SavePNG(fig, r, "output.png")
 
 ### 2.9 Locator and Formatter Parity
 
-- [ ] Additional locators: `FixedLocator`, `NullLocator`, `MultipleLocator`, `MaxNLocator`, `AutoLocator`, `AutoMinorLocator`
-- [ ] Additional formatters: `FixedFormatter`, `NullFormatter`, `FuncFormatter`, `FormatStrFormatter`, `StrMethodFormatter`, `EngFormatter`, `PercentFormatter`
-- [ ] Axis-owned tick style/state instead of today's loose locator/formatter pairing only
-- [ ] Multi-level ticks, label rotation/alignment helpers, and top/right tick label placement
+- [x] Additional locators: `FixedLocator`, `NullLocator`, `MultipleLocator`, `MaxNLocator`, `AutoLocator`, `AutoMinorLocator`
+- [x] Additional formatters: `FixedFormatter`, `NullFormatter`, `FuncFormatter`, `FormatStrFormatter`, `StrMethodFormatter`, `EngFormatter`, `PercentFormatter`
+- [x] Axis-owned tick style/state instead of today's loose locator/formatter pairing only
+- [x] Multi-level ticks, label rotation/alignment helpers, and top/right tick label placement
 
 ### 2.10 Transform Graph and Coordinate Systems
 
-- [ ] Expose Matplotlib-like coordinate spaces: `transData`, `transAxes`, `transFigure`
-- [ ] Add blended transforms, offset transforms, and bbox-driven transforms
-- [ ] Refactor annotations/layout helpers to consume shared transform primitives instead of ad-hoc math
-- [ ] Make the transform stack projection-friendly so non-Cartesian axes do not require a redraw pipeline rewrite
+- [x] Expose Matplotlib-like coordinate spaces: `transData`, `transAxes`, `transFigure`
+- [x] Add blended transforms, offset transforms, and bbox-driven transforms
+- [x] Refactor annotations/layout helpers to consume shared transform primitives instead of ad-hoc math
+- [x] Make the transform stack projection-friendly so non-Cartesian axes do not require a redraw pipeline rewrite
 
 ### 2.11 Dates, Categories, and Units
 
@@ -191,24 +192,27 @@ core.SavePNG(fig, r, "output.png")
 
 ### X.1 Lock Down The Matplotlib Reference Model
 
-- [ ] Capture and document the exact Matplotlib Agg text pipeline we are matching:
+- [x] Capture and document the exact Matplotlib Agg text pipeline we are matching:
   - `RendererAgg.draw_text()`
   - `Text._get_layout()`
   - `FT2Font.set_size()`
   - `FT2Font.set_text()`
   - `FT2Font.draw_glyphs_to_bitmap()`
-- [ ] Record the exact default knobs from `/tmp/matplotlib` that affect text output:
+  - See [docs/text_parity_phase_x1.md](/mnt/projekte/Code/matplotlib-go/docs/text_parity_phase_x1.md)
+- [x] Record the exact default knobs from `/tmp/matplotlib` that affect text output:
   - `text.hinting`
   - `text.hinting_factor`
   - tick alignments
   - tick pad and tick size
   - title pad and size
-- [ ] Keep the dedicated strict fixtures (`title_strict`, `text_labels_strict`) and `bar_basic_tick_labels` as the primary parity probes for this phase.
+  - See [docs/text_parity_phase_x1.md](/mnt/projekte/Code/matplotlib-go/docs/text_parity_phase_x1.md)
+- [x] Keep the dedicated strict fixtures (`title_strict`, `text_labels_strict`) and `bar_basic_tick_labels` as the primary parity probes for this phase.
+  - Documented in [docs/text_parity_phase_x1.md](/mnt/projekte/Code/matplotlib-go/docs/text_parity_phase_x1.md)
 
 ### X.2 Correct The Remaining Backend Rendering Differences
 
-- [ ] Stop forcing FreeType autohinting in the AGG raster path when Matplotlib is using the default hinting mode.
-- [ ] Rework raster glyph compositing in `../agg_go` so normal text is blended glyph-by-glyph like Matplotlib Agg, instead of first OR-combining a full run mask.
+- [x] Stop forcing FreeType autohinting in the AGG raster path when Matplotlib is using the default hinting mode.
+- [x] Rework raster glyph compositing in `../agg_go` so normal text is blended glyph-by-glyph like Matplotlib Agg, instead of first OR-combining a full run mask.
 - [ ] Verify device-space origin snapping happens at the same stage as Matplotlib’s `round(0x40 * ...)` placement path.
 - [ ] Verify glyph placement uses the same coordinate convention as Matplotlib’s run bbox packing:
   - `bitmap.left`

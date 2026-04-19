@@ -16,6 +16,9 @@ func TestUsesDejaVuSansWithoutFallback(t *testing.T) {
 	if r.fontPath == "" {
 		t.Fatal("expected DejaVu Sans font path to be configured")
 	}
+	if r.ctx.textForceAuto {
+		t.Fatal("expected raster FreeType text to use Matplotlib's default hinting mode without forced autohint")
+	}
 
 	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 200, Y: 100}}
 	if err := r.Begin(viewport); err != nil {

@@ -180,15 +180,8 @@ func addPixelOffset(ctx *DrawContext, dataPt geom.Pt, dxPx, dyPx float64) geom.P
 }
 
 func invertToData(ctx *DrawContext, px geom.Pt) (geom.Pt, bool) {
-	u, ok := ctx.DataToPixel.AxesToPixel.Invert(px)
-	if !ok {
+	if ctx == nil {
 		return geom.Pt{}, false
 	}
-
-	x, okx := ctx.DataToPixel.XScale.Inv(u.X)
-	y, oky := ctx.DataToPixel.YScale.Inv(u.Y)
-	if !okx || !oky {
-		return geom.Pt{}, false
-	}
-	return geom.Pt{X: x, Y: y}, true
+	return ctx.DataToPixel.Invert(px)
 }

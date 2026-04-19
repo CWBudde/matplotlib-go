@@ -41,20 +41,222 @@ type DrawContext struct {
 	RC style.RC
 	// Clip is the axes pixel rectangle.
 	Clip geom.Rect
+	// FigureRect is the figure display rectangle in pixels.
+	FigureRect geom.Rect
 }
 
 // Transform2D wires x/y scales with an axes->pixel affine transform.
 type Transform2D struct {
 	XScale      transform.Scale
 	YScale      transform.Scale
-	AxesToPixel transform.AffineT
+	DataToAxes  transform.T
+	AxesToPixel transform.T
 }
 
 // Apply transforms a data-space point to pixel coordinates.
 func (t *Transform2D) Apply(p geom.Pt) geom.Pt {
-	u := t.XScale.Fwd(p.X)
-	v := t.YScale.Fwd(p.Y)
-	return t.AxesToPixel.Apply(geom.Pt{X: u, Y: v})
+	tr := t.transData()
+	if tr == nil {
+		return p
+	}
+	return tr.Apply(p)
+}
+
+// Invert transforms a pixel-space point back into data coordinates.
+func (t *Transform2D) Invert(p geom.Pt) (geom.Pt, bool) {
+	tr := t.transData()
+	if tr == nil {
+		return p, true
+	}
+	return tr.Invert(p)
+}
+
+func (t *Transform2D) transData() transform.T {
+	if t == nil {
+		return nil
+	}
+
+	dataToAxes := t.DataToAxes
+	if dataToAxes == nil {
+		dataToAxes = transform.NewScaleTransform(t.XScale, t.YScale)
+	}
+
+	switch {
+	case dataToAxes == nil:
+		return t.AxesToPixel
+	case t.AxesToPixel == nil:
+		return dataToAxes
+	default:
+		return transform.Chain{A: dataToAxes, B: t.AxesToPixel}
+	}
+}
+
+// CoordinateSpace identifies a Matplotlib-style coordinate system.
+type CoordinateSpace uint8
+
+const (
+	CoordData CoordinateSpace = iota
+	CoordAxes
+	CoordFigure
+)
+
+// CoordinateSpec identifies the x/y coordinate spaces used by a point.
+type CoordinateSpec struct {
+	X CoordinateSpace
+	Y CoordinateSpace
+}
+
+// Coords uses the same coordinate space for x and y.
+func Coords(space CoordinateSpace) CoordinateSpec {
+	return CoordinateSpec{X: space, Y: space}
+}
+
+// BlendCoords uses separate coordinate spaces for x and y.
+func BlendCoords(xSpace, ySpace CoordinateSpace) CoordinateSpec {
+	return CoordinateSpec{X: xSpace, Y: ySpace}
+}
+
+// TransData returns the Matplotlib-style data->display transform.
+func (ctx *DrawContext) TransData() transform.T {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.DataToPixel.transData()
+}
+
+// TransAxes returns the Matplotlib-style axes-fraction->display transform.
+func (ctx *DrawContext) TransAxes() transform.T {
+	if ctx == nil {
+		return nil
+	}
+	if ctx.DataToPixel.AxesToPixel != nil {
+		return ctx.DataToPixel.AxesToPixel
+	}
+	if rect, ok := unitSquareBounds(nil, ctx.Clip); ok {
+		return transform.NewDisplayRectTransform(rect)
+	}
+	return nil
+}
+
+// TransFigure returns the Matplotlib-style figure-fraction->display transform.
+func (ctx *DrawContext) TransFigure() transform.T {
+	if ctx == nil {
+		return nil
+	}
+	rect := ctx.FigureRect
+	if rect == (geom.Rect{}) {
+		rect = ctx.Clip
+	}
+	if rect == (geom.Rect{}) {
+		return nil
+	}
+	return transform.NewDisplayRectTransform(rect)
+}
+
+// TransformFor resolves a coordinate specification into a display transform.
+func (ctx *DrawContext) TransformFor(spec CoordinateSpec) transform.T {
+	if spec.X == spec.Y {
+		return ctx.transformForSpace(spec.X)
+	}
+
+	xTrans, okX := ctx.separableTransformForSpace(spec.X)
+	yTrans, okY := ctx.separableTransformForSpace(spec.Y)
+	if !okX || !okY {
+		return nil
+	}
+	return transform.Blend(xTrans, yTrans)
+}
+
+func (ctx *DrawContext) transformForSpace(space CoordinateSpace) transform.T {
+	switch space {
+	case CoordAxes:
+		return ctx.TransAxes()
+	case CoordFigure:
+		return ctx.TransFigure()
+	default:
+		return ctx.TransData()
+	}
+}
+
+func (ctx *DrawContext) separableTransformForSpace(space CoordinateSpace) (transform.Separable, bool) {
+	switch space {
+	case CoordAxes:
+		return ctx.separableAxesTransform()
+	case CoordFigure:
+		tr := ctx.TransFigure()
+		sep, ok := tr.(transform.Separable)
+		return sep, ok
+	default:
+		return ctx.separableDataTransform()
+	}
+}
+
+func (ctx *DrawContext) separableAxesTransform() (transform.Separable, bool) {
+	if ctx == nil {
+		return transform.SeparableT{}, false
+	}
+	if sep, ok := ctx.DataToPixel.AxesToPixel.(transform.Separable); ok {
+		return sep, true
+	}
+	rect, ok := unitSquareBounds(ctx.DataToPixel.AxesToPixel, ctx.Clip)
+	if !ok {
+		return transform.SeparableT{}, false
+	}
+	return transform.NewDisplayRectTransform(rect), true
+}
+
+func (ctx *DrawContext) separableDataTransform() (transform.Separable, bool) {
+	axesTrans, ok := ctx.separableAxesTransform()
+	if !ok {
+		return transform.SeparableT{}, false
+	}
+
+	if ctx != nil && ctx.DataToPixel.DataToAxes != nil {
+		sep, ok := ctx.DataToPixel.DataToAxes.(transform.Separable)
+		if !ok {
+			return transform.SeparableT{}, false
+		}
+		return transform.ChainSeparable(sep, axesTrans), true
+	}
+
+	return transform.ChainSeparable(
+		transform.NewScaleTransform(ctx.DataToPixel.XScale, ctx.DataToPixel.YScale),
+		axesTrans,
+	), true
+}
+
+func unitSquareBounds(tr transform.T, fallback geom.Rect) (geom.Rect, bool) {
+	if tr == nil {
+		if fallback == (geom.Rect{}) {
+			return geom.Rect{}, false
+		}
+		return fallback, true
+	}
+
+	corners := []geom.Pt{
+		{X: 0, Y: 0},
+		{X: 1, Y: 0},
+		{X: 0, Y: 1},
+		{X: 1, Y: 1},
+	}
+
+	rect := geom.Rect{Min: tr.Apply(corners[0]), Max: tr.Apply(corners[0])}
+	for _, corner := range corners[1:] {
+		pt := tr.Apply(corner)
+		if pt.X < rect.Min.X {
+			rect.Min.X = pt.X
+		}
+		if pt.Y < rect.Min.Y {
+			rect.Min.Y = pt.Y
+		}
+		if pt.X > rect.Max.X {
+			rect.Max.X = pt.X
+		}
+		if pt.Y > rect.Max.Y {
+			rect.Max.Y = pt.Y
+		}
+	}
+	return rect, true
 }
 
 // Figure is the root of the Artist tree. It contains Axes children.
@@ -109,13 +311,17 @@ type Axes struct {
 
 // TickParams controls axis tick visibility and styling.
 type TickParams struct {
-	Axis       string
-	Which      string
-	Color      *render.Color
-	Length     *float64
-	Width      *float64
-	ShowTicks  *bool
-	ShowLabels *bool
+	Axis          string
+	Which         string
+	Color         *render.Color
+	Length        *float64
+	Width         *float64
+	ShowTicks     *bool
+	ShowLabels    *bool
+	LabelRotation *float64
+	LabelPad      *float64
+	LabelHAlign   *TextAlign
+	LabelVAlign   *TextVerticalAlign
 }
 
 // LocatorParams controls the target tick density for automatic locators.
@@ -481,6 +687,80 @@ func (a *Axes) MoveYAxisToLeft() error { return a.SetYAxisSide(AxisLeft) }
 // MoveYAxisToRight is a convenience helper that repositions the primary y-axis.
 func (a *Axes) MoveYAxisToRight() error { return a.SetYAxisSide(AxisRight) }
 
+// SetXTickLabelPosition controls whether x tick labels appear on the bottom,
+// top, both, or neither side.
+func (a *Axes) SetXTickLabelPosition(position string) error {
+	if a == nil {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(position)) {
+	case "", "bottom":
+		if a.XAxis != nil {
+			a.XAxis.ShowLabels = true
+		}
+		if a.XAxisTop != nil {
+			a.XAxisTop.ShowLabels = false
+		}
+	case "top":
+		if a.XAxis != nil {
+			a.XAxis.ShowLabels = false
+		}
+		a.TopAxis().ShowLabels = true
+	case "both":
+		if a.XAxis != nil {
+			a.XAxis.ShowLabels = true
+		}
+		a.TopAxis().ShowLabels = true
+	case "none":
+		if a.XAxis != nil {
+			a.XAxis.ShowLabels = false
+		}
+		if a.XAxisTop != nil {
+			a.XAxisTop.ShowLabels = false
+		}
+	default:
+		return fmt.Errorf("unsupported x tick label position %q", position)
+	}
+	return nil
+}
+
+// SetYTickLabelPosition controls whether y tick labels appear on the left,
+// right, both, or neither side.
+func (a *Axes) SetYTickLabelPosition(position string) error {
+	if a == nil {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(position)) {
+	case "", "left":
+		if a.YAxis != nil {
+			a.YAxis.ShowLabels = true
+		}
+		if a.YAxisRight != nil {
+			a.YAxisRight.ShowLabels = false
+		}
+	case "right":
+		if a.YAxis != nil {
+			a.YAxis.ShowLabels = false
+		}
+		a.RightAxis().ShowLabels = true
+	case "both":
+		if a.YAxis != nil {
+			a.YAxis.ShowLabels = true
+		}
+		a.RightAxis().ShowLabels = true
+	case "none":
+		if a.YAxis != nil {
+			a.YAxis.ShowLabels = false
+		}
+		if a.YAxisRight != nil {
+			a.YAxisRight.ShowLabels = false
+		}
+	default:
+		return fmt.Errorf("unsupported y tick label position %q", position)
+	}
+	return nil
+}
+
 // MinorticksOn enables default minor locators on the requested axis selection.
 func (a *Axes) MinorticksOn(axis string) error {
 	if err := validateAxisSpec(axis); err != nil {
@@ -548,7 +828,15 @@ func (a *Axes) TickParams(params TickParams) error {
 			axis.ShowTicks = *params.ShowTicks
 		}
 		if params.ShowLabels != nil {
-			axis.ShowLabels = *params.ShowLabels
+			switch which {
+			case "major":
+				axis.ShowLabels = *params.ShowLabels
+			case "minor":
+				axis.ShowMinorLabels = *params.ShowLabels
+			case "both":
+				axis.ShowLabels = *params.ShowLabels
+				axis.ShowMinorLabels = *params.ShowLabels
+			}
 		}
 		if params.Length != nil {
 			switch which {
@@ -560,6 +848,15 @@ func (a *Axes) TickParams(params TickParams) error {
 				axis.TickSize = *params.Length
 				axis.MinorTickSize = *params.Length
 			}
+		}
+		switch which {
+		case "major":
+			applyTickLabelParams(&axis.MajorLabelStyle, params)
+		case "minor":
+			applyTickLabelParams(&axis.MinorLabelStyle, params)
+		case "both":
+			applyTickLabelParams(&axis.MajorLabelStyle, params)
+			applyTickLabelParams(&axis.MinorLabelStyle, params)
 		}
 	}
 	return nil
@@ -842,10 +1139,12 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			DataToPixel: Transform2D{
 				XScale:      ax.effectiveXScale(),
 				YScale:      ax.effectiveYScale(),
-				AxesToPixel: transform.NewAffine(axesToPixel(px)),
+				DataToAxes:  transform.NewScaleTransform(ax.effectiveXScale(), ax.effectiveYScale()),
+				AxesToPixel: transform.NewDisplayRectTransform(px),
 			},
-			RC:   ax.effectiveRC(fig),
-			Clip: px,
+			RC:         ax.effectiveRC(fig),
+			Clip:       px,
+			FigureRect: vp,
 		}
 
 		if ctx.RC.AxesBackground != fig.RC.FigureBackground() {
@@ -956,23 +1255,37 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	// Title: centered above the plot
 	if ax.Title != "" {
 		metrics := r.MeasureText(ax.Title, titleSize, ctx.RC.FontKey)
-		x := px.Min.X + (px.W()-metrics.W)/2 + titleXAdjustPx()
 		// Matplotlib positions axes titles at y=1.0 with a baseline-aligned
 		// transform offset by axes.titlepad (default 6 pt).
 		titlePadPx := ctx.RC.DPI * 6.0 / 72.0
-		y := px.Min.Y - titlePadPx + titleBaselineAdjustPx(ctx)
-		textRen.DrawText(ax.Title, geom.Pt{X: x, Y: y}, titleSize, labelColor)
+		anchor := transform.NewOffset(ctx.TransAxes(), geom.Pt{
+			X: titleXAdjustPx(),
+			Y: -titlePadPx + titleBaselineAdjustPx(ctx),
+		}).Apply(geom.Pt{X: 0.5, Y: 1})
+		textRen.DrawText(
+			ax.Title,
+			alignedTextOrigin(anchor, metrics, TextAlignCenter, TextVAlignBaseline),
+			titleSize,
+			labelColor,
+		)
 	}
 
 	// XLabel: centered below the x-axis tick labels
 	if ax.XLabel != "" {
 		metrics := r.MeasureText(ax.XLabel, labelSize, ctx.RC.FontKey)
-		x := px.Min.X + (px.W()-metrics.W)/2
-		y := px.Max.Y + 18 + metrics.Ascent
+		base := geom.Pt{X: 0.5, Y: 0}
+		offset := geom.Pt{X: 0, Y: 18 + metrics.Ascent}
 		if ax.XAxis != nil && ax.XAxis.Side == AxisTop {
-			y = px.Min.Y - 18 - metrics.Descent
+			base.Y = 1
+			offset.Y = -18 - metrics.Descent
 		}
-		textRen.DrawText(ax.XLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+		anchor := transform.NewOffset(ctx.TransAxes(), offset).Apply(base)
+		textRen.DrawText(
+			ax.XLabel,
+			alignedTextOrigin(anchor, metrics, TextAlignCenter, TextVAlignBaseline),
+			labelSize,
+			labelColor,
+		)
 	}
 
 	// YLabel: vertical text if supported, else horizontal fallback
@@ -1026,10 +1339,8 @@ func titleBaselineAdjustPx(ctx *DrawContext) float64 {
 }
 
 func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect) geom.Pt {
-	anchor := geom.Pt{
-		X: spinePixelX(AxisLeft, px) - axisLabelPadPx(ctx),
-		Y: px.Min.Y + px.H()/2,
-	}
+	anchor := ctx.TransAxes().Apply(geom.Pt{X: 0, Y: 0.5})
+	anchor.X = spinePixelX(AxisLeft, px) - axisLabelPadPx(ctx)
 
 	yAxis := ax.effectiveYAxis()
 	if yAxis == nil {
@@ -1298,6 +1609,27 @@ func normalizeTickWhich(which string) string {
 	}
 }
 
+func applyTickLabelParams(style *TickLabelStyle, params TickParams) {
+	if style == nil {
+		return
+	}
+	*style = normalizeTickLabelStyle(*style)
+	if params.LabelRotation != nil {
+		style.Rotation = *params.LabelRotation
+	}
+	if params.LabelPad != nil {
+		style.Pad = *params.LabelPad
+	}
+	if params.LabelHAlign != nil {
+		style.HAlign = *params.LabelHAlign
+		style.AutoAlign = false
+	}
+	if params.LabelVAlign != nil {
+		style.VAlign = *params.LabelVAlign
+		style.AutoAlign = false
+	}
+}
+
 func (a *Axes) axesForSpec(spec string) []*Axis {
 	switch normalizeAxisSpec(spec) {
 	case "x":
@@ -1324,6 +1656,12 @@ func enableMinorTicks(axis *Axis) {
 	switch loc := axis.Locator.(type) {
 	case LogLocator:
 		axis.MinorLocator = LogLocator{Base: loc.Base, Minor: true, Subs: loc.Subs}
+	case AutoLocator:
+		axis.MinorLocator = AutoMinorLocator{Major: loc}
+	case MaxNLocator:
+		axis.MinorLocator = AutoMinorLocator{Major: loc}
+	case MultipleLocator:
+		axis.MinorLocator = AutoMinorLocator{Major: loc}
 	default:
 		axis.MinorLocator = MinorLinearLocator{}
 	}

@@ -44,7 +44,7 @@ func newAggSurface(w, h int) *aggSurface {
 		textContext:   textContext,
 		painter:       painter,
 		textHinting:   true,
-		textForceAuto: true,
+		textForceAuto: false,
 		textRoundOff:  false,
 	}
 }

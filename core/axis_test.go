@@ -465,6 +465,59 @@ func TestAxes_TickParamsLocatorParamsAndMinorTicks(t *testing.T) {
 	}
 }
 
+func TestAxes_TickParamsAppliesLabelStyle(t *testing.T) {
+	axes := &Axes{XAxis: NewXAxis()}
+
+	rotation := 45.0
+	pad := 9.0
+	hAlign := TextAlignRight
+	vAlign := TextVAlignTop
+	showMinorLabels := true
+
+	if err := axes.TickParams(TickParams{
+		Axis:          "bottom",
+		Which:         "minor",
+		ShowLabels:    &showMinorLabels,
+		LabelRotation: &rotation,
+		LabelPad:      &pad,
+		LabelHAlign:   &hAlign,
+		LabelVAlign:   &vAlign,
+	}); err != nil {
+		t.Fatalf("TickParams(minor label style): %v", err)
+	}
+
+	if !axes.XAxis.ShowMinorLabels {
+		t.Fatal("TickParams should enable minor labels for minor selection")
+	}
+	if axes.XAxis.MinorLabelStyle.Rotation != rotation || axes.XAxis.MinorLabelStyle.Pad != pad {
+		t.Fatalf("minor label style mismatch: %+v", axes.XAxis.MinorLabelStyle)
+	}
+	if axes.XAxis.MinorLabelStyle.HAlign != hAlign || axes.XAxis.MinorLabelStyle.VAlign != vAlign || axes.XAxis.MinorLabelStyle.AutoAlign {
+		t.Fatalf("minor label alignment mismatch: %+v", axes.XAxis.MinorLabelStyle)
+	}
+}
+
+func TestAxes_TickLabelPositionHelpers(t *testing.T) {
+	axes := &Axes{XAxis: NewXAxis(), YAxis: NewYAxis()}
+
+	if err := axes.SetXTickLabelPosition("top"); err != nil {
+		t.Fatalf("SetXTickLabelPosition(top): %v", err)
+	}
+	if axes.XAxis.ShowLabels {
+		t.Fatal("bottom x-axis labels should be hidden when top labels are requested")
+	}
+	if axes.XAxisTop == nil || !axes.XAxisTop.ShowLabels {
+		t.Fatal("top x-axis labels should be visible after SetXTickLabelPosition(top)")
+	}
+
+	if err := axes.SetYTickLabelPosition("both"); err != nil {
+		t.Fatalf("SetYTickLabelPosition(both): %v", err)
+	}
+	if !axes.YAxis.ShowLabels || axes.YAxisRight == nil || !axes.YAxisRight.ShowLabels {
+		t.Fatal("both y-axis labels should be visible after SetYTickLabelPosition(both)")
+	}
+}
+
 func TestAxes_TwinAxes(t *testing.T) {
 	fig := NewFigure(320, 240)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
@@ -672,10 +725,12 @@ func TestAxis_DrawTickLabels_OmitsXLabelsOutsideViewLimits(t *testing.T) {
 
 type axisLabelRecordingRenderer struct {
 	render.NullRenderer
-	texts     []string
-	origins   []geom.Pt
-	bounds    map[string]render.TextBounds
-	useBounds bool
+	texts          []string
+	origins        []geom.Pt
+	rotatedText    []string
+	rotatedAnchors []geom.Pt
+	bounds         map[string]render.TextBounds
+	useBounds      bool
 }
 
 func (r *axisLabelRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
@@ -698,6 +753,11 @@ func (r *axisLabelRecordingRenderer) MeasureTextBounds(text string, _ float64, _
 func (r *axisLabelRecordingRenderer) DrawText(text string, origin geom.Pt, _ float64, _ render.Color) {
 	r.texts = append(r.texts, text)
 	r.origins = append(r.origins, origin)
+}
+
+func (r *axisLabelRecordingRenderer) DrawTextRotated(text string, anchor geom.Pt, _ float64, _ float64, _ render.Color) {
+	r.rotatedText = append(r.rotatedText, text)
+	r.rotatedAnchors = append(r.rotatedAnchors, anchor)
 }
 
 func TestTickLabelPositionUsesBoundsForBottomXAxis(t *testing.T) {
@@ -771,6 +831,89 @@ func TestTickLabelPositionUsesBoundsForLeftYAxis(t *testing.T) {
 	}
 	if r.origins[0] != want {
 		t.Fatalf("left y tick origin = %+v, want %+v", r.origins[0], want)
+	}
+}
+
+func TestAxis_DrawTickLabels_UsesRotatedDrawerWhenRequested(t *testing.T) {
+	axis := NewXAxis()
+	axis.Locator = staticLocator{2}
+	axis.Formatter = ScalarFormatter{Prec: 0}
+	axis.MajorLabelStyle = TickLabelStyle{Rotation: 45, AutoAlign: true}
+
+	var r axisLabelRecordingRenderer
+	r.useBounds = true
+	r.bounds = map[string]render.TextBounds{
+		"2": {X: 1, Y: -8, W: 5, H: 10},
+	}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if len(r.texts) != 0 {
+		t.Fatalf("expected rotated tick labels to bypass DrawText, got %v", r.texts)
+	}
+	if len(r.rotatedAnchors) != 1 {
+		t.Fatalf("expected one rotated tick label draw, got %d", len(r.rotatedAnchors))
+	}
+
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis.Side, ctx)})
+	labelPad := tickLabelPadPx(axis, ctx)
+	origin := geom.Pt{
+		X: tickPos.X - (1 + 5.0/2.0),
+		Y: tickPos.Y + labelPad + 8,
+	}
+	want := geom.Pt{X: origin.X + 1 + 5.0/2.0, Y: origin.Y - 8 + 10}
+	if r.rotatedAnchors[0] != want {
+		t.Fatalf("rotated tick label anchor = %+v, want %+v", r.rotatedAnchors[0], want)
+	}
+}
+
+func TestAxis_ExtraTickLevelsDrawAdditionalLabels(t *testing.T) {
+	axis := NewXAxis()
+	axis.Locator = staticLocator{2}
+	axis.Formatter = FixedFormatter{Labels: []string{"major"}}
+	axis.ClearTickLevels()
+	axis.AddTickLevel(TickLevel{
+		Locator:    staticLocator{2},
+		Formatter:  FixedFormatter{Labels: []string{"minor row"}},
+		ShowLabels: true,
+		LabelStyle: TickLabelStyle{Pad: 14, AutoAlign: true},
+	})
+
+	var r axisLabelRecordingRenderer
+	r.useBounds = true
+	r.bounds = map[string]render.TextBounds{
+		"major":     {X: 1, Y: -8, W: 20, H: 10},
+		"minor row": {X: 1, Y: -8, W: 35, H: 10},
+	}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if len(r.texts) != 2 {
+		t.Fatalf("expected major and extra tick labels, got %v", r.texts)
+	}
+	if r.texts[0] != "major" || r.texts[1] != "minor row" {
+		t.Fatalf("unexpected tick label sequence: %v", r.texts)
+	}
+	if !(r.origins[1].Y > r.origins[0].Y) {
+		t.Fatalf("expected extra tick level to be farther from the axis: major=%+v extra=%+v", r.origins[0], r.origins[1])
 	}
 }
 

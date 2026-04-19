@@ -158,6 +158,9 @@ func TestMpl_BoxPlotBasic(t *testing.T)   { runMplTest(t, "boxplot_basic", rende
 func TestMpl_AxesTopRightInverted(t *testing.T) {
 	runMplTest(t, "axes_top_right_inverted", renderAxesTopRightInverted)
 }
+func TestMpl_AxesControlSurface(t *testing.T) {
+	runMplTest(t, "axes_control_surface", renderAxesControlSurface)
+}
 func TestMpl_ErrorBars(t *testing.T)    { runMplTest(t, "errorbar_basic", renderErrorBars) }
 func TestMpl_TitleStrict(t *testing.T)  { runMplTest(t, "title_strict", renderTitleStrict) }
 func TestMpl_ImageHeatmap(t *testing.T) { runMplTest(t, "image_heatmap", renderImageHeatmap) }

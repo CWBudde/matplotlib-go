@@ -21,55 +21,83 @@ const (
 // rasterized at 100 DPI, so the equivalent stroke is about 1.11 px.
 const defaultAxisLineWidth = 0.8 * 100.0 / 72.0
 
+// TickLabelStyle captures axis-owned label placement and orientation.
+type TickLabelStyle struct {
+	Rotation  float64
+	Pad       float64
+	HAlign    TextAlign
+	VAlign    TextVerticalAlign
+	AutoAlign bool
+}
+
+// TickLevel adds an optional additional tick/label row to an axis.
+type TickLevel struct {
+	Locator    Locator
+	Formatter  Formatter
+	Size       float64
+	ShowTicks  bool
+	ShowLabels bool
+	LabelStyle TickLabelStyle
+}
+
 // Axis renders axis spines, ticks, and labels for a single dimension.
 type Axis struct {
-	Side          AxisSide     // which side of the plot
-	Locator       Locator      // major tick position calculator
-	MinorLocator  Locator      // minor tick position calculator (nil = no minor ticks)
-	Formatter     Formatter    // tick label formatter
-	Color         render.Color // axis line and tick color
-	LineWidth     float64      // width of axis line and ticks
-	TickSize      float64      // length of major tick marks (in pixels)
-	MinorTickSize float64      // length of minor tick marks (in pixels); 0 uses TickSize*0.6
-	MajorTickCount int         // target major tick count for automatic locators
-	MinorTickCount int         // target minor tick count for automatic locators
-	ShowSpine     bool         // whether to draw the axis line
-	ShowTicks     bool         // whether to draw tick marks
-	ShowLabels    bool         // whether to draw tick labels
-	z             float64      // z-order
+	Side            AxisSide     // which side of the plot
+	Locator         Locator      // major tick position calculator
+	MinorLocator    Locator      // minor tick position calculator (nil = no minor ticks)
+	Formatter       Formatter    // major tick label formatter
+	MinorFormatter  Formatter    // optional minor tick label formatter
+	Color           render.Color // axis line and tick color
+	LineWidth       float64      // width of axis line and ticks
+	TickSize        float64      // length of major tick marks (in pixels)
+	MinorTickSize   float64      // length of minor tick marks (in pixels); 0 uses TickSize*0.6
+	MajorTickCount  int          // target major tick count for automatic locators
+	MinorTickCount  int          // target minor tick count for automatic locators
+	ShowSpine       bool         // whether to draw the axis line
+	ShowTicks       bool         // whether to draw major/minor tick marks
+	ShowLabels      bool         // whether to draw major tick labels
+	ShowMinorLabels bool         // whether to draw minor tick labels
+	MajorLabelStyle TickLabelStyle
+	MinorLabelStyle TickLabelStyle
+	ExtraTickLevels []TickLevel
+	z               float64 // z-order
 }
 
 // NewXAxis creates an axis for the bottom (x-axis).
 func NewXAxis() *Axis {
 	return &Axis{
-		Side:       AxisBottom,
-		Locator:    LinearLocator{},
-		Formatter:  ScalarFormatter{Prec: 3},
-		Color:      render.Color{R: 0, G: 0, B: 0, A: 1}, // black
-		LineWidth:  defaultAxisLineWidth,
-		TickSize:   5.0,
-		MajorTickCount: 6,
-		MinorTickCount: 30,
-		ShowSpine:  true,
-		ShowTicks:  true,
-		ShowLabels: true,
+		Side:            AxisBottom,
+		Locator:         LinearLocator{},
+		Formatter:       ScalarFormatter{Prec: 3},
+		Color:           render.Color{R: 0, G: 0, B: 0, A: 1}, // black
+		LineWidth:       defaultAxisLineWidth,
+		TickSize:        5.0,
+		MajorTickCount:  6,
+		MinorTickCount:  30,
+		ShowSpine:       true,
+		ShowTicks:       true,
+		ShowLabels:      true,
+		MajorLabelStyle: defaultTickLabelStyle(),
+		MinorLabelStyle: defaultTickLabelStyle(),
 	}
 }
 
 // NewYAxis creates an axis for the left (y-axis).
 func NewYAxis() *Axis {
 	return &Axis{
-		Side:       AxisLeft,
-		Locator:    LinearLocator{},
-		Formatter:  ScalarFormatter{Prec: 3},
-		Color:      render.Color{R: 0, G: 0, B: 0, A: 1}, // black
-		LineWidth:  defaultAxisLineWidth,
-		TickSize:   5.0,
-		MajorTickCount: 6,
-		MinorTickCount: 30,
-		ShowSpine:  true,
-		ShowTicks:  true,
-		ShowLabels: true,
+		Side:            AxisLeft,
+		Locator:         LinearLocator{},
+		Formatter:       ScalarFormatter{Prec: 3},
+		Color:           render.Color{R: 0, G: 0, B: 0, A: 1}, // black
+		LineWidth:       defaultAxisLineWidth,
+		TickSize:        5.0,
+		MajorTickCount:  6,
+		MinorTickCount:  30,
+		ShowSpine:       true,
+		ShowTicks:       true,
+		ShowLabels:      true,
+		MajorLabelStyle: defaultTickLabelStyle(),
+		MinorLabelStyle: defaultTickLabelStyle(),
 	}
 }
 
@@ -83,10 +111,6 @@ func (a *Axis) Draw(r render.Renderer, ctx *DrawContext) {
 // DrawTicks renders tick marks pointing outward from the plot area.
 // Called outside the clip region so ticks are visible.
 func (a *Axis) DrawTicks(r render.Renderer, ctx *DrawContext) {
-	if !a.ShowTicks {
-		return
-	}
-
 	var domainMin, domainMax float64
 	var isXAxis bool
 
@@ -98,18 +122,34 @@ func (a *Axis) DrawTicks(r render.Renderer, ctx *DrawContext) {
 		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
 	}
 
-	// Minor ticks first
-	if a.MinorLocator != nil {
-		minorTicks := visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCount()), domainMin, domainMax)
-		if len(minorTicks) > 0 {
-			a.drawMinorTicks(r, ctx, minorTicks, isXAxis)
+	if a.ShowTicks {
+		// Minor ticks first
+		if a.MinorLocator != nil {
+			minorTicks := visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCount()), domainMin, domainMax)
+			if len(minorTicks) > 0 {
+				a.drawMinorTicks(r, ctx, minorTicks, isXAxis)
+			}
+		}
+
+		// Major ticks
+		ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
+		if len(ticks) > 0 {
+			a.drawTicks(r, ctx, ticks, isXAxis)
 		}
 	}
 
-	// Major ticks
-	ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
-	if len(ticks) > 0 {
-		a.drawTicks(r, ctx, ticks, isXAxis)
+	for _, level := range a.ExtraTickLevels {
+		if !level.ShowTicks || level.Locator == nil {
+			continue
+		}
+		ticks := visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
+		if len(ticks) == 0 {
+			continue
+		}
+		size := tickLevelSize(level, a.TickSize)
+		for _, tickValue := range ticks {
+			a.drawSingleTick(r, ctx, tickValue, size, isXAxis)
+		}
 	}
 }
 
@@ -294,7 +334,7 @@ func (a *Axis) Bounds(*DrawContext) geom.Rect {
 
 // DrawTickLabels draws tick labels outside the clip region (call after r.Restore()).
 func (a *Axis) DrawTickLabels(r render.Renderer, ctx *DrawContext) {
-	if !a.ShowLabels {
+	if !a.ShowLabels && !a.ShowMinorLabels && len(a.ExtraTickLevels) == 0 {
 		return
 	}
 	var domainMin, domainMax float64
@@ -307,8 +347,21 @@ func (a *Axis) DrawTickLabels(r render.Renderer, ctx *DrawContext) {
 		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
 		isXAxis = false
 	}
-	ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
-	a.drawTickLabels(r, ctx, ticks, isXAxis)
+	if a.ShowLabels && a.Locator != nil && a.Formatter != nil {
+		ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
+		a.drawTickLabels(r, ctx, ticks, a.Formatter, a.MajorLabelStyle, a.TickSize, isXAxis)
+	}
+	if a.ShowMinorLabels && a.MinorLocator != nil && a.MinorFormatter != nil {
+		ticks := visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCount()), domainMin, domainMax)
+		a.drawTickLabels(r, ctx, ticks, a.MinorFormatter, a.MinorLabelStyle, a.minorTickSize(), isXAxis)
+	}
+	for _, level := range a.ExtraTickLevels {
+		if !level.ShowLabels || level.Locator == nil || level.Formatter == nil {
+			continue
+		}
+		ticks := visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
+		a.drawTickLabels(r, ctx, ticks, level.Formatter, normalizeTickLabelStyle(level.LabelStyle), tickLevelSize(level, a.TickSize), isXAxis)
+	}
 }
 
 func (a *Axis) majorTickTargetCount() int {
@@ -351,36 +404,46 @@ func visibleTicks(ticks []float64, minVal, maxVal float64) []float64 {
 	return out
 }
 
-// drawTickLabels draws text labels for the ticks if the renderer supports text.
-func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float64, isXAxis bool) {
+// drawTickLabels draws text labels for a single tick level if the renderer supports text.
+func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float64, formatter Formatter, style TickLabelStyle, tickSize float64, isXAxis bool) {
 	textRen, ok := r.(render.TextDrawer)
-	if !ok {
+	if !ok || formatter == nil {
 		return
 	}
 
 	fontSize := tickLabelFontSize(ctx)
-	labelPadPx := tickLabelPadPx(a, ctx)
+	style = normalizeTickLabelStyle(style)
+	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 
 	step := 0.0
 	if len(ticks) >= 2 {
 		step = ticks[1] - ticks[0]
 	}
 
-	for _, tickValue := range ticks {
-		label := a.Formatter.Format(tickValue)
-		if scalarFormatter, ok := a.Formatter.(ScalarFormatter); ok && step > 0 {
+	var rotRen render.RotatedTextDrawer
+	if drawer, ok := r.(render.RotatedTextDrawer); ok {
+		rotRen = drawer
+	}
+
+	for i, tickValue := range ticks {
+		label := formatTickLabel(formatter, tickValue, i, ticks)
+		if scalarFormatter, ok := formatter.(ScalarFormatter); ok && step > 0 {
 			label = formatScalarTickLabel(scalarFormatter, tickValue, step)
 		}
 		if label == "" {
 			continue
 		}
 
-		// Measure text for centering
 		metrics := r.MeasureText(label, fontSize, ctx.RC.FontKey)
 		bounds, haveBounds := measureTextBounds(r, label, fontSize, ctx.RC.FontKey)
 
-		labelPos, ok := tickLabelOrigin(a, ctx, tickValue, metrics, bounds, haveBounds, labelPadPx, isXAxis)
+		labelPos, ok := tickLabelOrigin(a, ctx, tickValue, metrics, bounds, haveBounds, labelPadPx, style, isXAxis)
 		if !ok {
+			continue
+		}
+
+		if style.Rotation != 0 && rotRen != nil {
+			rotRen.DrawTextRotated(label, tickLabelRotationAnchor(labelPos, metrics, bounds, haveBounds), fontSize, style.Rotation*math.Pi/180.0, a.Color)
 			continue
 		}
 
@@ -402,34 +465,43 @@ func tickLabelFontSize(ctx *DrawContext) float64 {
 }
 
 func tickLabelPadPx(a *Axis, ctx *DrawContext) float64 {
+	return tickLabelPadForSize(a.TickSize, a.MajorLabelStyle, ctx)
+}
+
+func tickLabelPadForSize(tickSize float64, style TickLabelStyle, ctx *DrawContext) float64 {
 	const majorLabelPadPt = 3.5
 
 	padPx := majorLabelPadPt * 96.0 / 72.0
 	if ctx != nil && ctx.RC.DPI > 0 {
 		padPx = majorLabelPadPt * ctx.RC.DPI / 72.0
 	}
-	return a.TickSize + padPx
+	if style.Pad > 0 {
+		padPx = style.Pad
+	}
+	return tickSize + padPx
 }
 
-func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool, labelPadPx float64, isXAxis bool) (geom.Pt, bool) {
+func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool, labelPadPx float64, style TickLabelStyle, isXAxis bool) (geom.Pt, bool) {
 	if a == nil || ctx == nil {
 		return geom.Pt{}, false
 	}
+	style = normalizeTickLabelStyle(style)
 
 	if isXAxis {
 		spineY := getSpinePosition(a.Side, ctx)
 		tickPos := ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: spineY})
+		hAlign, vAlign := resolvedTickLabelAlignments(a.Side, style, true)
 
 		switch a.Side {
 		case AxisBottom:
 			return geom.Pt{
-				X: tickPos.X - tickLabelCenterOffsetX(metrics, bounds, haveBounds),
-				Y: tickPos.Y + labelPadPx + metrics.Ascent,
+				X: tickPos.X - tickLabelLeftOffset(hAlign, metrics, bounds, haveBounds),
+				Y: tickPos.Y + labelPadPx + tickLabelBaselineFromTop(vAlign, metrics, bounds, haveBounds),
 			}, true
 		case AxisTop:
 			return geom.Pt{
-				X: tickPos.X - tickLabelCenterOffsetX(metrics, bounds, haveBounds),
-				Y: tickPos.Y - labelPadPx - metrics.Descent,
+				X: tickPos.X - tickLabelLeftOffset(hAlign, metrics, bounds, haveBounds),
+				Y: tickPos.Y - labelPadPx + tickLabelBaselineFromBottom(vAlign, metrics, bounds, haveBounds),
 			}, true
 		default:
 			return geom.Pt{}, false
@@ -438,19 +510,18 @@ func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, metrics rende
 
 	spineX := getSpinePosition(a.Side, ctx)
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: spineX, Y: tickValue})
+	hAlign, vAlign := resolvedTickLabelAlignments(a.Side, style, false)
 
 	switch a.Side {
 	case AxisLeft:
-		anchorX := tickPos.X - labelPadPx
 		return geom.Pt{
-			X: tickLabelBaselineForRight(anchorX, metrics, bounds, haveBounds),
-			Y: tickPos.Y + (metrics.Ascent-metrics.Descent)/2,
+			X: tickPos.X - labelPadPx - tickLabelLeftOffsetForLeftAxis(hAlign, metrics, bounds, haveBounds),
+			Y: tickPos.Y + tickLabelBaselineForAnchorY(vAlign, metrics, bounds, haveBounds),
 		}, true
 	case AxisRight:
-		anchorX := tickPos.X + labelPadPx
 		return geom.Pt{
-			X: tickLabelBaselineForLeft(anchorX, bounds, haveBounds),
-			Y: tickPos.Y + (metrics.Ascent-metrics.Descent)/2,
+			X: tickPos.X + labelPadPx - tickLabelLeftOffsetForRightAxis(hAlign, metrics, bounds, haveBounds),
+			Y: tickPos.Y + tickLabelBaselineForAnchorY(vAlign, metrics, bounds, haveBounds),
 		}, true
 	default:
 		return geom.Pt{}, false
@@ -481,7 +552,7 @@ func textInkRect(origin geom.Pt, metrics render.TextMetrics, bounds render.TextB
 }
 
 func axisTickLabelBounds(a *Axis, r render.Renderer, ctx *DrawContext) (geom.Rect, bool) {
-	if a == nil || !a.ShowLabels || ctx == nil || a.Locator == nil || a.Formatter == nil {
+	if a == nil || ctx == nil {
 		return geom.Rect{}, false
 	}
 
@@ -501,13 +572,81 @@ func axisTickLabelBounds(a *Axis, r render.Renderer, ctx *DrawContext) (geom.Rec
 		return geom.Rect{}, false
 	}
 
-	ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, 6), domainMin, domainMax)
-	if len(ticks) == 0 {
+	var (
+		union geom.Rect
+		have  bool
+	)
+
+	type labelLevel struct {
+		ticks     []float64
+		formatter Formatter
+		style     TickLabelStyle
+		tickSize  float64
+	}
+
+	levels := make([]labelLevel, 0, 2+len(a.ExtraTickLevels))
+	if a.ShowLabels && a.Locator != nil && a.Formatter != nil {
+		levels = append(levels, labelLevel{
+			ticks:     visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax),
+			formatter: a.Formatter,
+			style:     a.MajorLabelStyle,
+			tickSize:  a.TickSize,
+		})
+	}
+	if a.ShowMinorLabels && a.MinorLocator != nil && a.MinorFormatter != nil {
+		levels = append(levels, labelLevel{
+			ticks:     visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCount()), domainMin, domainMax),
+			formatter: a.MinorFormatter,
+			style:     a.MinorLabelStyle,
+			tickSize:  a.minorTickSize(),
+		})
+	}
+	for _, level := range a.ExtraTickLevels {
+		if !level.ShowLabels || level.Locator == nil || level.Formatter == nil {
+			continue
+		}
+		levels = append(levels, labelLevel{
+			ticks:     visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax),
+			formatter: level.Formatter,
+			style:     normalizeTickLabelStyle(level.LabelStyle),
+			tickSize:  tickLevelSize(level, a.TickSize),
+		})
+	}
+
+	for _, level := range levels {
+		bounds, ok := tickLabelBoundsForLevel(a, r, ctx, level.ticks, level.formatter, level.style, level.tickSize, isXAxis)
+		if !ok {
+			continue
+		}
+
+		if !have {
+			union = bounds
+			have = true
+			continue
+		}
+		union = geom.Rect{
+			Min: geom.Pt{
+				X: math.Min(union.Min.X, bounds.Min.X),
+				Y: math.Min(union.Min.Y, bounds.Min.Y),
+			},
+			Max: geom.Pt{
+				X: math.Max(union.Max.X, bounds.Max.X),
+				Y: math.Max(union.Max.Y, bounds.Max.Y),
+			},
+		}
+	}
+
+	return union, have
+}
+
+func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks []float64, formatter Formatter, style TickLabelStyle, tickSize float64, isXAxis bool) (geom.Rect, bool) {
+	if len(ticks) == 0 || formatter == nil {
 		return geom.Rect{}, false
 	}
 
 	fontSize := tickLabelFontSize(ctx)
-	labelPadPx := tickLabelPadPx(a, ctx)
+	style = normalizeTickLabelStyle(style)
+	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 
 	var (
 		union geom.Rect
@@ -519,9 +658,9 @@ func axisTickLabelBounds(a *Axis, r render.Renderer, ctx *DrawContext) (geom.Rec
 		step = ticks[1] - ticks[0]
 	}
 
-	for _, tickValue := range ticks {
-		label := a.Formatter.Format(tickValue)
-		if scalarFormatter, ok := a.Formatter.(ScalarFormatter); ok && step > 0 {
+	for i, tickValue := range ticks {
+		label := formatTickLabel(formatter, tickValue, i, ticks)
+		if scalarFormatter, ok := formatter.(ScalarFormatter); ok && step > 0 {
 			label = formatScalarTickLabel(scalarFormatter, tickValue, step)
 		}
 		if label == "" {
@@ -530,7 +669,7 @@ func axisTickLabelBounds(a *Axis, r render.Renderer, ctx *DrawContext) (geom.Rec
 
 		metrics := r.MeasureText(label, fontSize, ctx.RC.FontKey)
 		bounds, haveBounds := measureTextBounds(r, label, fontSize, ctx.RC.FontKey)
-		origin, ok := tickLabelOrigin(a, ctx, tickValue, metrics, bounds, haveBounds, labelPadPx, isXAxis)
+		origin, ok := tickLabelOrigin(a, ctx, tickValue, metrics, bounds, haveBounds, labelPadPx, style, isXAxis)
 		if !ok {
 			continue
 		}
@@ -566,16 +705,178 @@ func tickLabelCenterOffsetX(metrics render.TextMetrics, bounds render.TextBounds
 	return metrics.W / 2
 }
 
-func tickLabelBaselineForRight(anchorX float64, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
-	if haveBounds {
-		return anchorX - (bounds.X + bounds.W)
+func tickLabelLeftOffset(hAlign TextAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+	switch hAlign {
+	case TextAlignLeft:
+		if haveBounds {
+			return -bounds.X
+		}
+		return 0
+	case TextAlignRight:
+		if haveBounds {
+			return bounds.X + bounds.W
+		}
+		return metrics.W
+	default:
+		return tickLabelCenterOffsetX(metrics, bounds, haveBounds)
 	}
-	return anchorX - metrics.W
 }
 
-func tickLabelBaselineForLeft(anchorX float64, bounds render.TextBounds, haveBounds bool) float64 {
-	if haveBounds {
-		return anchorX - bounds.X
+func tickLabelBaselineFromTop(vAlign TextVerticalAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+	switch vAlign {
+	case TextVAlignTop:
+		return -bounds.Y
+	case TextVAlignMiddle:
+		return tickLabelHeight(metrics, bounds, haveBounds)/2 - bounds.Y
+	case TextVAlignBottom:
+		return tickLabelHeight(metrics, bounds, haveBounds) - bounds.Y
+	default:
+		return -bounds.Y
 	}
-	return anchorX
+}
+
+func tickLabelBaselineFromBottom(vAlign TextVerticalAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+	return tickLabelBaselineFromTop(vAlign, metrics, bounds, haveBounds) - tickLabelHeight(metrics, bounds, haveBounds)
+}
+
+func tickLabelBaselineForAnchorY(vAlign TextVerticalAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+	switch vAlign {
+	case TextVAlignTop:
+		return -bounds.Y
+	case TextVAlignBottom:
+		return -bounds.Y - tickLabelHeight(metrics, bounds, haveBounds)
+	case TextVAlignBaseline:
+		return 0
+	default:
+		return -bounds.Y - tickLabelHeight(metrics, bounds, haveBounds)/2
+	}
+}
+
+func tickLabelLeftOffsetForLeftAxis(hAlign TextAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+	switch hAlign {
+	case TextAlignLeft:
+		if haveBounds {
+			return bounds.X
+		}
+		return 0
+	case TextAlignCenter:
+		if haveBounds {
+			return bounds.X + bounds.W/2
+		}
+		return metrics.W / 2
+	default:
+		if haveBounds {
+			return bounds.X + bounds.W
+		}
+		return metrics.W
+	}
+}
+
+func tickLabelLeftOffsetForRightAxis(hAlign TextAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+	switch hAlign {
+	case TextAlignRight:
+		if haveBounds {
+			return bounds.X + bounds.W
+		}
+		return metrics.W
+	case TextAlignCenter:
+		if haveBounds {
+			return bounds.X + bounds.W/2
+		}
+		return metrics.W / 2
+	default:
+		if haveBounds {
+			return bounds.X
+		}
+		return 0
+	}
+}
+
+func tickLabelRotationAnchor(origin geom.Pt, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) geom.Pt {
+	left := origin.X
+	if haveBounds {
+		left += bounds.X
+	}
+	width := tickLabelWidth(metrics, bounds, haveBounds)
+	top := origin.Y + bounds.Y
+	if !haveBounds {
+		top = origin.Y - metrics.Ascent
+	}
+	return geom.Pt{X: left + width/2, Y: top + tickLabelHeight(metrics, bounds, haveBounds)}
+}
+
+func tickLabelWidth(metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+	if haveBounds && bounds.W > 0 {
+		return bounds.W
+	}
+	return metrics.W
+}
+
+func tickLabelHeight(metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+	if haveBounds && bounds.H > 0 {
+		return bounds.H
+	}
+	return metrics.H
+}
+
+func resolvedTickLabelAlignments(side AxisSide, style TickLabelStyle, isXAxis bool) (TextAlign, TextVerticalAlign) {
+	if !style.AutoAlign {
+		return style.HAlign, style.VAlign
+	}
+	if isXAxis {
+		switch side {
+		case AxisBottom:
+			return TextAlignCenter, TextVAlignTop
+		case AxisTop:
+			return TextAlignCenter, TextVAlignBottom
+		}
+	}
+	switch side {
+	case AxisLeft:
+		return TextAlignRight, TextVAlignMiddle
+	case AxisRight:
+		return TextAlignLeft, TextVAlignMiddle
+	default:
+		return TextAlignCenter, TextVAlignMiddle
+	}
+}
+
+func defaultTickLabelStyle() TickLabelStyle {
+	return TickLabelStyle{AutoAlign: true}
+}
+
+func normalizeTickLabelStyle(style TickLabelStyle) TickLabelStyle {
+	if !style.AutoAlign && style.HAlign == TextAlignLeft && style.VAlign == TextVAlignBaseline && style.Pad == 0 && style.Rotation == 0 {
+		style.AutoAlign = true
+	}
+	return style
+}
+
+func tickLevelSize(level TickLevel, fallback float64) float64 {
+	if level.Size > 0 {
+		return level.Size
+	}
+	return fallback
+}
+
+func (a *Axis) minorTickSize() float64 {
+	if a.MinorTickSize > 0 {
+		return a.MinorTickSize
+	}
+	return a.TickSize * 0.6
+}
+
+func (a *Axis) AddTickLevel(level TickLevel) {
+	if a == nil {
+		return
+	}
+	level.LabelStyle = normalizeTickLabelStyle(level.LabelStyle)
+	a.ExtraTickLevels = append(a.ExtraTickLevels, level)
+}
+
+func (a *Axis) ClearTickLevels() {
+	if a == nil {
+		return
+	}
+	a.ExtraTickLevels = nil
 }

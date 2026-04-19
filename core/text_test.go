@@ -87,6 +87,7 @@ type textRecordingRenderer struct {
 	render.NullRenderer
 	pathCount int
 	texts     []string
+	origins   []geom.Pt
 }
 
 func (r *textRecordingRenderer) Path(_ geom.Path, _ *render.Paint) {
@@ -102,6 +103,48 @@ func (r *textRecordingRenderer) MeasureText(text string, size float64, _ string)
 	}
 }
 
-func (r *textRecordingRenderer) DrawText(text string, _ geom.Pt, _ float64, _ render.Color) {
+func (r *textRecordingRenderer) DrawText(text string, origin geom.Pt, _ float64, _ render.Color) {
 	r.texts = append(r.texts, text)
+	r.origins = append(r.origins, origin)
+}
+
+func TestAxesTextSupportsAxesAndBlendedCoordinates(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.XAxis.ShowSpine = false
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowSpine = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
+	ax.ShowFrame = false
+
+	ax.Text(0.25, 0.75, "axes", TextOptions{
+		Coords:  Coords(CoordAxes),
+		OffsetX: 5,
+		OffsetY: -7,
+	})
+	ax.Text(0.25, 0.75, "blend", TextOptions{
+		Coords: BlendCoords(CoordFigure, CoordAxes),
+	})
+
+	var r textRecordingRenderer
+	DrawFigure(fig, &r)
+
+	if len(r.texts) != 2 {
+		t.Fatalf("expected 2 text draws, got %d", len(r.texts))
+	}
+
+	wantAxes := geom.Pt{X: 245, Y: 173}
+	if r.origins[0] != wantAxes {
+		t.Fatalf("axes coords origin = %+v, want %+v", r.origins[0], wantAxes)
+	}
+
+	wantBlend := geom.Pt{X: 200, Y: 180}
+	if r.origins[1] != wantBlend {
+		t.Fatalf("blended coords origin = %+v, want %+v", r.origins[1], wantBlend)
+	}
 }
