@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"matplotlib-go/color"
 	"matplotlib-go/render"
@@ -55,6 +55,18 @@ var supportedMPLStyleKeys = []string{
 type mplStyleState struct {
 	rc RC
 
+	figureFaceValue string
+	figureFaceSet   bool
+	textColorValue  string
+	textColorSet    bool
+	lineColorValue  string
+	lineColorSet    bool
+
+	axesFaceValue string
+	axesFaceSet   bool
+	axesEdgeValue string
+	axesEdgeSet   bool
+
 	lineWidthPt      float64
 	lineWidthSet     bool
 	axisLineWidthPt  float64
@@ -62,14 +74,14 @@ type mplStyleState struct {
 	gridLineWidthPt  float64
 	gridLineWidthSet bool
 
-	gridColor      render.Color
-	gridColorSet   bool
-	gridMajorColor render.Color
-	gridMajorSet   bool
-	gridMinorColor render.Color
-	gridMinorSet   bool
-	gridAlpha      float64
-	gridAlphaSet   bool
+	gridColorValue  string
+	gridColorSet    bool
+	gridMajorValue  string
+	gridMajorSet    bool
+	gridMinorValue  string
+	gridMinorSet    bool
+	gridAlpha       float64
+	gridAlphaSet    bool
 
 	legendFaceValue string
 	legendFaceSet   bool
@@ -148,11 +160,8 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.rc.DPI = parsed
 	case "figure.facecolor":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.rc.Background = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
+		state.figureFaceValue = normalizeMPLValue(value)
+		state.figureFaceSet = true
 	case "font.family":
 		parsed, err := parseMPLFontFamily(value)
 		if err != nil {
@@ -166,17 +175,11 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.rc.FontSize = parsed
 	case "text.color":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.rc.TextColor = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
+		state.textColorValue = normalizeMPLValue(value)
+		state.textColorSet = true
 	case "lines.color":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.rc.LineColor = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
+		state.lineColorValue = normalizeMPLValue(value)
+		state.lineColorSet = true
 	case "lines.linewidth":
 		parsed, err := parseMPLFloat(value)
 		if err != nil {
@@ -185,23 +188,14 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		state.lineWidthPt = parsed
 		state.lineWidthSet = true
 	case "axes.facecolor":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.rc.AxesBackground = parsed
+		state.axesFaceValue = normalizeMPLValue(value)
+		state.axesFaceSet = true
 	case "axes.edgecolor", "xtick.color", "ytick.color":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.rc.AxesEdgeColor = parsed
+		state.axesEdgeValue = normalizeMPLValue(value)
+		state.axesEdgeSet = true
 	case "axes.labelcolor":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.rc.TextColor = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
+		state.textColorValue = normalizeMPLValue(value)
+		state.textColorSet = true
 	case "axes.linewidth":
 		parsed, err := parseMPLFloat(value)
 		if err != nil {
@@ -216,25 +210,13 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.rc.ColorCycle = parsed
 	case "grid.color":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.gridColor = parsed
+		state.gridColorValue = normalizeMPLValue(value)
 		state.gridColorSet = true
 	case "grid.major.color":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.gridMajorColor = parsed
+		state.gridMajorValue = normalizeMPLValue(value)
 		state.gridMajorSet = true
 	case "grid.minor.color":
-		parsed, err := parseMPLColor(value, state.rc)
-		if err != nil {
-			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
-		}
-		state.gridMinorColor = parsed
+		state.gridMinorValue = normalizeMPLValue(value)
 		state.gridMinorSet = true
 	case "grid.alpha":
 		parsed, err := parseMPLFloat(value)
@@ -365,15 +347,8 @@ func stripMPLStyleComment(raw string) string {
 }
 
 func utf8LastRune(s string) (rune, int) {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] < utf8RuneSelf {
-			return rune(s[i]), 1
-		}
-	}
-	return rune(0), 0
+	return utf8.DecodeLastRuneInString(s)
 }
-
-const utf8RuneSelf = 0x80
 
 func parseMPLFloat(value string) (float64, error) {
 	normalized := normalizeMPLValue(value)
@@ -426,6 +401,10 @@ func parseMPLColor(value string, rc RC) (render.Color, error) {
 		return parseMPLColorTuple(normalized)
 	}
 
+	if looksLikeMPLHexColor(normalized) {
+		return parseMPLHexColor(normalized)
+	}
+
 	if grayscale, err := strconv.ParseFloat(normalized, 64); err == nil {
 		return render.Color{R: grayscale, G: grayscale, B: grayscale, A: 1}, nil
 	}
@@ -446,6 +425,21 @@ func parseMPLColor(value string, rc RC) (render.Color, error) {
 	}
 
 	return parseMPLHexColor(normalized)
+}
+
+func looksLikeMPLHexColor(value string) bool {
+	normalized := strings.TrimPrefix(value, "#")
+	switch len(normalized) {
+	case 3, 4, 6, 8:
+	default:
+		return false
+	}
+	for _, r := range normalized {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+			return false
+		}
+	}
+	return true
 }
 
 func parseMPLColorTuple(value string) (render.Color, error) {
@@ -636,35 +630,28 @@ func mplPointsToPixels(points, dpi float64) float64 {
 }
 
 var mplNamedColors = func() map[string]render.Color {
-	colors := map[string]render.Color{
-		"b":      {R: 0, G: 0, B: 1, A: 1},
-		"g":      {R: 0, G: 0.5, B: 0, A: 1},
-		"r":      {R: 1, G: 0, B: 0, A: 1},
-		"c":      {R: 0, G: 0.75, B: 0.75, A: 1},
-		"m":      {R: 0.75, G: 0, B: 0.75, A: 1},
-		"y":      {R: 0.75, G: 0.75, B: 0, A: 1},
-		"k":      {R: 0, G: 0, B: 0, A: 1},
-		"w":      {R: 1, G: 1, B: 1, A: 1},
-		"black":  {R: 0, G: 0, B: 0, A: 1},
-		"white":  {R: 1, G: 1, B: 1, A: 1},
-		"red":    {R: 1, G: 0, B: 0, A: 1},
-		"green":  {R: 0, G: 0.5, B: 0, A: 1},
-		"blue":   {R: 0, G: 0, B: 1, A: 1},
-		"cyan":   {R: 0, G: 1, B: 1, A: 1},
+	return map[string]render.Color{
+		"b":       {R: 0, G: 0, B: 1, A: 1},
+		"g":       {R: 0, G: 0.5, B: 0, A: 1},
+		"r":       {R: 1, G: 0, B: 0, A: 1},
+		"c":       {R: 0, G: 0.75, B: 0.75, A: 1},
+		"m":       {R: 0.75, G: 0, B: 0.75, A: 1},
+		"y":       {R: 0.75, G: 0.75, B: 0, A: 1},
+		"k":       {R: 0, G: 0, B: 0, A: 1},
+		"w":       {R: 1, G: 1, B: 1, A: 1},
+		"black":   {R: 0, G: 0, B: 0, A: 1},
+		"white":   {R: 1, G: 1, B: 1, A: 1},
+		"red":     {R: 1, G: 0, B: 0, A: 1},
+		"green":   {R: 0, G: 0.5, B: 0, A: 1},
+		"blue":    {R: 0, G: 0, B: 1, A: 1},
+		"cyan":    {R: 0, G: 1, B: 1, A: 1},
 		"magenta": {R: 1, G: 0, B: 1, A: 1},
-		"yellow": {R: 1, G: 1, B: 0, A: 1},
-		"grey":   {R: 0.5, G: 0.5, B: 0.5, A: 1},
-		"gray":   {R: 0.5, G: 0.5, B: 0.5, A: 1},
-		"orange": {R: 1, G: 0.647, B: 0, A: 1},
-		"purple": {R: 0.5, G: 0, B: 0.5, A: 1},
-		"brown":  {R: 0.647, G: 0.165, B: 0.165, A: 1},
-		"pink":   {R: 1, G: 0.753, B: 0.796, A: 1},
+		"yellow":  {R: 1, G: 1, B: 0, A: 1},
+		"grey":    {R: 0.5, G: 0.5, B: 0.5, A: 1},
+		"gray":    {R: 0.5, G: 0.5, B: 0.5, A: 1},
+		"orange":  {R: 1, G: 0.647, B: 0, A: 1},
+		"purple":  {R: 0.5, G: 0, B: 0.5, A: 1},
+		"brown":   {R: 0.647, G: 0.165, B: 0.165, A: 1},
+		"pink":    {R: 1, G: 0.753, B: 0.796, A: 1},
 	}
-
-	keys := make([]string, 0, len(colors))
-	for key := range colors {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return colors
 }()

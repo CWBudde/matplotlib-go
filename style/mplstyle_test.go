@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"matplotlib-go/render"
 )
 
 func TestParseMPLStyleSubset(t *testing.T) {
@@ -39,8 +41,8 @@ patch.facecolor: 348ABD
 	if theme.Name != "ggplot" {
 		t.Fatalf("theme name = %q, want ggplot", theme.Name)
 	}
-	if len(report.Applied) != 18 {
-		t.Fatalf("applied count = %d, want 18", len(report.Applied))
+	if len(report.Applied) != 19 {
+		t.Fatalf("applied count = %d, want 19", len(report.Applied))
 	}
 	if len(report.Unsupported) != 1 || report.Unsupported[0].Key != "patch.facecolor" {
 		t.Fatalf("unexpected unsupported report: %+v", report.Unsupported)
@@ -88,9 +90,9 @@ patch.facecolor: 348ABD
 }
 
 func TestParseMPLStyleCyclerKeywordForm(t *testing.T) {
-	src := ` + "`" + `
+	src := `
 axes.prop_cycle: cycler(color=['003FFF', '03ED3A'])
-` + "`" + `
+`
 
 	theme, report, err := ParseMPLStyle("custom", src)
 	if err != nil {
