@@ -99,7 +99,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Add incremental bar-baseline parity fixtures (`bar_basic_frame` → `bar_basic_ticks` → `bar_basic_tick_labels` → `bar_basic_title`)
 - [x] Commit `testdata/matplotlib_ref` fixtures and document regeneration via `test/matplotlib_ref/generate.py`
 - [ ] Refresh golden/reference baselines after the AGG text-path refactor
-- [ ] Re-run Matplotlib reference comparisons and either accept the new baseline or tighten text/layout parity
+- [x] Re-run Matplotlib reference comparisons and either accept the new baseline or tighten text/layout parity
 
 ### 2.3 Axis Rendering with AGG ✅
 
@@ -168,10 +168,11 @@ core.SavePNG(fig, r, "output.png")
 
 ### 2.11 Dates, Categories, and Units
 
-- [ ] Date locators/formatters and `time.Time`-friendly axis plumbing
-- [ ] Categorical axes instead of today's "categories as float positions" workaround
-- [ ] Units/converter support similar to Matplotlib's `units` machinery
-- [ ] Example and parity coverage for dates, units, and category plots
+- [x] Date locators/formatters and `time.Time`-friendly axis plumbing
+- [x] Categorical axes instead of today's "categories as float positions" workaround
+- [x] Units/converter support similar to Matplotlib's `units` machinery
+- [x] Example coverage for dates, units, and category plots
+- [ ] Golden/parity coverage for dates, units, and category plots
 
 **Exit Criteria:**
 
@@ -181,91 +182,6 @@ core.SavePNG(fig, r, "output.png")
 - Axis limits can be set manually or auto-computed
 
 **Current follow-up after Phase 2:** package-level tests for `color`, `render`, `backends`, and `core` are green after the renderer-contract cleanup; the remaining short-term backend-quality work is in image golden/reference parity, while the largest functional gap versus Matplotlib is now the broader axes/scale/ticker surface above.
-
----
-
-# Phase X: Immediate AGG Text Parity Drilldown (DO THIS NOW)
-
-**Goal:** Close the remaining text-rendering and text-positioning gap versus `/tmp/matplotlib` systematically, starting with correctness and then tightening visual parity.
-
-**Why this is immediate:** tick labels, titles, and other text still differ from Matplotlib in small but visible ways. We now have enough source-level evidence to stop guessing and work through the real backend differences one by one.
-
-### X.1 Lock Down The Matplotlib Reference Model
-
-- [x] Capture and document the exact Matplotlib Agg text pipeline we are matching:
-  - `RendererAgg.draw_text()`
-  - `Text._get_layout()`
-  - `FT2Font.set_size()`
-  - `FT2Font.set_text()`
-  - `FT2Font.draw_glyphs_to_bitmap()`
-  - See [docs/text_parity_phase_x1.md](/mnt/projekte/Code/matplotlib-go/docs/text_parity_phase_x1.md)
-- [x] Record the exact default knobs from `/tmp/matplotlib` that affect text output:
-  - `text.hinting`
-  - `text.hinting_factor`
-  - tick alignments
-  - tick pad and tick size
-  - title pad and size
-  - See [docs/text_parity_phase_x1.md](/mnt/projekte/Code/matplotlib-go/docs/text_parity_phase_x1.md)
-- [x] Keep the dedicated strict fixtures (`title_strict`, `text_labels_strict`) and `bar_basic_tick_labels` as the primary parity probes for this phase.
-  - Documented in [docs/text_parity_phase_x1.md](/mnt/projekte/Code/matplotlib-go/docs/text_parity_phase_x1.md)
-
-### X.2 Correct The Remaining Backend Rendering Differences
-
-- [x] Stop forcing FreeType autohinting in the AGG raster path when Matplotlib is using the default hinting mode.
-- [x] Rework raster glyph compositing in `../agg_go` so normal text is blended glyph-by-glyph like Matplotlib Agg, instead of first OR-combining a full run mask.
-- [x] Verify device-space origin snapping happens at the same stage as Matplotlib’s `round(0x40 * ...)` placement path.
-- [x] Verify glyph placement uses the same coordinate convention as Matplotlib’s run bbox packing:
-  - `bitmap.left`
-  - `bitmap.top`
-  - `bbox.xMin`
-  - `bbox.yMax`
-  - the `+1` bitmap row adjustment
-
-### X.3 Match Matplotlib’s Text Layout Metrics Model
-
-- [ ] Replace remaining simplified baseline math with a Matplotlib-style layout model that combines:
-  - actual run width/height/descent
-  - font-wide minimum ascent/descent
-  - line gap
-- [ ] Do not use string ink bounds as a proxy for vertical placement except where Matplotlib itself effectively does so.
-- [ ] Keep text ink bounds for horizontal anchoring and sidebearing handling only.
-- [ ] Confirm bottom x ticks, top x ticks, left y ticks, and right y ticks all use the same alignment semantics as Matplotlib:
-  - `top`
-  - `baseline`
-  - `center_baseline`
-  - `left` / `center` / `right`
-
-### X.4 Reduce The Gap In `matplotlib-go` Only After Backend Corrections
-
-- [ ] Only keep local `matplotlib-go` text positioning code that is clearly source-motivated by Matplotlib.
-- [ ] Remove empirical nudges that are not traceable to upstream behavior once the backend path is corrected.
-- [ ] Route tick labels, titles, axis labels, and strict text fixtures through one consistent text-measurement model.
-
-### X.5 Validation And Release Discipline
-
-- [ ] Add or keep focused regressions for:
-  - duplicated-letter/space replay bugs
-  - stable line metrics vs string ink bounds
-  - tick-label anchor placement
-  - title-only parity
-- [ ] Re-run and inspect visually after every meaningful backend text change:
-  - `bar_basic_tick_labels`
-  - `bar_basic_title`
-  - `hist_strategies`
-  - `text_labels_strict`
-  - `title_strict`
-- [ ] When `../agg_go` changes are required:
-  - commit them cleanly
-  - tag a new release
-  - update `matplotlib-go` to that tag
-  - regenerate only the affected goldens
-
-**Exit Criteria:**
-
-- No duplicated or replayed glyph artifacts.
-- Tick labels, titles, and labels no longer look systematically too high or too low compared with Matplotlib.
-- `bar_basic_tick_labels`, `text_labels_strict`, and the broad reference comparison pass comfortably.
-- `title_strict` is improved materially enough that the remaining gap is explainable by known backend limitations, not unknown positioning errors.
 
 ---
 
@@ -310,15 +226,15 @@ core.SavePNG(fig, r, "output.png")
 - [x] Comprehensive unit tests and golden tests
 - [x] Example: `examples/image/basic.go`
 
-### 3.5 Simple Plot Variants Built from Existing Primitives
+### 3.5 Simple Plot Variants Built from Existing Primitives ✅
 
-- [ ] `Axes.Step()` and step draw styles
-- [ ] `Axes.Stairs()` for pre-binned histogram-style plots
-- [ ] `Axes.FillBetweenX()` / `fill_betweenx`
-- [ ] Infinite/reference line helpers: `axhline`, `axvline`, `axline`
-- [ ] Span helpers: `axhspan`, `axvspan`
-- [ ] `broken_barh` and stacked bar support
-- [ ] Bar labels and other simple bar-annotation helpers
+- [x] `Axes.Step()` and step draw styles
+- [x] `Axes.Stairs()` for pre-binned histogram-style plots
+- [x] `Axes.FillBetweenX()` / `fill_betweenx`
+- [x] Infinite/reference line helpers: `axhline`, `axvline`, `axline`
+- [x] Span helpers: `axhspan`, `axvspan`
+- [x] `broken_barh` and stacked bar support
+- [x] Bar labels and other simple bar-annotation helpers
 
 ### 3.6 Derived Statistical and Area Variants
 

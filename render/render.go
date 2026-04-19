@@ -85,6 +85,10 @@ type GlyphRun struct {
 // TextMetrics provides basic text measurements.
 type TextMetrics struct{ W, H, Ascent, Descent float64 }
 
+// FontHeightMetrics describes font-wide vertical line metrics for a text run.
+// These are distinct from the actual ink extents of a specific string.
+type FontHeightMetrics struct{ Ascent, Descent, LineGap float64 }
+
 // TextBounds describes the rendered ink bounds of a string relative to the
 // baseline origin used for DrawText.
 type TextBounds struct{ X, Y, W, H float64 }

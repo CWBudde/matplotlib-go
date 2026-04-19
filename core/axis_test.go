@@ -518,6 +518,25 @@ func TestAxes_TickLabelPositionHelpers(t *testing.T) {
 	}
 }
 
+func TestAxes_LabelPositionHelpers(t *testing.T) {
+	fig := NewFigure(320, 240)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	if err := ax.SetXLabelPosition("top"); err != nil {
+		t.Fatalf("SetXLabelPosition(top): %v", err)
+	}
+	if err := ax.SetYLabelPosition("right"); err != nil {
+		t.Fatalf("SetYLabelPosition(right): %v", err)
+	}
+
+	if ax.effectiveXLabelSide() != AxisTop {
+		t.Fatalf("effective x label side = %v, want %v", ax.effectiveXLabelSide(), AxisTop)
+	}
+	if ax.effectiveYLabelSide() != AxisRight {
+		t.Fatalf("effective y label side = %v, want %v", ax.effectiveYLabelSide(), AxisRight)
+	}
+}
+
 func TestAxes_TwinAxes(t *testing.T) {
 	fig := NewFigure(320, 240)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
@@ -731,6 +750,8 @@ type axisLabelRecordingRenderer struct {
 	rotatedAnchors []geom.Pt
 	bounds         map[string]render.TextBounds
 	useBounds      bool
+	fontHeights    render.FontHeightMetrics
+	useFontHeights bool
 }
 
 func (r *axisLabelRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
@@ -748,6 +769,13 @@ func (r *axisLabelRecordingRenderer) MeasureTextBounds(text string, _ float64, _
 	}
 	b, ok := r.bounds[text]
 	return b, ok
+}
+
+func (r *axisLabelRecordingRenderer) MeasureFontHeights(_ float64, _ string) (render.FontHeightMetrics, bool) {
+	if !r.useFontHeights {
+		return render.FontHeightMetrics{}, false
+	}
+	return r.fontHeights, true
 }
 
 func (r *axisLabelRecordingRenderer) DrawText(text string, origin geom.Pt, _ float64, _ render.Color) {
@@ -770,6 +798,8 @@ func TestTickLabelPositionUsesBoundsForBottomXAxis(t *testing.T) {
 	r.bounds = map[string]render.TextBounds{
 		"2": {X: 1, Y: -8, W: 5, H: 10},
 	}
+	r.useFontHeights = true
+	r.fontHeights = render.FontHeightMetrics{Ascent: 8, Descent: 2}
 
 	ctx := createTestDrawContext()
 	ctx.RC.DPI = 72
@@ -807,6 +837,8 @@ func TestTickLabelPositionUsesBoundsForLeftYAxis(t *testing.T) {
 	r.bounds = map[string]render.TextBounds{
 		"4": {X: 1, Y: -8, W: 5, H: 10},
 	}
+	r.useFontHeights = true
+	r.fontHeights = render.FontHeightMetrics{Ascent: 8, Descent: 2}
 
 	ctx := createTestDrawContext()
 	ctx.RC.DPI = 72
@@ -827,10 +859,129 @@ func TestTickLabelPositionUsesBoundsForLeftYAxis(t *testing.T) {
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
 		X: tickPos.X - labelPad - (1 + 5.0),
-		Y: tickPos.Y + 3,
+		Y: tickPos.Y + 4,
 	}
 	if r.origins[0] != want {
 		t.Fatalf("left y tick origin = %+v, want %+v", r.origins[0], want)
+	}
+}
+
+func TestTickLabelPositionUsesFontHeightMetricsForBottomXAxis(t *testing.T) {
+	axis := NewXAxis()
+	axis.Locator = staticLocator{2}
+	axis.Formatter = ScalarFormatter{Prec: 0}
+
+	var r axisLabelRecordingRenderer
+	r.useBounds = true
+	r.bounds = map[string]render.TextBounds{
+		"2": {X: 1, Y: -6, W: 5, H: 8},
+	}
+	r.useFontHeights = true
+	r.fontHeights = render.FontHeightMetrics{Ascent: 8, Descent: 2}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if len(r.origins) != 1 {
+		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
+	}
+
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis.Side, ctx)})
+	labelPad := tickLabelPadPx(axis, ctx)
+	want := geom.Pt{
+		X: tickPos.X - (1 + 5.0/2.0),
+		Y: tickPos.Y + labelPad + 8,
+	}
+	if r.origins[0] != want {
+		t.Fatalf("bottom x tick origin = %+v, want %+v", r.origins[0], want)
+	}
+}
+
+func TestTickLabelPositionUsesBottomAlignmentForTopXAxis(t *testing.T) {
+	axis := NewXAxis()
+	axis.Side = AxisTop
+	axis.Locator = staticLocator{2}
+	axis.Formatter = ScalarFormatter{Prec: 0}
+
+	var r axisLabelRecordingRenderer
+	r.useBounds = true
+	r.bounds = map[string]render.TextBounds{
+		"2": {X: 1, Y: -6, W: 5, H: 8},
+	}
+	r.useFontHeights = true
+	r.fontHeights = render.FontHeightMetrics{Ascent: 8, Descent: 2}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if len(r.origins) != 1 {
+		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
+	}
+
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis.Side, ctx)})
+	labelPad := tickLabelPadPx(axis, ctx)
+	want := geom.Pt{
+		X: tickPos.X - (1 + 5.0/2.0),
+		Y: tickPos.Y - labelPad - 2,
+	}
+	if r.origins[0] != want {
+		t.Fatalf("top x tick origin = %+v, want %+v", r.origins[0], want)
+	}
+}
+
+func TestTickLabelPositionUsesCenterBaselineForRightYAxis(t *testing.T) {
+	axis := NewYAxis()
+	axis.Side = AxisRight
+	axis.Locator = staticLocator{4}
+	axis.Formatter = ScalarFormatter{Prec: 0}
+
+	var r axisLabelRecordingRenderer
+	r.useBounds = true
+	r.bounds = map[string]render.TextBounds{
+		"4": {X: 1, Y: -6, W: 5, H: 8},
+	}
+	r.useFontHeights = true
+	r.fontHeights = render.FontHeightMetrics{Ascent: 8, Descent: 2}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if len(r.origins) != 1 {
+		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
+	}
+
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(axis.Side, ctx), Y: 4})
+	labelPad := tickLabelPadPx(axis, ctx)
+	want := geom.Pt{
+		X: tickPos.X + labelPad - 1,
+		Y: tickPos.Y + 4,
+	}
+	if r.origins[0] != want {
+		t.Fatalf("right y tick origin = %+v, want %+v", r.origins[0], want)
 	}
 }
 

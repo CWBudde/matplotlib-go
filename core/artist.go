@@ -303,10 +303,15 @@ type Axes struct {
 	aspectMode  string
 	aspectValue float64
 	boxAspect   float64
+	xLabelSide  AxisSide
+	yLabelSide  AxisSide
 
 	shareX *Axes
 	shareY *Axes
 	figure *Figure
+
+	xUnits *axisUnitsState
+	yUnits *axisUnitsState
 }
 
 // TickParams controls axis tick visibility and styling.
@@ -352,6 +357,8 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 		ColorCycle:   color.NewColorCycle(effective.Palette()),
 		aspectMode:   "auto",
 		aspectValue:  1,
+		xLabelSide:   AxisBottom,
+		yLabelSide:   AxisLeft,
 		figure:       f,
 	}
 	ax.applyStyleDefaults(effective)
@@ -366,12 +373,14 @@ func (a *Axes) Add(art Artist) { a.Artists = append(a.Artists, art); a.zsorted =
 func (a *Axes) SetXLim(minVal, maxVal float64) {
 	target := a.xScaleRoot()
 	target.XScale = replaceScaleDomain(target.XScale, minVal, maxVal)
+	target.refreshUnitAxis(true)
 }
 
 // SetYLim sets the y-axis limits.
 func (a *Axes) SetYLim(minVal, maxVal float64) {
 	target := a.yScaleRoot()
 	target.YScale = replaceScaleDomain(target.YScale, minVal, maxVal)
+	target.refreshUnitAxis(false)
 }
 
 // SetXScale replaces the x-axis scale while preserving the current view limits.
@@ -387,6 +396,9 @@ func (a *Axes) SetYScale(name string, opts ...transform.ScaleOption) error {
 // SetXLimLog sets the x-axis to logarithmic scale with given limits.
 func (a *Axes) SetXLimLog(minVal, maxVal, base float64) {
 	target := a.xScaleRoot()
+	if state := target.unitState(true); state != nil && !state.scaleCompatible("log") {
+		return
+	}
 	target.XScale = transform.NewLog(minVal, maxVal, base)
 	configureScaleAxes(target.XAxis, target.XAxisTop, "log", transform.ResolveScaleOptions(
 		transform.WithScaleDomain(minVal, maxVal),
@@ -397,6 +409,9 @@ func (a *Axes) SetXLimLog(minVal, maxVal, base float64) {
 // SetYLimLog sets the y-axis to logarithmic scale with given limits.
 func (a *Axes) SetYLimLog(minVal, maxVal, base float64) {
 	target := a.yScaleRoot()
+	if state := target.unitState(false); state != nil && !state.scaleCompatible("log") {
+		return
+	}
 	target.YScale = transform.NewLog(minVal, maxVal, base)
 	configureScaleAxes(target.YAxis, target.YAxisRight, "log", transform.ResolveScaleOptions(
 		transform.WithScaleDomain(minVal, maxVal),
@@ -493,6 +508,8 @@ func (a *Axes) AutoScale(margin float64) {
 
 	targetX.XScale = replaceScaleDomain(targetX.XScale, xMin, xMax)
 	targetY.YScale = replaceScaleDomain(targetY.YScale, yMin, yMax)
+	targetX.refreshUnitAxis(true)
+	targetY.refreshUnitAxis(false)
 }
 
 // AddGrid adds grid lines for the specified axis.
@@ -525,6 +542,38 @@ func (a *Axes) SetXLabel(label string) { a.XLabel = label }
 
 // SetYLabel sets the label displayed left of the y-axis.
 func (a *Axes) SetYLabel(label string) { a.YLabel = label }
+
+// SetXLabelPosition controls whether the x-axis label is placed above or below the axes.
+func (a *Axes) SetXLabelPosition(position string) error {
+	if a == nil {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(position)) {
+	case "", "bottom":
+		a.xLabelSide = AxisBottom
+	case "top":
+		a.xLabelSide = AxisTop
+	default:
+		return fmt.Errorf("unsupported x label position %q", position)
+	}
+	return nil
+}
+
+// SetYLabelPosition controls whether the y-axis label is placed left or right of the axes.
+func (a *Axes) SetYLabelPosition(position string) error {
+	if a == nil {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(position)) {
+	case "", "left":
+		a.yLabelSide = AxisLeft
+	case "right":
+		a.yLabelSide = AxisRight
+	default:
+		return fmt.Errorf("unsupported y label position %q", position)
+	}
+	return nil
+}
 
 // SetAspect configures the data aspect ratio for the axes box.
 // Supported values are "auto", "equal", and "ratio" (which requires one numeric value).
@@ -998,17 +1047,24 @@ func (a *Axes) setScale(isX bool, name string, opts ...transform.ScaleOption) er
 	var target *Axes
 	var current transform.Scale
 	var primary, secondary *Axis
+	var units *axisUnitsState
 
 	if isX {
 		target = a.xScaleRoot()
 		current = target.XScale
 		primary = target.XAxis
 		secondary = target.XAxisTop
+		units = target.xUnits
 	} else {
 		target = a.yScaleRoot()
 		current = target.YScale
 		primary = target.YAxis
 		secondary = target.YAxisRight
+		units = target.yUnits
+	}
+
+	if units != nil && !units.scaleCompatible(name) {
+		return fmt.Errorf("%s units require a linear axis scale", units.name())
 	}
 
 	minVal, maxVal := currentScaleDomain(current)
@@ -1026,6 +1082,7 @@ func (a *Axes) setScale(isX bool, name string, opts ...transform.ScaleOption) er
 		target.YScale = scale
 	}
 	configureScaleAxes(primary, secondary, name, cfg)
+	target.refreshUnitAxis(isX)
 	return nil
 }
 
@@ -1247,42 +1304,33 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 
 	labelColor := ctx.RC.DefaultTextColor()
 	titleSize := titleFontSize(ctx)
-	labelSize := ctx.RC.FontSize * 0.97
-	if labelSize < 8 {
-		labelSize = 8
-	}
+	labelSize := axisLabelFontSize(ctx)
 
 	// Title: centered above the plot
 	if ax.Title != "" {
-		metrics := r.MeasureText(ax.Title, titleSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, ax.Title, titleSize, ctx.RC.FontKey)
 		// Matplotlib positions axes titles at y=1.0 with a baseline-aligned
 		// transform offset by axes.titlepad (default 6 pt).
 		titlePadPx := ctx.RC.DPI * 6.0 / 72.0
-		anchor := transform.NewOffset(ctx.TransAxes(), geom.Pt{
-			X: titleXAdjustPx(),
-			Y: -titlePadPx + titleBaselineAdjustPx(ctx),
-		}).Apply(geom.Pt{X: 0.5, Y: 1})
+		anchor := transform.NewOffset(ctx.TransAxes(), geom.Pt{Y: -titlePadPx}).Apply(geom.Pt{X: 0.5, Y: 1})
 		textRen.DrawText(
 			ax.Title,
-			alignedTextOrigin(anchor, metrics, TextAlignCenter, TextVAlignBaseline),
+			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignBaseline),
 			titleSize,
 			labelColor,
 		)
 	}
 
-	// XLabel: centered below the x-axis tick labels
+	// XLabel: centered relative to the selected axis side and padded from the
+	// union of the spine and visible tick-label bounds, matching Matplotlib's
+	// default label placement model.
 	if ax.XLabel != "" {
-		metrics := r.MeasureText(ax.XLabel, labelSize, ctx.RC.FontKey)
-		base := geom.Pt{X: 0.5, Y: 0}
-		offset := geom.Pt{X: 0, Y: 18 + metrics.Ascent}
-		if ax.XAxis != nil && ax.XAxis.Side == AxisTop {
-			base.Y = 1
-			offset.Y = -18 - metrics.Descent
-		}
-		anchor := transform.NewOffset(ctx.TransAxes(), offset).Apply(base)
+		side := ax.effectiveXLabelSide()
+		layout := measureSingleLineTextLayout(r, ax.XLabel, labelSize, ctx.RC.FontKey)
+		anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side)
 		textRen.DrawText(
 			ax.XLabel,
-			alignedTextOrigin(anchor, metrics, TextAlignCenter, TextVAlignBaseline),
+			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign),
 			labelSize,
 			labelColor,
 		)
@@ -1290,9 +1338,10 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 
 	// YLabel: vertical text if supported, else horizontal fallback
 	if ax.YLabel != "" {
-		anchor := yLabelAnchorPoint(ax, r, ctx, px)
+		side := ax.effectiveYLabelSide()
+		anchor := yLabelAnchorPoint(ax, r, ctx, px, side)
 		angle := math.Pi / 2
-		if yAxis := ax.effectiveYAxis(); yAxis != nil && yAxis.Side == AxisRight {
+		if side == AxisRight {
 			angle = -math.Pi / 2
 		}
 		switch ren := r.(type) {
@@ -1300,55 +1349,78 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 			ren.DrawTextRotated(ax.YLabel, anchor, labelSize, angle, labelColor)
 		case render.VerticalTextDrawer:
 			if angle < 0 {
-				metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
-				x := anchor.X - metrics.W/2
-				y := px.Min.Y + px.H()/2 + metrics.H/2
-				textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+				layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey)
+				textRen.DrawText(
+					ax.YLabel,
+					alignedSingleLineOrigin(geom.Pt{X: anchor.X, Y: px.Min.Y + px.H()/2}, layout, TextAlignCenter, textLayoutVAlignCenter),
+					labelSize,
+					labelColor,
+				)
 			} else {
 				ren.DrawTextVertical(ax.YLabel, geom.Pt{X: anchor.X, Y: anchor.Y}, labelSize, labelColor)
 			}
 		default:
-			metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
-			x := anchor.X - metrics.W/2
-			y := px.Min.Y + px.H()/2 + metrics.H/2
-			textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+			layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey)
+			textRen.DrawText(
+				ax.YLabel,
+				alignedSingleLineOrigin(geom.Pt{X: anchor.X, Y: px.Min.Y + px.H()/2}, layout, TextAlignCenter, textLayoutVAlignCenter),
+				labelSize,
+				labelColor,
+			)
 		}
 	}
 }
 
-var (
-	titleScaleFactor       = 1.0002
-	titleXAdjustPxValue    = 0.0
-	titleBaselineAdjustPxV = 0.0
-)
-
 func titleFontSize(ctx *DrawContext) float64 {
 	if ctx == nil || ctx.RC.FontSize <= 0 {
-		return 12 * titleScaleFactor
+		return 12
 	}
-	return ctx.RC.FontSize * titleScaleFactor
+	return ctx.RC.FontSize
 }
 
-func titleXAdjustPx() float64 {
-	return titleXAdjustPxValue
+func axisLabelFontSize(ctx *DrawContext) float64 {
+	if ctx == nil || ctx.RC.FontSize <= 0 {
+		return 8
+	}
+	labelSize := ctx.RC.FontSize * 0.97
+	if labelSize < 8 {
+		return 8
+	}
+	return labelSize
 }
 
-func titleBaselineAdjustPx(ctx *DrawContext) float64 {
-	_ = ctx
-	return titleBaselineAdjustPxV
+func xLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, side AxisSide) (geom.Pt, textLayoutVerticalAlign) {
+	anchor := ctx.TransAxes().Apply(geom.Pt{X: 0.5, Y: 0})
+
+	xAxis := ax.axisForXLabelSide(side)
+	if side == AxisTop {
+		topExtent := spinePixelY(AxisTop, px)
+		if xAxis != nil {
+			if tickBounds, ok := axisTickLabelBounds(xAxis, r, ctx); ok {
+				topExtent = math.Min(topExtent, tickBounds.Min.Y)
+			}
+		}
+		anchor.Y = topExtent - axisLabelPadPx(ctx)
+		return anchor, textLayoutVAlignBaseline
+	}
+
+	bottomExtent := spinePixelY(AxisBottom, px)
+	if xAxis != nil {
+		if tickBounds, ok := axisTickLabelBounds(xAxis, r, ctx); ok {
+			bottomExtent = math.Max(bottomExtent, tickBounds.Max.Y)
+		}
+	}
+	anchor.Y = bottomExtent + axisLabelPadPx(ctx)
+	return anchor, textLayoutVAlignTop
 }
 
-func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect) geom.Pt {
+func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, side AxisSide) geom.Pt {
 	anchor := ctx.TransAxes().Apply(geom.Pt{X: 0, Y: 0.5})
 	anchor.X = spinePixelX(AxisLeft, px) - axisLabelPadPx(ctx)
 
-	yAxis := ax.effectiveYAxis()
-	if yAxis == nil {
-		return anchor
-	}
-
-	spineX := spinePixelX(yAxis.Side, px)
-	if yAxis.Side == AxisRight {
+	yAxis := ax.axisForYLabelSide(side)
+	if side == AxisRight {
+		spineX := spinePixelX(AxisRight, px)
 		rightExtent := spineX
 		if tickBounds, ok := axisTickLabelBounds(yAxis, r, ctx); ok {
 			rightExtent = math.Max(rightExtent, tickBounds.Max.X)
@@ -1357,6 +1429,7 @@ func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Re
 		return anchor
 	}
 
+	spineX := spinePixelX(AxisLeft, px)
 	leftExtent := spineX
 	if tickBounds, ok := axisTickLabelBounds(yAxis, r, ctx); ok {
 		leftExtent = math.Min(leftExtent, tickBounds.Min.X)
@@ -1375,9 +1448,63 @@ func axisLabelPadPx(ctx *DrawContext) float64 {
 	return labelPadPt * dpi / 72.0
 }
 
+func (a *Axes) effectiveXLabelSide() AxisSide {
+	if a == nil {
+		return AxisBottom
+	}
+	if a.xLabelSide == AxisTop {
+		return AxisTop
+	}
+	return AxisBottom
+}
+
+func (a *Axes) effectiveYLabelSide() AxisSide {
+	if a == nil {
+		return AxisLeft
+	}
+	if a.yLabelSide == AxisRight {
+		return AxisRight
+	}
+	return AxisLeft
+}
+
+func (a *Axes) axisForXLabelSide(side AxisSide) *Axis {
+	if a == nil {
+		return nil
+	}
+	if side == AxisTop {
+		return a.XAxisTop
+	}
+	if a.XAxis != nil {
+		return a.XAxis
+	}
+	return a.XAxisTop
+}
+
+func (a *Axes) axisForYLabelSide(side AxisSide) *Axis {
+	if a == nil {
+		return nil
+	}
+	if side == AxisRight {
+		if a.YAxisRight != nil {
+			return a.YAxisRight
+		}
+		return nil
+	}
+	if a.YAxis != nil {
+		return a.YAxis
+	}
+	return a.YAxisRight
+}
+
 func spinePixelX(side AxisSide, px geom.Rect) float64 {
 	p1, _ := spinePixelEndpoints(side, px)
 	return p1.X
+}
+
+func spinePixelY(side AxisSide, px geom.Rect) float64 {
+	p1, _ := spinePixelEndpoints(side, px)
+	return p1.Y
 }
 
 func (a *Axes) adjustedLayout(f *Figure) geom.Rect {

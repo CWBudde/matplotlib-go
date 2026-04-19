@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import datetime as dt
 import json
 import math
 import os
@@ -768,6 +769,198 @@ def axes_control_surface(out_dir):
     save(fig, out_dir, "axes_control_surface")
 
 
+def transform_coordinates(out_dir):
+    fig = make_fig_px(720, 420)
+    ax = fig.add_axes(go_rect(0.13, 0.16, 0.90, 0.84))
+    ax.set_title("Transform Coordinates")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+    ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    ax.set_axisbelow(True)
+
+    ax.plot(
+        [1.0, 2.5, 4.5, 7.0, 8.8],
+        [1.5, 3.2, 5.6, 6.4, 8.2],
+        color=(0.14, 0.37, 0.74),
+        linewidth=lw(2.2),
+    )
+    ax.scatter(
+        [2.5, 7.0, 8.8],
+        [3.2, 6.4, 8.2],
+        s=ss(8),
+        marker="D",
+        c=[(0.88, 0.42, 0.16, 0.92)],
+        edgecolors=[(0.45, 0.18, 0.05, 1.0)],
+        linewidths=lw(1.0),
+    )
+
+    text_kwargs = dict(fontsize=11, color=(0.10, 0.10, 0.10))
+    ax.text(1.3, 1.1, "data", transform=ax.transData, ha="left", va="baseline", **text_kwargs)
+    ax.text(0.03, 0.97, "axes", transform=ax.transAxes, ha="left", va="top", **text_kwargs)
+    fig.text(0.07, 0.08, "figure", ha="left", va="bottom", **text_kwargs)
+    ax.text(
+        0.50,
+        0.22,
+        "blend",
+        transform=matplotlib.transforms.blended_transform_factory(fig.transFigure, ax.transAxes),
+        ha="center",
+        va="bottom",
+        **text_kwargs,
+    )
+    ax.annotate(
+        "axes note",
+        xy=(0.82, 0.78),
+        xycoords="axes fraction",
+        xytext=(-48, -26),
+        textcoords="offset pixels",
+        fontsize=10,
+        color=(0.10, 0.10, 0.10),
+        ha="right",
+        va="top",
+        arrowprops=dict(arrowstyle="->", color=(0.10, 0.10, 0.10), lw=lw(1.25)),
+    )
+
+    save(fig, out_dir, "transform_coordinates")
+
+
+def plot_variants(out_dir):
+    fig = make_fig_px(840, 620)
+
+    axes = {
+        "step": fig.add_axes(go_rect(0.08, 0.585, 0.475, 0.93)),
+        "fill": fig.add_axes(go_rect(0.575, 0.585, 0.97, 0.93)),
+        "broken": fig.add_axes(go_rect(0.08, 0.10, 0.475, 0.445)),
+        "stack": fig.add_axes(go_rect(0.575, 0.10, 0.97, 0.445)),
+    }
+
+    step_ax = axes["step"]
+    step_ax.set_title("Step + Stairs")
+    step_ax.set_xlim(0, 6)
+    step_ax.set_ylim(0, 5.2)
+    step_ax.grid(axis="y")
+    step_ax.set_axisbelow(True)
+    step_ax.step(
+        [0.6, 1.4, 2.2, 3.0, 3.8, 4.6, 5.4],
+        [1.1, 2.5, 1.7, 3.4, 2.9, 4.1, 3.6],
+        where="post",
+        color=(0.15, 0.39, 0.78),
+        linewidth=lw(2.0),
+    )
+    step_ax.stairs(
+        [0.9, 1.7, 1.4, 2.6, 1.8, 2.2],
+        [0.4, 1.1, 2.0, 2.9, 3.7, 4.6, 5.5],
+        baseline=0.35,
+        fill=True,
+        facecolor=(0.91, 0.49, 0.20, 0.72),
+        edgecolor=(0.58, 0.26, 0.08, 1.0),
+        linewidth=lw(1.5),
+    )
+
+    fill_ax = axes["fill"]
+    fill_ax.set_title("FillBetweenX + Refs")
+    fill_ax.set_xlim(0, 7)
+    fill_ax.set_ylim(0, 6)
+    fill_ax.grid(axis="x")
+    fill_ax.set_axisbelow(True)
+    fill_ax.fill_betweenx(
+        [0.4, 1.2, 2.0, 2.8, 3.6, 4.4, 5.2],
+        [1.3, 2.1, 1.7, 2.8, 2.2, 3.1, 2.6],
+        [3.4, 4.1, 4.8, 5.1, 5.6, 6.0, 6.3],
+        facecolor=(0.24, 0.68, 0.54, 0.72),
+        edgecolor=(0.12, 0.38, 0.28, 1.0),
+        linewidth=lw(1.2),
+    )
+    fill_ax.axvspan(2.2, 3.1, color=(0.92, 0.75, 0.18), alpha=0.20)
+    fill_ax.axhline(4.0, color=(0.52, 0.18, 0.18), linewidth=lw(1.2), dashes=[4 * 36.0 / DPI, 3 * 36.0 / DPI])
+    fill_ax.axvline(5.3, color=(0.18, 0.22, 0.55), linewidth=lw(1.2), dashes=[2 * 36.0 / DPI, 2 * 36.0 / DPI])
+    fill_ax.axline((0.9, 0.3), (6.4, 5.6), color=(0.22, 0.22, 0.22), linewidth=lw(1.1))
+
+    broken_ax = axes["broken"]
+    broken_ax.set_title("broken_barh")
+    broken_ax.set_xlim(0, 10)
+    broken_ax.set_ylim(0, 4.4)
+    broken_ax.grid(axis="x")
+    broken_ax.set_axisbelow(True)
+    broken_ax.broken_barh([(0.8, 1.6), (3.1, 2.2), (6.5, 1.3)], (0.7, 0.9), facecolors=(0.21, 0.51, 0.76))
+    broken_ax.broken_barh([(1.6, 1.0), (4.0, 1.4), (7.1, 1.7)], (2.1, 0.9), facecolors=(0.86, 0.38, 0.16))
+    for x, y, label in [(1.6, 1.15, "prep"), (4.2, 1.15, "run"), (7.15, 1.15, "cool"), (2.1, 2.55, "IO"), (4.7, 2.55, "fit"), (7.95, 2.55, "ship")]:
+        broken_ax.text(x, y, label, ha="center", va="center", fontsize=10, color="white")
+
+    stack_ax = axes["stack"]
+    stack_ax.set_title("Stacked Bars + Labels")
+    stack_ax.set_xlim(0.4, 4.6)
+    stack_ax.set_ylim(0, 7.6)
+    stack_ax.grid(axis="y")
+    stack_ax.set_axisbelow(True)
+    xs = [1, 2, 3, 4]
+    series_a = [1.4, 2.2, 1.8, 2.5]
+    series_b = [2.1, 1.6, 2.4, 1.7]
+    bottom = stack_ax.bar(xs, series_a, color=(0.16, 0.59, 0.49), width=0.8)
+    top = stack_ax.bar(xs, series_b, bottom=series_a, color=(0.88, 0.47, 0.16), width=0.8)
+    stack_ax.bar_label(bottom, labels=["A1", "A2", "A3", "A4"], label_type="center", color="white", fontsize=10)
+    stack_ax.bar_label(top, fmt="%.1f", color=(0.20, 0.20, 0.20), fontsize=10, padding=4)
+
+    save(fig, out_dir, "plot_variants")
+
+
+def units_overview(out_dir):
+    fig = make_fig_px(1200, 420)
+
+    date_ax = fig.add_axes(go_rect(0.06, 0.18, 0.32, 0.86))
+    date_ax.set_title("Dates")
+    date_ax.set_ylabel("Requests")
+    date_ax.grid(True, axis="y", color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    date_ax.set_axisbelow(True)
+    date_ax.plot(
+        [
+            dt.datetime(2024, 1, 1),
+            dt.datetime(2024, 1, 3),
+            dt.datetime(2024, 1, 7),
+            dt.datetime(2024, 1, 10),
+        ],
+        [12, 18, 9, 21],
+        color=(0.12, 0.47, 0.71),
+        linewidth=lw(2.0),
+    )
+    date_ax.margins(x=0.05, y=0.05)
+
+    category_ax = fig.add_axes(go_rect(0.38, 0.18, 0.64, 0.86))
+    category_ax.set_title("Categories")
+    category_ax.set_ylabel("Count")
+    category_ax.grid(True, axis="y", color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    category_ax.set_axisbelow(True)
+    category_ax.bar(
+        ["alpha", "beta", "gamma", "delta"],
+        [4, 9, 6, 7],
+        color=(1.0, 0.50, 0.05),
+        edgecolor=(0.60, 0.30, 0.03),
+        linewidth=lw(1.0),
+        width=0.8,
+    )
+    category_ax.margins(x=0.10, y=0.10)
+
+    unit_ax = fig.add_axes(go_rect(0.70, 0.18, 0.96, 0.86))
+    unit_ax.set_title("Custom Units")
+    unit_ax.set_xlabel("Distance")
+    unit_ax.set_ylabel("Pace")
+    unit_ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    unit_ax.set_axisbelow(True)
+    unit_ax.scatter(
+        [5, 10, 21.1, 42.2],
+        [6.4, 5.8, 5.2, 5.5],
+        s=ss(8),
+        c=[(0.17, 0.63, 0.17, 0.92)],
+        edgecolors=[(0.09, 0.36, 0.09, 1.0)],
+        linewidths=lw(1.0),
+    )
+    unit_ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, _: f"{x:.0f} km"))
+    unit_ax.margins(x=0.08, y=0.08)
+
+    save(fig, out_dir, "units_overview")
+
+
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 ALL_PLOTS = [
@@ -784,6 +977,9 @@ ALL_PLOTS = [
     image_heatmap,
     axes_top_right_inverted,
     axes_control_surface,
+    transform_coordinates,
+    plot_variants,
+    units_overview,
 ]
 
 

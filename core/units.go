@@ -1,0 +1,464 @@
+package core
+
+import (
+	"errors"
+	"fmt"
+	"reflect"
+	"strings"
+	"sync"
+	"time"
+)
+
+var timeType = reflect.TypeOf(time.Time{})
+
+type AxisInfo struct {
+	Locator        Locator
+	Formatter      Formatter
+	MinorLocator   Locator
+	MinorFormatter Formatter
+}
+
+type UnitsConverter interface {
+	Convert(value any) (float64, error)
+	AxisInfo(values []float64) AxisInfo
+}
+
+type UnitsConverterFactory func() UnitsConverter
+
+type UnitsRegistry struct {
+	mu        sync.RWMutex
+	converter map[reflect.Type]UnitsConverterFactory
+}
+
+func NewUnitsRegistry() *UnitsRegistry {
+	return &UnitsRegistry{
+		converter: make(map[reflect.Type]UnitsConverterFactory),
+	}
+}
+
+func (r *UnitsRegistry) Register(sample any, factory UnitsConverterFactory) error {
+	if factory == nil {
+		return errors.New("unit converter factory cannot be nil")
+	}
+	typ := reflect.TypeOf(sample)
+	if typ == nil {
+		return errors.New("unit converter sample cannot be nil")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.converter[typ]; exists {
+		return fmt.Errorf("unit converter already registered for %v", typ)
+	}
+	r.converter[typ] = factory
+	return nil
+}
+
+func (r *UnitsRegistry) MustRegister(sample any, factory UnitsConverterFactory) {
+	if err := r.Register(sample, factory); err != nil {
+		panic(err)
+	}
+}
+
+func (r *UnitsRegistry) lookup(typ reflect.Type) UnitsConverterFactory {
+	if r == nil || typ == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.converter[typ]
+}
+
+var DefaultUnitsRegistry = NewUnitsRegistry()
+
+func RegisterUnitConverter(sample any, factory UnitsConverterFactory) error {
+	return DefaultUnitsRegistry.Register(sample, factory)
+}
+
+func MustRegisterUnitConverter(sample any, factory UnitsConverterFactory) {
+	DefaultUnitsRegistry.MustRegister(sample, factory)
+}
+
+type unitAxisKind uint8
+
+const (
+	unitAxisNone unitAxisKind = iota
+	unitAxisDate
+	unitAxisCategory
+	unitAxisCustom
+)
+
+type axisUnitsState struct {
+	kind       unitAxisKind
+	customType reflect.Type
+	converter  UnitsConverter
+	info       AxisInfo
+	location   *time.Location
+	categories categoryAxisState
+}
+
+func (s *axisUnitsState) name() string {
+	if s == nil {
+		return "numeric"
+	}
+	switch s.kind {
+	case unitAxisDate:
+		return "date"
+	case unitAxisCategory:
+		return "categorical"
+	case unitAxisCustom:
+		if s.customType != nil {
+			return s.customType.String()
+		}
+		return "custom"
+	default:
+		return "numeric"
+	}
+}
+
+func (s *axisUnitsState) scaleCompatible(name string) bool {
+	if s == nil || s.kind == unitAxisNone {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(name), "linear")
+}
+
+type categoryAxisState struct {
+	order     []string
+	positions map[string]float64
+}
+
+func (s *categoryAxisState) convert(label string) float64 {
+	if s.positions == nil {
+		s.positions = make(map[string]float64)
+	}
+	if pos, ok := s.positions[label]; ok {
+		return pos
+	}
+	pos := float64(len(s.order))
+	s.order = append(s.order, label)
+	s.positions[label] = pos
+	return pos
+}
+
+func (s *categoryAxisState) axisInfo() AxisInfo {
+	ticks := make([]float64, len(s.order))
+	copyLabels := append([]string(nil), s.order...)
+	for i := range ticks {
+		ticks[i] = float64(i)
+	}
+	return AxisInfo{
+		Locator:      FixedLocator{TicksList: ticks},
+		Formatter:    FixedFormatter{Labels: copyLabels},
+		MinorLocator: nil,
+	}
+}
+
+// PlotUnits converts non-float slice data using the axis units machinery and
+// then draws a standard line artist.
+func (a *Axes) PlotUnits(xVals, yVals any, opts ...PlotOptions) (*Line2D, error) {
+	x, err := a.convertValues(xVals, true)
+	if err != nil {
+		return nil, err
+	}
+	y, err := a.convertValues(yVals, false)
+	if err != nil {
+		return nil, err
+	}
+	return a.Plot(x, y, opts...), nil
+}
+
+// ScatterUnits converts non-float slice data using the axis units machinery
+// and then draws a standard scatter artist.
+func (a *Axes) ScatterUnits(xVals, yVals any, opts ...ScatterOptions) (*Scatter2D, error) {
+	x, err := a.convertValues(xVals, true)
+	if err != nil {
+		return nil, err
+	}
+	y, err := a.convertValues(yVals, false)
+	if err != nil {
+		return nil, err
+	}
+	return a.Scatter(x, y, opts...), nil
+}
+
+// BarUnits converts bar positions using the axis units machinery. For
+// horizontal bars the first slice configures the y-axis instead of the x-axis.
+func (a *Axes) BarUnits(posVals, heights any, opts ...BarOptions) (*Bar2D, error) {
+	var opt BarOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	orientation := BarVertical
+	if opt.Orientation != nil {
+		orientation = *opt.Orientation
+	}
+
+	isXAxis := orientation == BarVertical
+	pos, err := a.convertValues(posVals, isXAxis)
+	if err != nil {
+		return nil, err
+	}
+	heightFloats, err := a.convertValues(heights, !isXAxis)
+	if err != nil {
+		return nil, err
+	}
+	return a.Bar(pos, heightFloats, opts...), nil
+}
+
+// FillBetweenUnits converts x/y inputs using the axis units machinery and then
+// draws a fill-between artist.
+func (a *Axes) FillBetweenUnits(xVals, y1Vals, y2Vals any, opts ...FillOptions) (*Fill2D, error) {
+	x, err := a.convertValues(xVals, true)
+	if err != nil {
+		return nil, err
+	}
+	y1, err := a.convertValues(y1Vals, false)
+	if err != nil {
+		return nil, err
+	}
+	y2, err := a.convertValues(y2Vals, false)
+	if err != nil {
+		return nil, err
+	}
+	return a.FillBetweenPlot(x, y1, y2, opts...), nil
+}
+
+func (a *Axes) convertValues(values any, isX bool) ([]float64, error) {
+	slice, elemType, err := sliceValue(values)
+	if err != nil {
+		return nil, err
+	}
+	if slice.Len() == 0 {
+		return nil, nil
+	}
+
+	if factory := DefaultUnitsRegistry.lookup(elemType); factory != nil {
+		return a.convertCustomValues(slice, elemType, factory, isX)
+	}
+	if elemType == timeType {
+		return a.convertDateValues(slice, isX)
+	}
+	if elemType.Kind() == reflect.String {
+		return a.convertCategoryValues(slice, isX)
+	}
+	if isNumericType(elemType) {
+		return numericValues(slice), nil
+	}
+
+	state := a.axisRoot(isX).unitState(isX)
+	if state != nil {
+		switch state.kind {
+		case unitAxisDate, unitAxisCategory, unitAxisCustom:
+			if isNumericType(elemType) {
+				return numericValues(slice), nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("unsupported plot values type %v", elemType)
+}
+
+func (a *Axes) convertCustomValues(slice reflect.Value, elemType reflect.Type, factory UnitsConverterFactory, isX bool) ([]float64, error) {
+	root := a.axisRoot(isX)
+	state := root.unitState(isX)
+	if state == nil {
+		state = &axisUnitsState{
+			kind:       unitAxisCustom,
+			customType: elemType,
+			converter:  factory(),
+		}
+		root.setUnitState(isX, state)
+	}
+	if state.kind != unitAxisCustom || state.customType != elemType || state.converter == nil {
+		return nil, fmt.Errorf("axis already configured for %s units", state.name())
+	}
+
+	out := make([]float64, slice.Len())
+	for i := range out {
+		v, err := state.converter.Convert(slice.Index(i).Interface())
+		if err != nil {
+			return nil, err
+		}
+		out[i] = v
+	}
+	state.info = state.converter.AxisInfo(out)
+	root.refreshUnitAxis(isX)
+	return out, nil
+}
+
+func (a *Axes) convertDateValues(slice reflect.Value, isX bool) ([]float64, error) {
+	root := a.axisRoot(isX)
+	state := root.unitState(isX)
+	if state == nil {
+		state = &axisUnitsState{kind: unitAxisDate}
+		root.setUnitState(isX, state)
+	}
+	if state.kind != unitAxisDate {
+		return nil, fmt.Errorf("axis already configured for %s units", state.name())
+	}
+
+	out := make([]float64, slice.Len())
+	for i := range out {
+		timestamp, ok := slice.Index(i).Interface().(time.Time)
+		if !ok {
+			return nil, fmt.Errorf("date axis expected time.Time values")
+		}
+		if state.location == nil {
+			state.location = timestamp.Location()
+		}
+		out[i] = timeToDateNumber(timestamp)
+	}
+	root.refreshUnitAxis(isX)
+	return out, nil
+}
+
+func (a *Axes) convertCategoryValues(slice reflect.Value, isX bool) ([]float64, error) {
+	root := a.axisRoot(isX)
+	state := root.unitState(isX)
+	if state == nil {
+		state = &axisUnitsState{kind: unitAxisCategory}
+		root.setUnitState(isX, state)
+	}
+	if state.kind != unitAxisCategory {
+		return nil, fmt.Errorf("axis already configured for %s units", state.name())
+	}
+
+	out := make([]float64, slice.Len())
+	for i := range out {
+		out[i] = state.categories.convert(slice.Index(i).String())
+	}
+	root.refreshUnitAxis(isX)
+	return out, nil
+}
+
+func (a *Axes) axisRoot(isX bool) *Axes {
+	if isX {
+		return a.xScaleRoot()
+	}
+	return a.yScaleRoot()
+}
+
+func (a *Axes) unitState(isX bool) *axisUnitsState {
+	if a == nil {
+		return nil
+	}
+	if isX {
+		return a.xUnits
+	}
+	return a.yUnits
+}
+
+func (a *Axes) setUnitState(isX bool, state *axisUnitsState) {
+	if a == nil {
+		return
+	}
+	if isX {
+		a.xUnits = state
+	} else {
+		a.yUnits = state
+	}
+}
+
+func (a *Axes) refreshUnitAxis(isX bool) {
+	root := a.axisRoot(isX)
+	if root == nil {
+		return
+	}
+	state := root.unitState(isX)
+	if state == nil || state.kind == unitAxisNone {
+		return
+	}
+
+	var primary, secondary *Axis
+	var minVal, maxVal float64
+	if isX {
+		primary, secondary = root.XAxis, root.XAxisTop
+		minVal, maxVal = currentScaleDomain(root.XScale)
+	} else {
+		primary, secondary = root.YAxis, root.YAxisRight
+		minVal, maxVal = currentScaleDomain(root.YScale)
+	}
+	applyAxisInfo(primary, secondary, state.axisInfo(minVal, maxVal))
+}
+
+func (s *axisUnitsState) axisInfo(minVal, maxVal float64) AxisInfo {
+	switch s.kind {
+	case unitAxisDate:
+		return AxisInfo{
+			Locator:        DateLocator{Location: s.location},
+			Formatter:      AutoDateFormatter{Min: minVal, Max: maxVal, Location: s.location},
+			MinorLocator:   nil,
+			MinorFormatter: nil,
+		}
+	case unitAxisCategory:
+		return s.categories.axisInfo()
+	case unitAxisCustom:
+		return s.info
+	default:
+		return AxisInfo{}
+	}
+}
+
+func applyAxisInfo(primary, secondary *Axis, info AxisInfo) {
+	applyAxisInfoToAxis(primary, info)
+	applyAxisInfoToAxis(secondary, info)
+}
+
+func applyAxisInfoToAxis(axis *Axis, info AxisInfo) {
+	if axis == nil {
+		return
+	}
+	if info.Locator != nil {
+		axis.Locator = info.Locator
+	}
+	if info.Formatter != nil {
+		axis.Formatter = info.Formatter
+	}
+	axis.MinorLocator = info.MinorLocator
+	axis.MinorFormatter = info.MinorFormatter
+}
+
+func sliceValue(values any) (reflect.Value, reflect.Type, error) {
+	v := reflect.ValueOf(values)
+	if !v.IsValid() {
+		return reflect.Value{}, nil, errors.New("plot values cannot be nil")
+	}
+	if v.Kind() != reflect.Slice && v.Kind() != reflect.Array {
+		return reflect.Value{}, nil, fmt.Errorf("plot values must be a slice or array, got %T", values)
+	}
+	return v, v.Type().Elem(), nil
+}
+
+func numericValues(v reflect.Value) []float64 {
+	out := make([]float64, v.Len())
+	for i := range out {
+		out[i] = numericValue(v.Index(i))
+	}
+	return out
+}
+
+func numericValue(v reflect.Value) float64 {
+	switch v.Kind() {
+	case reflect.Float32, reflect.Float64:
+		return v.Convert(reflect.TypeOf(float64(0))).Float()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return float64(v.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return float64(v.Uint())
+	default:
+		return 0
+	}
+}
+
+func isNumericType(typ reflect.Type) bool {
+	switch typ.Kind() {
+	case reflect.Float32, reflect.Float64,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return true
+	default:
+		return false
+	}
+}

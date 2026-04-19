@@ -63,7 +63,7 @@ func TestTitleFontSizeUsesTitleOnlyCompensation(t *testing.T) {
 	ctx := &DrawContext{RC: style.RC{FontSize: 12}}
 
 	got := titleFontSize(ctx)
-	want := 12.0024
+	want := 12.0
 
 	if math.Abs(got-want) > 1e-9 {
 		t.Fatalf("titleFontSize() = %v, want %v", got, want)
@@ -73,8 +73,12 @@ func TestTitleFontSizeUsesTitleOnlyCompensation(t *testing.T) {
 type axesLabelRecordingRenderer struct {
 	render.NullRenderer
 	bounds         map[string]render.TextBounds
+	texts          []string
+	origins        []geom.Pt
+	sizes          []float64
 	rotatedText    []string
 	rotatedAnchors []geom.Pt
+	rotatedSizes   []float64
 }
 
 func (r *axesLabelRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
@@ -93,11 +97,16 @@ func (r *axesLabelRecordingRenderer) MeasureTextBounds(text string, _ float64, _
 	return b, ok
 }
 
-func (r *axesLabelRecordingRenderer) DrawText(_ string, _ geom.Pt, _ float64, _ render.Color) {}
+func (r *axesLabelRecordingRenderer) DrawText(text string, origin geom.Pt, size float64, _ render.Color) {
+	r.texts = append(r.texts, text)
+	r.origins = append(r.origins, origin)
+	r.sizes = append(r.sizes, size)
+}
 
-func (r *axesLabelRecordingRenderer) DrawTextRotated(text string, anchor geom.Pt, _ float64, _ float64, _ render.Color) {
+func (r *axesLabelRecordingRenderer) DrawTextRotated(text string, anchor geom.Pt, size float64, _ float64, _ render.Color) {
 	r.rotatedText = append(r.rotatedText, text)
 	r.rotatedAnchors = append(r.rotatedAnchors, anchor)
+	r.rotatedSizes = append(r.rotatedSizes, size)
 }
 
 func TestDrawAxesLabels_YLabelUsesTickBoundsAndLabelPad(t *testing.T) {
@@ -139,6 +148,196 @@ func TestDrawAxesLabels_YLabelUsesTickBoundsAndLabelPad(t *testing.T) {
 	}
 	if r.rotatedAnchors[0] != want {
 		t.Fatalf("ylabel anchor = %+v, want %+v", r.rotatedAnchors[0], want)
+	}
+}
+
+func TestDrawAxesLabels_XLabelUsesTickBoundsAndLabelPad(t *testing.T) {
+	ax := &Axes{
+		XAxis:  NewXAxis(),
+		XLabel: "Group",
+	}
+	ax.XAxis.Locator = staticLocator{2}
+	ax.XAxis.Formatter = ScalarFormatter{Prec: 0}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+	px := geom.Rect{
+		Min: geom.Pt{X: 50, Y: 350},
+		Max: geom.Pt{X: 150, Y: 450},
+	}
+
+	r := &axesLabelRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"2": {X: 1, Y: -8, W: 5, H: 10},
+		},
+	}
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	defer r.End()
+
+	drawAxesLabels(ax, r, ctx, px)
+
+	if len(r.texts) != 1 || r.texts[0] != "Group" {
+		t.Fatalf("unexpected text draws: %v", r.texts)
+	}
+
+	layout := measureSingleLineTextLayout(r, "Group", axisLabelFontSize(ctx), ctx.RC.FontKey)
+	bottomExtent := spinePixelY(AxisBottom, px)
+	if tickBounds, ok := axisTickLabelBounds(ax.XAxis, r, ctx); ok {
+		bottomExtent = math.Max(bottomExtent, tickBounds.Max.Y)
+	}
+	want := alignedSingleLineOrigin(
+		geom.Pt{
+			X: ctx.TransAxes().Apply(geom.Pt{X: 0.5, Y: 0}).X,
+			Y: bottomExtent + axisLabelPadPx(ctx),
+		},
+		layout,
+		TextAlignCenter,
+		textLayoutVAlignTop,
+	)
+	if r.origins[0] != want {
+		t.Fatalf("xlabel origin = %+v, want %+v", r.origins[0], want)
+	}
+}
+
+func TestDrawAxesLabels_YLabelRightUsesRightTickBounds(t *testing.T) {
+	ax := &Axes{
+		YAxis:      NewYAxis(),
+		YAxisRight: NewYAxis(),
+		YLabel:     "Value",
+		yLabelSide: AxisRight,
+	}
+	ax.YAxisRight.Side = AxisRight
+	ax.YAxisRight.Locator = staticLocator{4}
+	ax.YAxisRight.Formatter = ScalarFormatter{Prec: 0}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+	px := geom.Rect{
+		Min: geom.Pt{X: 50, Y: 350},
+		Max: geom.Pt{X: 150, Y: 450},
+	}
+
+	r := &axesLabelRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"4": {X: 1, Y: -8, W: 5, H: 10},
+		},
+	}
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	defer r.End()
+
+	drawAxesLabels(ax, r, ctx, px)
+
+	if len(r.rotatedText) != 1 || r.rotatedText[0] != "Value" {
+		t.Fatalf("unexpected rotated text draws: %v", r.rotatedText)
+	}
+
+	rightExtent := spinePixelX(AxisRight, px)
+	if tickBounds, ok := axisTickLabelBounds(ax.YAxisRight, r, ctx); ok {
+		rightExtent = math.Max(rightExtent, tickBounds.Max.X)
+	}
+	want := geom.Pt{
+		X: rightExtent + axisLabelPadPx(ctx),
+		Y: px.Min.Y + px.H()/2,
+	}
+	if r.rotatedAnchors[0] != want {
+		t.Fatalf("right ylabel anchor = %+v, want %+v", r.rotatedAnchors[0], want)
+	}
+}
+
+func TestDrawAxesLabels_TopXLabelUsesTopTickBoundsAndLabelPad(t *testing.T) {
+	ax := &Axes{
+		XAxis:      NewXAxis(),
+		XAxisTop:   NewXAxis(),
+		XLabel:     "Group",
+		xLabelSide: AxisTop,
+	}
+	ax.XAxisTop.Side = AxisTop
+	ax.XAxisTop.Locator = staticLocator{2}
+	ax.XAxisTop.Formatter = ScalarFormatter{Prec: 0}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+	px := geom.Rect{
+		Min: geom.Pt{X: 50, Y: 350},
+		Max: geom.Pt{X: 150, Y: 450},
+	}
+
+	r := &axesLabelRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"2": {X: 1, Y: -8, W: 5, H: 10},
+		},
+	}
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	defer r.End()
+
+	drawAxesLabels(ax, r, ctx, px)
+
+	if len(r.texts) != 1 || r.texts[0] != "Group" {
+		t.Fatalf("unexpected text draws: %v", r.texts)
+	}
+
+	layout := measureSingleLineTextLayout(r, "Group", axisLabelFontSize(ctx), ctx.RC.FontKey)
+	topExtent := spinePixelY(AxisTop, px)
+	if tickBounds, ok := axisTickLabelBounds(ax.XAxisTop, r, ctx); ok {
+		topExtent = math.Min(topExtent, tickBounds.Min.Y)
+	}
+	want := alignedSingleLineOrigin(
+		geom.Pt{
+			X: ctx.TransAxes().Apply(geom.Pt{X: 0.5, Y: 0}).X,
+			Y: topExtent - axisLabelPadPx(ctx),
+		},
+		layout,
+		TextAlignCenter,
+		textLayoutVAlignBaseline,
+	)
+	if r.origins[0] != want {
+		t.Fatalf("top xlabel origin = %+v, want %+v", r.origins[0], want)
+	}
+}
+
+func TestDrawAxesLabels_UsesSameFontSizeForXAndYLabels(t *testing.T) {
+	ax := &Axes{
+		XAxis:  NewXAxis(),
+		YAxis:  NewYAxis(),
+		XLabel: "Group",
+		YLabel: "Value",
+	}
+	ax.XAxis.Locator = staticLocator{2}
+	ax.XAxis.Formatter = ScalarFormatter{Prec: 0}
+	ax.YAxis.Locator = staticLocator{4}
+	ax.YAxis.Formatter = ScalarFormatter{Prec: 0}
+
+	ctx := createTestDrawContext()
+	r := &axesLabelRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"2": {X: 1, Y: -8, W: 5, H: 10},
+			"4": {X: 1, Y: -8, W: 5, H: 10},
+		},
+	}
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	defer r.End()
+
+	drawAxesLabels(ax, r, ctx, geom.Rect{
+		Min: geom.Pt{X: 50, Y: 350},
+		Max: geom.Pt{X: 150, Y: 450},
+	})
+
+	if len(r.sizes) != 1 || len(r.rotatedSizes) != 1 {
+		t.Fatalf("unexpected label draw sizes: text=%v rotated=%v", r.sizes, r.rotatedSizes)
+	}
+	if r.sizes[0] != r.rotatedSizes[0] {
+		t.Fatalf("x/y label font sizes differ: x=%v y=%v", r.sizes[0], r.rotatedSizes[0])
+	}
+	if r.sizes[0] != axisLabelFontSize(ctx) {
+		t.Fatalf("axis label font size = %v, want %v", r.sizes[0], axisLabelFontSize(ctx))
 	}
 }
 

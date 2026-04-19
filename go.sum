@@ -5,6 +5,10 @@ github.com/cwbudde/agg_go v0.2.28 h1:ER8AeRk3Gsu855Xujd0rTS1YIvanA2AZvMOewnVx7Ys
 github.com/cwbudde/agg_go v0.2.28/go.mod h1:v3HUTqN3emwGwTyx6v9ex0ZELB/PfxxtuLL4L3dcD6g=
 github.com/cwbudde/agg_go v0.2.29 h1:R+gkEVgXtrm5j54p9cVi3tePL8JSEONpVQVK4REGH64=
 github.com/cwbudde/agg_go v0.2.29/go.mod h1:v3HUTqN3emwGwTyx6v9ex0ZELB/PfxxtuLL4L3dcD6g=
+github.com/cwbudde/agg_go v0.2.30 h1:S/aqFSlA0jvBsflGOXNPCp+OnUITDqj7n0B/4QdOM9M=
+github.com/cwbudde/agg_go v0.2.30/go.mod h1:v3HUTqN3emwGwTyx6v9ex0ZELB/PfxxtuLL4L3dcD6g=
+github.com/cwbudde/agg_go v0.2.31 h1:RV9Re4inGBDx9jDv8c5sK6rb8/7qGfPHFTjndtUXwa0=
+github.com/cwbudde/agg_go v0.2.31/go.mod h1:v3HUTqN3emwGwTyx6v9ex0ZELB/PfxxtuLL4L3dcD6g=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

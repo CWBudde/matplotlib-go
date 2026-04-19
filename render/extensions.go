@@ -27,6 +27,12 @@ type TextBounder interface {
 	MeasureTextBounds(text string, size float64, fontKey string) (TextBounds, bool)
 }
 
+// TextFontMetricer is implemented by renderers that can report font-wide line
+// metrics separately from the ink bounds of a particular string.
+type TextFontMetricer interface {
+	MeasureFontHeights(size float64, fontKey string) (FontHeightMetrics, bool)
+}
+
 // VerticalTextDrawer is implemented by renderers that support vertical text.
 type VerticalTextDrawer interface {
 	TextDrawer

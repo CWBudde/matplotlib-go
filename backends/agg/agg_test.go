@@ -1,6 +1,8 @@
 package agg
 
 import (
+	"image"
+	"image/color"
 	"math"
 	"testing"
 
@@ -148,6 +150,39 @@ func TestMeasureText(t *testing.T) {
 	}
 }
 
+func TestDrawTextRotatedMaintainsReadableFootprint(t *testing.T) {
+	r := mustNew(t, 220, 220)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 220, Y: 220}}
+	if err := r.Begin(viewport); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	const size = 24.0
+	metrics := r.MeasureText("Amplitude", size, "")
+	if metrics.W <= 0 || metrics.H <= 0 {
+		t.Fatalf("expected positive text metrics, got %+v", metrics)
+	}
+
+	r.DrawTextRotated("Amplitude", geom.Pt{X: 72, Y: 160}, size, math.Pi/2, render.Color{R: 0, G: 0, B: 0, A: 1})
+	if err := r.End(); err != nil {
+		t.Fatalf("End failed: %v", err)
+	}
+
+	bounds, pixels, ok := inkBounds(r.GetImage(), color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	if !ok {
+		t.Fatal("expected rotated text to draw visible ink")
+	}
+	if bounds.W() < metrics.H*0.75 {
+		t.Fatalf("rotated text width too small: got=%v want_at_least=%v bounds=%+v", bounds.W(), metrics.H*0.75, bounds)
+	}
+	if bounds.H() < metrics.W*0.65 {
+		t.Fatalf("rotated text height too small: got=%v want_at_least=%v bounds=%+v", bounds.H(), metrics.W*0.65, bounds)
+	}
+	if pixels < 250 {
+		t.Fatalf("rotated text ink coverage unexpectedly sparse: pixels=%d bounds=%+v", pixels, bounds)
+	}
+}
+
 func TestGetImage(t *testing.T) {
 	r := mustNew(t, 200, 150)
 	img := r.GetImage()
@@ -202,4 +237,45 @@ func TestQuantizeIdempotent(t *testing.T) {
 	if q1 != q2 {
 		t.Errorf("quantize not idempotent: %v != %v", q1, q2)
 	}
+}
+
+func inkBounds(img *image.RGBA, background color.RGBA) (geom.Rect, int, bool) {
+	if img == nil {
+		return geom.Rect{}, 0, false
+	}
+
+	b := img.Bounds()
+	minX, minY := b.Max.X, b.Max.Y
+	maxX, maxY := b.Min.X, b.Min.Y
+	pixels := 0
+
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if img.RGBAAt(x, y) == background {
+				continue
+			}
+			pixels++
+			if x < minX {
+				minX = x
+			}
+			if y < minY {
+				minY = y
+			}
+			if x >= maxX {
+				maxX = x + 1
+			}
+			if y >= maxY {
+				maxY = y + 1
+			}
+		}
+	}
+
+	if pixels == 0 {
+		return geom.Rect{}, 0, false
+	}
+
+	return geom.Rect{
+		Min: geom.Pt{X: float64(minX), Y: float64(minY)},
+		Max: geom.Pt{X: float64(maxX), Y: float64(maxY)},
+	}, pixels, true
 }

@@ -197,8 +197,8 @@ func (t *Text) Draw(r render.Renderer, ctx *DrawContext) {
 
 	fontSize := resolvedFontSize(t.FontSize, ctx)
 	anchor := transformedPoint(ctx, t.Coords, t.Position, t.OffsetX, t.OffsetY)
-	metrics := r.MeasureText(content, fontSize, ctx.RC.FontKey)
-	origin := alignedTextOrigin(anchor, metrics, t.HAlign, t.VAlign)
+	layout := measureSingleLineTextLayout(r, content, fontSize, ctx.RC.FontKey)
+	origin := alignedSingleLineOrigin(anchor, layout, t.HAlign, layoutVerticalAlign(t.VAlign, false))
 	textRen.DrawText(content, origin, fontSize, resolvedTextColor(t.Color, ctx))
 }
 
@@ -230,9 +230,15 @@ func (a *Annotation) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	fontSize := resolvedFontSize(a.FontSize, ctx)
 	target := transformedPoint(ctx, a.Coords, a.Point, 0, 0)
 	anchor := transformedPoint(ctx, a.Coords, a.Point, a.OffsetX, a.OffsetY)
-	metrics := r.MeasureText(content, fontSize, ctx.RC.FontKey)
-	origin := alignedTextOrigin(anchor, metrics, a.HAlign, a.VAlign)
-	box := textBounds(origin, metrics)
+	layout := measureSingleLineTextLayout(r, content, fontSize, ctx.RC.FontKey)
+	origin := alignedSingleLineOrigin(anchor, layout, a.HAlign, layoutVerticalAlign(a.VAlign, false))
+	box, ok := textInkRect(origin, layout)
+	if !ok {
+		box = geom.Rect{
+			Min: geom.Pt{X: origin.X, Y: origin.Y - layout.Ascent},
+			Max: geom.Pt{X: origin.X + layout.Width, Y: origin.Y + layout.Descent},
+		}
+	}
 	start := nearestPointOnRect(box, target)
 
 	linePaint := render.Paint{

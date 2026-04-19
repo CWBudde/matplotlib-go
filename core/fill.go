@@ -5,18 +5,27 @@ import (
 	"matplotlib-go/render"
 )
 
+// FillOrientation controls whether the independent coordinate runs along x or y.
+type FillOrientation uint8
+
+const (
+	FillVertical FillOrientation = iota
+	FillHorizontal
+)
+
 // Fill2D creates filled areas between curves or from curves to baselines.
 type Fill2D struct {
-	X         []float64    // x coordinates
-	Y1        []float64    // first y curve (top boundary)
-	Y2        []float64    // second y curve (bottom boundary), if nil uses Baseline
-	Baseline  float64      // baseline value when Y2 is nil
-	Color     render.Color // fill color
-	EdgeColor render.Color // edge color for outline (0 alpha means no edge)
-	EdgeWidth float64      // edge width in pixels (0 means no edge)
-	Alpha     float64      // alpha transparency override (0-1), if 0 uses Color.A
-	Label     string       // series label for legend
-	z         float64      // z-order
+	X           []float64       // independent coordinates (x for vertical fills, y for horizontal fills)
+	Y1          []float64       // first dependent curve (y for vertical fills, x for horizontal fills)
+	Y2          []float64       // second dependent curve, if nil uses Baseline
+	Baseline    float64         // baseline value when Y2 is nil
+	Orientation FillOrientation // vertical (fill_between) or horizontal (fill_betweenx)
+	Color       render.Color    // fill color
+	EdgeColor   render.Color    // edge color for outline (0 alpha means no edge)
+	EdgeWidth   float64         // edge width in pixels (0 means no edge)
+	Alpha       float64         // alpha transparency override (0-1), if 0 uses Color.A
+	Label       string          // series label for legend
+	z           float64         // z-order
 }
 
 // Draw renders the filled area by creating a closed path.
@@ -77,9 +86,9 @@ func (f *Fill2D) Draw(r render.Renderer, ctx *DrawContext) {
 func (f *Fill2D) createFillPath(n int, ctx *DrawContext) geom.Path {
 	path := geom.Path{}
 
-	// Draw the top boundary (Y1) from left to right
+	// Draw the first boundary from low to high independent coordinate.
 	for i := 0; i < n; i++ {
-		pt := ctx.DataToPixel.Apply(geom.Pt{X: f.X[i], Y: f.Y1[i]})
+		pt := f.pixelPoint(i, f.Y1[i], ctx)
 		if i == 0 {
 			path.C = append(path.C, geom.MoveTo)
 		} else {
@@ -88,16 +97,16 @@ func (f *Fill2D) createFillPath(n int, ctx *DrawContext) geom.Path {
 		path.V = append(path.V, pt)
 	}
 
-	// Draw the bottom boundary from right to left
+	// Draw the second boundary from high to low independent coordinate.
 	for i := n - 1; i >= 0; i-- {
-		var y float64
+		var dep float64
 		if f.Y2 != nil {
-			y = f.Y2[i]
+			dep = f.Y2[i]
 		} else {
-			y = f.Baseline
+			dep = f.Baseline
 		}
 
-		pt := ctx.DataToPixel.Apply(geom.Pt{X: f.X[i], Y: y})
+		pt := f.pixelPoint(i, dep, ctx)
 		path.C = append(path.C, geom.LineTo)
 		path.V = append(path.V, pt)
 	}
@@ -133,49 +142,22 @@ func (f *Fill2D) Bounds(*DrawContext) geom.Rect {
 	}
 
 	// Initialize bounds with first point
-	bounds := geom.Rect{
-		Min: geom.Pt{X: f.X[0], Y: f.Y1[0]},
-		Max: geom.Pt{X: f.X[0], Y: f.Y1[0]},
-	}
+	first := f.dataPoint(f.X[0], f.Y1[0])
+	bounds := geom.Rect{Min: first, Max: first}
 
-	// Expand bounds to include all X and Y1 points
+	// Expand bounds to include all independent and first-boundary values.
 	for i := 0; i < n; i++ {
-		x := f.X[i]
-		y1 := f.Y1[i]
-
-		if x < bounds.Min.X {
-			bounds.Min.X = x
-		}
-		if x > bounds.Max.X {
-			bounds.Max.X = x
-		}
-		if y1 < bounds.Min.Y {
-			bounds.Min.Y = y1
-		}
-		if y1 > bounds.Max.Y {
-			bounds.Max.Y = y1
-		}
+		bounds = expandRect(bounds, f.dataPoint(f.X[i], f.Y1[i]))
 	}
 
-	// Include Y2 values or baseline in bounds
+	// Include the second boundary or baseline in bounds.
 	if f.Y2 != nil {
-		// Include all Y2 points
 		for i := 0; i < n; i++ {
-			y2 := f.Y2[i]
-			if y2 < bounds.Min.Y {
-				bounds.Min.Y = y2
-			}
-			if y2 > bounds.Max.Y {
-				bounds.Max.Y = y2
-			}
+			bounds = expandRect(bounds, f.dataPoint(f.X[i], f.Y2[i]))
 		}
 	} else {
-		// Include baseline
-		if f.Baseline < bounds.Min.Y {
-			bounds.Min.Y = f.Baseline
-		}
-		if f.Baseline > bounds.Max.Y {
-			bounds.Max.Y = f.Baseline
+		for i := 0; i < n; i++ {
+			bounds = expandRect(bounds, f.dataPoint(f.X[i], f.Baseline))
 		}
 	}
 
@@ -201,4 +183,53 @@ func FillToBaseline(x, y []float64, baseline float64, color render.Color) *Fill2
 		Baseline: baseline,
 		Color:    color,
 	}
+}
+
+// FillBetweenX creates a Fill2D for the area between two x-curves across y values.
+func FillBetweenX(y, x1, x2 []float64, color render.Color) *Fill2D {
+	return &Fill2D{
+		X:           y,
+		Y1:          x1,
+		Y2:          x2,
+		Orientation: FillHorizontal,
+		Color:       color,
+	}
+}
+
+// FillToBaselineX creates a Fill2D from an x-curve to a vertical baseline across y values.
+func FillToBaselineX(y, x []float64, baseline float64, color render.Color) *Fill2D {
+	return &Fill2D{
+		X:           y,
+		Y1:          x,
+		Baseline:    baseline,
+		Orientation: FillHorizontal,
+		Color:       color,
+	}
+}
+
+func (f *Fill2D) pixelPoint(index int, dep float64, ctx *DrawContext) geom.Pt {
+	return ctx.DataToPixel.Apply(f.dataPoint(f.X[index], dep))
+}
+
+func (f *Fill2D) dataPoint(primary, dependent float64) geom.Pt {
+	if f.Orientation == FillHorizontal {
+		return geom.Pt{X: dependent, Y: primary}
+	}
+	return geom.Pt{X: primary, Y: dependent}
+}
+
+func expandRect(rect geom.Rect, pt geom.Pt) geom.Rect {
+	if pt.X < rect.Min.X {
+		rect.Min.X = pt.X
+	}
+	if pt.X > rect.Max.X {
+		rect.Max.X = pt.X
+	}
+	if pt.Y < rect.Min.Y {
+		rect.Min.Y = pt.Y
+	}
+	if pt.Y > rect.Max.Y {
+		rect.Max.Y = pt.Y
+	}
+	return rect
 }

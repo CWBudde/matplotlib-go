@@ -49,6 +49,21 @@ golden-update TEST="":
       CGO_ENABLED=1 go test -tags freetype -count=1 -run '^Test.*_Golden$$' ./test -update-golden; \
     fi
 
+text-parity-backend:
+    CGO_ENABLED=1 go test -tags freetype ./backends/agg -run "TestUsesDejaVuSansWithoutFallback|TestRasterTextWidthTracksRendererDPI|TestMeasureTextUsesStableFontLineMetrics|TestTrailingSpaceDoesNotRenderDuplicateGlyph|TestInternalSpaceDoesNotReplayPreviousGlyph" -count=1 -v
+
+text-parity-core:
+    CGO_ENABLED=1 go test ./core -run "TestTitleFontSizeUsesTitleOnlyCompensation|TestDrawAxesLabels_YLabelUsesTickBoundsAndLabelPad|TestTickLabelPositionUsesBoundsForBottomXAxis|TestTickLabelPositionUsesBoundsForLeftYAxis|TestTickLabelPositionUsesFontHeightMetricsForBottomXAxis|TestTickLabelPositionUsesBottomAlignmentForTopXAxis|TestTickLabelPositionUsesCenterBaselineForRightYAxis|TestAlignedTextOrigin|TestAxesTextDrawsNormalizedContent|TestAnnotationDrawOverlayRendersArrowAndText|TestAxesTextSupportsAxesAndBlendedCoordinates" -count=1 -v
+
+text-parity-canaries:
+    CGO_ENABLED=1 go test -tags freetype ./test -run "TestMpl_BarBasicTickLabels|TestMpl_BarBasicTitle|TestMpl_HistStrategies|TestTextLabelsStrict_MatplotlibRef|TestTitleStrict_MatplotlibRef" -count=1 -v
+
+text-parity-golden:
+    CGO_ENABLED=1 go test -tags freetype ./test -run "TestBarBasicTickLabels_Golden|TestBarBasicTitle_Golden|TestHistStrategies_Golden|TestTextLabelsStrict_Golden|TestTitleStrict_Golden" -count=1 -update-golden -v
+
+text-parity-compare:
+    CGO_ENABLED=1 go test -tags freetype ./test -run "TestReferenceImages_GoldenVsMatplotlibRef/bar_basic_tick_labels|TestReferenceImages_GoldenVsMatplotlibRef/bar_basic_title|TestReferenceImages_GoldenVsMatplotlibRef/hist_strategies|TestTextLabelsStrict_MatplotlibRef|TestTitleStrict_MatplotlibRef" -count=1 -v
+
 backend-info:
     @go run ./examples/backends/info/main.go 2>/dev/null || echo "Backend info example not yet available"
 

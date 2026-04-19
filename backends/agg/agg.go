@@ -72,6 +72,7 @@ var _ render.TextDrawer = (*Renderer)(nil)
 var _ render.RotatedTextDrawer = (*Renderer)(nil)
 var _ render.VerticalTextDrawer = (*Renderer)(nil)
 var _ render.TextBounder = (*Renderer)(nil)
+var _ render.TextFontMetricer = (*Renderer)(nil)
 var _ render.ImageTransformer = (*Renderer)(nil)
 var _ render.PNGExporter = (*Renderer)(nil)
 
@@ -434,6 +435,40 @@ func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) 
 	return render.TextBounds{X: x, Y: y, W: w, H: h}, true
 }
 
+// MeasureFontHeights reports font-wide ascent, descent, and line-gap values
+// for the current raster text face, distinct from a particular string's ink
+// bounds.
+func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.FontHeightMetrics, bool) {
+	if size <= 0 {
+		return render.FontHeightMetrics{}, false
+	}
+
+	if fontKey != "" {
+		r.lastFontKey = fontKey
+	} else {
+		fontKey = r.lastFontKey
+	}
+
+	font := r.configureTextFont(size, fontKey)
+	if font.backend != textBackendRaster {
+		return render.FontHeightMetrics{}, false
+	}
+	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
+		r.fallback = true
+		return render.FontHeightMetrics{}, false
+	}
+
+	metrics, ok := r.ctx.fontHeightMetrics()
+	if !ok {
+		return render.FontHeightMetrics{}, false
+	}
+	return render.FontHeightMetrics{
+		Ascent:  metrics.ascent,
+		Descent: metrics.descent,
+		LineGap: metrics.lineGap,
+	}, true
+}
+
 // DrawText renders text at the given position with the specified size and color.
 // This is a helper method (not part of the Renderer interface).
 func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor render.Color) {
@@ -467,7 +502,7 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 // DrawTextRotated renders text using Matplotlib-like anchor rotation. The
 // anchor is the bottom-center of the unrotated text box.
 func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
-	if text == "" {
+	if text == "" || size <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
 		return
 	}
 
@@ -476,57 +511,49 @@ func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle floa
 		return
 	}
 
-	pad := 8.0
 	bounds, haveBounds := r.MeasureTextBounds(text, size, "")
-	inkW := metrics.W
-	inkH := metrics.H
-	origin := geom.Pt{
-		X: pad,
-		Y: pad + metrics.Ascent,
+	origin := rotatedTextOrigin(anchor, metrics, bounds, haveBounds)
+	font := r.configureTextFont(size, r.lastFontKey)
+
+	r.ctx.PushTransform()
+	defer r.ctx.PopTransform()
+
+	r.ctx.Translate(-anchor.X, -anchor.Y)
+	r.ctx.Rotate(-angle)
+	r.ctx.Translate(anchor.X, anchor.Y)
+
+	if font.fontPath != "" {
+		if face, err := r.configureOutlineFont(font.fontPath, font.size); err == nil {
+			r.ctx.SetFillColor(renderColorToAGG(textColor))
+			r.ctx.SetStrokeColor(renderColorToAGG(textColor))
+			if drawTrueTypeOutlineText(r.ctx, face, origin.X, origin.Y, text) {
+				return
+			}
+		}
+		r.fallback = true
 	}
-	pivot := geom.Pt{
-		X: pad + metrics.W/2,
-		Y: pad + metrics.H,
+
+	r.ctx.SetStrokeColor(renderColorToAGG(textColor))
+	r.ctx.SetStrokeWidth(math.Max(1, font.size*0.08))
+	r.ctx.SetLineCap(agglib.CapRound)
+	r.ctx.SetLineJoin(agglib.JoinRound)
+	if appendLocalGSVText(r.ctx, origin.X, origin.Y, font.size, text) {
+		r.ctx.Stroke()
 	}
+}
+
+func rotatedTextOrigin(anchor geom.Pt, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) geom.Pt {
 	if haveBounds && bounds.W > 0 && bounds.H > 0 {
-		inkW = bounds.W
-		inkH = bounds.H
-		origin = geom.Pt{
-			X: pad - bounds.X,
-			Y: pad - bounds.Y,
-		}
-		pivot = geom.Pt{
-			X: pad + bounds.W/2,
-			Y: pad + bounds.H,
+		return geom.Pt{
+			X: anchor.X - (bounds.X + bounds.W/2),
+			Y: anchor.Y - (bounds.Y + bounds.H),
 		}
 	}
 
-	tempW := int(math.Ceil(inkW + pad*2))
-	tempH := int(math.Ceil(inkH + pad*2))
-	if tempW <= 0 || tempH <= 0 {
-		return
+	return geom.Pt{
+		X: anchor.X - metrics.W/2,
+		Y: anchor.Y - metrics.Descent,
 	}
-
-	tmp, err := New(tempW, tempH, render.Color{A: 0})
-	if err != nil {
-		return
-	}
-	tmp.SetResolution(r.resolution)
-	tmp.lastFontKey = r.lastFontKey
-	tmp.DrawText(text, origin, size, textColor)
-
-	rotImg, err := agglib.NewImageFromStandardImage(tmp.GetImage())
-	if err != nil {
-		return
-	}
-
-	rotAngle := -angle
-	cos := math.Cos(rotAngle)
-	sin := math.Sin(rotAngle)
-	tx := anchor.X - cos*pivot.X + sin*pivot.Y
-	ty := anchor.Y - sin*pivot.X - cos*pivot.Y
-	tr := agglib.NewTransformationsFromValues(cos, sin, -sin, cos, tx, ty)
-	_ = r.ctx.DrawImageTransformed(rotImg, tr)
 }
 
 // DrawTextVertical renders text vertically (one character per line, top to bottom).

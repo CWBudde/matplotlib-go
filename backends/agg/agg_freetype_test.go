@@ -79,12 +79,22 @@ func TestMeasureTextUsesStableFontLineMetrics(t *testing.T) {
 
 	caps := r.MeasureText("H", 24, "")
 	descender := r.MeasureText("g", 24, "")
+	fontHeights, ok := r.MeasureFontHeights(24, "")
+	if !ok {
+		t.Fatal("expected renderer to expose font height metrics")
+	}
 
 	if caps.Ascent <= 0 || descender.Ascent <= 0 {
 		t.Fatalf("expected positive ascent, got caps=%+v descender=%+v", caps, descender)
 	}
 	if caps.Ascent != descender.Ascent || caps.Descent != descender.Descent {
 		t.Fatalf("expected font line metrics to stay stable across strings, got caps=%+v descender=%+v", caps, descender)
+	}
+	if math.Abs(caps.Ascent-fontHeights.Ascent) > 1e-6 || math.Abs(caps.Descent-fontHeights.Descent) > 1e-6 {
+		t.Fatalf("MeasureText should use font height metrics, got caps=%+v font=%+v", caps, fontHeights)
+	}
+	if fontHeights.LineGap < 0 {
+		t.Fatalf("unexpected negative line gap: %+v", fontHeights)
 	}
 }
 

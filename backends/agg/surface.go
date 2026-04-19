@@ -1,6 +1,7 @@
 package agg
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
 	"os"
@@ -13,6 +14,17 @@ import (
 )
 
 var sfntFontCache sync.Map
+
+type sfntFontResource struct {
+	font *sfnt.Font
+	data []byte
+}
+
+type fontHeightMetrics struct {
+	ascent  float64
+	descent float64
+	lineGap float64
+}
 
 // aggSurface owns the explicit AGG image buffer and the renderer attached to it.
 // This keeps backend construction local instead of routing through agglib.Context.
@@ -69,6 +81,14 @@ func (s *aggSurface) PushTransform() {
 
 func (s *aggSurface) PopTransform() bool {
 	return s.painter.PopTransform()
+}
+
+func (s *aggSurface) Translate(tx, ty float64) {
+	s.painter.Translate(tx, ty)
+}
+
+func (s *aggSurface) Rotate(angle float64) {
+	s.painter.Rotate(angle)
 }
 
 func (s *aggSurface) ClipBox(x1, y1, x2, y2 float64) {
@@ -250,11 +270,11 @@ func (s *aggSurface) TextMetrics(text string) (width, ascent, descent float64) {
 	}
 
 	width = s.textContext.GetTextWidth(text)
-	if ascent, descent, ok := s.lineMetrics(); ok {
+	if metrics, ok := s.fontHeightMetrics(); ok {
 		if width <= 0 {
 			_, _, width, _ = s.textContext.GetTextBounds(text)
 		}
-		return width, ascent, descent
+		return width, metrics.ascent, metrics.descent
 	}
 
 	x, y, width, height := s.textContext.GetTextBounds(text)
@@ -276,38 +296,50 @@ func (s *aggSurface) TextMetrics(text string) (width, ascent, descent float64) {
 	return width, ascent, descent
 }
 
-func (s *aggSurface) lineMetrics() (ascent, descent float64, ok bool) {
+func (s *aggSurface) fontHeightMetrics() (fontHeightMetrics, bool) {
 	if s.textFontPath == "" || s.textSize <= 0 {
-		return 0, 0, false
+		return fontHeightMetrics{}, false
 	}
 	resolution := s.textResolution
 	if resolution == 0 {
 		resolution = 72
 	}
 
-	fontData, err := loadSFNTFont(s.textFontPath)
+	resource, err := loadSFNTFont(s.textFontPath)
 	if err != nil {
-		return 0, 0, false
+		return fontHeightMetrics{}, false
+	}
+	scale, ok := sfntMetricScale(resource.data, s.textSize, float64(resolution))
+	if !ok {
+		ppem := fixed.Int26_6(math.Round(s.textSize * float64(resolution) * 64.0 / 72.0))
+		if ppem <= 0 {
+			return fontHeightMetrics{}, false
+		}
+
+		metrics, err := resource.font.Metrics(nil, ppem, xfont.HintingNone)
+		if err != nil {
+			return fontHeightMetrics{}, false
+		}
+		return fontHeightMetrics{
+			ascent:  float64(metrics.Ascent) / 64.0,
+			descent: float64(metrics.Descent) / 64.0,
+		}, metrics.Ascent > 0 || metrics.Descent > 0
 	}
 
-	ppem := fixed.Int26_6(math.Round(s.textSize * float64(resolution) * 64.0 / 72.0))
-	if ppem <= 0 {
-		return 0, 0, false
+	if ascent, descent, lineGap, ok := sfntTableHeightMetrics(resource.data, scale); ok {
+		return fontHeightMetrics{
+			ascent:  ascent,
+			descent: descent,
+			lineGap: lineGap,
+		}, true
 	}
 
-	metrics, err := fontData.Metrics(nil, ppem, xfont.HintingNone)
-	if err != nil {
-		return 0, 0, false
-	}
-
-	ascent = float64(metrics.Ascent) / 64.0
-	descent = float64(metrics.Descent) / 64.0
-	return ascent, descent, ascent > 0 || descent > 0
+	return fontHeightMetrics{}, false
 }
 
-func loadSFNTFont(path string) (*sfnt.Font, error) {
+func loadSFNTFont(path string) (*sfntFontResource, error) {
 	if cached, ok := sfntFontCache.Load(path); ok {
-		return cached.(*sfnt.Font), nil
+		return cached.(*sfntFontResource), nil
 	}
 
 	data, err := os.ReadFile(path)
@@ -320,8 +352,64 @@ func loadSFNTFont(path string) (*sfnt.Font, error) {
 		return nil, err
 	}
 
-	actual, _ := sfntFontCache.LoadOrStore(path, fontData)
-	return actual.(*sfnt.Font), nil
+	actual, _ := sfntFontCache.LoadOrStore(path, &sfntFontResource{font: fontData, data: data})
+	return actual.(*sfntFontResource), nil
+}
+
+func sfntMetricScale(data []byte, size, dpi float64) (float64, bool) {
+	head := sfntTableData(data, "head")
+	if len(head) < 20 {
+		return 0, false
+	}
+	unitsPerEm := binary.BigEndian.Uint16(head[18:20])
+	if unitsPerEm == 0 {
+		return 0, false
+	}
+	return size * dpi / 72.0 / float64(unitsPerEm), true
+}
+
+func sfntTableHeightMetrics(data []byte, scale float64) (ascent, descent, lineGap float64, ok bool) {
+	if table := sfntTableData(data, "OS/2"); len(table) >= 74 {
+		return scale * float64(sfntInt16(table[68:70])),
+			scale * float64(-sfntInt16(table[70:72])),
+			scale * float64(sfntInt16(table[72:74])),
+			true
+	}
+	if table := sfntTableData(data, "hhea"); len(table) >= 10 {
+		return scale * float64(sfntInt16(table[4:6])),
+			scale * float64(-sfntInt16(table[6:8])),
+			scale * float64(sfntInt16(table[8:10])),
+			true
+	}
+	return 0, 0, 0, false
+}
+
+func sfntTableData(data []byte, tag string) []byte {
+	if len(data) < 12 || len(tag) != 4 {
+		return nil
+	}
+	numTables := int(binary.BigEndian.Uint16(data[4:6]))
+	dirOffset := 12
+	for i := 0; i < numTables; i++ {
+		entryOffset := dirOffset + 16*i
+		if entryOffset+16 > len(data) {
+			return nil
+		}
+		if string(data[entryOffset:entryOffset+4]) != tag {
+			continue
+		}
+		offset := int(binary.BigEndian.Uint32(data[entryOffset+8 : entryOffset+12]))
+		length := int(binary.BigEndian.Uint32(data[entryOffset+12 : entryOffset+16]))
+		if offset < 0 || length < 0 || offset+length > len(data) {
+			return nil
+		}
+		return data[offset : offset+length]
+	}
+	return nil
+}
+
+func sfntInt16(b []byte) int16 {
+	return int16(binary.BigEndian.Uint16(b))
 }
 
 func (s *aggSurface) TextBounds(text string) (x, y, width, height float64) {

@@ -161,6 +161,11 @@ func TestMpl_AxesTopRightInverted(t *testing.T) {
 func TestMpl_AxesControlSurface(t *testing.T) {
 	runMplTest(t, "axes_control_surface", renderAxesControlSurface)
 }
-func TestMpl_ErrorBars(t *testing.T)    { runMplTest(t, "errorbar_basic", renderErrorBars) }
-func TestMpl_TitleStrict(t *testing.T)  { runMplTest(t, "title_strict", renderTitleStrict) }
-func TestMpl_ImageHeatmap(t *testing.T) { runMplTest(t, "image_heatmap", renderImageHeatmap) }
+func TestMpl_TransformCoordinates(t *testing.T) {
+	runMplTest(t, "transform_coordinates", renderTransformCoordinates)
+}
+func TestMpl_PlotVariants(t *testing.T)  { runMplTest(t, "plot_variants", renderPlotVariants) }
+func TestMpl_UnitsOverview(t *testing.T) { runMplTest(t, "units_overview", renderUnitsOverview) }
+func TestMpl_ErrorBars(t *testing.T)     { runMplTest(t, "errorbar_basic", renderErrorBars) }
+func TestMpl_TitleStrict(t *testing.T)   { runMplTest(t, "title_strict", renderTitleStrict) }
+func TestMpl_ImageHeatmap(t *testing.T)  { runMplTest(t, "image_heatmap", renderImageHeatmap) }

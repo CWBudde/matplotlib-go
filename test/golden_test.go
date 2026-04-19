@@ -8,7 +8,9 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"matplotlib-go/backends/agg"
 	"matplotlib-go/core"
@@ -19,6 +21,34 @@ import (
 )
 
 var updateGolden = flag.Bool("update-golden", false, "Update golden images instead of comparing")
+
+type testDistanceKM float64
+
+type testDistanceConverter struct{}
+
+var registerTestDistanceUnitsOnce sync.Once
+
+func (testDistanceConverter) Convert(value any) (float64, error) {
+	v, ok := value.(testDistanceKM)
+	if !ok {
+		return 0, fmt.Errorf("unexpected distance value %T", value)
+	}
+	return float64(v), nil
+}
+
+func (testDistanceConverter) AxisInfo([]float64) core.AxisInfo {
+	return core.AxisInfo{
+		Formatter: core.FormatStrFormatter{Pattern: "%.0f km"},
+	}
+}
+
+func registerTestDistanceUnits() {
+	registerTestDistanceUnitsOnce.Do(func() {
+		core.MustRegisterUnitConverter(testDistanceKM(0), func() core.UnitsConverter {
+			return testDistanceConverter{}
+		})
+	})
+}
 
 func TestBasicLine_Golden(t *testing.T) {
 	runGoldenTest(t, "basic_line", renderBasicLine)
@@ -134,6 +164,14 @@ func TestAxesControlSurface_Golden(t *testing.T) {
 
 func TestTransformCoordinates_Golden(t *testing.T) {
 	runGoldenTest(t, "transform_coordinates", renderTransformCoordinates)
+}
+
+func TestPlotVariants_Golden(t *testing.T) {
+	runGoldenTest(t, "plot_variants", renderPlotVariants)
+}
+
+func TestUnitsOverview_Golden(t *testing.T) {
+	runGoldenTest(t, "units_overview", renderUnitsOverview)
 }
 
 // runGoldenTest is a helper function for golden image testing
@@ -1189,12 +1227,22 @@ func renderAxesControlSurface() image.Image {
 	left.SetYLabel("Right Y")
 	left.SetXLim(-1, 5)
 	left.SetYLim(-1, 5)
-	if err := left.MoveXAxisToTop(); err != nil {
+	if err := left.SetXLabelPosition("top"); err != nil {
 		panic(err)
 	}
-	if err := left.MoveYAxisToRight(); err != nil {
+	if err := left.SetYLabelPosition("right"); err != nil {
 		panic(err)
 	}
+	top := left.TopAxis()
+	top.ShowLabels = true
+	top.ShowTicks = true
+	rightAxis := left.RightAxis()
+	rightAxis.ShowLabels = true
+	rightAxis.ShowTicks = true
+	left.XAxis.ShowLabels = false
+	left.XAxis.ShowTicks = false
+	left.YAxis.ShowLabels = false
+	left.YAxis.ShowTicks = false
 	left.SetAxisEqual()
 	if err := left.SetBoxAspect(1); err != nil {
 		panic(err)
@@ -1402,4 +1450,228 @@ func renderTransformCoordinates() image.Image {
 	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
+}
+
+func renderPlotVariants() image.Image {
+	fig := core.NewFigure(840, 620)
+	grid := fig.Subplots(
+		2,
+		2,
+		core.WithSubplotPadding(0.08, 0.97, 0.10, 0.93),
+		core.WithSubplotSpacing(0.10, 0.14),
+	)
+
+	stepAx := grid[0][0]
+	stepAx.SetTitle("Step + Stairs")
+	stepAx.SetXLim(0, 6)
+	stepAx.SetYLim(0, 5.2)
+	stepAx.AddYGrid()
+	stepWhere := core.StepWherePost
+	stepAx.Step(
+		[]float64{0.6, 1.4, 2.2, 3.0, 3.8, 4.6, 5.4},
+		[]float64{1.1, 2.5, 1.7, 3.4, 2.9, 4.1, 3.6},
+		core.StepOptions{
+			Where:     &stepWhere,
+			Color:     &render.Color{R: 0.15, G: 0.39, B: 0.78, A: 1},
+			LineWidth: floatPtr(2.0),
+		},
+	)
+	fillTrue := true
+	stairsBaseline := 0.35
+	stepAx.Stairs(
+		[]float64{0.9, 1.7, 1.4, 2.6, 1.8, 2.2},
+		[]float64{0.4, 1.1, 2.0, 2.9, 3.7, 4.6, 5.5},
+		core.StairsOptions{
+			Fill:      &fillTrue,
+			Baseline:  &stairsBaseline,
+			Color:     &render.Color{R: 0.91, G: 0.49, B: 0.20, A: 0.72},
+			EdgeColor: &render.Color{R: 0.58, G: 0.26, B: 0.08, A: 1},
+			LineWidth: floatPtr(1.5),
+		},
+	)
+
+	fillAx := grid[0][1]
+	fillAx.SetTitle("FillBetweenX + Refs")
+	fillAx.SetXLim(0, 7)
+	fillAx.SetYLim(0, 6)
+	fillAx.AddXGrid()
+	fillAx.FillBetweenX(
+		[]float64{0.4, 1.2, 2.0, 2.8, 3.6, 4.4, 5.2},
+		[]float64{1.3, 2.1, 1.7, 2.8, 2.2, 3.1, 2.6},
+		[]float64{3.4, 4.1, 4.8, 5.1, 5.6, 6.0, 6.3},
+		core.FillOptions{
+			Color:     &render.Color{R: 0.24, G: 0.68, B: 0.54, A: 0.72},
+			EdgeColor: &render.Color{R: 0.12, G: 0.38, B: 0.28, A: 1},
+			EdgeWidth: floatPtr(1.2),
+		},
+	)
+	fillAx.AxVSpan(2.2, 3.1, core.VSpanOptions{
+		Color: &render.Color{R: 0.92, G: 0.75, B: 0.18, A: 1},
+		Alpha: floatPtr(0.20),
+	})
+	fillAx.AxHLine(4.0, core.HLineOptions{
+		Color:     &render.Color{R: 0.52, G: 0.18, B: 0.18, A: 1},
+		LineWidth: floatPtr(1.2),
+		Dashes:    []float64{4, 3},
+	})
+	fillAx.AxVLine(5.3, core.VLineOptions{
+		Color:     &render.Color{R: 0.18, G: 0.22, B: 0.55, A: 1},
+		LineWidth: floatPtr(1.2),
+		Dashes:    []float64{2, 2},
+	})
+	fillAx.AxLine(
+		geom.Pt{X: 0.9, Y: 0.3},
+		geom.Pt{X: 6.4, Y: 5.6},
+		core.ReferenceLineOptions{
+			Color:     &render.Color{R: 0.22, G: 0.22, B: 0.22, A: 1},
+			LineWidth: floatPtr(1.1),
+		},
+	)
+
+	brokenAx := grid[1][0]
+	brokenAx.SetTitle("broken_barh")
+	brokenAx.SetXLim(0, 10)
+	brokenAx.SetYLim(0, 4.4)
+	brokenAx.AddXGrid()
+	firstTrack := brokenAx.BrokenBarH(
+		[][2]float64{{0.8, 1.6}, {3.1, 2.2}, {6.5, 1.3}},
+		[2]float64{0.7, 0.9},
+		core.BarOptions{Color: &render.Color{R: 0.21, G: 0.51, B: 0.76, A: 1}},
+	)
+	secondTrack := brokenAx.BrokenBarH(
+		[][2]float64{{1.6, 1.0}, {4.0, 1.4}, {7.1, 1.7}},
+		[2]float64{2.1, 0.9},
+		core.BarOptions{Color: &render.Color{R: 0.86, G: 0.38, B: 0.16, A: 1}},
+	)
+	brokenAx.BarLabel(firstTrack, []string{"prep", "run", "cool"}, core.BarLabelOptions{
+		Position: "center",
+		Color:    render.Color{R: 1, G: 1, B: 1, A: 1},
+		FontSize: 10,
+	})
+	brokenAx.BarLabel(secondTrack, []string{"IO", "fit", "ship"}, core.BarLabelOptions{
+		Position: "center",
+		Color:    render.Color{R: 1, G: 1, B: 1, A: 1},
+		FontSize: 10,
+	})
+
+	stackAx := grid[1][1]
+	stackAx.SetTitle("Stacked Bars + Labels")
+	stackAx.SetXLim(0.4, 4.6)
+	stackAx.SetYLim(0, 7.6)
+	stackAx.AddYGrid()
+	x := []float64{1, 2, 3, 4}
+	base := []float64{0, 0, 0, 0}
+	seriesA := []float64{1.4, 2.2, 1.8, 2.5}
+	seriesB := []float64{2.1, 1.6, 2.4, 1.7}
+	bottom := stackAx.Bar(x, seriesA, core.BarOptions{
+		Baselines: base,
+		Color:     &render.Color{R: 0.16, G: 0.59, B: 0.49, A: 1},
+	})
+	top := stackAx.Bar(x, seriesB, core.BarOptions{
+		Baselines: seriesA,
+		Color:     &render.Color{R: 0.88, G: 0.47, B: 0.16, A: 1},
+	})
+	stackAx.BarLabel(bottom, []string{"A1", "A2", "A3", "A4"}, core.BarLabelOptions{
+		Position: "center",
+		Color:    render.Color{R: 1, G: 1, B: 1, A: 1},
+		FontSize: 10,
+	})
+	stackAx.BarLabel(top, nil, core.BarLabelOptions{
+		Format: "%.1f",
+		Color:  render.Color{R: 0.20, G: 0.20, B: 0.20, A: 1},
+	})
+
+	r, err := agg.New(840, 620, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderUnitsOverview() image.Image {
+	registerTestDistanceUnits()
+
+	fig := core.NewFigure(1200, 420)
+
+	dateAx := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.06, Y: 0.18},
+		Max: geom.Pt{X: 0.32, Y: 0.86},
+	})
+	dateAx.SetTitle("Dates")
+	dateAx.SetYLabel("Requests")
+	dateAx.AddYGrid()
+	_, err := dateAx.PlotUnits(
+		[]time.Time{
+			time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC),
+			time.Date(2024, time.January, 3, 0, 0, 0, 0, time.UTC),
+			time.Date(2024, time.January, 7, 0, 0, 0, 0, time.UTC),
+			time.Date(2024, time.January, 10, 0, 0, 0, 0, time.UTC),
+		},
+		[]float64{12, 18, 9, 21},
+		core.PlotOptions{
+			Color:     &render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1},
+			LineWidth: floatPtr(2.0),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	dateAx.AutoScale(0.05)
+
+	categoryAx := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.38, Y: 0.18},
+		Max: geom.Pt{X: 0.64, Y: 0.86},
+	})
+	categoryAx.SetTitle("Categories")
+	categoryAx.SetYLabel("Count")
+	categoryAx.AddYGrid()
+	_, err = categoryAx.BarUnits(
+		[]string{"alpha", "beta", "gamma", "delta"},
+		[]float64{4, 9, 6, 7},
+		core.BarOptions{
+			Color:     &render.Color{R: 1.0, G: 0.50, B: 0.05, A: 1},
+			EdgeColor: &render.Color{R: 0.60, G: 0.30, B: 0.03, A: 1},
+			EdgeWidth: floatPtr(1.0),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	categoryAx.AutoScale(0.10)
+
+	unitAx := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.70, Y: 0.18},
+		Max: geom.Pt{X: 0.96, Y: 0.86},
+	})
+	unitAx.SetTitle("Custom Units")
+	unitAx.SetXLabel("Distance")
+	unitAx.SetYLabel("Pace")
+	unitAx.AddXGrid()
+	unitAx.AddYGrid()
+	_, err = unitAx.ScatterUnits(
+		[]testDistanceKM{5, 10, 21.1, 42.2},
+		[]float64{6.4, 5.8, 5.2, 5.5},
+		core.ScatterOptions{
+			Color:     &render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.92},
+			EdgeColor: &render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1},
+			EdgeWidth: floatPtr(1.0),
+			Size:      floatPtr(8.0),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	unitAx.AutoScale(0.08)
+
+	r, err := agg.New(1200, 420, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func floatPtr(v float64) *float64 {
+	return &v
 }

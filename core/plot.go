@@ -10,8 +10,9 @@ type PlotOptions struct {
 	Color     *render.Color // if nil, uses automatic color cycling
 	LineWidth *float64      // if nil, uses default
 	Dashes    []float64     // dash pattern
-	Label     string        // series label for legend
-	Alpha     *float64      // alpha transparency
+	DrawStyle *LineDrawStyle
+	Label     string   // series label for legend
+	Alpha     *float64 // alpha transparency
 }
 
 // Plot creates a line plot with automatic color cycling if no color is specified.
@@ -21,11 +22,11 @@ func (a *Axes) Plot(x, y []float64, opts ...PlotOptions) *Line2D {
 	}
 
 	// Create points
-	points := make([]geom.Pt, len(x))
 	n := len(x)
 	if len(y) < n {
 		n = len(y)
 	}
+	points := make([]geom.Pt, n)
 	for i := 0; i < n; i++ {
 		points[i] = geom.Pt{X: x[i], Y: y[i]}
 	}
@@ -50,11 +51,15 @@ func (a *Axes) Plot(x, y []float64, opts ...PlotOptions) *Line2D {
 
 	// Create line
 	line := &Line2D{
-		XY:     points,
-		W:      lineWidth,
-		Col:    color,
-		Dashes: opt.Dashes,
-		Label:  opt.Label,
+		XY:        points,
+		W:         lineWidth,
+		Col:       color,
+		Dashes:    opt.Dashes,
+		DrawStyle: LineDrawStyleDefault,
+		Label:     opt.Label,
+	}
+	if opt.DrawStyle != nil {
+		line.DrawStyle = *opt.DrawStyle
 	}
 
 	// Apply alpha if specified
@@ -84,11 +89,11 @@ func (a *Axes) Scatter(x, y []float64, opts ...ScatterOptions) *Scatter2D {
 	}
 
 	// Create points
-	points := make([]geom.Pt, len(x))
 	n := len(x)
 	if len(y) < n {
 		n = len(y)
 	}
+	points := make([]geom.Pt, n)
 	for i := 0; i < n; i++ {
 		points[i] = geom.Pt{X: x[i], Y: y[i]}
 	}
@@ -158,6 +163,7 @@ type BarOptions struct {
 	EdgeWidth   *float64        // edge width
 	Alpha       *float64        // alpha transparency
 	Baseline    *float64        // baseline value
+	Baselines   []float64       // per-bar baseline/left values
 	Orientation *BarOrientation // vertical or horizontal
 	Label       string          // series label for legend
 }
@@ -220,6 +226,7 @@ func (a *Axes) Bar(x, heights []float64, opts ...BarOptions) *Bar2D {
 		X:           x,
 		Heights:     heights,
 		Width:       width,
+		Baselines:   append([]float64(nil), opt.Baselines...),
 		Color:       color,
 		EdgeColor:   edgeColor,
 		EdgeWidth:   edgeWidth,
@@ -231,6 +238,63 @@ func (a *Axes) Bar(x, heights []float64, opts ...BarOptions) *Bar2D {
 
 	a.Add(bar)
 	return bar
+}
+
+// FillBetween is a convenience alias for FillBetweenPlot.
+func (a *Axes) FillBetween(x, y1, y2 []float64, opts ...FillOptions) *Fill2D {
+	return a.FillBetweenPlot(x, y1, y2, opts...)
+}
+
+// FillToBaseline is a convenience alias for FillToBaselinePlot.
+func (a *Axes) FillToBaseline(x, y []float64, opts ...FillOptions) *Fill2D {
+	return a.FillToBaselinePlot(x, y, opts...)
+}
+
+// FillBetweenX creates a horizontal fill between x-curves across y values.
+func (a *Axes) FillBetweenX(y, x1, x2 []float64, opts ...FillOptions) *Fill2D {
+	if len(y) == 0 || len(x1) == 0 || len(x2) == 0 {
+		return nil
+	}
+
+	var opt FillOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	color := a.NextColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+
+	edgeColor := render.Color{R: 0, G: 0, B: 0, A: 0}
+	if opt.EdgeColor != nil {
+		edgeColor = *opt.EdgeColor
+	}
+
+	edgeWidth := 0.0
+	if opt.EdgeWidth != nil {
+		edgeWidth = *opt.EdgeWidth
+	}
+
+	alpha := 0.6
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+
+	fill := &Fill2D{
+		X:           y,
+		Y1:          x1,
+		Y2:          x2,
+		Orientation: FillHorizontal,
+		Color:       color,
+		EdgeColor:   edgeColor,
+		EdgeWidth:   edgeWidth,
+		Alpha:       alpha,
+		Label:       opt.Label,
+	}
+
+	a.Add(fill)
+	return fill
 }
 
 // FillOptions holds optional parameters for fill plots.

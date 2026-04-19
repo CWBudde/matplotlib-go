@@ -434,16 +434,15 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 			continue
 		}
 
-		metrics := r.MeasureText(label, fontSize, ctx.RC.FontKey)
-		bounds, haveBounds := measureTextBounds(r, label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
 
-		labelPos, ok := tickLabelOrigin(a, ctx, tickValue, metrics, bounds, haveBounds, labelPadPx, style, isXAxis)
+		labelPos, ok := tickLabelOrigin(a, ctx, tickValue, layout, labelPadPx, style, isXAxis)
 		if !ok {
 			continue
 		}
 
 		if style.Rotation != 0 && rotRen != nil {
-			rotRen.DrawTextRotated(label, tickLabelRotationAnchor(labelPos, metrics, bounds, haveBounds), fontSize, style.Rotation*math.Pi/180.0, a.Color)
+			rotRen.DrawTextRotated(label, tickLabelRotationAnchor(labelPos, layout), fontSize, style.Rotation*math.Pi/180.0, a.Color)
 			continue
 		}
 
@@ -481,7 +480,7 @@ func tickLabelPadForSize(tickSize float64, style TickLabelStyle, ctx *DrawContex
 	return tickSize + padPx
 }
 
-func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool, labelPadPx float64, style TickLabelStyle, isXAxis bool) (geom.Pt, bool) {
+func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, layout singleLineTextLayout, labelPadPx float64, style TickLabelStyle, isXAxis bool) (geom.Pt, bool) {
 	if a == nil || ctx == nil {
 		return geom.Pt{}, false
 	}
@@ -490,18 +489,20 @@ func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, metrics rende
 	if isXAxis {
 		spineY := getSpinePosition(a.Side, ctx)
 		tickPos := ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: spineY})
-		hAlign, vAlign := resolvedTickLabelAlignments(a.Side, style, true)
+		hAlign, vAlign := resolvedTickLabelLayoutAlignments(a.Side, style, true)
 
 		switch a.Side {
 		case AxisBottom:
+			anchor := geom.Pt{X: tickPos.X, Y: tickPos.Y + labelPadPx}
 			return geom.Pt{
-				X: tickPos.X - tickLabelLeftOffset(hAlign, metrics, bounds, haveBounds),
-				Y: tickPos.Y + labelPadPx + tickLabelBaselineFromTop(vAlign, metrics, bounds, haveBounds),
+				X: anchor.X - tickLabelLeftOffset(hAlign, layout),
+				Y: anchor.Y + textBaselineOffset(layout, vAlign),
 			}, true
 		case AxisTop:
+			anchor := geom.Pt{X: tickPos.X, Y: tickPos.Y - labelPadPx}
 			return geom.Pt{
-				X: tickPos.X - tickLabelLeftOffset(hAlign, metrics, bounds, haveBounds),
-				Y: tickPos.Y - labelPadPx + tickLabelBaselineFromBottom(vAlign, metrics, bounds, haveBounds),
+				X: anchor.X - tickLabelLeftOffset(hAlign, layout),
+				Y: anchor.Y + textBaselineOffset(layout, vAlign),
 			}, true
 		default:
 			return geom.Pt{}, false
@@ -510,18 +511,20 @@ func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, metrics rende
 
 	spineX := getSpinePosition(a.Side, ctx)
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: spineX, Y: tickValue})
-	hAlign, vAlign := resolvedTickLabelAlignments(a.Side, style, false)
+	hAlign, vAlign := resolvedTickLabelLayoutAlignments(a.Side, style, false)
 
 	switch a.Side {
 	case AxisLeft:
+		anchor := geom.Pt{X: tickPos.X - labelPadPx, Y: tickPos.Y}
 		return geom.Pt{
-			X: tickPos.X - labelPadPx - tickLabelLeftOffsetForLeftAxis(hAlign, metrics, bounds, haveBounds),
-			Y: tickPos.Y + tickLabelBaselineForAnchorY(vAlign, metrics, bounds, haveBounds),
+			X: anchor.X - tickLabelLeftOffsetForLeftAxis(hAlign, layout),
+			Y: anchor.Y + textBaselineOffset(layout, vAlign),
 		}, true
 	case AxisRight:
+		anchor := geom.Pt{X: tickPos.X + labelPadPx, Y: tickPos.Y}
 		return geom.Pt{
-			X: tickPos.X + labelPadPx - tickLabelLeftOffsetForRightAxis(hAlign, metrics, bounds, haveBounds),
-			Y: tickPos.Y + tickLabelBaselineForAnchorY(vAlign, metrics, bounds, haveBounds),
+			X: anchor.X - tickLabelLeftOffsetForRightAxis(hAlign, layout),
+			Y: anchor.Y + textBaselineOffset(layout, vAlign),
 		}, true
 	default:
 		return geom.Pt{}, false
@@ -535,19 +538,19 @@ func measureTextBounds(r render.Renderer, text string, size float64, fontKey str
 	return render.TextBounds{}, false
 }
 
-func textInkRect(origin geom.Pt, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) (geom.Rect, bool) {
-	if haveBounds && bounds.W > 0 && bounds.H > 0 {
+func textInkRect(origin geom.Pt, layout singleLineTextLayout) (geom.Rect, bool) {
+	if layout.HaveInkBounds && layout.InkBounds.W > 0 && layout.InkBounds.H > 0 {
 		return geom.Rect{
-			Min: geom.Pt{X: origin.X + bounds.X, Y: origin.Y + bounds.Y},
-			Max: geom.Pt{X: origin.X + bounds.X + bounds.W, Y: origin.Y + bounds.Y + bounds.H},
+			Min: geom.Pt{X: origin.X + layout.InkBounds.X, Y: origin.Y + layout.InkBounds.Y},
+			Max: geom.Pt{X: origin.X + layout.InkBounds.X + layout.InkBounds.W, Y: origin.Y + layout.InkBounds.Y + layout.InkBounds.H},
 		}, true
 	}
-	if metrics.W <= 0 || metrics.H <= 0 {
+	if layout.Width <= 0 || layout.Height <= 0 {
 		return geom.Rect{}, false
 	}
 	return geom.Rect{
-		Min: geom.Pt{X: origin.X, Y: origin.Y - metrics.Ascent},
-		Max: geom.Pt{X: origin.X + metrics.W, Y: origin.Y - metrics.Ascent + metrics.H},
+		Min: geom.Pt{X: origin.X, Y: origin.Y - layout.Ascent},
+		Max: geom.Pt{X: origin.X + layout.Width, Y: origin.Y - layout.Ascent + layout.Height},
 	}, true
 }
 
@@ -667,13 +670,12 @@ func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks
 			continue
 		}
 
-		metrics := r.MeasureText(label, fontSize, ctx.RC.FontKey)
-		bounds, haveBounds := measureTextBounds(r, label, fontSize, ctx.RC.FontKey)
-		origin, ok := tickLabelOrigin(a, ctx, tickValue, metrics, bounds, haveBounds, labelPadPx, style, isXAxis)
+		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+		origin, ok := tickLabelOrigin(a, ctx, tickValue, layout, labelPadPx, style, isXAxis)
 		if !ok {
 			continue
 		}
-		inkRect, ok := textInkRect(origin, metrics, bounds, haveBounds)
+		inkRect, ok := textInkRect(origin, layout)
 		if !ok {
 			continue
 		}
@@ -698,125 +700,95 @@ func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks
 	return union, have
 }
 
-func tickLabelCenterOffsetX(metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
-	if haveBounds {
-		return bounds.X + bounds.W/2
+func tickLabelCenterOffsetX(layout singleLineTextLayout) float64 {
+	if layout.HaveInkBounds {
+		return layout.InkBounds.X + layout.InkBounds.W/2
 	}
-	return metrics.W / 2
+	return layout.Width / 2
 }
 
-func tickLabelLeftOffset(hAlign TextAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+func tickLabelLeftOffset(hAlign TextAlign, layout singleLineTextLayout) float64 {
 	switch hAlign {
 	case TextAlignLeft:
-		if haveBounds {
-			return -bounds.X
+		if layout.HaveInkBounds {
+			return -layout.InkBounds.X
 		}
 		return 0
 	case TextAlignRight:
-		if haveBounds {
-			return bounds.X + bounds.W
+		if layout.HaveInkBounds {
+			return layout.InkBounds.X + layout.InkBounds.W
 		}
-		return metrics.W
+		return layout.Width
 	default:
-		return tickLabelCenterOffsetX(metrics, bounds, haveBounds)
+		return tickLabelCenterOffsetX(layout)
 	}
 }
 
-func tickLabelBaselineFromTop(vAlign TextVerticalAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
-	switch vAlign {
-	case TextVAlignTop:
-		return -bounds.Y
-	case TextVAlignMiddle:
-		return tickLabelHeight(metrics, bounds, haveBounds)/2 - bounds.Y
-	case TextVAlignBottom:
-		return tickLabelHeight(metrics, bounds, haveBounds) - bounds.Y
-	default:
-		return -bounds.Y
-	}
-}
-
-func tickLabelBaselineFromBottom(vAlign TextVerticalAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
-	return tickLabelBaselineFromTop(vAlign, metrics, bounds, haveBounds) - tickLabelHeight(metrics, bounds, haveBounds)
-}
-
-func tickLabelBaselineForAnchorY(vAlign TextVerticalAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
-	switch vAlign {
-	case TextVAlignTop:
-		return -bounds.Y
-	case TextVAlignBottom:
-		return -bounds.Y - tickLabelHeight(metrics, bounds, haveBounds)
-	case TextVAlignBaseline:
-		return 0
-	default:
-		return -bounds.Y - tickLabelHeight(metrics, bounds, haveBounds)/2
-	}
-}
-
-func tickLabelLeftOffsetForLeftAxis(hAlign TextAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+func tickLabelLeftOffsetForLeftAxis(hAlign TextAlign, layout singleLineTextLayout) float64 {
 	switch hAlign {
 	case TextAlignLeft:
-		if haveBounds {
-			return bounds.X
+		if layout.HaveInkBounds {
+			return layout.InkBounds.X
 		}
 		return 0
 	case TextAlignCenter:
-		if haveBounds {
-			return bounds.X + bounds.W/2
+		if layout.HaveInkBounds {
+			return layout.InkBounds.X + layout.InkBounds.W/2
 		}
-		return metrics.W / 2
+		return layout.Width / 2
 	default:
-		if haveBounds {
-			return bounds.X + bounds.W
+		if layout.HaveInkBounds {
+			return layout.InkBounds.X + layout.InkBounds.W
 		}
-		return metrics.W
+		return layout.Width
 	}
 }
 
-func tickLabelLeftOffsetForRightAxis(hAlign TextAlign, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
+func tickLabelLeftOffsetForRightAxis(hAlign TextAlign, layout singleLineTextLayout) float64 {
 	switch hAlign {
 	case TextAlignRight:
-		if haveBounds {
-			return bounds.X + bounds.W
+		if layout.HaveInkBounds {
+			return layout.InkBounds.X + layout.InkBounds.W
 		}
-		return metrics.W
+		return layout.Width
 	case TextAlignCenter:
-		if haveBounds {
-			return bounds.X + bounds.W/2
+		if layout.HaveInkBounds {
+			return layout.InkBounds.X + layout.InkBounds.W/2
 		}
-		return metrics.W / 2
+		return layout.Width / 2
 	default:
-		if haveBounds {
-			return bounds.X
+		if layout.HaveInkBounds {
+			return layout.InkBounds.X
 		}
 		return 0
 	}
 }
 
-func tickLabelRotationAnchor(origin geom.Pt, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) geom.Pt {
+func tickLabelRotationAnchor(origin geom.Pt, layout singleLineTextLayout) geom.Pt {
 	left := origin.X
-	if haveBounds {
-		left += bounds.X
+	if layout.HaveInkBounds {
+		left += layout.InkBounds.X
 	}
-	width := tickLabelWidth(metrics, bounds, haveBounds)
-	top := origin.Y + bounds.Y
-	if !haveBounds {
-		top = origin.Y - metrics.Ascent
+	width := tickLabelWidth(layout)
+	top := origin.Y + layout.InkBounds.Y
+	if !layout.HaveInkBounds {
+		top = origin.Y - layout.Ascent
 	}
-	return geom.Pt{X: left + width/2, Y: top + tickLabelHeight(metrics, bounds, haveBounds)}
+	return geom.Pt{X: left + width/2, Y: top + tickLabelHeight(layout)}
 }
 
-func tickLabelWidth(metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
-	if haveBounds && bounds.W > 0 {
-		return bounds.W
+func tickLabelWidth(layout singleLineTextLayout) float64 {
+	if layout.HaveInkBounds && layout.InkBounds.W > 0 {
+		return layout.InkBounds.W
 	}
-	return metrics.W
+	return layout.Width
 }
 
-func tickLabelHeight(metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) float64 {
-	if haveBounds && bounds.H > 0 {
-		return bounds.H
+func tickLabelHeight(layout singleLineTextLayout) float64 {
+	if layout.HaveInkBounds && layout.InkBounds.H > 0 {
+		return layout.InkBounds.H
 	}
-	return metrics.H
+	return layout.Height
 }
 
 func resolvedTickLabelAlignments(side AxisSide, style TickLabelStyle, isXAxis bool) (TextAlign, TextVerticalAlign) {
@@ -839,6 +811,14 @@ func resolvedTickLabelAlignments(side AxisSide, style TickLabelStyle, isXAxis bo
 	default:
 		return TextAlignCenter, TextVAlignMiddle
 	}
+}
+
+func resolvedTickLabelLayoutAlignments(side AxisSide, style TickLabelStyle, isXAxis bool) (TextAlign, textLayoutVerticalAlign) {
+	hAlign, vAlign := resolvedTickLabelAlignments(side, style, isXAxis)
+	if isXAxis {
+		return hAlign, layoutVerticalAlign(vAlign, false)
+	}
+	return hAlign, layoutVerticalAlign(vAlign, true)
 }
 
 func defaultTickLabelStyle() TickLabelStyle {
