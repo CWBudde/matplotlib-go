@@ -3,6 +3,7 @@ package core
 import (
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
+	"matplotlib-go/style"
 )
 
 // Grid renders grid lines at tick positions.
@@ -24,14 +25,17 @@ type Grid struct {
 
 // NewGrid creates a new grid for the specified axis.
 func NewGrid(axis AxisSide) *Grid {
+	rc := style.Default
 	return &Grid{
-		Axis:      axis,
-		Color:     render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}, // light gray
-		LineWidth: 0.5,
-		Alpha:     0, // use Color.A
-		Major:     true,
-		Minor:     false,
-		z:         -1000, // behind everything else
+		Axis:           axis,
+		Color:          rc.GridColor,
+		LineWidth:      rc.GridLineWidth,
+		MinorColor:     rc.MinorGridColor,
+		MinorLineWidth: rc.MinorGridLineWidth,
+		Alpha:          0, // use Color.A
+		Major:          true,
+		Minor:          false,
+		z:              -1000, // behind everything else
 	}
 }
 

@@ -96,15 +96,18 @@ type Axes struct {
 
 	shareX *Axes
 	shareY *Axes
+	figure *Figure
 }
 
 // AddAxes appends an Axes to the Figure. If opts are provided, the Axes gets its
 // own RC copy; otherwise it inherits from the Figure.
 func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 	var rc *style.RC
+	effective := f.RC
 	if len(opts) > 0 {
 		v := style.Apply(f.RC, opts...)
 		rc = &v
+		effective = v
 	}
 	ax := &Axes{
 		RectFraction: r,
@@ -114,8 +117,10 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 		XAxis:        NewXAxis(),
 		YAxis:        NewYAxis(),
 		ShowFrame:    true,
-		ColorCycle:   color.NewDefaultColorCycle(),
+		ColorCycle:   color.NewColorCycle(effective.Palette()),
+		figure:       f,
 	}
+	ax.applyStyleDefaults(effective)
 	f.Children = append(f.Children, ax)
 	return ax
 }
@@ -215,6 +220,11 @@ func (a *Axes) AutoScale(margin float64) {
 // AddGrid adds grid lines for the specified axis.
 func (a *Axes) AddGrid(axis AxisSide) *Grid {
 	grid := NewGrid(axis)
+	rc := a.resolvedRC()
+	grid.Color = rc.GridColor
+	grid.LineWidth = rc.GridLineWidth
+	grid.MinorColor = rc.MinorGridColor
+	grid.MinorLineWidth = rc.MinorGridLineWidth
 	a.Add(grid)
 	return grid
 }
@@ -241,7 +251,7 @@ func (a *Axes) SetYLabel(label string) { a.YLabel = label }
 // NextColor returns the next color in the axes color cycle.
 func (a *Axes) NextColor() render.Color {
 	if a.ColorCycle == nil {
-		a.ColorCycle = color.NewDefaultColorCycle()
+		a.ColorCycle = color.NewColorCycle(a.resolvedRC().Palette())
 	}
 	return a.ColorCycle.Next()
 }
@@ -249,7 +259,7 @@ func (a *Axes) NextColor() render.Color {
 // PeekColor returns the current color without advancing the cycle.
 func (a *Axes) PeekColor() render.Color {
 	if a.ColorCycle == nil {
-		a.ColorCycle = color.NewDefaultColorCycle()
+		a.ColorCycle = color.NewColorCycle(a.resolvedRC().Palette())
 	}
 	return a.ColorCycle.Peek()
 }
@@ -330,7 +340,37 @@ func (a *Axes) effectiveRC(f *Figure) style.RC {
 	if a.RC != nil {
 		return *a.RC
 	}
+	if a.figure != nil {
+		return a.figure.RC
+	}
+	if f == nil {
+		return style.Default
+	}
 	return f.RC
+}
+
+func (a *Axes) resolvedRC() style.RC {
+	if a == nil {
+		return style.Default
+	}
+	return a.effectiveRC(a.figure)
+}
+
+func (a *Axes) applyStyleDefaults(rc style.RC) {
+	if a == nil {
+		return
+	}
+	if a.XAxis != nil {
+		a.XAxis.Color = rc.AxesEdgeColor
+		a.XAxis.LineWidth = rc.AxisLineWidth
+	}
+	if a.YAxis != nil {
+		a.YAxis.Color = rc.AxesEdgeColor
+		a.YAxis.LineWidth = rc.AxisLineWidth
+	}
+	if a.ColorCycle == nil {
+		a.ColorCycle = color.NewColorCycle(rc.Palette())
+	}
 }
 
 // DrawFigure performs a traversal and draws the figure into the renderer.
@@ -353,6 +393,12 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			},
 			RC:   ax.effectiveRC(fig),
 			Clip: px,
+		}
+
+		if ctx.RC.AxesBackground != fig.RC.FigureBackground() {
+			r.Path(pixelRectPath(px), &render.Paint{
+				Fill: ctx.RC.AxesBackground,
+			})
 		}
 
 		// Draw only clipped content (data and grids) while the axes clip is active.
@@ -427,7 +473,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 		return
 	}
 
-	labelColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+	labelColor := ctx.RC.DefaultTextColor()
 	titleSize := titleFontSize(ctx)
 	labelSize := ctx.RC.FontSize * 0.97
 	if labelSize < 8 {

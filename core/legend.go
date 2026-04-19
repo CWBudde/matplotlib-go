@@ -5,6 +5,7 @@ import (
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
+	"matplotlib-go/style"
 )
 
 // LegendLocation controls where the legend box is anchored inside the axes.
@@ -68,6 +69,10 @@ type Legend struct {
 
 // NewLegend creates a legend bound to the provided axes.
 func NewLegend(ax *Axes) *Legend {
+	rc := style.Default
+	if ax != nil {
+		rc = ax.resolvedRC()
+	}
 	return &Legend{
 		Axes:            ax,
 		Location:        LegendUpperRight,
@@ -77,9 +82,9 @@ func NewLegend(ax *Axes) *Legend {
 		SampleWidth:     24,
 		SampleTextGap:   8,
 		CornerRadius:    0,
-		BackgroundColor: render.Color{R: 1, G: 1, B: 1, A: 0.9},
-		BorderColor:     render.Color{R: 0.2, G: 0.2, B: 0.2, A: 0.7},
-		TextColor:       render.Color{R: 0.1, G: 0.1, B: 0.1, A: 1},
+		BackgroundColor: rc.LegendBackground,
+		BorderColor:     rc.LegendBorderColor,
+		TextColor:       rc.LegendTextColor,
 		BorderWidth:     1,
 		z:               1_000,
 	}

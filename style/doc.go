@@ -1,4 +1,2 @@
-// Package style defines global defaults (rc-like) and options.
-//
-// Phase A: scaffold only. Implementations arrive in Phase F per TASKS.md.
+// Package style defines rc-like defaults, named themes, and palette presets.
 package style

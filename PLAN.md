@@ -250,10 +250,10 @@ core.SavePNG(fig, r, "output.png")
 
 ### 5.3 Styling and Themes
 
-- [ ] Style sheets and themes
-- [ ] Color palettes and defaults
-- [ ] Publication-ready themes
-- [ ] Example: `examples/styling/themes.go`
+- [x] Style sheets and themes
+- [x] Color palettes and defaults
+- [x] Publication-ready themes
+- [x] Example: `examples/styling/themes.go`
 
 **Exit Criteria:**
 

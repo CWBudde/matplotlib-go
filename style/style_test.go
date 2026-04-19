@@ -1,6 +1,10 @@
 package style
 
-import "testing"
+import (
+	"testing"
+
+	"matplotlib-go/render"
+)
 
 func TestDefaults(t *testing.T) {
 	d := Default
@@ -9,6 +13,9 @@ func TestDefaults(t *testing.T) {
 	}
 	if d.TickCountX != 5 || d.TickCountY != 5 {
 		t.Fatalf("unexpected tick defaults: %+v", d)
+	}
+	if len(d.ColorCycle) == 0 {
+		t.Fatalf("expected default color cycle")
 	}
 }
 
@@ -21,6 +28,12 @@ func TestOptionsApplyAndOrder(t *testing.T) {
 		WithLineColor(0.5, 0.6, 0.7, 0.8),
 		WithBackground(0.9, 0.9, 0.9, 1.0),
 		WithTickCounts(7, 9),
+		WithAxesBackground(render.Color{R: 0.95, G: 0.95, B: 0.95, A: 1}),
+		WithAxesEdgeColor(render.Color{R: 0.2, G: 0.2, B: 0.2, A: 1}),
+		WithAxisLineWidth(0.75),
+		WithGridColors(render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}, render.Color{R: 0.9, G: 0.9, B: 0.9, A: 1}),
+		WithGridLineWidths(1.1, 0.6),
+		WithLegendColors(render.Color{R: 1, G: 1, B: 1, A: 1}, render.Color{R: 0, G: 0, B: 0, A: 0.2}, render.Color{R: 0.1, G: 0.1, B: 0.1, A: 1}),
 	)
 	if rc.DPI != 144 || rc.FontKey != "TestFont" || rc.FontSize != 14 {
 		t.Fatalf("font/dpi options not applied: %+v", rc)
@@ -30,6 +43,9 @@ func TestOptionsApplyAndOrder(t *testing.T) {
 	}
 	if rc.TickCountX != 7 || rc.TickCountY != 9 {
 		t.Fatalf("tick counts not applied: %+v", rc)
+	}
+	if rc.AxisLineWidth != 0.75 || rc.GridLineWidth != 1.1 || rc.MinorGridLineWidth != 0.6 {
+		t.Fatalf("theme widths not applied: %+v", rc)
 	}
 
 	// Order: last wins
@@ -55,5 +71,38 @@ func TestPrecedence_SimulatedFigureAxes(t *testing.T) {
 	// Inherit defaults for untouched fields
 	if axRC.LineWidth != Default.LineWidth {
 		t.Fatalf("expected default line width inherit, got %v", axRC.LineWidth)
+	}
+}
+
+func TestThemeLookupAndApply(t *testing.T) {
+	theme, ok := GetTheme("publication")
+	if !ok {
+		t.Fatalf("expected publication theme to be registered")
+	}
+	if theme.Name != "publication" {
+		t.Fatalf("unexpected theme name: %q", theme.Name)
+	}
+
+	rc := Apply(Default, WithTheme(theme), WithFont("Custom", 12))
+	if rc.DPI != ThemePublication.RC.DPI {
+		t.Fatalf("expected theme DPI, got %v", rc.DPI)
+	}
+	if rc.FontKey != "Custom" || rc.FontSize != 12 {
+		t.Fatalf("expected explicit override after theme, got %+v", rc)
+	}
+	if got, want := rc.Palette()[0], ThemePublication.RC.Palette()[0]; got != want {
+		t.Fatalf("unexpected palette head: got %+v want %+v", got, want)
+	}
+}
+
+func TestAvailableThemesSorted(t *testing.T) {
+	names := AvailableThemes()
+	if len(names) < 3 {
+		t.Fatalf("expected builtin themes, got %v", names)
+	}
+	for i := 1; i < len(names); i++ {
+		if names[i-1] > names[i] {
+			t.Fatalf("themes not sorted: %v", names)
+		}
 	}
 }

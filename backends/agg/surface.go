@@ -17,7 +17,6 @@ type aggSurface struct {
 	textResolution uint
 	textHinting    bool
 	textForceAuto  bool
-	textHintFactor uint
 	textRoundOff   bool
 	textReady      bool
 }
@@ -33,13 +32,12 @@ func newAggSurface(w, h int) *aggSurface {
 	painter.ClipBox(0, 0, float64(w), float64(h))
 
 	return &aggSurface{
-		image:          img,
-		textContext:    textContext,
-		painter:        painter,
-		textHinting:    true,
-		textForceAuto:  true,
-		textHintFactor: 1,
-		textRoundOff:   false,
+		image:         img,
+		textContext:   textContext,
+		painter:       painter,
+		textHinting:   true,
+		textForceAuto: true,
+		textRoundOff:  false,
 	}
 }
 
@@ -219,7 +217,6 @@ func (s *aggSurface) ConfigureTextFont(fontPath string, size float64, resolution
 	s.textContext.FlipText(true)
 	s.textContext.TextHints(s.textHinting)
 	s.textContext.TextForceAutohint(s.textForceAuto)
-	s.textContext.TextHintingFactor(s.textHintFactor)
 	if err := s.textContext.Font(fontPath, size, false, false, agglib.RasterFontCache, 0); err != nil {
 		s.textReady = false
 		return err

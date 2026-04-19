@@ -117,7 +117,7 @@ func (a *Axes) Text(x, y float64, text string, opts ...TextOptions) *Text {
 		Position: geom.Pt{X: x, Y: y},
 		Content:  text,
 		FontSize: opt.FontSize,
-		Color:    defaultTextColor(opt.Color),
+		Color:    opt.Color,
 		HAlign:   opt.HAlign,
 		VAlign:   opt.VAlign,
 		z:        500,
@@ -154,8 +154,8 @@ func (a *Axes) Annotate(text string, x, y float64, opts ...AnnotationOptions) *A
 		OffsetX:       opt.OffsetX,
 		OffsetY:       opt.OffsetY,
 		FontSize:      opt.FontSize,
-		Color:         defaultTextColor(opt.Color),
-		ArrowColor:    defaultArrowColor(opt.ArrowColor, opt.Color),
+		Color:         opt.Color,
+		ArrowColor:    opt.ArrowColor,
 		ArrowWidth:    opt.ArrowWidth,
 		ArrowHeadSize: opt.ArrowHeadSize,
 		HAlign:        annotationHAlign(opt),
@@ -186,7 +186,7 @@ func (t *Text) Draw(r render.Renderer, ctx *DrawContext) {
 	anchor := ctx.DataToPixel.Apply(t.Position)
 	metrics := r.MeasureText(content, fontSize, ctx.RC.FontKey)
 	origin := alignedTextOrigin(anchor, metrics, t.HAlign, t.VAlign)
-	textRen.DrawText(content, origin, fontSize, defaultTextColor(t.Color))
+	textRen.DrawText(content, origin, fontSize, resolvedTextColor(t.Color, ctx))
 }
 
 // Bounds returns an empty rect so labels do not affect autoscaling.
@@ -234,14 +234,14 @@ func (a *Annotation) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	if len(head.C) > 0 {
 		r.Path(head, &render.Paint{
 			Fill:      defaultArrowColor(a.ArrowColor, a.Color),
-			Stroke:    defaultArrowColor(a.ArrowColor, a.Color),
+			Stroke:    resolvedArrowColor(a.ArrowColor, a.Color, ctx),
 			LineWidth: a.ArrowWidth,
 			LineJoin:  render.JoinRound,
 			LineCap:   render.CapRound,
 		})
 	}
 
-	textRen.DrawText(content, origin, fontSize, defaultTextColor(a.Color))
+	textRen.DrawText(content, origin, fontSize, resolvedTextColor(a.Color, ctx))
 }
 
 // Bounds returns an empty rect so annotations do not affect autoscaling.
@@ -255,7 +255,14 @@ func normalizeDisplayText(text string) string {
 }
 
 func defaultTextColor(c render.Color) render.Color {
+	return resolvedTextColor(c, nil)
+}
+
+func resolvedTextColor(c render.Color, ctx *DrawContext) render.Color {
 	if c == (render.Color{}) {
+		if ctx != nil {
+			return ctx.RC.DefaultTextColor()
+		}
 		return render.Color{R: 0, G: 0, B: 0, A: 1}
 	}
 	if c.A == 0 && (c.R != 0 || c.G != 0 || c.B != 0) {
@@ -265,8 +272,12 @@ func defaultTextColor(c render.Color) render.Color {
 }
 
 func defaultArrowColor(arrow, text render.Color) render.Color {
+	return resolvedArrowColor(arrow, text, nil)
+}
+
+func resolvedArrowColor(arrow, text render.Color, ctx *DrawContext) render.Color {
 	if arrow == (render.Color{}) {
-		return defaultTextColor(text)
+		return resolvedTextColor(text, ctx)
 	}
 	if arrow.A == 0 && (arrow.R != 0 || arrow.G != 0 || arrow.B != 0) {
 		arrow.A = 1
