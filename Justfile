@@ -42,6 +42,13 @@ test:
 test-skia:
     CGO_ENABLED=1 go test -tags "skia freetype" ./...
 
+golden-update TEST="":
+    if [ -n "{{TEST}}" ]; then \
+      CGO_ENABLED=1 go test -tags freetype -count=1 -run "{{TEST}}" ./test -update-golden; \
+    else \
+      CGO_ENABLED=1 go test -tags freetype -count=1 -run '^Test.*_Golden$$' ./test -update-golden; \
+    fi
+
 backend-info:
     @go run ./examples/backends/info/main.go 2>/dev/null || echo "Backend info example not yet available"
 

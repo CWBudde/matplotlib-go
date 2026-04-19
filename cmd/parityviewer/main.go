@@ -22,6 +22,8 @@ import (
 )
 
 const goldenUpdateBuildTag = "freetype"
+const rerenderAllButtonPlaceholder = "__RERENDER_ALL_BUTTON__"
+const goldenUpdateRunPatternAll = "^Test.*_Golden$"
 
 type caseEntry struct {
 	Suite       string
@@ -47,6 +49,11 @@ type loadResult struct {
 	Cases         []caseEntry
 	ComparedCount int
 	SkippedCount  int
+}
+
+type viewOptions struct {
+	CanRerender         bool
+	RerenderDisabledMsg string
 }
 
 type metrics struct {
@@ -87,13 +94,16 @@ func main() {
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		result, err := loadCases(*parityDir != "", parDir, baseDir, artDir, *nameFilter, *namePrefix)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("load parity cases: %v", err), http.StatusInternalServerError)
 			return
 		}
-		renderPage(w, result)
+		renderPage(w, result, buildViewOptions(*parityDir != "", root, artDir))
 	})
 	http.HandleFunc("/rerender", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -106,6 +116,10 @@ func main() {
 		}
 
 		if r.FormValue("all") == "1" {
+			if err := ensureRerenderSupported(*parityDir != "", root, artDir); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 			if err := rerenderAllArtifacts(root); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -117,6 +131,10 @@ func main() {
 		name := strings.TrimSpace(r.FormValue("name"))
 		if name == "" {
 			http.Error(w, "missing name parameter", http.StatusBadRequest)
+			return
+		}
+		if err := ensureRerenderSupported(*parityDir != "", root, artDir); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if err := rerenderArtifact(root, name); err != nil {
@@ -140,6 +158,35 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
+func buildViewOptions(useParity bool, repoRoot, artifactDir string) viewOptions {
+	if useParity {
+		return viewOptions{
+			CanRerender:         false,
+			RerenderDisabledMsg: "Re-render is disabled in --parity-dir mode because the button only regenerates ./test goldens.",
+		}
+	}
+	defaultArtifactDir := filepath.Join(repoRoot, "testdata", "golden")
+	if !samePath(defaultArtifactDir, artifactDir) {
+		return viewOptions{
+			CanRerender:         false,
+			RerenderDisabledMsg: fmt.Sprintf("Re-render is disabled because the viewer is reading artifacts from %s, but rerender only updates %s.", artifactDir, defaultArtifactDir),
+		}
+	}
+	return viewOptions{CanRerender: true}
+}
+
+func ensureRerenderSupported(useParity bool, repoRoot, artifactDir string) error {
+	opts := buildViewOptions(useParity, repoRoot, artifactDir)
+	if opts.CanRerender {
+		return nil
+	}
+	return errors.New(opts.RerenderDisabledMsg)
+}
+
+func samePath(a, b string) bool {
+	return filepath.Clean(a) == filepath.Clean(b)
+}
+
 func rerenderArtifact(repoRoot, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -149,7 +196,7 @@ func rerenderArtifact(repoRoot, name string) error {
 }
 
 func rerenderAllArtifacts(repoRoot string) error {
-	return runGoGoldenUpdate(repoRoot, "")
+	return runGoGoldenUpdate(repoRoot, goldenUpdateRunPatternAll)
 }
 
 func runGoGoldenUpdate(repoRoot, runPattern string) error {
@@ -176,11 +223,11 @@ func runGoGoldenUpdate(repoRoot, runPattern string) error {
 }
 
 func newGoldenUpdateCommand(repoRoot, runPattern string) *exec.Cmd {
-	args := []string{"test", "-tags", goldenUpdateBuildTag, "-count", "1", "-update-golden"}
+	args := []string{"test", "-tags", goldenUpdateBuildTag, "-count", "1"}
 	if runPattern != "" {
 		args = append(args, "-run", runPattern)
 	}
-	args = append(args, "./test")
+	args = append(args, "./test", "-update-golden")
 
 	cmd := exec.Command("go", args...)
 	cmd.Dir = repoRoot
@@ -676,8 +723,8 @@ func compositePixel(r, g, b, a uint8, bg color.RGBA) color.RGBA {
 	}
 }
 
-func renderPage(w io.Writer, result loadResult) {
-	fmt.Fprint(w, pageHeader)
+func renderPage(w io.Writer, result loadResult, opts viewOptions) {
+	fmt.Fprint(w, strings.Replace(pageHeader, rerenderAllButtonPlaceholder, buildRerenderAllButton(opts), 1))
 	fmt.Fprintf(
 		w,
 		`<div class="header-meta">%d comparisons loaded`,
@@ -686,11 +733,14 @@ func renderPage(w io.Writer, result loadResult) {
 	if result.SkippedCount > 0 {
 		fmt.Fprintf(w, `, %d baselines skipped because no matching artifact exists`, result.SkippedCount)
 	}
+	if !opts.CanRerender && opts.RerenderDisabledMsg != "" {
+		fmt.Fprintf(w, ` <span class="header-warning">%s</span>`, htmlEscape(opts.RerenderDisabledMsg))
+	}
 	fmt.Fprint(w, `.</div></div>`)
 
 	fmt.Fprint(w, `<div class="container" id="cards-container">`)
 	for i := range result.Cases {
-		renderCard(w, &result.Cases[i])
+		renderCard(w, &result.Cases[i], opts)
 	}
 	if len(result.Cases) == 0 {
 		fmt.Fprint(w, `<div class="empty-state">No parity comparisons found. Point --baseline-dir/--artifact-dir at existing PNG sets.</div>`)
@@ -698,7 +748,17 @@ func renderPage(w io.Writer, result loadResult) {
 	fmt.Fprint(w, pageFooter)
 }
 
-func renderCard(w io.Writer, entry *caseEntry) {
+func buildRerenderAllButton(opts viewOptions) string {
+	if opts.CanRerender {
+		return `<button id="rerender-all-btn" class="rerender-btn" type="button">Re-render Artifacts</button>`
+	}
+	return fmt.Sprintf(
+		`<button id="rerender-all-btn" class="rerender-btn" type="button" disabled title="%s">Re-render Artifacts</button>`,
+		htmlEscape(opts.RerenderDisabledMsg),
+	)
+}
+
+func renderCard(w io.Writer, entry *caseEntry, opts viewOptions) {
 	if entry == nil {
 		return
 	}
@@ -718,12 +778,22 @@ func renderCard(w io.Writer, entry *caseEntry) {
 	fmt.Fprint(w, `<div class="card-header">`)
 	fmt.Fprint(w, `<span class="badge badge-neutral sort-metric-badge" style="display:none"></span>`)
 	fmt.Fprintf(w, `<span class="card-title">%s</span>`, htmlEscape(entry.Name))
-	fmt.Fprintf(
-		w,
-		`<button class="rerender-btn" data-suite="%s" data-name="%s" type="button">Re-render Artifact</button>`,
-		htmlEscape(entry.Suite),
-		htmlEscape(entry.Name),
-	)
+	if opts.CanRerender {
+		fmt.Fprintf(
+			w,
+			`<button class="rerender-btn" data-suite="%s" data-name="%s" type="button">Re-render Artifact</button>`,
+			htmlEscape(entry.Suite),
+			htmlEscape(entry.Name),
+		)
+	} else {
+		fmt.Fprintf(
+			w,
+			`<button class="rerender-btn" data-suite="%s" data-name="%s" type="button" disabled title="%s">Re-render Artifact</button>`,
+			htmlEscape(entry.Suite),
+			htmlEscape(entry.Name),
+			htmlEscape(opts.RerenderDisabledMsg),
+		)
+	}
 	fmt.Fprint(w, `<div class="right-badges">`)
 	fmt.Fprintf(w, `<span class="badge badge-neutral">%s</span>`, htmlEscape(entry.Suite))
 	fmt.Fprintf(w, `<span class="badge badge-neutral">%s</span>`, htmlEscape(entry.Baseline))
@@ -924,7 +994,7 @@ code { color: #f4f7fb; }
       <option value="smooth">Scaling: smooth</option>
       <option value="pixelated">Scaling: pixelated</option>
     </select>
-    <button id="rerender-all-btn" class="rerender-btn" type="button">Re-render Artifacts</button>
+    __RERENDER_ALL_BUTTON__
     <label><input type="checkbox" id="original-size" onchange="setOriginalSize(this.checked)"> Original size</label>
     <span id="summary"></span>
   </div>
@@ -1134,6 +1204,12 @@ const pageFooter = `</div>
     });
   }
 
+  function navigateToFreshPage() {
+    var url = new URL(window.location.href);
+    url.searchParams.set('_pv', String(Date.now()));
+    window.location.assign(url.toString());
+  }
+
   document.querySelectorAll('.card-header').forEach(function(header) {
     header.addEventListener('click', function() {
       header.closest('.card').classList.toggle('open');
@@ -1152,7 +1228,7 @@ const pageFooter = `</div>
       saveViewerState();
       setRerenderButtonsDisabled(true);
       rerenderArtifact(name).then(function() {
-        window.location.reload();
+        navigateToFreshPage();
       }).catch(function(err) {
         window.alert(err.message);
         setRerenderButtonsDisabled(false);
@@ -1172,7 +1248,7 @@ const pageFooter = `</div>
       chain = chain.then(function() { return rerenderArtifact(name); });
     });
     chain.then(function() {
-      window.location.reload();
+      navigateToFreshPage();
     }).catch(function(err) {
       window.alert(err.message);
       setRerenderButtonsDisabled(false);

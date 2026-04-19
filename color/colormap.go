@@ -8,6 +8,7 @@ import (
 )
 
 // ColorStop defines a point in a piecewise-linear colormap.
+// Colors are interpolated component-wise in render.Color space.
 type ColorStop struct {
 	Pos float64
 	Color render.Color
@@ -25,6 +26,7 @@ func (c Colormap) Name() string {
 }
 
 // At returns a color for normalized input t in [0,1].
+// Interpolation is component-wise in normalized render.Color space.
 func (c Colormap) At(t float64) render.Color {
 	if len(c.stops) == 0 {
 		return render.Color{R: 0, G: 0, B: 0, A: 1}

@@ -66,3 +66,23 @@ func TestNullRenderer_BeginEndOrder(t *testing.T) {
 		t.Fatalf("end: %v", err)
 	}
 }
+
+func TestColorPremultiply(t *testing.T) {
+	c := Color{R: 0.3, G: 0.7, B: 0.9, A: 0.6}
+
+	got := c.Premultiply()
+	want := Color{R: 0.18, G: 0.42, B: 0.54, A: 0.6}
+
+	if got != want {
+		t.Fatalf("Premultiply() = %+v, want %+v", got, want)
+	}
+}
+
+func TestColorToPremultipliedRGBA(t *testing.T) {
+	c := Color{R: 0.3, G: 0.7, B: 0.9, A: 0.6}
+
+	r, g, b, a := c.ToPremultipliedRGBA()
+	if r != 46 || g != 107 || b != 138 || a != 153 {
+		t.Fatalf("ToPremultipliedRGBA() = (%d,%d,%d,%d), want (46,107,138,153)", r, g, b, a)
+	}
+}

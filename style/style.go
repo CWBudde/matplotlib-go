@@ -54,17 +54,17 @@ func WithFont(key string, size float64) Option {
 // WithLineWidth sets the default line width.
 func WithLineWidth(w float64) Option { return func(rc *RC) { rc.LineWidth = w } }
 
-// WithTextColor sets the default text color RGBA (0..1).
+// WithTextColor sets the default text color as normalized sRGBA (0..1).
 func WithTextColor(r, g, b, a float64) Option {
 	return func(rc *RC) { rc.TextColor = [4]float64{r, g, b, a} }
 }
 
-// WithLineColor sets the default stroke color RGBA (0..1).
+// WithLineColor sets the default stroke color as normalized sRGBA (0..1).
 func WithLineColor(r, g, b, a float64) Option {
 	return func(rc *RC) { rc.LineColor = [4]float64{r, g, b, a} }
 }
 
-// WithBackground sets the default background color RGBA (0..1).
+// WithBackground sets the default background color as normalized sRGBA (0..1).
 func WithBackground(r, g, b, a float64) Option {
 	return func(rc *RC) { rc.Background = [4]float64{r, g, b, a} }
 }

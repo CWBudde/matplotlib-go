@@ -36,11 +36,18 @@ const (
 	CapSquare
 )
 
-// Color is a simple RGBA in linear [0..1].
+// Color is a normalized sRGBA tuple in [0..1].
+//
+// In this codebase, callers generally provide plotting-style colors directly
+// (for example Matplotlib face/edge tuples), so these channels are interpreted
+// as display-encoded sRGB values with straight alpha unless a backend states
+// otherwise.
 type Color struct{ R, G, B, A float64 }
 
 // Premultiply returns a color with RGB components premultiplied by alpha.
-// This ensures consistent blending behavior across backends.
+//
+// The operation is applied to the stored channel values as-is. It does not
+// perform any transfer-curve conversion.
 func (c Color) Premultiply() Color {
 	return Color{
 		R: c.R * c.A,
@@ -50,8 +57,8 @@ func (c Color) Premultiply() Color {
 	}
 }
 
-// ToPremultipliedRGBA converts to image/color.RGBA with premultiplied alpha.
-// This is the preferred conversion for deterministic rendering.
+// ToPremultipliedRGBA converts normalized sRGBA values to 8-bit premultiplied
+// RGBA suitable for raster backends in this repository.
 func (c Color) ToPremultipliedRGBA() (uint8, uint8, uint8, uint8) {
 	premul := c.Premultiply()
 	return uint8(premul.R*255 + 0.5),

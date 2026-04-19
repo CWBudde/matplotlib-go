@@ -531,7 +531,8 @@ func (r *Renderer) SavePNG(path string) error {
 	return png.Encode(file, img)
 }
 
-// renderColorToAGG converts a render.Color (linear float64 0..1) to an agg.Color (uint8 0..255).
+// renderColorToAGG converts a normalized render.Color to AGG's 8-bit SRGBA
+// color type without applying any transfer-curve conversion.
 func renderColorToAGG(c render.Color) agglib.Color {
 	return agglib.NewColor(
 		uint8(math.Round(clamp01(c.R)*255)),

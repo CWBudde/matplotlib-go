@@ -34,7 +34,9 @@ This quantization is applied to:
 
 ### Premultiplied Alpha
 
-All colors are converted to premultiplied alpha format before rasterization to ensure consistent blending behavior:
+`render.Color` values in this repository are normalized sRGBA tuples. Raster
+backends convert those stored channel values to premultiplied 8-bit RGBA before
+rasterization to ensure consistent blending behavior:
 
 ```go
 func (c Color) ToPremultipliedRGBA() (uint8, uint8, uint8, uint8) {
@@ -46,7 +48,9 @@ func (c Color) ToPremultipliedRGBA() (uint8, uint8, uint8, uint8) {
 }
 ```
 
-The `+ 0.5` addition provides proper rounding when converting from float64 to uint8.
+The `+ 0.5` addition provides proper rounding when converting from float64 to
+uint8. This path intentionally does not apply a separate linear-light transfer
+curve; changing that would alter existing golden images and Matplotlib parity.
 
 ### Dependency Pinning
 

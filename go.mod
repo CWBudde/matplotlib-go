@@ -13,8 +13,6 @@ require (
 	github.com/cwbudde/agg_go v0.2.23
 )
 
-replace github.com/cwbudde/agg_go => ../agg_go
-
 require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect

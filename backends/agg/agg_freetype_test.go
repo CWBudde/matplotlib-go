@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
 )
 
 func TestUsesDejaVuSansWithoutFallback(t *testing.T) {
@@ -71,13 +72,15 @@ func TestRasterTextWidthTracksRendererDPI(t *testing.T) {
 }
 
 func TestTrailingSpaceDoesNotRenderDuplicateGlyph(t *testing.T) {
+	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+
 	renderText := func(text string) []byte {
 		r := mustNew(t, 160, 80)
 		viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 160, Y: 80}}
 		if err := r.Begin(viewport); err != nil {
 			t.Fatalf("Begin failed: %v", err)
 		}
-		r.DrawText(text, geom.Pt{X: 20, Y: 42}, 24, white)
+		r.DrawText(text, geom.Pt{X: 20, Y: 42}, 24, textColor)
 		if err := r.End(); err != nil {
 			t.Fatalf("End failed: %v", err)
 		}
@@ -89,5 +92,35 @@ func TestTrailingSpaceDoesNotRenderDuplicateGlyph(t *testing.T) {
 	withTrailingSpace := renderText("x ")
 	if !bytes.Equal(withoutTrailingSpace, withTrailingSpace) {
 		t.Fatal("expected trailing space to add no ink; raster text appears to replay the previous glyph")
+	}
+}
+
+func TestInternalSpaceDoesNotReplayPreviousGlyph(t *testing.T) {
+	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+
+	renderText := func(text string) []byte {
+		r := mustNew(t, 320, 80)
+		viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 320, Y: 80}}
+		if err := r.Begin(viewport); err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+		r.DrawText(text, geom.Pt{X: 20, Y: 42}, 24, textColor)
+		if err := r.End(); err != nil {
+			t.Fatalf("End failed: %v", err)
+		}
+		return r.GetImage().Pix
+	}
+
+	withSingleSpace := append([]byte(nil), renderText("Histogram Strategies")...)
+	withoutSpace := append([]byte(nil), renderText("HistogramStrategies")...)
+	withDoubleLetter := append([]byte(nil), renderText("HistogrammStrategies")...)
+
+	eqNoSpace := bytes.Equal(withSingleSpace, withoutSpace)
+	eqDoubleLetter := bytes.Equal(withSingleSpace, withDoubleLetter)
+	if eqNoSpace || eqDoubleLetter {
+		t.Fatalf(
+			"internal-space rendering collapsed unexpectedly: equals_no_space=%v equals_double_letter=%v",
+			eqNoSpace, eqDoubleLetter,
+		)
 	}
 }
