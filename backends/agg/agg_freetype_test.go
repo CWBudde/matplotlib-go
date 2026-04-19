@@ -46,7 +46,7 @@ func TestUsesDejaVuSansWithoutFallback(t *testing.T) {
 	}
 }
 
-func TestOutlineTextWidthTracksRendererDPI(t *testing.T) {
+func TestRasterTextWidthTracksRendererDPI(t *testing.T) {
 	r := mustNew(t, 200, 100)
 
 	r.SetResolution(72)

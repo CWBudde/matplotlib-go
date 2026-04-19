@@ -33,3 +33,8 @@ type ImageTransformer interface {
 type PNGExporter interface {
 	SavePNG(path string) error
 }
+
+// SVGExporter is implemented by renderers that can export their output to SVG.
+type SVGExporter interface {
+	SaveSVG(path string) error
+}

@@ -15,6 +15,7 @@ const (
 	GoBasic Backend = "gobasic"
 	AGG     Backend = "agg"
 	Skia    Backend = "skia"
+	SVG     Backend = "svg"
 	// Future backends: PDF, SVG, etc.
 )
 

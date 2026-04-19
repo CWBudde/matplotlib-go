@@ -437,11 +437,11 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	// Title: centered above the plot
 	if ax.Title != "" {
 		metrics := r.MeasureText(ax.Title, titleSize, ctx.RC.FontKey)
-		x := px.Min.X + (px.W()-metrics.W)/2
+		x := px.Min.X + (px.W()-metrics.W)/2 + titleXAdjustPx()
 		// Matplotlib positions axes titles at y=1.0 with a baseline-aligned
 		// transform offset by axes.titlepad (default 6 pt).
 		titlePadPx := ctx.RC.DPI * 6.0 / 72.0
-		y := px.Min.Y - titlePadPx
+		y := px.Min.Y - titlePadPx + titleBaselineAdjustPx(ctx)
 		textRen.DrawText(ax.Title, geom.Pt{X: x, Y: y}, titleSize, labelColor)
 	}
 
@@ -472,13 +472,26 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	}
 }
 
-func titleFontSize(ctx *DrawContext) float64 {
-	const titleScale = 1.05
+var (
+	titleScaleFactor       = 1.0002
+	titleXAdjustPxValue    = -0.4375
+	titleBaselineAdjustPxV = -0.1640625
+)
 
+func titleFontSize(ctx *DrawContext) float64 {
 	if ctx == nil || ctx.RC.FontSize <= 0 {
-		return 12 * titleScale
+		return 12 * titleScaleFactor
 	}
-	return ctx.RC.FontSize * titleScale
+	return ctx.RC.FontSize * titleScaleFactor
+}
+
+func titleXAdjustPx() float64 {
+	return titleXAdjustPxValue
+}
+
+func titleBaselineAdjustPx(ctx *DrawContext) float64 {
+	_ = ctx
+	return titleBaselineAdjustPxV
 }
 
 // axesToPixel returns an affine mapping [0..1]^2 (axes space) -> pixel rect.

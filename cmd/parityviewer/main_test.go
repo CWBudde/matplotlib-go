@@ -76,6 +76,12 @@ func TestPageFooterInitializesSliderAtCenteredPercentage(t *testing.T) {
 	if !strings.Contains(pageFooter, "applyPos(0.5);") {
 		t.Fatalf("pageFooter missing centered slider initialization")
 	}
+	if !strings.Contains(pageFooter, "overlayLayer.style.width = (100 / pct) + '%'") {
+		t.Fatalf("pageFooter missing slider overlay width-lock logic")
+	}
+	if !strings.Contains(pageFooter, "if (pct <= 0) {") {
+		t.Fatalf("pageFooter missing slider overlay zero-percent guard")
+	}
 	if strings.Contains(pageFooter, "setPos(wrap.getBoundingClientRect().width / 2);") {
 		t.Fatalf("pageFooter still initializes slider with width-based clientX")
 	}

@@ -296,25 +296,31 @@ func (h *Hist2D) Draw(r render.Renderer, ctx *DrawContext) {
 		left := h.edges[i]
 		right := h.edges[i+1]
 
-		// Transform corners to pixel space.
-		bl := ctx.DataToPixel.Apply(geom.Pt{X: left, Y: 0})
-		br := ctx.DataToPixel.Apply(geom.Pt{X: right, Y: 0})
-		tr := ctx.DataToPixel.Apply(geom.Pt{X: right, Y: count})
-		tl := ctx.DataToPixel.Apply(geom.Pt{X: left, Y: count})
-
-		path := geom.Path{}
-		path.C = append(path.C, geom.MoveTo, geom.LineTo, geom.LineTo, geom.LineTo, geom.ClosePath)
-		path.V = append(path.V, bl, br, tr, tl)
-
-		paint := render.Paint{Fill: fillColor}
-		if h.EdgeWidth > 0 && edgeColor.A > 0 {
-			paint.Stroke = edgeColor
-			paint.LineWidth = h.EdgeWidth
-			paint.LineJoin = render.JoinMiter
-			paint.LineCap = render.CapSquare
+		px0 := ctx.DataToPixel.Apply(geom.Pt{X: left, Y: 0})
+		px1 := ctx.DataToPixel.Apply(geom.Pt{X: right, Y: count})
+		rect, ok := rectFromPoints(px0, px1)
+		if !ok {
+			continue
 		}
 
-		r.Path(path, &paint)
+		fillPath := snappedFillRectPath(rect)
+		if len(fillPath.C) == 0 {
+			continue
+		}
+		if fillColor.A > 0 {
+			r.Path(fillPath, &render.Paint{Fill: fillColor})
+		}
+		if h.EdgeWidth > 0 && edgeColor.A > 0 {
+			strokePath := snappedStrokeRectPath(rect)
+			if len(strokePath.C) > 0 {
+				r.Path(strokePath, &render.Paint{
+					Stroke:    edgeColor,
+					LineWidth: h.EdgeWidth,
+					LineJoin:  render.JoinMiter,
+					LineCap:   render.CapSquare,
+				})
+			}
+		}
 	}
 }
 

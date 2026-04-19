@@ -62,7 +62,7 @@ func TestTitleFontSizeUsesTitleOnlyCompensation(t *testing.T) {
 	ctx := &DrawContext{RC: style.RC{FontSize: 12}}
 
 	got := titleFontSize(ctx)
-	want := 12.6
+	want := 12.0024
 
 	if math.Abs(got-want) > 1e-9 {
 		t.Fatalf("titleFontSize() = %v, want %v", got, want)

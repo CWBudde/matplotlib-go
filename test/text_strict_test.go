@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	textStrictTolerance  = 1
-	textStrictMinPSNR    = 48.0
-	textStrictMaxMeanAbs = 1.25
+	textStrictTolerance   = 1
+	textStrictMinPSNR     = 48.0
+	textStrictMaxMeanAbs  = 1.25
+	titleStrictTolerance  = 1
+	titleStrictMinPSNR    = 56.0
+	titleStrictMaxMeanAbs = 0.50
 )
 
 func TestTextLabelsStrict_MatplotlibRef(t *testing.T) {
@@ -45,6 +48,40 @@ func TestTextLabelsStrict_MatplotlibRef(t *testing.T) {
 			textStrictMaxMeanAbs,
 			diff.PSNR,
 			textStrictMinPSNR,
+		)
+	}
+}
+
+func TestTitleStrict_MatplotlibRef(t *testing.T) {
+	got := renderTitleStrict()
+	wantPath := filepath.Join("..", "testdata", "matplotlib_ref", "title_strict.png")
+	want, err := imagecmp.LoadPNG(wantPath)
+	if err != nil {
+		t.Fatalf("load matplotlib reference %s: %v", wantPath, err)
+	}
+
+	artifactsDir := filepath.Join("..", "testdata", "_artifacts", "title_strict")
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		t.Fatalf("create artifacts directory %s: %v", artifactsDir, err)
+	}
+	savePNGOrFail(t, got, filepath.Join(artifactsDir, "rendered.png"))
+	savePNGOrFail(t, want, filepath.Join(artifactsDir, "matplotlib_ref.png"))
+
+	diff, err := imagecmp.ComparePNG(got, want, titleStrictTolerance)
+	if err != nil {
+		t.Fatalf("compare rendered title against matplotlib ref: %v", err)
+	}
+	if diff.PSNR < titleStrictMinPSNR || diff.MeanAbs > titleStrictMaxMeanAbs {
+		if err := imagecmp.SaveDiffImage(got, want, titleStrictTolerance, filepath.Join(artifactsDir, "diff.png")); err != nil {
+			t.Fatalf("save diff image: %v", err)
+		}
+		t.Fatalf(
+			"title mismatch: MaxDiff=%d, MeanAbs=%.2f (max %.2f), PSNR=%.2fdB (min %.2f)",
+			diff.MaxDiff,
+			diff.MeanAbs,
+			titleStrictMaxMeanAbs,
+			diff.PSNR,
+			titleStrictMinPSNR,
 		)
 	}
 }

@@ -358,10 +358,16 @@ func renderScatterMarkerTypes() image.Image {
 	}
 
 	for i, markerType := range markerTypes {
+		lineWidth := 0.0
+		if markerType == core.MarkerPlus || markerType == core.MarkerCross {
+			lineWidth = 1.44 // lw(2) at DPI=100 used by the reference generator
+		}
 		scatter := &core.Scatter2D{
 			XY:     []geom.Pt{{X: float64(1 + i), Y: 4}},
 			Size:   12.0,
 			Color:  colors[i],
+			EdgeColor: colors[i],
+			EdgeWidth: lineWidth,
 			Marker: markerType,
 			Alpha:  1.0,
 		}

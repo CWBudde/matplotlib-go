@@ -156,4 +156,5 @@ func TestMpl_HistDensity(t *testing.T)    { runMplTest(t, "hist_density", render
 func TestMpl_HistStrategies(t *testing.T) { runMplTest(t, "hist_strategies", renderHistStrategies) }
 func TestMpl_BoxPlotBasic(t *testing.T)   { runMplTest(t, "boxplot_basic", renderBoxPlotBasic) }
 func TestMpl_ErrorBars(t *testing.T)      { runMplTest(t, "errorbar_basic", renderErrorBars) }
+func TestMpl_TitleStrict(t *testing.T)    { runMplTest(t, "title_strict", renderTitleStrict) }
 func TestMpl_ImageHeatmap(t *testing.T)   { runMplTest(t, "image_heatmap", renderImageHeatmap) }

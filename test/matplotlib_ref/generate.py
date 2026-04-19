@@ -128,11 +128,16 @@ def _to_list(values: np.ndarray | list[float]) -> list[float]:
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 
-def make_fig():
-    """640×360 figure at 100 DPI with white background."""
-    fig = plt.figure(figsize=(W_PX / DPI, H_PX / DPI), dpi=DPI)
+def make_fig_px(width_px, height_px):
+    """Figure with explicit pixel dimensions at the shared DPI."""
+    fig = plt.figure(figsize=(width_px / DPI, height_px / DPI), dpi=DPI)
     fig.patch.set_facecolor("white")
     return fig
+
+
+def make_fig():
+    """640×360 figure at 100 DPI with white background."""
+    return make_fig_px(W_PX, H_PX)
 
 
 def go_rect(min_x, min_y, max_x, max_y):
@@ -590,6 +595,21 @@ def text_labels_strict(out_dir):
     save(fig, out_dir, "text_labels_strict")
 
 
+def title_strict(out_dir):
+    """Minimal title-only fixture for strict title font regression testing."""
+    fig = make_fig_px(320, 80)
+    ax = fig.add_axes(go_rect(0.05, 0.40, 0.95, 0.85))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title("Histogram Strategies")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.patch.set_visible(False)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    save(fig, out_dir, "title_strict")
+
+
 def multi_series_color_cycle(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
@@ -640,7 +660,7 @@ ALL_PLOTS = [
     multi_series_basic, multi_series_color_cycle,
     hist_basic, hist_density, hist_strategies,
     boxplot_basic,
-    text_labels_strict,
+    text_labels_strict, title_strict,
     image_heatmap,
 ]
 

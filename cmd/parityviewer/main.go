@@ -1260,6 +1260,14 @@ const pageFooter = `</div>
       wrap.__sliderPct = pct;
       overlay.style.width = (pct * 100) + '%';
       divider.style.left = (pct * 100) + '%';
+      var overlayLayer = wrap.querySelector('.zoom-overlay-layer');
+      if (overlayLayer) {
+        if (pct <= 0) {
+          overlayLayer.style.width = '0%';
+          return;
+        }
+        overlayLayer.style.width = (100 / pct) + '%';
+      }
     }
     function setPos(x) {
       var rect = wrap.getBoundingClientRect();

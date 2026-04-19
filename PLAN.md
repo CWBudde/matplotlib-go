@@ -235,10 +235,10 @@ core.SavePNG(fig, r, "output.png")
 
 ### 5.1 SVG Export
 
-- [ ] SVG backend using path recording
-- [ ] Vector output for publications
-- [ ] Text as actual text (not paths)
-- [ ] Example: `examples/export/svg.go`
+- [x] SVG backend using path recording
+- [x] Vector output for publications
+- [x] Text as actual text (not paths)
+- [x] Example: `examples/export/svg.go`
 
 ### 5.2 Interactive Features
 

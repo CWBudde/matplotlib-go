@@ -10,6 +10,7 @@ import (
 // This keeps backend construction local instead of routing through agglib.Context.
 type aggSurface struct {
 	image          *agglib.Image
+	textContext    *agglib.Context
 	painter        *agglib.Agg2D
 	textFontPath   string
 	textSize       float64
@@ -20,16 +21,17 @@ type aggSurface struct {
 func newAggSurface(w, h int) *aggSurface {
 	stride := w * 4
 	img := agglib.NewImage(make([]uint8, h*stride), w, h, stride)
-	painter := agglib.NewAgg2D()
-	painter.AttachImage(img)
+	textContext := agglib.NewContextForImage(img)
+	painter := textContext.GetAgg2D()
 	painter.FillColor(agglib.Black)
 	painter.LineColor(agglib.Black)
 	painter.LineWidth(1.0)
 	painter.ClipBox(0, 0, float64(w), float64(h))
 
 	return &aggSurface{
-		image:   img,
-		painter: painter,
+		image:       img,
+		textContext: textContext,
+		painter:     painter,
 	}
 }
 
@@ -201,10 +203,16 @@ func (s *aggSurface) ConfigureTextFont(fontPath string, size float64, resolution
 	if s.textReady && s.textFontPath == fontPath && s.textSize == size && s.textResolution == resolution {
 		return nil
 	}
+	if s.textContext == nil {
+		return errors.New("text context is unavailable")
+	}
 
-	s.painter.FlipText(true)
-	s.painter.TextHints(true)
-	if err := s.painter.Font(fontPath, size, false, false, agglib.RasterFontCache, 0); err != nil {
+	s.textContext.SetResolution(resolution)
+	s.textContext.FlipText(true)
+	s.textContext.TextHints(true)
+	s.textContext.TextForceAutohint(true)
+	s.textContext.TextHintingFactor(8)
+	if err := s.textContext.Font(fontPath, size, false, false, agglib.RasterFontCache, 0); err != nil {
 		s.textReady = false
 		return err
 	}
@@ -217,25 +225,37 @@ func (s *aggSurface) ConfigureTextFont(fontPath string, size float64, resolution
 }
 
 func (s *aggSurface) TextWidth(text string) float64 {
-	return s.painter.TextWidth(text)
+	if s.textContext == nil {
+		return 0
+	}
+	return s.textContext.GetTextWidth(text)
 }
 
 func (s *aggSurface) TextAscent() float64 {
-	height := s.painter.FontHeight()
-	if height <= 0 {
+	if s.textContext == nil {
 		return 0
 	}
-	return height * 0.82
+	ascent := s.textContext.GetAscender()
+	if ascent <= 0 {
+		return s.textContext.FontHeight()
+	}
+	return ascent
 }
 
 func (s *aggSurface) TextDescent() float64 {
-	height := s.painter.FontHeight()
-	if height <= 0 {
+	if s.textContext == nil {
 		return 0
 	}
-	return height * 0.22
+	desc := -s.textContext.GetDescender()
+	if desc < 0 {
+		return 0
+	}
+	return desc
 }
 
 func (s *aggSurface) DrawText(text string, x, y float64) {
-	s.painter.Text(x, y, text, true, 0, 0)
+	if s.painter == nil {
+		return
+	}
+	s.painter.Text(x, y, text, false, 0, 0)
 }

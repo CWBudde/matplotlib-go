@@ -5,4 +5,5 @@ import (
 	_ "matplotlib-go/backends/agg"
 	_ "matplotlib-go/backends/gobasic"
 	_ "matplotlib-go/backends/skia"
+	_ "matplotlib-go/backends/svg"
 )

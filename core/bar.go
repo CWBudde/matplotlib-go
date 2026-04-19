@@ -84,39 +84,33 @@ func (b *Bar2D) Draw(r render.Renderer, ctx *DrawContext) {
 		edgeColor.A *= alpha
 
 		// Create rectangle path based on orientation
-		var rectPath geom.Path
+		var fillPath, strokePath geom.Path
 		if b.Orientation == BarVertical {
-			rectPath = b.createVerticalBarPath(x, height, width, ctx)
+			fillPath, strokePath = b.createVerticalBarPaths(x, height, width, ctx)
 		} else {
-			rectPath = b.createHorizontalBarPath(x, height, width, ctx)
+			fillPath, strokePath = b.createHorizontalBarPaths(x, height, width, ctx)
 		}
 
-		if len(rectPath.C) == 0 {
+		if len(fillPath.C) == 0 {
 			continue // skip invalid bars
 		}
 
-		// Create paint for bar
-		paint := render.Paint{
-			Fill: fillColor,
+		if fillColor.A > 0 {
+			r.Path(fillPath, &render.Paint{Fill: fillColor})
 		}
 
-		// Add stroke if edge width is specified
-		if b.EdgeWidth > 0 && edgeColor.A > 0 {
-			paint.Stroke = edgeColor
-			paint.LineWidth = b.EdgeWidth
-			paint.LineJoin = render.JoinMiter
-			paint.LineCap = render.CapSquare
+		if b.EdgeWidth > 0 && edgeColor.A > 0 && len(strokePath.C) > 0 {
+			r.Path(strokePath, &render.Paint{
+				Stroke:    edgeColor,
+				LineWidth: b.EdgeWidth,
+				LineJoin:  render.JoinMiter,
+				LineCap:   render.CapSquare,
+			})
 		}
-
-		// Draw bar
-		r.Path(rectPath, &paint)
 	}
 }
 
-// createVerticalBarPath creates a rectangle for a vertical bar.
-func (b *Bar2D) createVerticalBarPath(x, height, width float64, ctx *DrawContext) geom.Path {
-	path := geom.Path{}
-
+func (b *Bar2D) createVerticalBarPaths(x, height, width float64, ctx *DrawContext) (geom.Path, geom.Path) {
 	// Calculate rectangle corners in data space
 	halfWidth := width / 2
 	left := x - halfWidth
@@ -130,33 +124,16 @@ func (b *Bar2D) createVerticalBarPath(x, height, width float64, ctx *DrawContext
 		top = b.Baseline
 	}
 
-	// Define rectangle corners
-	corners := []geom.Pt{
-		{X: left, Y: bottom},  // bottom-left
-		{X: right, Y: bottom}, // bottom-right
-		{X: right, Y: top},    // top-right
-		{X: left, Y: top},     // top-left
+	px0 := ctx.DataToPixel.Apply(geom.Pt{X: left, Y: bottom})
+	px1 := ctx.DataToPixel.Apply(geom.Pt{X: right, Y: top})
+	rect, ok := rectFromPoints(px0, px1)
+	if !ok {
+		return geom.Path{}, geom.Path{}
 	}
-
-	// Transform to pixel coordinates and create path
-	for i, corner := range corners {
-		pixelPt := ctx.DataToPixel.Apply(corner)
-		if i == 0 {
-			path.C = append(path.C, geom.MoveTo)
-		} else {
-			path.C = append(path.C, geom.LineTo)
-		}
-		path.V = append(path.V, pixelPt)
-	}
-	path.C = append(path.C, geom.ClosePath)
-
-	return path
+	return snappedFillRectPath(rect), snappedStrokeRectPath(rect)
 }
 
-// createHorizontalBarPath creates a rectangle for a horizontal bar.
-func (b *Bar2D) createHorizontalBarPath(y, height, width float64, ctx *DrawContext) geom.Path {
-	path := geom.Path{}
-
+func (b *Bar2D) createHorizontalBarPaths(y, height, width float64, ctx *DrawContext) (geom.Path, geom.Path) {
 	// For horizontal bars:
 	// y is the y-position (center)
 	// height is the length (width) of the bar
@@ -173,27 +150,13 @@ func (b *Bar2D) createHorizontalBarPath(y, height, width float64, ctx *DrawConte
 		right = b.Baseline
 	}
 
-	// Define rectangle corners
-	corners := []geom.Pt{
-		{X: left, Y: bottom},  // bottom-left
-		{X: right, Y: bottom}, // bottom-right
-		{X: right, Y: top},    // top-right
-		{X: left, Y: top},     // top-left
+	px0 := ctx.DataToPixel.Apply(geom.Pt{X: left, Y: bottom})
+	px1 := ctx.DataToPixel.Apply(geom.Pt{X: right, Y: top})
+	rect, ok := rectFromPoints(px0, px1)
+	if !ok {
+		return geom.Path{}, geom.Path{}
 	}
-
-	// Transform to pixel coordinates and create path
-	for i, corner := range corners {
-		pixelPt := ctx.DataToPixel.Apply(corner)
-		if i == 0 {
-			path.C = append(path.C, geom.MoveTo)
-		} else {
-			path.C = append(path.C, geom.LineTo)
-		}
-		path.V = append(path.V, pixelPt)
-	}
-	path.C = append(path.C, geom.ClosePath)
-
-	return path
+	return snappedFillRectPath(rect), snappedStrokeRectPath(rect)
 }
 
 // Z returns the z-order for sorting.

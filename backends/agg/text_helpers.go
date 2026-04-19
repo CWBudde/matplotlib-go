@@ -20,7 +20,6 @@ type configuredTextFont struct {
 	fontPath string
 	size     float64
 	fallback bool
-	outline  *agglib.FreeTypeOutlineText
 }
 
 func (r *Renderer) configureTextFont(size float64, fontKey string) configuredTextFont {
@@ -28,22 +27,10 @@ func (r *Renderer) configureTextFont(size float64, fontKey string) configuredTex
 		return configuredTextFont{}
 	}
 	if fontPath := r.resolveTextFontPath(fontKey); fontPath != "" {
-		if outline, err := r.configureOutlineFont(fontPath, size); err == nil {
-			return configuredTextFont{
-				backend:  textBackendTrueType,
-				fontPath: fontPath,
-				size:     size,
-				outline:  outline,
-			}
-		}
-	}
-	if fontPath := r.resolveTextFontPath(fontKey); fontPath != "" {
-		if _, ok := r.measureRasterText("M", fontPath, size); ok {
-			return configuredTextFont{
-				backend:  textBackendRaster,
-				fontPath: fontPath,
-				size:     size,
-			}
+		return configuredTextFont{
+			backend:  textBackendRaster,
+			fontPath: fontPath,
+			size:     size,
 		}
 	}
 	r.fallback = true
@@ -74,14 +61,9 @@ func (r *Renderer) configureOutlineFont(fontPath string, size float64) (*agglib.
 		r.outlineText = txt
 	}
 
-	resolution := r.resolution
-	if resolution == 0 {
-		resolution = 72
-	}
-
-	r.outlineText.SetHinting(true)
+	r.outlineText.SetHinting(false)
 	r.outlineText.SetFlip(true)
-	r.outlineText.SetResolution(resolution)
+	r.outlineText.SetResolution(96)
 	r.outlineText.SetSize(size, 0)
 	if err := r.outlineText.LoadFont(fontPath); err != nil {
 		return nil, err
@@ -125,7 +107,7 @@ func drawTrueTypeOutlineText(ctx *aggSurface, face *agglib.FreeTypeOutlineText, 
 	}
 
 	face.SetText(text)
-	face.SetStartPoint(float64(int(x)), float64(int(y)))
+	face.SetStartPoint(x, y)
 
 	if appendFreeTypeOutlineText(ctx, face) {
 		ctx.Fill()

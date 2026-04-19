@@ -57,12 +57,16 @@ func main() {
 
 	for i, markerType := range markerTypes {
 		x := -1.5 + float64(i)*0.75
+		lineWidth := 0.0
+		if markerType == core.MarkerPlus || markerType == core.MarkerCross {
+			lineWidth = 2.0
+		}
 		scatter := &core.Scatter2D{
 			XY:        []geom.Pt{{X: x, Y: -1.8}},
 			Size:      10.0,
 			Color:     render.Color{R: 0, G: 0, B: 1, A: 1},   // blue
 			EdgeColor: render.Color{R: 0, G: 0, B: 0.5, A: 1}, // dark blue edge
-			EdgeWidth: 2.0,
+			EdgeWidth: lineWidth,
 			Marker:    markerType,
 			Alpha:     1.0,
 		}
