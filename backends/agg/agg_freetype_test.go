@@ -71,6 +71,20 @@ func TestRasterTextWidthTracksRendererDPI(t *testing.T) {
 	}
 }
 
+func TestMeasureTextUsesStringSpecificVerticalBounds(t *testing.T) {
+	r := mustNew(t, 200, 100)
+
+	caps := r.MeasureText("H", 24, "")
+	descender := r.MeasureText("g", 24, "")
+
+	if caps.Ascent <= 0 || descender.Ascent <= 0 {
+		t.Fatalf("expected positive ascent, got caps=%+v descender=%+v", caps, descender)
+	}
+	if caps.Ascent == descender.Ascent && caps.Descent == descender.Descent {
+		t.Fatalf("expected string-specific vertical metrics, got caps=%+v descender=%+v", caps, descender)
+	}
+}
+
 func TestTrailingSpaceDoesNotRenderDuplicateGlyph(t *testing.T) {
 	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
 

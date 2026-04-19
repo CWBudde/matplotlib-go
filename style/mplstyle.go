@@ -74,14 +74,14 @@ type mplStyleState struct {
 	gridLineWidthPt  float64
 	gridLineWidthSet bool
 
-	gridColorValue  string
-	gridColorSet    bool
-	gridMajorValue  string
-	gridMajorSet    bool
-	gridMinorValue  string
-	gridMinorSet    bool
-	gridAlpha       float64
-	gridAlphaSet    bool
+	gridColorValue string
+	gridColorSet   bool
+	gridMajorValue string
+	gridMajorSet   bool
+	gridMinorValue string
+	gridMinorSet   bool
+	gridAlpha      float64
+	gridAlphaSet   bool
 
 	legendFaceValue string
 	legendFaceSet   bool
@@ -160,6 +160,9 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.rc.DPI = parsed
 	case "figure.facecolor":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.figureFaceValue = normalizeMPLValue(value)
 		state.figureFaceSet = true
 	case "font.family":
@@ -175,9 +178,15 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.rc.FontSize = parsed
 	case "text.color":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.textColorValue = normalizeMPLValue(value)
 		state.textColorSet = true
 	case "lines.color":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.lineColorValue = normalizeMPLValue(value)
 		state.lineColorSet = true
 	case "lines.linewidth":
@@ -188,12 +197,21 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		state.lineWidthPt = parsed
 		state.lineWidthSet = true
 	case "axes.facecolor":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.axesFaceValue = normalizeMPLValue(value)
 		state.axesFaceSet = true
 	case "axes.edgecolor", "xtick.color", "ytick.color":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.axesEdgeValue = normalizeMPLValue(value)
 		state.axesEdgeSet = true
 	case "axes.labelcolor":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.textColorValue = normalizeMPLValue(value)
 		state.textColorSet = true
 	case "axes.linewidth":
@@ -210,12 +228,21 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.rc.ColorCycle = parsed
 	case "grid.color":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.gridColorValue = normalizeMPLValue(value)
 		state.gridColorSet = true
 	case "grid.major.color":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.gridMajorValue = normalizeMPLValue(value)
 		state.gridMajorSet = true
 	case "grid.minor.color":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.gridMinorValue = normalizeMPLValue(value)
 		state.gridMinorSet = true
 	case "grid.alpha":
@@ -233,12 +260,21 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		state.gridLineWidthPt = parsed
 		state.gridLineWidthSet = true
 	case "legend.facecolor":
+		if err := validateMPLColorValue(value, state.rc, true); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.legendFaceValue = normalizeMPLValue(value)
 		state.legendFaceSet = true
 	case "legend.edgecolor":
+		if err := validateMPLColorValue(value, state.rc, true); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.legendEdgeValue = normalizeMPLValue(value)
 		state.legendEdgeSet = true
 	case "legend.labelcolor":
+		if err := validateMPLColorValue(value, state.rc, true); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
 		state.legendTextValue = normalizeMPLValue(value)
 		state.legendTextSet = true
 	default:
@@ -259,6 +295,32 @@ func finalizeMPLStyleState(state *mplStyleState) {
 		return
 	}
 
+	if state.figureFaceSet {
+		if parsed, err := parseMPLColor(state.figureFaceValue, state.rc); err == nil {
+			state.rc.Background = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
+		}
+	}
+	if state.textColorSet {
+		if parsed, err := parseMPLColor(state.textColorValue, state.rc); err == nil {
+			state.rc.TextColor = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
+		}
+	}
+	if state.lineColorSet {
+		if parsed, err := parseMPLColor(state.lineColorValue, state.rc); err == nil {
+			state.rc.LineColor = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
+		}
+	}
+	if state.axesFaceSet {
+		if parsed, err := parseMPLColor(state.axesFaceValue, state.rc); err == nil {
+			state.rc.AxesBackground = parsed
+		}
+	}
+	if state.axesEdgeSet {
+		if parsed, err := parseMPLColor(state.axesEdgeValue, state.rc); err == nil {
+			state.rc.AxesEdgeColor = parsed
+		}
+	}
+
 	if state.lineWidthSet {
 		state.rc.LineWidth = mplPointsToPixels(state.lineWidthPt, state.rc.DPI)
 	}
@@ -274,14 +336,20 @@ func finalizeMPLStyleState(state *mplStyleState) {
 	major := state.rc.GridColor
 	minor := state.rc.MinorGridColor
 	if state.gridColorSet {
-		major = state.gridColor
-		minor = state.gridColor
+		if parsed, err := parseMPLColor(state.gridColorValue, state.rc); err == nil {
+			major = parsed
+			minor = parsed
+		}
 	}
 	if state.gridMajorSet {
-		major = state.gridMajorColor
+		if parsed, err := parseMPLColor(state.gridMajorValue, state.rc); err == nil {
+			major = parsed
+		}
 	}
 	if state.gridMinorSet {
-		minor = state.gridMinorColor
+		if parsed, err := parseMPLColor(state.gridMinorValue, state.rc); err == nil {
+			minor = parsed
+		}
 	}
 	if state.gridAlphaSet {
 		major.A = state.gridAlpha
@@ -604,6 +672,15 @@ func normalizeMPLStyleName(name string) string {
 		return "custom"
 	}
 	return normalized
+}
+
+func validateMPLColorValue(value string, rc RC, allowInherit bool) error {
+	normalized := normalizeMPLValue(value)
+	if allowInherit && strings.EqualFold(normalized, "inherit") {
+		return nil
+	}
+	_, err := parseMPLColor(normalized, rc)
+	return err
 }
 
 func resolveMPLSpecialColor(value string, rc RC, inherited render.Color) render.Color {

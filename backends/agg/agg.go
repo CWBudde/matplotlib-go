@@ -375,9 +375,7 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 	switch font.backend {
 	case textBackendRaster:
 		if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err == nil {
-			w = r.ctx.TextWidth(text)
-			ascent = r.ctx.TextAscent()
-			descent = r.ctx.TextDescent()
+			w, ascent, descent = r.ctx.TextMetrics(text)
 			break
 		}
 		r.fallback = true

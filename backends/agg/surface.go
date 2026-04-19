@@ -236,6 +236,30 @@ func (s *aggSurface) TextWidth(text string) float64 {
 	return s.textContext.GetTextWidth(text)
 }
 
+func (s *aggSurface) TextMetrics(text string) (width, ascent, descent float64) {
+	if s.textContext == nil || text == "" {
+		return 0, 0, 0
+	}
+
+	x, y, width, height := s.textContext.GetTextBounds(text)
+	maxY := y + height
+	if y < 0 {
+		ascent = -y
+	}
+	if maxY > 0 {
+		descent = maxY
+	}
+	if width <= 0 {
+		width = s.textContext.GetTextWidth(text)
+	}
+	if ascent <= 0 && descent <= 0 {
+		ascent = s.TextAscent()
+		descent = s.TextDescent()
+	}
+	_ = x
+	return width, ascent, descent
+}
+
 func (s *aggSurface) TextAscent() float64 {
 	if s.textContext == nil {
 		return 0

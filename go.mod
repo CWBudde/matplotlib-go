@@ -10,7 +10,7 @@ require (
 
 require (
 	codeberg.org/go-fonts/dejavu v0.4.0
-	github.com/cwbudde/agg_go v0.2.25
+	github.com/cwbudde/agg_go v0.2.29
 )
 
 require (
