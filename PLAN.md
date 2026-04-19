@@ -124,7 +124,7 @@ core.SavePNG(fig, r, "output.png")
 
 ### 2.6 Text Labels using AGG Text Engine ✅
 
-- [x] Text rendering using TrueType (Go Regular) with GSV vector font fallback
+- [x] Text rendering using AGG raster FreeType with GSV vector font fallback
 - [x] Title, xlabel, ylabel placement with proper centering
 - [x] Tick labels using existing formatters (ScalarFormatter, LogFormatter)
 - [x] Vertical ylabel text via `DrawTextVertical` (character-by-character layout)

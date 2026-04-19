@@ -47,16 +47,17 @@ func loadFontPath() (string, error) {
 
 // Renderer implements render.Renderer using the AGG rendering backend.
 type Renderer struct {
-	ctx        *aggSurface
-	width      int
-	height     int
-	resolution uint
-	began      bool
-	viewport   geom.Rect
-	stack      []state
-	clipRect   *geom.Rect
-	fontPath   string // path to TrueType font; empty means use GSV fallback
-	fallback   bool   // true if any text path had to fall back to GSV
+	ctx         *aggSurface
+	width       int
+	height      int
+	resolution  uint
+	began       bool
+	viewport    geom.Rect
+	stack       []state
+	clipRect    *geom.Rect
+	fontPath    string // path to TrueType font; empty means use GSV fallback
+	fallback    bool   // true if any text path had to fall back to GSV
+	lastFontKey string
 }
 
 // state represents a saved graphics state.
@@ -92,14 +93,14 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		resolution: 72,
 	}
 
-	// Prefer DejaVu Sans (the same default font Matplotlib ships with) via the
-	// AGG outline text path. Fall back to the legacy GSV vector font only when
-	// the FreeType-backed path is unavailable in the current build.
+	// Prefer DejaVu Sans (the same default font Matplotlib ships with) via AGG's
+	// raster FreeType text path. Fall back to the legacy GSV vector font only
+	// when the FreeType-backed path is unavailable in the current build.
 	fp, err := loadFontPath()
 	if err == nil {
 		r.fontPath = fp
 	}
-	if r.loadTrueTypeOutline(12) == nil {
+	if r.ctx.ConfigureTextFont(r.fontPath, 12, r.resolution) != nil {
 		r.fallback = true
 	}
 
@@ -352,13 +353,18 @@ func (r *Renderer) GlyphRun(_ render.GlyphRun, _ render.Color) {
 }
 
 // MeasureText measures text dimensions using the active font engine.
-func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
+func (r *Renderer) MeasureText(text string, size float64, fontKey string) render.TextMetrics {
 	if text == "" || size <= 0 {
 		return render.TextMetrics{}
 	}
 
-	font := r.configureTextFont(size)
-	defer font.Close()
+	if fontKey != "" {
+		r.lastFontKey = fontKey
+	} else {
+		fontKey = r.lastFontKey
+	}
+
+	font := r.configureTextFont(size, fontKey)
 
 	var (
 		w       float64
@@ -367,9 +373,17 @@ func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextM
 	)
 	switch font.backend {
 	case textBackendTrueType:
-		w = font.outline.MeasureText(text)
-		ascent = font.outline.GetAscender()
-		descent = -font.outline.GetDescender()
+		w = r.ctx.TextWidth(text)
+		ascent = r.ctx.TextAscent()
+		descent = r.ctx.TextDescent()
+	case textBackendRaster:
+		if metrics, ok := r.measureRasterText(text, font.fontPath, size); ok {
+			return metrics
+		}
+		r.fallback = true
+		w = measureLocalGSVTextWidth(text, font.size)
+		ascent = font.size
+		descent = 0
 	default:
 		w = measureLocalGSVTextWidth(text, font.size)
 		ascent = font.size
@@ -402,16 +416,18 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 		return
 	}
 
-	font := r.configureTextFont(size)
-	defer font.Close()
+	font := r.configureTextFont(size, r.lastFontKey)
 
 	switch font.backend {
 	case textBackendTrueType:
-		font.outline.SetText(text)
 		r.ctx.SetFillColor(renderColorToAGG(textColor))
-		if drawFreeTypeOutlineText(r.ctx, font.outline, origin.X, origin.Y) {
-			r.ctx.Fill()
+		r.ctx.DrawText(text, origin.X, origin.Y)
+	case textBackendRaster:
+		if r.drawRasterText(text, font.fontPath, origin, size, textColor) {
+			return
 		}
+		r.fallback = true
+		fallthrough
 	default:
 		r.ctx.SetStrokeColor(renderColorToAGG(textColor))
 		r.ctx.SetStrokeWidth(math.Max(1, font.size*0.08))
@@ -452,6 +468,7 @@ func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle floa
 		return
 	}
 	tmp.SetResolution(r.resolution)
+	tmp.lastFontKey = r.lastFontKey
 	tmp.DrawText(text, geom.Pt{
 		X: float64(tempW)/2 - metrics.W/2,
 		Y: float64(tempH)/2 + (metrics.Ascent-metrics.Descent)/2,

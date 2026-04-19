@@ -355,7 +355,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			Clip: px,
 		}
 
-		// Draw clipped content (data, grids, spines, tick marks)
+		// Draw only clipped content (data and grids) while the axes clip is active.
 		r.Save()
 		r.ClipRect(px)
 
@@ -373,6 +373,17 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			art.Draw(r, ctx)
 		}
 
+		r.Restore()
+
+		setRendererResolution(r, ctx.RC.DPI)
+		for _, art := range ax.Artists {
+			if overlay, ok := art.(OverlayArtist); ok {
+				overlay.DrawOverlay(r, ctx)
+			}
+		}
+
+		// Draw axes elements outside the clip so spines can straddle the axes edge
+		// the same way Matplotlib does.
 		if xAxis != nil {
 			xAxis.Draw(r, ctx)
 		}
@@ -386,16 +397,8 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			}
 			DrawFrame(r, ctx, ref)
 		}
-		r.Restore()
 
-		setRendererResolution(r, ctx.RC.DPI)
-		for _, art := range ax.Artists {
-			if overlay, ok := art.(OverlayArtist); ok {
-				overlay.DrawOverlay(r, ctx)
-			}
-		}
-
-		// Draw ticks (outward), tick labels, and text labels outside the clip rect
+		// Draw ticks (outward), tick labels, and text labels outside the clip rect.
 		if xAxis != nil {
 			xAxis.DrawTicks(r, ctx)
 			xAxis.DrawTickLabels(r, ctx)

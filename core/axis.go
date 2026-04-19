@@ -63,7 +63,7 @@ func NewYAxis() *Axis {
 	}
 }
 
-// Draw renders the axis spine (called inside clip region).
+// Draw renders the axis spine on the axes edge.
 func (a *Axis) Draw(r render.Renderer, ctx *DrawContext) {
 	if a.ShowSpine {
 		a.drawSpine(r, ctx)
@@ -103,14 +103,12 @@ func (a *Axis) DrawTicks(r render.Renderer, ctx *DrawContext) {
 	}
 }
 
-// drawSpine draws the main axis line directly in pixel space.
-// Lines are snapped inward by half their width so the stroke falls entirely
-// within the clip rectangle, avoiding sub-pixel anti-aliasing artifacts.
+// drawSpine draws the main axis line directly in pixel space, centered on the
+// axes edge so the stroke can extend on both sides like Matplotlib's spines.
 func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext) {
 	px := ctx.Clip
 	lw := a.LineWidth
-	half := lw / 2
-	p1, p2 := spinePixelEndpoints(a.Side, px, half)
+	p1, p2 := spinePixelEndpoints(a.Side, px)
 
 	paint := render.Paint{
 		LineWidth: lw,
@@ -126,8 +124,8 @@ func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext) {
 }
 
 // spinePixelEndpoints returns the two pixel-space endpoints for a spine on the
-// given side of px, snapped inward by `inset` pixels.
-func spinePixelEndpoints(side AxisSide, px geom.Rect, inset float64) (geom.Pt, geom.Pt) {
+// given side of px, aligned to the axes boundary.
+func spinePixelEndpoints(side AxisSide, px geom.Rect) (geom.Pt, geom.Pt) {
 	x1 := math.Round(px.Min.X)
 	y1 := math.Round(px.Min.Y)
 	x2 := math.Round(px.Max.X)
@@ -135,17 +133,13 @@ func spinePixelEndpoints(side AxisSide, px geom.Rect, inset float64) (geom.Pt, g
 
 	switch side {
 	case AxisBottom:
-		y := y2 - inset
-		return geom.Pt{X: x1, Y: y}, geom.Pt{X: x2, Y: y}
+		return geom.Pt{X: x1, Y: y2}, geom.Pt{X: x2, Y: y2}
 	case AxisTop:
-		y := y1 + inset
-		return geom.Pt{X: x1, Y: y}, geom.Pt{X: x2, Y: y}
+		return geom.Pt{X: x1, Y: y1}, geom.Pt{X: x2, Y: y1}
 	case AxisLeft:
-		x := x1 + inset
-		return geom.Pt{X: x, Y: y1}, geom.Pt{X: x, Y: y2}
+		return geom.Pt{X: x1, Y: y1}, geom.Pt{X: x1, Y: y2}
 	case AxisRight:
-		x := x2 - inset
-		return geom.Pt{X: x, Y: y1}, geom.Pt{X: x, Y: y2}
+		return geom.Pt{X: x2, Y: y1}, geom.Pt{X: x2, Y: y2}
 	}
 	return geom.Pt{}, geom.Pt{}
 }
@@ -220,7 +214,7 @@ func (a *Axis) drawSingleTick(r render.Renderer, ctx *DrawContext, tickValue, ti
 }
 
 // DrawFrame draws the top and right border lines of the axes box directly in
-// pixel space, snapped to crisp integer-aligned positions.
+// pixel space, centered on the axes boundary.
 func DrawFrame(r render.Renderer, ctx *DrawContext, ref *Axis) {
 	if ref == nil || !ref.ShowSpine {
 		return
@@ -231,8 +225,6 @@ func DrawFrame(r render.Renderer, ctx *DrawContext, ref *Axis) {
 		LineCap:   render.CapButt,
 		LineJoin:  render.JoinMiter,
 	}
-	half := ref.LineWidth / 2
-
 	drawLine := func(p1, p2 geom.Pt) {
 		path := geom.Path{
 			C: []geom.Cmd{geom.MoveTo, geom.LineTo},
@@ -241,9 +233,9 @@ func DrawFrame(r render.Renderer, ctx *DrawContext, ref *Axis) {
 		r.Path(path, &paint)
 	}
 
-	p1, p2 := spinePixelEndpoints(AxisTop, ctx.Clip, half)
+	p1, p2 := spinePixelEndpoints(AxisTop, ctx.Clip)
 	drawLine(p1, p2)
-	p1, p2 = spinePixelEndpoints(AxisRight, ctx.Clip, half)
+	p1, p2 = spinePixelEndpoints(AxisRight, ctx.Clip)
 	drawLine(p1, p2)
 }
 

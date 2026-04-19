@@ -40,7 +40,7 @@ func TestNewGoldenUpdateCommandIncludesFreetypeTag(t *testing.T) {
 func TestPageFooterPersistsViewerStateAcrossRerender(t *testing.T) {
 	requiredSnippets := []string{
 		"var viewerStateStorageKey = 'mpl-parity-viewer-state-v1';",
-		"var viewerStateControlIDs = ['search', 'sort-select', 'diff-mode', 'matte-mode', 'resample-mode', 'original-size'];",
+		"var viewerStateControlIDs = ['search', 'sort-select', 'diff-mode', 'resample-mode', 'original-size'];",
 		"state.openCards = Array.from(document.querySelectorAll('.card.open')).map(cardStateKey);",
 		"window.sessionStorage.setItem(viewerStateStorageKey, JSON.stringify(state));",
 		"restoreViewerState();",
@@ -51,6 +51,20 @@ func TestPageFooterPersistsViewerStateAcrossRerender(t *testing.T) {
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(pageFooter, snippet) {
 			t.Fatalf("pageFooter missing snippet %q", snippet)
+		}
+	}
+}
+
+func TestPageHeaderDoesNotRenderMatteControl(t *testing.T) {
+	forbiddenSnippets := []string{
+		`id="matte-mode"`,
+		"Matte:",
+		"setMatteMode",
+		"matte-target",
+	}
+	for _, snippet := range forbiddenSnippets {
+		if strings.Contains(pageHeader, snippet) || strings.Contains(pageFooter, snippet) {
+			t.Fatalf("page markup still contains removed matte UI snippet %q", snippet)
 		}
 	}
 }

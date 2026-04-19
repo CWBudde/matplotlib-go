@@ -9,8 +9,12 @@ import (
 // aggSurface owns the explicit AGG image buffer and the renderer attached to it.
 // This keeps backend construction local instead of routing through agglib.Context.
 type aggSurface struct {
-	image   *agglib.Image
-	painter *agglib.Agg2D
+	image          *agglib.Image
+	painter        *agglib.Agg2D
+	textFontPath   string
+	textSize       float64
+	textResolution uint
+	textReady      bool
 }
 
 func newAggSurface(w, h int) *aggSurface {
@@ -33,8 +37,15 @@ func (s *aggSurface) Clear(c agglib.Color) {
 	s.painter.ClearAll(c)
 }
 
-// Resolution is tracked by Renderer and applied directly to outline text helpers.
-func (s *aggSurface) SetResolution(_ uint) {}
+func (s *aggSurface) SetResolution(dpi uint) {
+	if dpi == 0 {
+		return
+	}
+	if s.textResolution != dpi {
+		s.textReady = false
+	}
+	s.textResolution = dpi
+}
 
 func (s *aggSurface) PushTransform() {
 	s.painter.PushTransform()
@@ -175,4 +186,56 @@ func (s *aggSurface) DrawImageTransformed(img *agglib.Image, transform *agglib.T
 	}
 
 	return s.painter.TransformImageParallelogram(img, 0, 0, img.Width(), img.Height(), parallelogram)
+}
+
+func (s *aggSurface) ConfigureTextFont(fontPath string, size float64, resolution uint) error {
+	if fontPath == "" {
+		return errors.New("font path is empty")
+	}
+	if size <= 0 {
+		return errors.New("font size must be positive")
+	}
+	if resolution == 0 {
+		resolution = 72
+	}
+	if s.textReady && s.textFontPath == fontPath && s.textSize == size && s.textResolution == resolution {
+		return nil
+	}
+
+	s.painter.FlipText(true)
+	s.painter.TextHints(true)
+	if err := s.painter.Font(fontPath, size, false, false, agglib.RasterFontCache, 0); err != nil {
+		s.textReady = false
+		return err
+	}
+
+	s.textFontPath = fontPath
+	s.textSize = size
+	s.textResolution = resolution
+	s.textReady = true
+	return nil
+}
+
+func (s *aggSurface) TextWidth(text string) float64 {
+	return s.painter.TextWidth(text)
+}
+
+func (s *aggSurface) TextAscent() float64 {
+	height := s.painter.FontHeight()
+	if height <= 0 {
+		return 0
+	}
+	return height * 0.82
+}
+
+func (s *aggSurface) TextDescent() float64 {
+	height := s.painter.FontHeight()
+	if height <= 0 {
+		return 0
+	}
+	return height * 0.22
+}
+
+func (s *aggSurface) DrawText(text string, x, y float64) {
+	s.painter.Text(x, y, text, true, 0, 0)
 }

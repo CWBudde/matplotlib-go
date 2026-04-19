@@ -37,14 +37,8 @@ type caseEntry struct {
 	RefHeight   int
 	ActWidth    int
 	ActHeight   int
-	RefDocB64   string
-	ActDocB64   string
-	RefWhiteB64 string
-	RefDarkB64  string
-	RefCheckB64 string
-	ActWhiteB64 string
-	ActDarkB64  string
-	ActCheckB64 string
+	RefB64      string
+	ActB64      string
 	RawDiffB64  string
 	AmpDiffB64  string
 }
@@ -427,36 +421,11 @@ func buildEntry(suite, baseline, name, baselinePath, artifactPath string) (caseE
 	ampDiff := amplifiedDiffImage(ref, act)
 	stats := compareImages(ref, act)
 
-	refDocB64, err := pngToBase64(compositeOverSolid(ref, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
+	refB64, err := pngToBase64(compositeOverSolid(ref, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
 	if err != nil {
 		return caseEntry{}, err
 	}
-	actDocB64, err := pngToBase64(compositeOverSolid(act, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
-	if err != nil {
-		return caseEntry{}, err
-	}
-
-	refWhite, err := pngToBase64(compositeOverSolid(ref, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
-	if err != nil {
-		return caseEntry{}, err
-	}
-	actWhite, err := pngToBase64(compositeOverSolid(act, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
-	if err != nil {
-		return caseEntry{}, err
-	}
-	refDark, err := pngToBase64(compositeOverSolid(ref, color.RGBA{R: 12, G: 16, B: 22, A: 255}))
-	if err != nil {
-		return caseEntry{}, err
-	}
-	actDark, err := pngToBase64(compositeOverSolid(act, color.RGBA{R: 12, G: 16, B: 22, A: 255}))
-	if err != nil {
-		return caseEntry{}, err
-	}
-	refCheck, err := pngToBase64(compositeOverCheckerboard(ref))
-	if err != nil {
-		return caseEntry{}, err
-	}
-	actCheck, err := pngToBase64(compositeOverCheckerboard(act))
+	actB64, err := pngToBase64(compositeOverSolid(act, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
 	if err != nil {
 		return caseEntry{}, err
 	}
@@ -483,14 +452,8 @@ func buildEntry(suite, baseline, name, baselinePath, artifactPath string) (caseE
 		RefHeight:   ref.Bounds().Dy(),
 		ActWidth:    act.Bounds().Dx(),
 		ActHeight:   act.Bounds().Dy(),
-		RefDocB64:   refDocB64,
-		RefWhiteB64: refWhite,
-		RefDarkB64:  refDark,
-		RefCheckB64: refCheck,
-		ActDocB64:   actDocB64,
-		ActWhiteB64: actWhite,
-		ActDarkB64:  actDark,
-		ActCheckB64: actCheck,
+		RefB64:      refB64,
+		ActB64:      actB64,
 		RawDiffB64:  rawDiffB64,
 		AmpDiffB64:  ampDiffB64,
 	}, nil
@@ -702,27 +665,6 @@ func compositeOverSolid(src *image.RGBA, bg color.RGBA) *image.RGBA {
 	return out
 }
 
-func compositeOverCheckerboard(src *image.RGBA) *image.RGBA {
-	if src == nil {
-		return nil
-	}
-	bounds := src.Bounds()
-	out := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
-	light := color.RGBA{R: 216, G: 222, B: 233, A: 255}
-	dark := color.RGBA{R: 195, G: 202, B: 214, A: 255}
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			bg := light
-			if ((x-bounds.Min.X)/6+(y-bounds.Min.Y)/6)%2 != 0 {
-				bg = dark
-			}
-			r, g, b, a := rgbaAt(src, x, y)
-			out.SetRGBA(x-bounds.Min.X, y-bounds.Min.Y, compositePixel(r, g, b, a, bg))
-		}
-	}
-	return out
-}
-
 func compositePixel(r, g, b, a uint8, bg color.RGBA) color.RGBA {
 	srcA := int(a)
 	invA := 255 - srcA
@@ -799,12 +741,8 @@ func renderCard(w io.Writer, entry *caseEntry) {
 	fmt.Fprint(w, `<label>Baseline</label>`)
 	fmt.Fprintf(
 		w,
-		`<img class="parity-image matte-target" src="data:image/png;base64,%s" alt="baseline" data-matte-document="%s" data-matte-white="%s" data-matte-dark="%s" data-matte-checkerboard="%s">`,
-		entry.RefDocB64,
-		entry.RefDocB64,
-		entry.RefWhiteB64,
-		entry.RefDarkB64,
-		entry.RefCheckB64,
+		`<img class="parity-image" src="data:image/png;base64,%s" alt="baseline">`,
+		entry.RefB64,
 	)
 	fmt.Fprint(w, `</div>`)
 
@@ -812,12 +750,8 @@ func renderCard(w io.Writer, entry *caseEntry) {
 	fmt.Fprint(w, `<label>Artifact</label>`)
 	fmt.Fprintf(
 		w,
-		`<img class="parity-image matte-target" src="data:image/png;base64,%s" alt="artifact" data-matte-document="%s" data-matte-white="%s" data-matte-dark="%s" data-matte-checkerboard="%s">`,
-		entry.ActDocB64,
-		entry.ActDocB64,
-		entry.ActWhiteB64,
-		entry.ActDarkB64,
-		entry.ActCheckB64,
+		`<img class="parity-image" src="data:image/png;base64,%s" alt="artifact">`,
+		entry.ActB64,
 	)
 	fmt.Fprint(w, `</div>`)
 
@@ -826,21 +760,13 @@ func renderCard(w io.Writer, entry *caseEntry) {
 	fmt.Fprint(w, `<div class="slider-wrap">`)
 	fmt.Fprintf(
 		w,
-		`<img class="base matte-target" src="data:image/png;base64,%s" alt="base" data-matte-document="%s" data-matte-white="%s" data-matte-dark="%s" data-matte-checkerboard="%s">`,
-		entry.RefDocB64,
-		entry.RefDocB64,
-		entry.RefWhiteB64,
-		entry.RefDarkB64,
-		entry.RefCheckB64,
+		`<img class="base" src="data:image/png;base64,%s" alt="base">`,
+		entry.RefB64,
 	)
 	fmt.Fprintf(
 		w,
-		`<div class="slider-overlay"><img class="matte-target" src="data:image/png;base64,%s" alt="overlay" data-matte-document="%s" data-matte-white="%s" data-matte-dark="%s" data-matte-checkerboard="%s"></div>`,
-		entry.ActDocB64,
-		entry.ActDocB64,
-		entry.ActWhiteB64,
-		entry.ActDarkB64,
-		entry.ActCheckB64,
+		`<div class="slider-overlay"><img src="data:image/png;base64,%s" alt="overlay"></div>`,
+		entry.ActB64,
 	)
 	fmt.Fprint(w, `<div class="slider-divider"></div></div></div>`)
 
@@ -940,25 +866,14 @@ body { background: #101216; color: #d7dce4; font-family: ui-monospace, SFMono-Re
 .img-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; overflow-x: auto; }
 .img-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow: auto; }
 .img-col label { font-size: 11px; color: #93a1b5; text-align: center; }
-.parity-image { display: block; image-rendering: auto; width: 100%; height: auto; border-radius: 6px; background-color: #0c1016; background-image: none; max-width: 100%; }
+.parity-image { display: block; image-rendering: auto; width: 100%; height: auto; border-radius: 6px; background-color: #fff; background-image: none; max-width: 100%; }
 .resample-pixelated .parity-image { image-rendering: pixelated; }
-.container.matte-document .parity-image, .container.matte-document .slider-wrap { background-color: #fff; }
-.container.matte-white .parity-image, .container.matte-white .slider-wrap { background-color: #ffffff; }
-.container.matte-dark .parity-image, .container.matte-dark .slider-wrap { background-color: #0c1016; }
-.container.matte-checkerboard .parity-image, .container.matte-checkerboard .slider-wrap {
-  background-color: #d8dee9;
-  background-image:
-    linear-gradient(45deg, #c3cad6 25%, transparent 25%, transparent 75%, #c3cad6 75%, #c3cad6),
-    linear-gradient(45deg, #c3cad6 25%, transparent 25%, transparent 75%, #c3cad6 75%, #c3cad6);
-  background-position: 0 0, 6px 6px;
-  background-size: 12px 12px;
-}
 .original-size .img-grid { grid-template-columns: repeat(5, max-content); }
 .original-size .img-col { min-width: max-content; }
 .original-size .parity-image, .original-size .slider-wrap { align-self: flex-start; }
 .original-size .parity-image { width: auto; height: auto; max-width: none; }
 .col-raw, .col-amp { display: none; }
-.slider-wrap { position: relative; overflow: hidden; width: 100%; cursor: col-resize; border-radius: 6px; background-color: #0c1016; background-image: none; }
+.slider-wrap { position: relative; overflow: hidden; width: 100%; cursor: col-resize; border-radius: 6px; background-color: #fff; background-image: none; }
 .slider-wrap img.base { display: block; image-rendering: auto; width: 100%; height: auto; }
 .resample-pixelated .slider-wrap img.base { image-rendering: pixelated; }
 .original-size .slider-wrap { width: auto; }
@@ -1002,12 +917,6 @@ code { color: #f4f7fb; }
       <option value="raw">Diff: raw</option>
       <option value="both">Diff: both</option>
     </select>
-    <select id="matte-mode" onchange="setMatteMode(this.value)">
-      <option value="document" selected>Matte: document bg</option>
-      <option value="white">Matte: white</option>
-      <option value="dark">Matte: dark</option>
-      <option value="checkerboard">Matte: checkerboard</option>
-    </select>
     <select id="resample-mode" onchange="setResampleMode(this.value)">
       <option value="smooth">Scaling: smooth</option>
       <option value="pixelated">Scaling: pixelated</option>
@@ -1022,7 +931,7 @@ const pageFooter = `</div>
 <script>
 (function() {
   var viewerStateStorageKey = 'mpl-parity-viewer-state-v1';
-  var viewerStateControlIDs = ['search', 'sort-select', 'diff-mode', 'matte-mode', 'resample-mode', 'original-size'];
+  var viewerStateControlIDs = ['search', 'sort-select', 'diff-mode', 'resample-mode', 'original-size'];
 
   function cardStateKey(card) {
     return [card.dataset.suite || '', card.dataset.baseline || '', card.dataset.name || ''].join('::');
@@ -1182,15 +1091,6 @@ const pageFooter = `</div>
     document.getElementById('summary').textContent = visible.length + ' / ' + all.length + ' cases';
   }
 
-  function setMatteMode(mode) {
-    var dataKey = 'matte' + mode.charAt(0).toUpperCase() + mode.slice(1);
-    document.querySelectorAll('.matte-target').forEach(function(img) {
-      var b64 = img.dataset[dataKey];
-      if (!b64) return;
-      img.src = 'data:image/png;base64,' + b64;
-    });
-  }
-
   function setResampleMode(mode) {
     var container = document.getElementById('cards-container');
     container.classList.remove('resample-smooth', 'resample-pixelated');
@@ -1302,7 +1202,6 @@ const pageFooter = `</div>
   window.filterCards = filterCards;
   window.sortCards = sortCards;
   window.setDiffMode = setDiffMode;
-  window.setMatteMode = setMatteMode;
   window.setOriginalSize = setOriginalSize;
   window.setResampleMode = setResampleMode;
 
@@ -1310,7 +1209,6 @@ const pageFooter = `</div>
   bindViewerStatePersistence();
   sortCards();
   setDiffMode(document.getElementById('diff-mode').value);
-  setMatteMode(document.getElementById('matte-mode').value);
   setResampleMode(document.getElementById('resample-mode').value);
   setOriginalSize(document.getElementById('original-size').checked);
   filterCards();

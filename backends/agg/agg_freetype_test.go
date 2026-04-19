@@ -20,13 +20,28 @@ func TestUsesDejaVuSansWithoutFallback(t *testing.T) {
 		t.Fatalf("Begin failed: %v", err)
 	}
 
-	r.DrawText("Hello", geom.Pt{X: 20, Y: 40}, 12, white)
-	r.DrawTextRotated("Hello", geom.Pt{X: 120, Y: 50}, 12, math.Pi/2, white)
+	samples := []struct {
+		text string
+		size float64
+		pos  geom.Pt
+	}{
+		{text: "Text Labels", size: 12, pos: geom.Pt{X: 10, Y: 24}},
+		{text: "Group", size: 11.64, pos: geom.Pt{X: 10, Y: 44}},
+		{text: "0.0", size: 11.64, pos: geom.Pt{X: 10, Y: 64}},
+	}
+	for _, sample := range samples {
+		metrics := r.MeasureText(sample.text, sample.size, "")
+		if metrics.W <= 0 || metrics.Ascent <= 0 || metrics.H <= 0 {
+			t.Fatalf("invalid metrics for %q: %+v", sample.text, metrics)
+		}
+		r.DrawText(sample.text, sample.pos, sample.size, white)
+	}
+	r.DrawTextRotated("Value", geom.Pt{X: 160, Y: 50}, 11.64, math.Pi/2, white)
 
 	if err := r.End(); err != nil {
 		t.Fatalf("End failed: %v", err)
 	}
 	if r.fallback {
-		t.Fatal("expected DejaVu Sans path to be used without falling back to GSV")
+		t.Fatal("expected AGG raster FreeType text to be used without falling back to GSV")
 	}
 }
