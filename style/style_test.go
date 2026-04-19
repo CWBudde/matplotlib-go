@@ -4,7 +4,7 @@ import "testing"
 
 func TestDefaults(t *testing.T) {
 	d := Default
-	if d.DPI != 96 || d.FontKey == "" || d.FontSize <= 0 {
+	if d.DPI != 100 || d.FontKey == "" || d.FontSize <= 0 {
 		t.Fatalf("unexpected defaults: %+v", d)
 	}
 	if d.TickCountX != 5 || d.TickCountY != 5 {

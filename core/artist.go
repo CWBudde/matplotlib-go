@@ -428,7 +428,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	}
 
 	labelColor := render.Color{R: 0, G: 0, B: 0, A: 1}
-	titleSize := ctx.RC.FontSize
+	titleSize := titleFontSize(ctx)
 	labelSize := ctx.RC.FontSize * 0.97
 	if labelSize < 8 {
 		labelSize = 8
@@ -470,6 +470,15 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 			textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
 		}
 	}
+}
+
+func titleFontSize(ctx *DrawContext) float64 {
+	const titleScale = 1.05
+
+	if ctx == nil || ctx.RC.FontSize <= 0 {
+		return 12 * titleScale
+	}
+	return ctx.RC.FontSize * titleScale
 }
 
 // axesToPixel returns an affine mapping [0..1]^2 (axes space) -> pixel rect.

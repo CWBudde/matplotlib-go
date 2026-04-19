@@ -74,9 +74,14 @@ func (r *Renderer) configureOutlineFont(fontPath string, size float64) (*agglib.
 		r.outlineText = txt
 	}
 
+	resolution := r.resolution
+	if resolution == 0 {
+		resolution = 72
+	}
+
 	r.outlineText.SetHinting(true)
 	r.outlineText.SetFlip(true)
-	r.outlineText.SetResolution(r.resolution)
+	r.outlineText.SetResolution(resolution)
 	r.outlineText.SetSize(size, 0)
 	if err := r.outlineText.LoadFont(fontPath); err != nil {
 		return nil, err

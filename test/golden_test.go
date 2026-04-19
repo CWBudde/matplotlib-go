@@ -115,6 +115,11 @@ func TestErrorBars_Golden(t *testing.T) {
 func TestTextLabelsStrict_Golden(t *testing.T) {
 	runGoldenTest(t, "text_labels_strict", renderTextLabelsStrict)
 }
+
+func TestTitleStrict_Golden(t *testing.T) {
+	runGoldenTest(t, "title_strict", renderTitleStrict)
+}
+
 func TestImageHeatmap_Golden(t *testing.T) {
 	runGoldenTest(t, "image_heatmap", renderImageHeatmap)
 }
@@ -937,6 +942,31 @@ func renderTextLabelsStrict() image.Image {
 	ax.SetYLabel("Value")
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderTitleStrict() image.Image {
+	fig := core.NewFigure(320, 80)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.05, Y: 0.40},
+		Max: geom.Pt{X: 0.95, Y: 0.85},
+	})
+	ax.SetTitle("Histogram Strategies")
+	ax.SetXLim(0, 1)
+	ax.SetYLim(0, 1)
+	ax.XAxis.ShowSpine = false
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowSpine = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
+	ax.ShowFrame = false
+
+	r, err := agg.New(320, 80, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}

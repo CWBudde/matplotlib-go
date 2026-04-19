@@ -237,7 +237,32 @@ func TestAxis_DrawTickLabels_UsesStepPrecisionForScalarFormatter(t *testing.T) {
 		t.Fatalf("End: %v", err)
 	}
 
-	want := []string{"0.000", "0.025", "0.050", "0.075", "0.100", "0.125", "0.150", "0.175", "0.200"}
+	want := []string{"0.000", "0.025", "0.050", "0.075", "0.100", "0.125", "0.150", "0.175"}
+	if len(r.texts) != len(want) {
+		t.Fatalf("unexpected tick label count: got %v want %v", r.texts, want)
+	}
+	for i := range want {
+		if r.texts[i] != want[i] {
+			t.Fatalf("tick label %d mismatch: got %q want %q", i, r.texts[i], want[i])
+		}
+	}
+}
+
+func TestAxis_DrawTickLabels_OmitsXLabelsOutsideViewLimits(t *testing.T) {
+	axis := NewXAxis()
+	ctx := createTestDrawContext()
+	ctx.DataToPixel.XScale = transform.NewLinear(0.8, 10.8)
+
+	var r axisLabelRecordingRenderer
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	want := []string{"2", "4", "6", "8", "10"}
 	if len(r.texts) != len(want) {
 		t.Fatalf("unexpected tick label count: got %v want %v", r.texts, want)
 	}

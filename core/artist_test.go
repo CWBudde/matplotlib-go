@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"testing"
 
 	"matplotlib-go/internal/geom"
@@ -54,5 +55,16 @@ func TestZOrderStableSortAndTraversal(t *testing.T) {
 		if order[i] != want[i] {
 			t.Fatalf("order mismatch at %d: got %v want %v (full=%v)", i, order[i], want[i], order)
 		}
+	}
+}
+
+func TestTitleFontSizeUsesTitleOnlyCompensation(t *testing.T) {
+	ctx := &DrawContext{RC: style.RC{FontSize: 12}}
+
+	got := titleFontSize(ctx)
+	want := 12.6
+
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("titleFontSize() = %v, want %v", got, want)
 	}
 }

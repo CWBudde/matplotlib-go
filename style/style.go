@@ -16,7 +16,7 @@ type RC struct {
 
 // Default contains the library defaults. Copy and apply options to customize.
 var Default = RC{
-	DPI:        96,
+	DPI:        100,
 	FontKey:    "DejaVu Sans",
 	FontSize:   12,
 	LineWidth:  1.25,

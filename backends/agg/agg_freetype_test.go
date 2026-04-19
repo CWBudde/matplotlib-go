@@ -42,6 +42,29 @@ func TestUsesDejaVuSansWithoutFallback(t *testing.T) {
 		t.Fatalf("End failed: %v", err)
 	}
 	if r.fallback {
-		t.Fatal("expected AGG raster FreeType text to be used without falling back to GSV")
+		t.Fatal("expected AGG outline FreeType text to be used without falling back to GSV")
+	}
+}
+
+func TestOutlineTextWidthTracksRendererDPI(t *testing.T) {
+	r := mustNew(t, 200, 100)
+
+	r.SetResolution(72)
+	width72 := r.MeasureText("Basic Bars", 12, "").W
+
+	r.SetResolution(96)
+	width96 := r.MeasureText("Basic Bars", 12, "").W
+
+	if width72 <= 0 || width96 <= 0 {
+		t.Fatalf("expected positive widths, got 72dpi=%v 96dpi=%v", width72, width96)
+	}
+	if width96 <= width72 {
+		t.Fatalf("expected width to increase with DPI, got 72dpi=%v 96dpi=%v", width72, width96)
+	}
+
+	gotRatio := width96 / width72
+	wantRatio := 96.0 / 72.0
+	if math.Abs(gotRatio-wantRatio) > 0.15 {
+		t.Fatalf("unexpected DPI scaling ratio: got=%v want=%v", gotRatio, wantRatio)
 	}
 }

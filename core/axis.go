@@ -17,6 +17,10 @@ const (
 	AxisRight                  // y-axis at right
 )
 
+// Matplotlib defaults axes.linewidth to 0.8 pt. The reference images are
+// rasterized at 100 DPI, so the equivalent stroke is about 1.11 px.
+const defaultAxisLineWidth = 0.8 * 100.0 / 72.0
+
 // Axis renders axis spines, ticks, and labels for a single dimension.
 type Axis struct {
 	Side          AxisSide     // which side of the plot
@@ -40,7 +44,7 @@ func NewXAxis() *Axis {
 		Locator:    LinearLocator{},
 		Formatter:  ScalarFormatter{Prec: 3},
 		Color:      render.Color{R: 0, G: 0, B: 0, A: 1}, // black
-		LineWidth:  1.0,
+		LineWidth:  defaultAxisLineWidth,
 		TickSize:   5.0,
 		ShowSpine:  true,
 		ShowTicks:  true,
@@ -55,7 +59,7 @@ func NewYAxis() *Axis {
 		Locator:    LinearLocator{},
 		Formatter:  ScalarFormatter{Prec: 3},
 		Color:      render.Color{R: 0, G: 0, B: 0, A: 1}, // black
-		LineWidth:  1.0,
+		LineWidth:  defaultAxisLineWidth,
 		TickSize:   5.0,
 		ShowSpine:  true,
 		ShowTicks:  true,
@@ -90,14 +94,14 @@ func (a *Axis) DrawTicks(r render.Renderer, ctx *DrawContext) {
 
 	// Minor ticks first
 	if a.MinorLocator != nil {
-		minorTicks := a.MinorLocator.Ticks(domainMin, domainMax, 30)
+		minorTicks := visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, 30), domainMin, domainMax)
 		if len(minorTicks) > 0 {
 			a.drawMinorTicks(r, ctx, minorTicks, isXAxis)
 		}
 	}
 
 	// Major ticks
-	ticks := a.Locator.Ticks(domainMin, domainMax, 6)
+	ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, 6), domainMin, domainMax)
 	if len(ticks) > 0 {
 		a.drawTicks(r, ctx, ticks, isXAxis)
 	}
@@ -113,7 +117,7 @@ func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext) {
 	paint := render.Paint{
 		LineWidth: lw,
 		Stroke:    a.Color,
-		LineCap:   render.CapButt,
+		LineCap:   render.CapSquare,
 		LineJoin:  render.JoinMiter,
 	}
 	path := geom.Path{
@@ -170,6 +174,8 @@ func (a *Axis) drawSingleTick(r render.Renderer, ctx *DrawContext, tickValue, ti
 	if isXAxis {
 		spineY := getSpinePosition(a.Side, ctx)
 		spinePixel := ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: spineY})
+		spinePixel.X = math.Round(spinePixel.X) + 0.5
+		spinePixel.Y = math.Round(spinePixel.Y) + 0.5
 
 		switch a.Side {
 		case AxisBottom:
@@ -184,6 +190,8 @@ func (a *Axis) drawSingleTick(r render.Renderer, ctx *DrawContext, tickValue, ti
 	} else {
 		spineX := getSpinePosition(a.Side, ctx)
 		spinePixel := ctx.DataToPixel.Apply(geom.Pt{X: spineX, Y: tickValue})
+		spinePixel.X = math.Round(spinePixel.X) + 0.5
+		spinePixel.Y = math.Round(spinePixel.Y) + 0.5
 
 		switch a.Side {
 		case AxisLeft:
@@ -223,7 +231,7 @@ func DrawFrame(r render.Renderer, ctx *DrawContext, ref *Axis) {
 	paint := render.Paint{
 		LineWidth: ref.LineWidth,
 		Stroke:    ref.Color,
-		LineCap:   render.CapButt,
+		LineCap:   render.CapSquare,
 		LineJoin:  render.JoinMiter,
 	}
 	drawLine := func(p1, p2 geom.Pt) {
@@ -286,8 +294,34 @@ func (a *Axis) DrawTickLabels(r render.Renderer, ctx *DrawContext) {
 		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
 		isXAxis = false
 	}
-	ticks := a.Locator.Ticks(domainMin, domainMax, 6)
+	ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, 6), domainMin, domainMax)
 	a.drawTickLabels(r, ctx, ticks, isXAxis)
+}
+
+func visibleTicks(ticks []float64, minVal, maxVal float64) []float64 {
+	if len(ticks) == 0 {
+		return nil
+	}
+	if minVal > maxVal {
+		minVal, maxVal = maxVal, minVal
+	}
+
+	span := maxVal - minVal
+	tol := 1e-9 * math.Max(1, span)
+
+	out := make([]float64, 0, len(ticks))
+	for _, tick := range ticks {
+		if tick < minVal-tol || tick > maxVal+tol {
+			continue
+		}
+		if approx(tick, minVal, tol) {
+			tick = minVal
+		} else if approx(tick, maxVal, tol) {
+			tick = maxVal
+		}
+		out = append(out, tick)
+	}
+	return out
 }
 
 // drawTickLabels draws text labels for the ticks if the renderer supports text.
