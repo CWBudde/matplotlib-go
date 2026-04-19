@@ -62,13 +62,19 @@ go test -tags freetype ./test/ -update-golden
 
 ### Golden Image Testing
 
-Golden tests compare rendered output against reference images stored in `testdata/golden/`. When tests fail, debug artifacts are saved to `testdata/_artifacts/` and uploaded by CI:
+Golden tests compare rendered output against reference images stored in `testdata/golden/`. Matplotlib parity and text-layout checks use committed reference images from `testdata/matplotlib_ref/`. When tests fail, debug artifacts are saved to `testdata/_artifacts/` and uploaded by CI:
 
 - `*_got.png`: Actual rendered output
 - `*_want.png`: Expected golden reference
 - `*_diff.png`: Visual diff highlighting changes
 
 The comparison uses pixel-perfect RGBA matching with configurable tolerance (typically ±1 LSB) and reports PSNR metrics for quality assessment.
+
+To refresh the committed Matplotlib reference images intentionally:
+
+```bash
+go test -tags freetype ./test/... -run TestMpl -update-matplotlib
+```
 
 ---
 

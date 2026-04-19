@@ -3,7 +3,7 @@ package test
 // Matplotlib reference tests compare our renderer against real matplotlib output.
 //
 // Reference images live in testdata/matplotlib_ref/ and are committed to the repo.
-// Tests skip if that directory is absent (first checkout, CI without refs, etc.).
+// The skip path is only a local bootstrap fallback when refs are intentionally absent.
 //
 // To (re)generate the reference images:
 //
@@ -40,7 +40,7 @@ var (
 )
 
 // ensureRefs generates reference images when -update-matplotlib is set,
-// or skips the calling test if the ref directory does not exist yet.
+// or skips the calling test if the committed ref directory is missing locally.
 func ensureRefs(t *testing.T) {
 	t.Helper()
 	if !*updateMatplotlib {

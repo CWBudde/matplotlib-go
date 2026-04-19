@@ -3,6 +3,7 @@ _artifacts/
 testdata/_artifacts/
 *.png
 !testdata/golden/*.png
+!testdata/matplotlib_ref/*.png
 
 # Temporary files
 *.tmp
