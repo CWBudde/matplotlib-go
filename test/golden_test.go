@@ -135,14 +135,17 @@ func TestHistStrategies_Golden(t *testing.T) {
 }
 
 func TestBoxPlotBasic_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
 	runGoldenTest(t, "boxplot_basic", renderBoxPlotBasic)
 }
 
 func TestErrorBars_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
 	runGoldenTest(t, "errorbar_basic", renderErrorBars)
 }
 
 func TestTextLabelsStrict_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
 	runGoldenTest(t, "text_labels_strict", renderTextLabelsStrict)
 }
 
@@ -155,22 +158,27 @@ func TestImageHeatmap_Golden(t *testing.T) {
 }
 
 func TestAxesTopRightInverted_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
 	runGoldenTest(t, "axes_top_right_inverted", renderAxesTopRightInverted)
 }
 
 func TestAxesControlSurface_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
 	runGoldenTest(t, "axes_control_surface", renderAxesControlSurface)
 }
 
 func TestTransformCoordinates_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
 	runGoldenTest(t, "transform_coordinates", renderTransformCoordinates)
 }
 
 func TestPlotVariants_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
 	runGoldenTest(t, "plot_variants", renderPlotVariants)
 }
 
 func TestUnitsOverview_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
 	runGoldenTest(t, "units_overview", renderUnitsOverview)
 }
 

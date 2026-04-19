@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>matplotlib-go Web Demo</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <p class="eyebrow">WASM Demo</p>
+        <h1>matplotlib-go in the browser</h1>
+        <p class="hero-copy">
+          Figures are rendered by Go code compiled to WebAssembly and painted
+          into an HTML canvas via a small JavaScript bridge.
+        </p>
+      </section>
+
+      <section class="workspace">
+        <aside class="controls-panel">
+          <label class="field-label" for="demoSelector">Demo</label>
+          <select id="demoSelector"></select>
+          <button id="renderBtn" type="button">Render</button>
+
+          <div class="meta-block">
+            <h2 id="demoTitle">Loading…</h2>
+            <p id="demoDescription">Preparing the WASM runtime.</p>
+          </div>
+
+          <div class="status-block">
+            <span class="status-label">Status</span>
+            <span id="statusMsg">Loading WASM…</span>
+          </div>
+        </aside>
+
+        <section class="canvas-panel">
+          <div class="canvas-frame">
+            <canvas
+              id="plotCanvas"
+              width="960"
+              height="540"
+              aria-label="matplotlib-go rendered plot"
+            ></canvas>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="wasm_exec.js"></script>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

@@ -346,12 +346,14 @@ core.SavePNG(fig, r, "output.png")
 - [ ] Event model shared across backends (mouse, keyboard, resize, draw, close)
 - [ ] Tool manager / toolbar abstractions
 - [ ] Embedding/runtime hosts for desktop or web backends
+- [x] Minimal browser runtime host for Go `js/wasm` demos using the GoBasic backend and an HTML canvas bridge
 
 ### 5.5 Additional Export and Embedding Targets
 
 - [ ] PDF/PS/PGF export for publication workflows
 - [ ] Filetype dispatch through backend/canvas capabilities instead of hard-coded `SavePNG` / `SaveSVG`
 - [ ] GUI and web embedding examples (SDL/GTK/Qt/Tk/WebAgg-style)
+- [x] GitHub Pages deployment workflow for the WASM-backed web demo
 
 **Exit Criteria:**
 

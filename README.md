@@ -76,6 +76,26 @@ To refresh the committed Matplotlib reference images intentionally:
 go test -tags freetype ./test/... -run TestMpl -update-matplotlib
 ```
 
+## Web Demo
+
+The repository now includes a browser demo under [`web/`](web) backed by Go
+compiled to WebAssembly from [`cmd/wasm`](cmd/wasm).
+
+Build the web artifact locally with:
+
+```bash
+just web-build
+```
+
+Then serve the `web/` directory with any static file server, for example:
+
+```bash
+python3 -m http.server 8000 --directory web
+```
+
+The GitHub Actions workflow [`.github/workflows/deploy-wasm.yml`](.github/workflows/deploy-wasm.yml)
+builds the same artifact and deploys it to GitHub Pages on pushes to `main`.
+
 ---
 
 🚀 _Plotting for Go, without compromise._

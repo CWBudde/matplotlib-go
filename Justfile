@@ -33,11 +33,17 @@ build:
     # Use freetype-aware rendering paths (including GoBasic text-family/size handling).
     CGO_ENABLED=1 go build -tags freetype ./...
 
+web-build:
+    bash ./web/build-wasm.sh
+
 build-skia:
     CGO_ENABLED=1 go build -tags "skia freetype" ./...
 
 test:
     CGO_ENABLED=1 go test -tags freetype ./...
+
+test-optional-visual:
+    RUN_OPTIONAL_VISUAL_TESTS=true CGO_ENABLED=1 go test -tags freetype ./...
 
 test-skia:
     CGO_ENABLED=1 go test -tags "skia freetype" ./...

@@ -19,6 +19,7 @@ const (
 )
 
 func TestTextLabelsStrict_MatplotlibRef(t *testing.T) {
+	requireOptionalVisualTests(t)
 	got := renderTextLabelsStrict()
 	wantPath := filepath.Join("..", "testdata", "matplotlib_ref", "text_labels_strict.png")
 	want, err := imagecmp.LoadPNG(wantPath)
@@ -53,6 +54,7 @@ func TestTextLabelsStrict_MatplotlibRef(t *testing.T) {
 }
 
 func TestTitleStrict_MatplotlibRef(t *testing.T) {
+	requireOptionalVisualTests(t)
 	got := renderTitleStrict()
 	wantPath := filepath.Join("..", "testdata", "matplotlib_ref", "title_strict.png")
 	want, err := imagecmp.LoadPNG(wantPath)
