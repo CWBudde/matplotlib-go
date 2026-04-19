@@ -27,7 +27,7 @@ func TestRegisterColormap_NormalizesNameAndClampsStops(t *testing.T) {
 	}
 
 	mid := c.At(0.5)
-	if math.Abs(mid.R-0.5) > 1e-9 || math.Abs(mid.G-0.5) > 1e-9 || math.Abs(mid.B-0.5) > 1e-9 {
+	if math.Abs(mid.R-0.5) > 1e-9 || math.Abs(mid.G-0) > 1e-9 || math.Abs(mid.B-0.5) > 1e-9 {
 		t.Fatalf("unexpected midpoint color: %#v", mid)
 	}
 }

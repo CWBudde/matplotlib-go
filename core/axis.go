@@ -299,11 +299,7 @@ func (a *Axis) DrawTickLabels(r render.Renderer, ctx *DrawContext) {
 
 // drawTickLabels draws text labels for the ticks if the renderer supports text.
 func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float64, isXAxis bool) {
-	type textRenderer interface {
-		DrawText(text string, origin geom.Pt, size float64, textColor render.Color)
-	}
-
-	textRen, ok := r.(textRenderer)
+	textRen, ok := r.(render.TextDrawer)
 	if !ok {
 		return
 	}
@@ -316,8 +312,16 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		fontSize = 8
 	}
 
+	step := 0.0
+	if len(ticks) >= 2 {
+		step = ticks[1] - ticks[0]
+	}
+
 	for _, tickValue := range ticks {
 		label := a.Formatter.Format(tickValue)
+		if scalarFormatter, ok := a.Formatter.(ScalarFormatter); ok && step > 0 {
+			label = formatScalarTickLabel(scalarFormatter, tickValue, step)
+		}
 		if label == "" {
 			continue
 		}

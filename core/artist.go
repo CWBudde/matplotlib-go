@@ -18,6 +18,12 @@ type Artist interface {
 	Bounds(ctx *DrawContext) geom.Rect
 }
 
+// OverlayArtist is an optional extension for artists that need to render
+// outside the axes clip, such as annotations with labels offset from the plot.
+type OverlayArtist interface {
+	DrawOverlay(r render.Renderer, ctx *DrawContext)
+}
+
 // ArtistFunc adapts a function to an Artist.
 type ArtistFunc func(r render.Renderer, ctx *DrawContext)
 
@@ -382,8 +388,14 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		}
 		r.Restore()
 
-		// Draw ticks (outward), tick labels, and text labels outside the clip rect
 		setRendererResolution(r, ctx.RC.DPI)
+		for _, art := range ax.Artists {
+			if overlay, ok := art.(OverlayArtist); ok {
+				overlay.DrawOverlay(r, ctx)
+			}
+		}
+
+		// Draw ticks (outward), tick labels, and text labels outside the clip rect
 		if xAxis != nil {
 			xAxis.DrawTicks(r, ctx)
 			xAxis.DrawTickLabels(r, ctx)
@@ -396,34 +408,18 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 	}
 }
 
-type textResolutionSetter interface {
-	SetResolution(dpi uint)
-}
-
 func setRendererResolution(r render.Renderer, dpi float64) {
 	if dpi <= 0 {
 		return
 	}
-	if setter, ok := r.(textResolutionSetter); ok {
+	if setter, ok := r.(render.DPIAware); ok {
 		setter.SetResolution(uint(math.Round(dpi)))
 	}
 }
 
 // drawAxesLabels renders title, xlabel, and ylabel outside the clipped axes area.
 func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect) {
-	type textRenderer interface {
-		DrawText(text string, origin geom.Pt, size float64, textColor render.Color)
-	}
-	type verticalTextRenderer interface {
-		textRenderer
-		DrawTextVertical(text string, center geom.Pt, size float64, textColor render.Color)
-	}
-	type rotatedTextRenderer interface {
-		textRenderer
-		DrawTextRotated(text string, center geom.Pt, size, angle float64, textColor render.Color)
-	}
-
-	textRen, ok := r.(textRenderer)
+	textRen, ok := r.(render.TextDrawer)
 	if !ok {
 		return
 	}
@@ -460,9 +456,9 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	if ax.YLabel != "" {
 		center := geom.Pt{X: px.Min.X - 36, Y: px.Min.Y + px.H()/2}
 		switch ren := r.(type) {
-		case rotatedTextRenderer:
+		case render.RotatedTextDrawer:
 			ren.DrawTextRotated(ax.YLabel, center, labelSize, math.Pi/2, labelColor)
-		case verticalTextRenderer:
+		case render.VerticalTextDrawer:
 			ren.DrawTextVertical(ax.YLabel, center, labelSize, labelColor)
 		default:
 			metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)

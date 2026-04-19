@@ -5,7 +5,6 @@ package agg
 
 import (
 	"errors"
-	"fmt"
 	"image"
 	"image/png"
 	"math"
@@ -47,7 +46,7 @@ func loadFontPath() (string, error) {
 
 // Renderer implements render.Renderer using the AGG rendering backend.
 type Renderer struct {
-	ctx        *agglib.Context
+	ctx        *aggSurface
 	width      int
 	height     int
 	resolution uint
@@ -65,6 +64,12 @@ type state struct {
 }
 
 var _ render.Renderer = (*Renderer)(nil)
+var _ render.DPIAware = (*Renderer)(nil)
+var _ render.TextDrawer = (*Renderer)(nil)
+var _ render.RotatedTextDrawer = (*Renderer)(nil)
+var _ render.VerticalTextDrawer = (*Renderer)(nil)
+var _ render.ImageTransformer = (*Renderer)(nil)
+var _ render.PNGExporter = (*Renderer)(nil)
 
 // New creates a new AGG renderer with the specified dimensions and background color.
 // Returns an error if width or height are not positive.
@@ -73,7 +78,7 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		return nil, errors.New("agg: width and height must be positive")
 	}
 
-	ctx := agglib.NewContext(w, h)
+	ctx := newAggSurface(w, h)
 
 	// Clear with background color
 	bgColor := renderColorToAGG(bg)
@@ -87,19 +92,14 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	}
 
 	// Prefer DejaVu Sans (the same default font Matplotlib ships with) via the
-	// AGG TrueType font path. Fall back to the legacy GSV font only when the
-	// FreeType-backed path is unavailable in the current build.
+	// AGG outline text path. Fall back to the legacy GSV vector font only when
+	// the FreeType-backed path is unavailable in the current build.
 	fp, err := loadFontPath()
-	if err != nil {
-		return nil, fmt.Errorf("agg: load truetype font: %w", err)
-	}
-	if loadErr := ctx.GetAgg2D().Font(fp, 12.0, false, false, agglib.RasterFontCache, 0); loadErr != nil {
-		// Keep the backend usable without the freetype build tag, but prefer the
-		// TrueType path whenever it is available.
-		ctx.GetAgg2D().FontGSV(13.0)
-		r.fallback = true
-	} else {
+	if err == nil {
 		r.fontPath = fp
+	}
+	if r.loadTrueTypeOutline(12) == nil {
+		r.fallback = true
 	}
 
 	return r, nil
@@ -156,13 +156,7 @@ func (r *Renderer) Restore() {
 	r.stack = r.stack[:len(r.stack)-1]
 	r.clipRect = s.clipRect
 	r.ctx.PopTransform()
-
-	// Restore clip box
-	if r.clipRect != nil {
-		r.ctx.GetAgg2D().ClipBox(r.clipRect.Min.X, r.clipRect.Min.Y, r.clipRect.Max.X, r.clipRect.Max.Y)
-	} else {
-		r.ctx.GetAgg2D().ClipBox(0, 0, float64(r.width), float64(r.height))
-	}
+	r.applyClipRect()
 }
 
 // ClipRect sets a rectangular clip region.
@@ -173,7 +167,7 @@ func (r *Renderer) ClipRect(rect geom.Rect) {
 		intersected := r.clipRect.Intersect(rect)
 		r.clipRect = &intersected
 	}
-	r.ctx.GetAgg2D().ClipBox(r.clipRect.Min.X, r.clipRect.Min.Y, r.clipRect.Max.X, r.clipRect.Max.Y)
+	r.applyClipRect()
 }
 
 // ClipPath sets a path-based clip region (not yet supported, no-op).
@@ -184,74 +178,67 @@ func (r *Renderer) ClipPath(_ geom.Path) {
 
 // Path draws a path with the given paint style.
 func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
-	if !p.Validate() {
+	if !p.Validate() || paint == nil {
 		return
 	}
 
-	agg := r.ctx.GetAgg2D()
-
 	// Fill first if requested
 	if paint.Fill.A > 0 {
-		r.buildAGGPath(p)
-		agg.FillColor(renderColorToAGG(paint.Fill))
-		agg.NoLine()
-		agg.DrawPath(agglib.FillOnly)
+		r.buildPath(p)
+		r.ctx.SetFillColor(renderColorToAGG(paint.Fill))
+		r.ctx.Fill()
 	}
 
 	// Then stroke if requested
 	if paint.Stroke.A > 0 && paint.LineWidth > 0 {
-		r.buildAGGPath(p)
-		agg.LineColor(renderColorToAGG(paint.Stroke))
-		agg.NoFill()
-		agg.LineWidth(paint.LineWidth)
+		r.buildPath(p)
+		r.ctx.SetStrokeColor(renderColorToAGG(paint.Stroke))
+		r.ctx.SetStrokeWidth(paint.LineWidth)
 
 		// Map line join
 		switch paint.LineJoin {
 		case render.JoinMiter:
-			agg.LineJoin(agglib.JoinMiter)
+			r.ctx.SetLineJoin(agglib.JoinMiter)
 		case render.JoinRound:
-			agg.LineJoin(agglib.JoinRound)
+			r.ctx.SetLineJoin(agglib.JoinRound)
 		case render.JoinBevel:
-			agg.LineJoin(agglib.JoinBevel)
+			r.ctx.SetLineJoin(agglib.JoinBevel)
 		}
 
 		// Map line cap
 		switch paint.LineCap {
 		case render.CapButt:
-			agg.LineCap(agglib.CapButt)
+			r.ctx.SetLineCap(agglib.CapButt)
 		case render.CapRound:
-			agg.LineCap(agglib.CapRound)
+			r.ctx.SetLineCap(agglib.CapRound)
 		case render.CapSquare:
-			agg.LineCap(agglib.CapSquare)
+			r.ctx.SetLineCap(agglib.CapSquare)
 		}
 
 		// Set miter limit
 		if paint.MiterLimit > 0 {
-			agg.MiterLimit(paint.MiterLimit)
+			r.ctx.SetMiterLimit(paint.MiterLimit)
 		}
 
 		// Handle dashes
-		agg.RemoveAllDashes()
+		r.ctx.ClearDashes()
 		if len(paint.Dashes) >= 2 {
-			for i := 0; i+1 < len(paint.Dashes); i += 2 {
-				agg.AddDash(paint.Dashes[i], paint.Dashes[i+1])
-			}
+			r.ctx.SetDashPattern(paint.Dashes)
 		}
 
-		agg.DrawPath(agglib.StrokeOnly)
+		r.ctx.Stroke()
 
 		// Clean up dashes
 		if len(paint.Dashes) >= 2 {
-			agg.RemoveAllDashes()
+			r.ctx.ClearDashes()
 		}
 	}
 }
 
-// buildAGGPath converts a geom.Path into AGG path commands on the current context.
+// buildPath converts a geom.Path into AGG path commands on the current context.
 // Coordinates are quantized to ensure deterministic rendering across platforms.
-func (r *Renderer) buildAGGPath(p geom.Path) {
-	agg := r.ctx.GetAgg2D()
-	agg.ResetPath()
+func (r *Renderer) buildPath(p geom.Path) {
+	r.ctx.BeginPath()
 
 	vi := 0
 	for _, cmd := range p.C {
@@ -261,14 +248,14 @@ func (r *Renderer) buildAGGPath(p geom.Path) {
 				return
 			}
 			pt := quantizePt(p.V[vi])
-			agg.MoveTo(pt.X, pt.Y)
+			r.ctx.MoveTo(pt.X, pt.Y)
 			vi++
 		case geom.LineTo:
 			if vi >= len(p.V) {
 				return
 			}
 			pt := quantizePt(p.V[vi])
-			agg.LineTo(pt.X, pt.Y)
+			r.ctx.LineTo(pt.X, pt.Y)
 			vi++
 		case geom.QuadTo:
 			if vi+1 >= len(p.V) {
@@ -276,7 +263,7 @@ func (r *Renderer) buildAGGPath(p geom.Path) {
 			}
 			ctrl := quantizePt(p.V[vi])
 			to := quantizePt(p.V[vi+1])
-			agg.QuadricCurveTo(ctrl.X, ctrl.Y, to.X, to.Y)
+			r.ctx.QuadricCurveTo(ctrl.X, ctrl.Y, to.X, to.Y)
 			vi += 2
 		case geom.CubicTo:
 			if vi+2 >= len(p.V) {
@@ -285,10 +272,10 @@ func (r *Renderer) buildAGGPath(p geom.Path) {
 			c1 := quantizePt(p.V[vi])
 			c2 := quantizePt(p.V[vi+1])
 			to := quantizePt(p.V[vi+2])
-			agg.CubicCurveTo(c1.X, c1.Y, c2.X, c2.Y, to.X, to.Y)
+			r.ctx.CubicCurveTo(c1.X, c1.Y, c2.X, c2.Y, to.X, to.Y)
 			vi += 3
 		case geom.ClosePath:
-			agg.ClosePolygon()
+			r.ctx.ClosePath()
 		}
 	}
 }
@@ -363,42 +350,39 @@ func (r *Renderer) GlyphRun(_ render.GlyphRun, _ render.Color) {
 	// Text rendering is done through DrawText helper instead.
 }
 
-// setFont configures the font engine for the given size.
-func (r *Renderer) setFont(size float64) {
-	r.setFontOn(r.ctx, size, agglib.RasterFontCache)
-}
-
-// setFontOn configures the font engine for a specific AGG context.
-func (r *Renderer) setFontOn(ctx *agglib.Context, size float64, cacheType agglib.FontCacheType) {
-	ctx.SetResolution(r.resolution)
-	if r.fontPath != "" {
-		if err := ctx.Font(r.fontPath, size, false, false, cacheType, 0); err == nil {
-			return
-		}
-	}
-	ctx.GetAgg2D().FontGSV(size)
-	r.fallback = true
-}
-
 // MeasureText measures text dimensions using the active font engine.
 func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
-	if text == "" {
+	if text == "" || size <= 0 {
 		return render.TextMetrics{}
 	}
 
-	r.setFontOn(r.ctx, size, agglib.RasterFontCache)
-	agg := r.ctx.GetAgg2D()
-	w := agg.TextWidth(text)
-	ascent := r.ctx.GetAscender()
-	descent := -r.ctx.GetDescender()
+	font := r.configureTextFont(size)
+	defer font.Close()
+
+	var (
+		w       float64
+		ascent  float64
+		descent float64
+	)
+	switch font.backend {
+	case textBackendTrueType:
+		w = font.outline.MeasureText(text)
+		ascent = font.outline.GetAscender()
+		descent = -font.outline.GetDescender()
+	default:
+		w = measureLocalGSVTextWidth(text, font.size)
+		ascent = font.size
+		descent = 0
+	}
+
 	h := ascent + descent
 	if h <= 0 {
-		h = agg.FontHeight()
+		h = font.size
 	}
 	if ascent <= 0 {
 		ascent = h
 	}
-	if descent <= 0 {
+	if descent < 0 {
 		descent = 0
 	}
 
@@ -413,15 +397,29 @@ func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextM
 // DrawText renders text at the given position with the specified size and color.
 // This is a helper method (not part of the Renderer interface).
 func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor render.Color) {
-	if text == "" {
+	if text == "" || size <= 0 {
 		return
 	}
 
-	r.setFont(size)
-	a := r.ctx.GetAgg2D()
-	a.FillColor(renderColorToAGG(textColor))
-	a.LineColor(renderColorToAGG(textColor))
-	a.Text(origin.X, origin.Y, text, true, 0, 0)
+	font := r.configureTextFont(size)
+	defer font.Close()
+
+	switch font.backend {
+	case textBackendTrueType:
+		font.outline.SetText(text)
+		r.ctx.SetFillColor(renderColorToAGG(textColor))
+		if drawFreeTypeOutlineText(r.ctx, font.outline, origin.X, origin.Y) {
+			r.ctx.Fill()
+		}
+	default:
+		r.ctx.SetStrokeColor(renderColorToAGG(textColor))
+		r.ctx.SetStrokeWidth(math.Max(1, font.size*0.08))
+		r.ctx.SetLineCap(agglib.CapRound)
+		r.ctx.SetLineJoin(agglib.JoinRound)
+		if appendLocalGSVText(r.ctx, origin.X, origin.Y, font.size, text) {
+			r.ctx.Stroke()
+		}
+	}
 }
 
 // DrawTextRotated renders text rotated around the provided center point.
@@ -430,11 +428,6 @@ func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle floa
 		return
 	}
 
-	// Render the text into a temporary transparent image using the normal
-	// raster DejaVu path, then rotate the whole rendered block as one unit.
-	// This keeps punctuation and descenders tied to the same baseline as the
-	// unrotated text instead of trying to rotate individual glyph bitmaps.
-	r.setFont(size)
 	metrics := r.MeasureText(text, size, "")
 	if metrics.W <= 0 || metrics.H <= 0 {
 		return
@@ -458,12 +451,10 @@ func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle floa
 		return
 	}
 	tmp.SetResolution(r.resolution)
-	tmp.setFont(size)
-	tmp.ctx.SetTextAlignment(agglib.AlignCenter, agglib.AlignCenter)
-	tmp.ctx.SetColor(renderColorToAGG(textColor))
-	tmp.ctx.GetAgg2D().FillColor(renderColorToAGG(textColor))
-	tmp.ctx.GetAgg2D().LineColor(renderColorToAGG(textColor))
-	_ = tmp.ctx.DrawText(text, float64(tempW)/2, float64(tempH)/2)
+	tmp.DrawText(text, geom.Pt{
+		X: float64(tempW)/2 - metrics.W/2,
+		Y: float64(tempH)/2 + (metrics.Ascent-metrics.Descent)/2,
+	}, size, textColor)
 
 	rotImg, err := agglib.NewImageFromStandardImage(tmp.GetImage())
 	if err != nil {
@@ -484,25 +475,24 @@ func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle floa
 // DrawTextVertical renders text vertically (one character per line, top to bottom).
 // This is used for ylabel rendering where true rotation is not available.
 func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, textColor render.Color) {
-	if text == "" {
+	if text == "" || size <= 0 {
 		return
 	}
 
-	r.setFont(size)
-	a := r.ctx.GetAgg2D()
-	a.FillColor(renderColorToAGG(textColor))
-	a.LineColor(renderColorToAGG(textColor))
-
-	h := a.FontHeight()
+	lineMetrics := r.MeasureText("M", size, "")
+	h := lineMetrics.H
+	if h <= 0 {
+		h = size
+	}
 	runes := []rune(text)
 	totalH := float64(len(runes)) * h
 	y := center.Y - totalH/2 + h // start from top, offset by one line height
 
 	for _, ch := range runes {
 		s := string(ch)
-		w := a.TextWidth(s)
+		w := r.MeasureText(s, size, "").W
 		x := center.X - w/2
-		a.Text(x, y, s, true, 0, 0)
+		r.DrawText(s, geom.Pt{X: x, Y: y}, size, textColor)
 		y += h
 	}
 }
@@ -553,6 +543,14 @@ func quantize(v float64) float64 {
 
 func quantizePt(p geom.Pt) geom.Pt {
 	return geom.Pt{X: quantize(p.X), Y: quantize(p.Y)}
+}
+
+func (r *Renderer) applyClipRect() {
+	if r.clipRect != nil {
+		r.ctx.ClipBox(r.clipRect.Min.X, r.clipRect.Min.Y, r.clipRect.Max.X, r.clipRect.Max.Y)
+		return
+	}
+	r.ctx.ClipBox(0, 0, float64(r.width), float64(r.height))
 }
 
 // renderImageToAGG converts a renderer image into an AGG image type.

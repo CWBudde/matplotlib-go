@@ -10,9 +10,16 @@ import (
 
 func main() {
 	// Exact replication of dashes golden test at 640x360 with small dash values
-	ctx := agglib.NewContext(640, 360)
-	ctx.Clear(agglib.NewColor(255, 255, 255, 255))
-	agg := ctx.GetAgg2D()
+	const (
+		width  = 640
+		height = 360
+	)
+
+	img := agglib.NewImage(make([]uint8, width*height*4), width, height, width*4)
+	agg := agglib.NewAgg2D()
+	agg.AttachImage(img)
+	agg.ClearAll(agglib.NewColor(255, 255, 255, 255))
+	agg.ClipBox(0, 0, width, height)
 
 	// Solid black (y=4, from pixel ~114 to ~525 based on axes 10-90% of 640, ylim 0-5)
 	agg.LineColor(agglib.Color{R: 0, G: 0, B: 0, A: 255})
@@ -35,7 +42,7 @@ func main() {
 	agg.RemoveAllDashes()
 
 	f, _ := os.Create("/tmp/test_small_dashes.png")
-	png.Encode(f, ctx.GetImage().ToGoImage())
+	png.Encode(f, img.ToGoImage())
 	f.Close()
 	fmt.Println("Small dashes (5,2) - 640x360")
 }

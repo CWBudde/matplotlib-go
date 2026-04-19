@@ -10,10 +10,6 @@ import (
 	"matplotlib-go/render"
 )
 
-type transformedImageRenderer interface {
-	ImageTransformed(img render.Image, dst geom.Rect, transform geom.Affine)
-}
-
 // Draw renders the rasterized image through the renderer.
 func (i *Image2D) Draw(r render.Renderer, ctx *DrawContext) {
 	if i == nil || r == nil {
@@ -36,7 +32,7 @@ func (i *Image2D) Draw(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	if tr, ok := r.(transformedImageRenderer); ok {
+	if tr, ok := r.(render.ImageTransformer); ok {
 		anchor := i.rotationAnchor(ctx, dst)
 		transform := imageTransform(dst, raster, anchor, angleRad)
 		tr.ImageTransformed(raster, dst, transform)

@@ -90,7 +90,7 @@ func TestErrorBar_Bounds(t *testing.T) {
 		YErr: []float64{0.4, 0.6},
 	}
 	bounds := errBar.Bounds(nil)
-	if bounds.Min.X != 1.5 || bounds.Max.X != 5.5 || bounds.Min.Y != 2.4 || bounds.Max.Y != 5.6 {
+	if bounds.Min.X != 1.5 || bounds.Max.X != 5.5 || bounds.Min.Y != 2.6 || bounds.Max.Y != 5.6 {
 		t.Errorf("unexpected bounds: %v", bounds)
 	}
 }

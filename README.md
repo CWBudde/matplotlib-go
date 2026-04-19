@@ -1,7 +1,7 @@
 # Matplotlib-Go (working title)
 
 A plotting library for Go inspired by Matplotlib.  
-Renderer-agnostic at the core, with support for high-quality raster and vector backends (AGG, Skia, etc.).
+Renderer-agnostic at the core, with support for high-quality raster backends today and vector/GPU backends later.
 
 ---
 
@@ -11,10 +11,10 @@ Renderer-agnostic at the core, with support for high-quality raster and vector b
 Deliver a Go-native, Matplotlib-like plotting system with:
 
 - **Familiar model:** `Figure → Axes → Artists` hierarchy
-- **Renderer independence:** consistent outputs across CPU raster (AGG), GPU (Skia), and vector formats (SVG/PDF)
+- **Renderer independence:** consistent outputs across CPU raster today, with room for GPU and vector backends later
 - **Deterministic results:** identical plots across machines and CI, great for testing
-- **Beautiful text:** robust font handling, shaping (via HarfBuzz), and precise metrics
-- **Comprehensive export:** PNG, SVG, PDF (and more via backends)
+- **Beautiful text:** robust font handling, fallback fonts, and precise metrics
+- **Comprehensive export:** PNG today, with SVG/PDF planned via future backends
 - **Go-idiomatic API:** options-based configuration, no hidden global state; optional `pyplot` shim for scripting
 - **Cross-platform interactivity:** pan/zoom, picking, animations, WASM/web backends
 
@@ -36,7 +36,7 @@ Deliver a Go-native, Matplotlib-like plotting system with:
 When this repo is “done”, it should provide:
 
 - A stable core API for 2D plotting (lines, scatter, images, text, legends, colorbars, etc.)
-- Multiple renderers (AGG, Skia, SVG, PDF) with visual parity
+- Multiple renderers (AGG, GoBasic, and future Skia/SVG/PDF backends) with visual parity
 - A gallery of reproducible, high-quality examples
 - Deterministic test suite with image baselines
 - Documentation and guides, including **“Matplotlib to Go”** migration notes

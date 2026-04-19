@@ -94,11 +94,7 @@ func (a *Axes) AddLegend() *Legend {
 
 // Draw renders the legend box and entries.
 func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
-	type textRenderer interface {
-		DrawText(text string, origin geom.Pt, size float64, textColor render.Color)
-	}
-
-	textRen, ok := r.(textRenderer)
+	textRen, ok := r.(render.TextDrawer)
 	if !ok {
 		return
 	}

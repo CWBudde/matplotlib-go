@@ -67,6 +67,19 @@ func TestLinearLocator_Property(t *testing.T) {
 	}
 }
 
+func TestLinearLocator_HistogramStyleRange(t *testing.T) {
+	ticks := (LinearLocator{}).Ticks(0, 0.196, 6)
+	want := []float64{0, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2}
+	if len(ticks) != len(want) {
+		t.Fatalf("tick count mismatch: got %v want %v", ticks, want)
+	}
+	for i := range want {
+		if math.Abs(ticks[i]-want[i]) > 1e-12 {
+			t.Fatalf("tick %d mismatch: got %.17g want %.17g", i, ticks[i], want[i])
+		}
+	}
+}
+
 func TestLogLocator_MajorsMonotone(t *testing.T) {
 	bases := []float64{2, 10}
 	for _, b := range bases {
@@ -155,5 +168,25 @@ func TestScalarFormatter_TrimAndScientific(t *testing.T) {
 	}
 	if got := f.Format(0.0000123); !strings.Contains(got, "e") {
 		t.Fatalf("expected scientific for small: %q", got)
+	}
+}
+
+func TestFormatScalarTickLabel_UsesStepPrecision(t *testing.T) {
+	f := ScalarFormatter{Prec: 3}
+	cases := []struct {
+		value float64
+		step  float64
+		want  string
+	}{
+		{value: 0, step: 0.025, want: "0.000"},
+		{value: 0.05, step: 0.025, want: "0.050"},
+		{value: 2, step: 2, want: "2"},
+		{value: 0.2, step: 0.2, want: "0.2"},
+	}
+
+	for _, tc := range cases {
+		if got := formatScalarTickLabel(f, tc.value, tc.step); got != tc.want {
+			t.Fatalf("formatScalarTickLabel(%v, %v)=%q want %q", tc.value, tc.step, got, tc.want)
+		}
 	}
 }

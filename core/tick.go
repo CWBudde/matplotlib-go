@@ -17,11 +17,11 @@ type Formatter interface {
 	Format(x float64) string
 }
 
-// LinearLocator places ticks at nice multiples of 1,2,5×10^k.
+// LinearLocator places ticks at nice multiples of 1,2,2.5,5×10^k.
 type LinearLocator struct{}
 
 // Ticks returns a strictly increasing slice of ticks that cover [min,max]
-// using a step chosen from {1,2,5}×10^k close to span/targetCount.
+// using a step chosen from {1,2,2.5,5}×10^k close to span/targetCount.
 func (LinearLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 	if targetCount <= 0 {
 		targetCount = 1
@@ -43,7 +43,7 @@ func (LinearLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 	// Determine exponent of 10 for raw step.
 	exp := math.Floor(math.Log10(raw))
 	base := math.Pow(10, exp)
-	candidates := []float64{1 * base, 2 * base, 5 * base, 10 * base}
+	candidates := []float64{1 * base, 2 * base, 2.5 * base, 5 * base, 10 * base}
 	step := candidates[0]
 	best := math.Abs(candidates[0] - raw)
 	for _, c := range candidates[1:] {
@@ -77,6 +77,45 @@ func (LinearLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 		}
 	}
 	return out
+}
+
+func scalarUsesScientific(x float64) bool {
+	ax := math.Abs(x)
+	return (ax >= 1e6) || (ax > 0 && ax <= 1e-4)
+}
+
+func scalarStepPrecision(step float64) int {
+	step = math.Abs(step)
+	if step == 0 || math.IsNaN(step) || math.IsInf(step, 0) {
+		return 0
+	}
+
+	pow10 := 1.0
+	for prec := 0; prec <= 12; prec++ {
+		scaled := step * pow10
+		if approx(scaled, math.Round(scaled), 1e-9*math.Max(1, math.Abs(scaled))) {
+			return prec
+		}
+		pow10 *= 10
+	}
+	return 6
+}
+
+func formatScalarTickLabel(f ScalarFormatter, x, step float64) string {
+	if scalarUsesScientific(x) {
+		return f.Format(x)
+	}
+
+	prec := scalarStepPrecision(step)
+	if prec < 0 {
+		return f.Format(x)
+	}
+
+	if approx(x, 0, 1e-12*math.Max(1, math.Abs(step))) {
+		x = 0
+	}
+
+	return strconv.FormatFloat(x, 'f', prec, 64)
 }
 
 // MinorLinearLocator subdivides the intervals between major ticks.
@@ -197,9 +236,8 @@ func (f ScalarFormatter) Format(x float64) string {
 	if p < 0 {
 		p = 0
 	}
-	ax := math.Abs(x)
 	var s string
-	if (ax >= 1e6) || (ax > 0 && ax <= 1e-4) {
+	if scalarUsesScientific(x) {
 		s = strconv.FormatFloat(x, 'e', p, 64)
 		// normalize exponent: remove leading zeros in e+00X
 		if i := strings.LastIndexByte(s, 'e'); i >= 0 && i+2 < len(s) {

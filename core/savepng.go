@@ -6,11 +6,6 @@ import (
 	"matplotlib-go/render"
 )
 
-// PNGExporter defines the interface for renderers that can export to PNG.
-type PNGExporter interface {
-	SavePNG(path string) error
-}
-
 // SavePNG saves a figure to a PNG file using the provided renderer.
 // This function draws the figure using the renderer and then exports to PNG.
 func SavePNG(fig *Figure, r render.Renderer, path string) error {
@@ -18,7 +13,7 @@ func SavePNG(fig *Figure, r render.Renderer, path string) error {
 	DrawFigure(fig, r)
 
 	// Check if this renderer supports PNG export
-	if exporter, ok := r.(PNGExporter); ok {
+	if exporter, ok := r.(render.PNGExporter); ok {
 		return exporter.SavePNG(path)
 	}
 

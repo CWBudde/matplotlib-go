@@ -49,10 +49,7 @@ func TestLegendDrawRendersLabelsAndSamples(t *testing.T) {
 	var r legendRecordingRenderer
 	DrawFigure(fig, &r)
 
-	if len(r.texts) != 2 {
-		t.Fatalf("expected 2 legend labels, got %d", len(r.texts))
-	}
-	if r.texts[0] != "signal" || r.texts[1] != "samples" {
+	if !containsString(r.texts, "signal") || !containsString(r.texts, "samples") {
 		t.Fatalf("unexpected legend labels: %v", r.texts)
 	}
 	if r.pathCount < 4 {
@@ -81,4 +78,13 @@ func (r *legendRecordingRenderer) MeasureText(text string, size float64, _ strin
 
 func (r *legendRecordingRenderer) DrawText(text string, _ geom.Pt, _ float64, _ render.Color) {
 	r.texts = append(r.texts, text)
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }

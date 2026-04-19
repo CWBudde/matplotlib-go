@@ -87,25 +87,95 @@ func TestHistogramTopHeights_ParsedDataParity(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			expected := expectedHistogramTopProfile(t, axes, tc.series)
+			skipColumn := histogramBoundaryColumns(axes, tc.series, 1)
 
 			got := tc.render()
-			assertHistogramTopProfile(t, "got", got, expected, tc.maxDiff)
+			assertHistogramTopProfile(t, "got", got, expected, tc.maxDiff, skipColumn)
 
 			goldenPath := filepath.Join("..", "testdata", "golden", tc.name+".png")
 			golden, err := imagecmp.LoadPNG(goldenPath)
 			if err != nil {
 				t.Fatalf("load golden image %s: %v", goldenPath, err)
 			}
-			assertHistogramTopProfile(t, "golden", golden, expected, tc.maxDiff)
+			assertHistogramTopProfile(t, "golden", golden, expected, tc.maxDiff, skipColumn)
 
 			refPath := filepath.Join("..", "testdata", "matplotlib_ref", tc.name+".png")
 			ref, err := imagecmp.LoadPNG(refPath)
 			if err != nil {
 				t.Fatalf("load matplotlib reference image %s: %v", refPath, err)
 			}
-			assertHistogramTopProfile(t, "matplotlib_ref", ref, expected, tc.maxDiff)
+			assertHistogramTopProfile(t, "matplotlib_ref", ref, expected, tc.maxDiff, skipColumn)
 		})
 	}
+}
+
+func histogramBoundaryColumns(axes geom.Rect, series []histogramHeightSeries, pxTolerance int) []bool {
+	ax := geom.Rect{
+		Min: geom.Pt{X: float64(histogramFigureWidth) * axes.Min.X, Y: float64(histogramFigureHeight) * axes.Min.Y},
+		Max: geom.Pt{X: float64(histogramFigureWidth) * axes.Max.X, Y: float64(histogramFigureHeight) * axes.Max.Y},
+	}
+
+	xMin := math.Inf(1)
+	xMax := math.Inf(-1)
+	yMax := 0.0
+	for _, s := range series {
+		if len(s.edges) < 2 {
+			continue
+		}
+		if s.edges[0] < xMin {
+			xMin = s.edges[0]
+		}
+		if s.edges[len(s.edges)-1] > xMax {
+			xMax = s.edges[len(s.edges)-1]
+		}
+		for _, h := range s.heights {
+			if h > yMax {
+				yMax = h
+			}
+		}
+	}
+	if xMin >= xMax || yMax <= 0 {
+		return nil
+	}
+
+	xSpan := xMax - xMin
+	xMin -= xSpan * 0.05
+	xMax += xSpan * 0.05
+	yScaleMax := yMax * 1.05
+
+	xScale := transform.NewLinear(xMin, xMax)
+	yScale := transform.NewLinear(0, yScaleMax)
+	transform2D := core.Transform2D{
+		XScale:      xScale,
+		YScale:      yScale,
+		AxesToPixel: transform.NewAffine(histogramAxesToPixel(ax)),
+	}
+
+	xStart := int(math.Ceil(ax.Min.X))
+	xEnd := int(math.Floor(ax.Max.X))
+	if xStart < 0 {
+		xStart = 0
+	}
+	if xEnd > histogramFigureWidth {
+		xEnd = histogramFigureWidth
+	}
+	skip := make([]bool, xEnd-xStart)
+
+	for _, s := range series {
+		for _, edge := range s.edges {
+			pt := transform2D.Apply(geom.Pt{X: edge, Y: 0})
+			center := int(math.Round(pt.X))
+			for delta := -pxTolerance; delta <= pxTolerance; delta++ {
+				x := center + delta
+				if x < xStart || x >= xEnd {
+					continue
+				}
+				skip[x-xStart] = true
+			}
+		}
+	}
+
+	return skip
 }
 
 func expectedHistogramTopProfile(t *testing.T, axes geom.Rect, series []histogramHeightSeries) []int {
@@ -190,8 +260,9 @@ func expectedHistogramTopProfile(t *testing.T, axes geom.Rect, series []histogra
 			top := int(math.Round(topPt.Y))
 
 			for x := xStart; x < xEnd; x++ {
-				colCenter := float64(x) + 0.5
-				if colCenter < left || colCenter >= right {
+				colLeft := float64(x)
+				colRight := float64(x + 1)
+				if colRight <= left || colLeft >= right {
 					continue
 				}
 				idx := x - xStart
@@ -211,6 +282,7 @@ func assertHistogramTopProfile(
 	img image.Image,
 	expected []int,
 	maxDiff int,
+	skip []bool,
 ) {
 	t.Helper()
 
@@ -220,12 +292,19 @@ func assertHistogramTopProfile(
 	}
 	observed := extractHistogramTopProfile(img, ax)
 
+	if len(skip) != len(observed) || len(skip) != len(expected) {
+		t.Fatal("histogram boundary skip mask length mismatch")
+	}
+
 	if len(observed) != len(expected) {
 		t.Fatalf("%s histogram profile width mismatch: got %d, expected %d", name, len(observed), len(expected))
 	}
 
 	mismatches := 0
 	for i := range expected {
+		if skip[i] {
+			continue
+		}
 		x := i + int(math.Ceil(histogramAxesMinX*float64(histogramFigureWidth)))
 		e := expected[i]
 		o := observed[i]

@@ -114,6 +114,7 @@ func TestImageRasterizeUsesOriginAndSkipsNonFinite(t *testing.T) {
 		Colormap: "gray",
 		VMin:     0,
 		VMax:     2,
+		Alpha:    1,
 		Origin:   ImageOriginLower,
 	}
 
@@ -133,13 +134,13 @@ func TestImageRasterizeUsesOriginAndSkipsNonFinite(t *testing.T) {
 
 	// Origin lower flips row order: second data row is written at the top.
 	bottomLeft := pix.RGBAAt(0, 1)
-	if bottomLeft.R != 0 || bottomLeft.G != 0 || bottomLeft.B != 0 || bottomLeft.A != 65535 {
+	if bottomLeft.R != 0 || bottomLeft.G != 0 || bottomLeft.B != 0 || bottomLeft.A != 255 {
 		t.Fatalf("expected bottom-left pixel to be black, got %+v", bottomLeft)
 	}
 
 	bottomMid := pix.RGBAAt(1, 1)
-	if bottomMid.R != 65535 || bottomMid.G != 65535 || bottomMid.B != 65535 || bottomMid.A != 65535 {
-		t.Fatalf("expected bottom-middle pixel to be white, got %+v", bottomMid)
+	if bottomMid.R != 128 || bottomMid.G != 128 || bottomMid.B != 128 || bottomMid.A != 255 {
+		t.Fatalf("expected bottom-middle pixel to be mid-gray, got %+v", bottomMid)
 	}
 
 	topMid := pix.RGBAAt(0, 0)
@@ -148,8 +149,8 @@ func TestImageRasterizeUsesOriginAndSkipsNonFinite(t *testing.T) {
 	}
 
 	topRight := pix.RGBAAt(1, 0)
-	if topRight.R != 32896 || topRight.G != 32896 || topRight.B != 32896 || topRight.A != 65535 {
-		t.Fatalf("expected top-right mid-gray pixel, got %+v", topRight)
+	if topRight.R != 255 || topRight.G != 255 || topRight.B != 255 || topRight.A != 255 {
+		t.Fatalf("expected top-right white pixel, got %+v", topRight)
 	}
 }
 
@@ -158,6 +159,9 @@ func TestImage_DrawAngleZeroCallsImage(t *testing.T) {
 		Data: [][]float64{
 			{0, 1},
 		},
+		Alpha: 1,
+		XMax:  1,
+		YMax:  1,
 	}
 	r := &imageSpyRenderer{}
 	ctx := createTestDrawContext()
@@ -184,6 +188,9 @@ func TestImage_DrawRotatedCallsImageTransformed(t *testing.T) {
 	i := &Image2D{
 		Data:     [][]float64{{0, 1}},
 		AngleDeg: angle,
+		Alpha:    1,
+		XMax:     1,
+		YMax:     1,
 	}
 	r := &imageSpyRenderer{}
 	ctx := createTestDrawContext()
@@ -210,6 +217,9 @@ func TestImage_DrawRotatedFallsBackToImage(t *testing.T) {
 	i := &Image2D{
 		Data:     [][]float64{{0, 1}},
 		AngleDeg: angle,
+		Alpha:    1,
+		XMax:     1,
+		YMax:     1,
 	}
 	r := &imageSpyNoTransformRenderer{}
 	ctx := createTestDrawContext()

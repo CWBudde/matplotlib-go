@@ -12,8 +12,6 @@ func init() {
 		Capabilities: []backends.Capability{
 			backends.AntiAliasing,
 			backends.SubPixel,
-			backends.GradientFill,
-			backends.PathClip,
 			backends.TextShaping,
 			backends.FontHinting,
 		},

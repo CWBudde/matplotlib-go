@@ -12,9 +12,6 @@ func init() {
 		Description: "Pure Go renderer using golang.org/x/image/vector",
 		Capabilities: []backends.Capability{
 			backends.AntiAliasing, // Basic AA via vector rasterizer
-			backends.PathClip,     // Rectangular clipping implemented
-			backends.VectorOutput, // Can generate vector-like output
-			backends.TextShaping,  // Basic rasterized text rendering
 		},
 		Factory: func(config backends.Config) (render.Renderer, error) {
 			return New(config.Width, config.Height, config.Background), nil

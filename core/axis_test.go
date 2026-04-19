@@ -5,6 +5,7 @@ import (
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
+	"matplotlib-go/transform"
 )
 
 func TestAxis_Draw(t *testing.T) {
@@ -220,6 +221,49 @@ func TestGrid_CustomLocator(t *testing.T) {
 	_ = renderer.Begin(geom.Rect{})
 	grid.Draw(renderer, ctx)
 	_ = renderer.End()
+}
+
+func TestAxis_DrawTickLabels_UsesStepPrecisionForScalarFormatter(t *testing.T) {
+	axis := NewYAxis()
+	ctx := createTestDrawContext()
+	ctx.DataToPixel.YScale = transform.NewLinear(0, 0.196)
+
+	var r axisLabelRecordingRenderer
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	want := []string{"0.000", "0.025", "0.050", "0.075", "0.100", "0.125", "0.150", "0.175", "0.200"}
+	if len(r.texts) != len(want) {
+		t.Fatalf("unexpected tick label count: got %v want %v", r.texts, want)
+	}
+	for i := range want {
+		if r.texts[i] != want[i] {
+			t.Fatalf("tick label %d mismatch: got %q want %q", i, r.texts[i], want[i])
+		}
+	}
+}
+
+type axisLabelRecordingRenderer struct {
+	render.NullRenderer
+	texts []string
+}
+
+func (r *axisLabelRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
+	return render.TextMetrics{
+		W:       float64(len(text)) * size * 0.5,
+		H:       size,
+		Ascent:  size * 0.8,
+		Descent: size * 0.2,
+	}
+}
+
+func (r *axisLabelRecordingRenderer) DrawText(text string, _ geom.Pt, _ float64, _ render.Color) {
+	r.texts = append(r.texts, text)
 }
 
 func TestAxes_AddGrid(t *testing.T) {

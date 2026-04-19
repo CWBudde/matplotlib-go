@@ -6,9 +6,9 @@ Matplotlib-Go uses a pluggable backend architecture that allows different render
 
 ### AGG (Advanced optional backend)
 
-- **Type**: Anti-Grain Geometry renderer
+- **Type**: AGG-backed raster renderer
 - **Status**: ✅ Implemented
-- **Capabilities**: Anti-aliasing, Sub-pixel rendering, Gradient fill, Path clipping, advanced text
+- **Capabilities**: Anti-aliasing, sub-pixel positioning, hinted text, transformed images
 - **Dependencies**: Optional `agg_go`
 - **Use cases**: Publication-quality output and advanced text fidelity
 
@@ -16,7 +16,7 @@ Matplotlib-Go uses a pluggable backend architecture that allows different render
 
 - **Type**: Pure Go renderer using `golang.org/x/image/vector`
 - **Status**: ✅ Implemented
-- **Capabilities**: Anti-aliasing, Path clipping, Vector output, basic text/image support
+- **Capabilities**: Anti-aliasing, basic text/image support
 - **Dependencies**: None (pure Go)
 - **Use cases**: Default backend and pure-Go compatibility
 
@@ -70,8 +70,8 @@ err = core.SavePNG(fig, renderer, "output.png")
 
 | Backend | Anti-aliasing | GPU Accel | Text Shaping | Vector Output |
 | ------- | ------------- | --------- | ------------ | ------------- |
-| AGG     | ✅            | ❌        | ✅           | ✅            |
-| GoBasic | ✅            | ❌        | ✅           | ✅            |
+| AGG     | ✅            | ❌        | ✅           | ❌            |
+| GoBasic | ✅            | ❌        | ❌           | ❌            |
 | Skia    | ✅            | ✅        | ✅           | ✅            |
 
 ## Adding New Backends

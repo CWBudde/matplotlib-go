@@ -42,11 +42,13 @@
 
 ## Tasks & Planning
 
-- Use `TASKS.md` for the living roadmap, priorities, and open questions.
+- Use `PLAN.md` for the living roadmap, priorities, and open questions.
 - Always try to go phase by phase and milestone by milestone.
-- When opening a PR, reference the relevant `TASKS.md` item/section.
-- Update `TASKS.md` status if you complete or reshape a task.
+- When opening a PR, reference the relevant `PLAN.md` item/section.
+- Update `PLAN.md` status if you complete or reshape a task.
 
 ## Architecture Notes
 
-- Core concepts mirror Matplotlib: `Figure → Axes → Artists`; rendering is backend-agnostic. Current focus areas include geometry (`internal/geom`), transforms (`transform`), and a no-op renderer (`render.NullRenderer`) for traversal and testing.
+- Core concepts mirror Matplotlib: `Figure → Axes → Artists`; rendering is backend-agnostic.
+- The shared renderer contract lives in `render/`, with optional capability interfaces for backend-specific features like text drawing, transformed images, DPI-aware text metrics, and PNG export.
+- Current focus areas include geometry (`internal/geom`), transforms (`transform`), and keeping backend capabilities/documentation aligned with what each renderer actually implements.

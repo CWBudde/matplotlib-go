@@ -12,8 +12,8 @@ import (
 
 type textRenderer interface {
 	render.Renderer
-	DrawText(text string, origin geom.Pt, size float64, textColor render.Color)
-	SavePNG(path string) error
+	render.TextDrawer
+	render.PNGExporter
 }
 
 func main() {

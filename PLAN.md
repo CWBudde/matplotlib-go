@@ -1,6 +1,6 @@
 # Matplotlib-Go Development Plan
 
-This plan prioritizes getting useful plotting functionality working quickly. The AGG backend (via `github.com/cwbudde/agg_go`) is now available and provides high-quality anti-aliased rendering as the primary backend, replacing the GoBasic PoC renderer.
+This plan prioritizes getting useful plotting functionality working quickly. The AGG backend (via `github.com/cwbudde/agg_go`) is now available and provides a high-quality AGG-backed raster renderer, while GoBasic remains the default pure-Go backend.
 
 ---
 
@@ -11,7 +11,7 @@ This plan prioritizes getting useful plotting functionality working quickly. The
 - ✅ Artist hierarchy (Figure→Axes→Artists) with proper traversal
 - ✅ Transform system (Linear/Log scales, data→pixel transforms)
 - ✅ GoBasic renderer using `golang.org/x/image/vector` (PoC)
-- ✅ **AGG renderer** using `github.com/cwbudde/agg_go` v0.2.2 — anti-aliased, sub-pixel accurate
+- ✅ **AGG renderer** using `github.com/cwbudde/agg_go` — anti-aliased, sub-pixel accurate
 - ✅ Line2D artist with stroke support (joins, caps, dashes)
 - ✅ Golden image testing infrastructure
 - ✅ Working example: `examples/lines/basic.go` produces clean line plots
@@ -76,13 +76,15 @@ core.SavePNG(fig, r, "output.png")
 
 # Phase 2: Axes Features — AGG Migration (CURRENT PRIORITY)
 
-**Goal:** Migrate all rendering to the AGG backend and make plots look professional
+**Goal:** Improve AGG-backed rendering quality and make plots look professional
 
 ### 2.1 AGG Backend Integration ✅
 
 - [x] Add `github.com/cwbudde/agg_go` v0.2.2 dependency
-- [x] Implement `render.Renderer` interface using AGG's Agg2D
+- [x] Implement `render.Renderer` interface using an AGG-backed raster backend
 - [x] Path rendering (fill + stroke) with proper joins, caps, dashes
+- [x] Move AGG backend drawing policy into backend-owned helpers instead of relying broadly on `Agg2D`
+- [x] Add shared optional renderer extension interfaces in `render/` for text, transformed images, DPI, and PNG export
 - [x] Register AGG backend in the backend registry
 - [x] AGG backend unit tests
 - [x] Example: `examples/agg-demo/main.go`
@@ -92,6 +94,8 @@ core.SavePNG(fig, r, "output.png")
 - [x] Regenerate golden images using AGG backend
 - [x] Verify anti-aliased output quality vs GoBasic
 - [x] Update test infrastructure to use AGG backend (all 14 golden tests migrated)
+- [ ] Refresh golden/reference baselines after the AGG text-path refactor
+- [ ] Re-run Matplotlib reference comparisons and either accept the new baseline or tighten text/layout parity
 
 ### 2.3 Axis Rendering with AGG ✅
 
@@ -132,6 +136,8 @@ core.SavePNG(fig, r, "output.png")
 - Plots have proper axis lines, ticks, and labels
 - Grid lines work and look good (major + minor, dashed)
 - Axis limits can be set manually or auto-computed
+
+**Current follow-up after Phase 2:** package-level tests for `color`, `render`, `backends`, and `core` are green after the renderer-contract cleanup; the remaining backend-quality work is in image golden/reference parity, not API correctness.
 
 ---
 
@@ -183,42 +189,42 @@ core.SavePNG(fig, r, "output.png")
 
 ---
 
-# Phase 4: Layout & Annotation (MEDIUM PRIORITY)
+# ✅ Phase 4: Layout & Annotation (COMPLETED)
 
 **Goal:** Polish and professional presentation
 
 ### 4.1 Subplots
 
-- [ ] `Subplot` functionality for multiple axes grids
-- [ ] Automatic spacing and layout
-- [ ] Shared axes between subplots
-- [ ] Example: `examples/subplots/basic.go`
+- [x] `Subplot` functionality for multiple axes grids
+- [x] Automatic spacing and layout
+- [x] Shared axes between subplots
+- [x] Example: `examples/subplots/basic.go`
 
 ### 4.2 Legends
 
-- [ ] `Legend` artist with automatic entries
-- [ ] Legend placement and styling
-- [ ] Line/marker/patch legend entries
-- [ ] Example: `examples/legend/basic.go`
+- [x] `Legend` artist with automatic entries
+- [x] Legend placement and styling
+- [x] Line/marker/patch legend entries
+- [x] Example: `examples/legend/basic.go`
 
 ### 4.3 Text Annotations
 
-- [ ] `Text` artist for arbitrary text placement
-- [ ] Arrow annotations pointing to data
-- [ ] Math symbols and Greek letters (basic)
-- [ ] Example: `examples/annotation/basic.go`
+- [x] `Text` artist for arbitrary text placement
+- [x] Arrow annotations pointing to data
+- [x] Math symbols and Greek letters (basic)
+- [x] Example: `examples/annotation/basic.go`
 
 ### 4.4 Colorbars
 
-- [ ] `Colorbar` artist for heatmaps
-- [ ] Automatic scaling and labels
-- [ ] Various colormap support
-- [ ] Example: `examples/colorbar/basic.go`
+- [x] `Colorbar` artist for heatmaps
+- [x] Automatic scaling and labels
+- [x] Various colormap support
+- [x] Example: `examples/colorbar/basic.go`
 
 **Exit Criteria:**
 
-- Multi-panel figures work well
-- Plots are publication-ready with legends and annotations
+- [x] Multi-panel figures work well
+- [x] Plots are publication-ready with legends, annotations, and colorbars
 
 ---
 
