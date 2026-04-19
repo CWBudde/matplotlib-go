@@ -8,6 +8,12 @@ import (
 	"matplotlib-go/transform"
 )
 
+type staticLocator []float64
+
+func (s staticLocator) Ticks(min, max float64, count int) []float64 {
+	return append([]float64(nil), s...)
+}
+
 func TestAxis_Draw(t *testing.T) {
 	// Test drawing a basic X axis
 	axis := NewXAxis()
@@ -108,10 +114,12 @@ func TestAxis_DisabledComponents(t *testing.T) {
 func TestAxes_SetLimits(t *testing.T) {
 	// Test the convenience methods for setting limits
 	axes := &Axes{
-		XScale: nil,
-		YScale: nil,
-		XAxis:  NewXAxis(),
-		YAxis:  NewYAxis(),
+		XScale:     nil,
+		YScale:     nil,
+		XAxis:      NewXAxis(),
+		YAxis:      NewYAxis(),
+		XAxisTop:   &Axis{Side: AxisTop},
+		YAxisRight: &Axis{Side: AxisRight},
 	}
 
 	// Test SetXLim
@@ -138,6 +146,395 @@ func TestAxes_SetLimits(t *testing.T) {
 	// Check that locator was updated to logarithmic
 	if logLoc, ok := axes.XAxis.Locator.(LogLocator); !ok || logLoc.Base != 10 {
 		t.Errorf("SetXLimLog should update locator to LogLocator with base 10")
+	}
+	if logLoc, ok := axes.XAxisTop.Locator.(LogLocator); !ok || logLoc.Base != 10 {
+		t.Errorf("SetXLimLog should update top axis locator to LogLocator with base 10")
+	}
+
+	axes.SetYLimLog(1, 100, 10)
+	if logLoc, ok := axes.YAxis.Locator.(LogLocator); !ok || logLoc.Base != 10 {
+		t.Errorf("SetYLimLog should update locator to LogLocator with base 10")
+	}
+	if logLoc, ok := axes.YAxisRight.Locator.(LogLocator); !ok || logLoc.Base != 10 {
+		t.Errorf("SetYLimLog should update right axis locator to LogLocator with base 10")
+	}
+}
+
+func TestAxes_SetScalePreservesDomainAndConfiguresLogDefaults(t *testing.T) {
+	axes := &Axes{
+		XScale:   transform.NewLinear(1, 1000),
+		XAxis:    NewXAxis(),
+		XAxisTop: &Axis{Side: AxisTop},
+	}
+
+	err := axes.SetXScale("LOG",
+		transform.WithScaleBase(10),
+		transform.WithScaleSubs(2, 4, 5),
+	)
+	if err != nil {
+		t.Fatalf("SetXScale(log): %v", err)
+	}
+
+	logScale, ok := axes.XScale.(transform.Log)
+	if !ok {
+		t.Fatalf("x scale type = %T, want transform.Log", axes.XScale)
+	}
+	xMin, xMax := logScale.Domain()
+	if xMin != 1 || xMax != 1000 {
+		t.Fatalf("x scale domain = (%v, %v), want (1, 1000)", xMin, xMax)
+	}
+
+	loc, ok := axes.XAxis.Locator.(LogLocator)
+	if !ok || loc.Base != 10 {
+		t.Fatalf("bottom locator = %#v, want log locator base 10", axes.XAxis.Locator)
+	}
+	minor, ok := axes.XAxis.MinorLocator.(LogLocator)
+	if !ok || len(minor.Subs) != 3 {
+		t.Fatalf("bottom minor locator = %#v, want log minor locator with subs", axes.XAxis.MinorLocator)
+	}
+	topLoc, ok := axes.XAxisTop.Locator.(LogLocator)
+	if !ok || topLoc.Base != 10 {
+		t.Fatalf("top locator = %#v, want log locator base 10", axes.XAxisTop.Locator)
+	}
+}
+
+func TestAxes_SetScaleUpdatesSharedRoot(t *testing.T) {
+	root := &Axes{
+		XScale: transform.NewLinear(-5, 15),
+		XAxis:  NewXAxis(),
+	}
+	shared := &Axes{shareX: root}
+
+	err := shared.SetXScale("symlog",
+		transform.WithScaleBase(10),
+		transform.WithScaleLinThresh(2),
+	)
+	if err != nil {
+		t.Fatalf("SetXScale(symlog): %v", err)
+	}
+
+	if _, ok := root.XScale.(transform.SymLog); !ok {
+		t.Fatalf("shared root x scale type = %T, want transform.SymLog", root.XScale)
+	}
+	xMin, xMax := root.XScale.Domain()
+	if xMin != -5 || xMax != 15 {
+		t.Fatalf("shared root x domain = (%v, %v), want (-5, 15)", xMin, xMax)
+	}
+}
+
+func TestAxes_SetLimPreservesScaleType(t *testing.T) {
+	axes := &Axes{
+		XScale: transform.NewSymLog(-10, 10, 10, 1, 1),
+	}
+
+	axes.SetXLim(-20, 30)
+
+	symLog, ok := axes.XScale.(transform.SymLog)
+	if !ok {
+		t.Fatalf("x scale type after SetXLim = %T, want transform.SymLog", axes.XScale)
+	}
+	xMin, xMax := symLog.Domain()
+	if xMin != -20 || xMax != 30 {
+		t.Fatalf("x scale domain after SetXLim = (%v, %v), want (-20, 30)", xMin, xMax)
+	}
+}
+
+func TestAxes_TopAxisCreatesExplicitAxis(t *testing.T) {
+	axes := &Axes{
+		XAxis: NewXAxis(),
+	}
+	axes.XAxis.Color = render.Color{R: 0.2, G: 0.3, B: 0.4, A: 1}
+	axes.XAxis.LineWidth = 2.5
+
+	top := axes.TopAxis()
+	if top == nil {
+		t.Fatal("TopAxis() returned nil")
+	}
+	if top == axes.XAxis {
+		t.Fatal("TopAxis() should create a distinct axis")
+	}
+	if top.Side != AxisTop {
+		t.Fatalf("TopAxis side = %v, want %v", top.Side, AxisTop)
+	}
+	if !top.ShowSpine || !top.ShowTicks || !top.ShowLabels {
+		t.Fatalf("TopAxis should default to visible components, got %+v", top)
+	}
+	if top.Color != axes.XAxis.Color || top.LineWidth != axes.XAxis.LineWidth {
+		t.Fatalf("TopAxis should inherit x-axis style, got color=%+v width=%v", top.Color, top.LineWidth)
+	}
+	if axes.TopAxis() != top {
+		t.Fatal("TopAxis() should return the existing explicit top axis")
+	}
+}
+
+func TestAxes_RightAxisCreatesExplicitAxis(t *testing.T) {
+	axes := &Axes{
+		YAxis: NewYAxis(),
+	}
+	axes.YAxis.Color = render.Color{R: 0.4, G: 0.3, B: 0.2, A: 1}
+	axes.YAxis.LineWidth = 1.75
+
+	right := axes.RightAxis()
+	if right == nil {
+		t.Fatal("RightAxis() returned nil")
+	}
+	if right == axes.YAxis {
+		t.Fatal("RightAxis() should create a distinct axis")
+	}
+	if right.Side != AxisRight {
+		t.Fatalf("RightAxis side = %v, want %v", right.Side, AxisRight)
+	}
+	if !right.ShowSpine || !right.ShowTicks || !right.ShowLabels {
+		t.Fatalf("RightAxis should default to visible components, got %+v", right)
+	}
+	if right.Color != axes.YAxis.Color || right.LineWidth != axes.YAxis.LineWidth {
+		t.Fatalf("RightAxis should inherit y-axis style, got color=%+v width=%v", right.Color, right.LineWidth)
+	}
+	if axes.RightAxis() != right {
+		t.Fatal("RightAxis() should return the existing explicit right axis")
+	}
+}
+
+func TestAxes_SetAxisSides(t *testing.T) {
+	axes := &Axes{
+		XAxis:      NewXAxis(),
+		YAxis:      NewYAxis(),
+		XAxisTop:   NewXAxis(),
+		YAxisRight: NewYAxis(),
+	}
+
+	if err := axes.MoveXAxisToTop(); err != nil {
+		t.Fatalf("MoveXAxisToTop: %v", err)
+	}
+	if axes.XAxis.Side != AxisTop {
+		t.Fatalf("primary x-axis side = %v, want top", axes.XAxis.Side)
+	}
+	if axes.XAxisTop != nil {
+		t.Fatal("moving primary x-axis to top should drop explicit top axis")
+	}
+
+	if err := axes.MoveYAxisToRight(); err != nil {
+		t.Fatalf("MoveYAxisToRight: %v", err)
+	}
+	if axes.YAxis.Side != AxisRight {
+		t.Fatalf("primary y-axis side = %v, want right", axes.YAxis.Side)
+	}
+	if axes.YAxisRight != nil {
+		t.Fatal("moving primary y-axis to right should drop explicit right axis")
+	}
+}
+
+func TestAxes_InvertXToggle(t *testing.T) {
+	axes := &Axes{
+		XScale: transform.NewLinear(0, 10),
+	}
+
+	if axes.XInverted() {
+		t.Fatal("new linear x-axis should not be inverted")
+	}
+
+	axes.InvertX()
+	if !axes.XInverted() {
+		t.Fatal("InvertX() should mark the axis as inverted")
+	}
+	xMin, xMax := axes.XScale.Domain()
+	if xMin != 10 || xMax != 0 {
+		t.Fatalf("inverted x limits = (%v, %v), want (10, 0)", xMin, xMax)
+	}
+	if got := axes.XScale.Fwd(0); got != 1 {
+		t.Fatalf("inverted x scale forward(0) = %v, want 1", got)
+	}
+
+	axes.InvertX()
+	if axes.XInverted() {
+		t.Fatal("second InvertX() should restore normal direction")
+	}
+	xMin, xMax = axes.XScale.Domain()
+	if xMin != 0 || xMax != 10 {
+		t.Fatalf("restored x limits = (%v, %v), want (0, 10)", xMin, xMax)
+	}
+}
+
+func TestAxes_InvertYToggle(t *testing.T) {
+	axes := &Axes{
+		YScale: transform.NewLinear(-2, 8),
+	}
+
+	if axes.YInverted() {
+		t.Fatal("new linear y-axis should not be inverted")
+	}
+
+	axes.InvertY()
+	if !axes.YInverted() {
+		t.Fatal("InvertY() should mark the axis as inverted")
+	}
+	yMin, yMax := axes.YScale.Domain()
+	if yMin != 8 || yMax != -2 {
+		t.Fatalf("inverted y limits = (%v, %v), want (8, -2)", yMin, yMax)
+	}
+	if got := axes.YScale.Fwd(-2); got != 1 {
+		t.Fatalf("inverted y scale forward(-2) = %v, want 1", got)
+	}
+
+	axes.InvertY()
+	if axes.YInverted() {
+		t.Fatal("second InvertY() should restore normal direction")
+	}
+	yMin, yMax = axes.YScale.Domain()
+	if yMin != -2 || yMax != 8 {
+		t.Fatalf("restored y limits = (%v, %v), want (-2, 8)", yMin, yMax)
+	}
+}
+
+func TestAxes_SetAspectAndBoxAspectAffectLayout(t *testing.T) {
+	fig := NewFigure(400, 200)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 1, Y: 1}})
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 10)
+
+	full := ax.adjustedLayout(fig)
+	if full.W() != 400 || full.H() != 200 {
+		t.Fatalf("default adjusted layout = %+v, want full figure rect", full)
+	}
+
+	if err := ax.SetAspect("equal"); err != nil {
+		t.Fatalf("SetAspect(equal): %v", err)
+	}
+	equalRect := ax.adjustedLayout(fig)
+	if equalRect.W() != equalRect.H() {
+		t.Fatalf("equal aspect rect = %+v, want square", equalRect)
+	}
+
+	ax.SetAspect("auto")
+	if err := ax.SetBoxAspect(2); err != nil {
+		t.Fatalf("SetBoxAspect: %v", err)
+	}
+	boxRect := ax.adjustedLayout(fig)
+	if got := boxRect.H() / boxRect.W(); got != 2 {
+		t.Fatalf("box aspect ratio = %v, want 2", got)
+	}
+}
+
+func TestAxes_TickParamsLocatorParamsAndMinorTicks(t *testing.T) {
+	axes := &Axes{
+		XAxis:      NewXAxis(),
+		YAxis:      NewYAxis(),
+		XAxisTop:   NewXAxis(),
+		YAxisRight: NewYAxis(),
+	}
+	axes.XAxisTop.Side = AxisTop
+	axes.YAxisRight.Side = AxisRight
+
+	if err := axes.MinorticksOn("x"); err != nil {
+		t.Fatalf("MinorticksOn(x): %v", err)
+	}
+	if axes.XAxis.MinorLocator == nil || axes.XAxisTop.MinorLocator == nil {
+		t.Fatal("MinorticksOn(x) should enable minor locators on both x axes")
+	}
+
+	if err := axes.LocatorParams(LocatorParams{Axis: "x", MajorCount: 8, MinorCount: 40}); err != nil {
+		t.Fatalf("LocatorParams: %v", err)
+	}
+	if axes.XAxis.MajorTickCount != 8 || axes.XAxisTop.MinorTickCount != 40 {
+		t.Fatalf("locator params not applied: bottom=%+v top=%+v", axes.XAxis, axes.XAxisTop)
+	}
+
+	length := 11.0
+	width := 2.25
+	showLabels := false
+	color := render.Color{R: 0.1, G: 0.2, B: 0.3, A: 1}
+	if err := axes.TickParams(TickParams{
+		Axis:       "right",
+		Which:      "major",
+		Color:      &color,
+		Length:     &length,
+		Width:      &width,
+		ShowLabels: &showLabels,
+	}); err != nil {
+		t.Fatalf("TickParams: %v", err)
+	}
+	if axes.YAxisRight.Color != color || axes.YAxisRight.TickSize != length || axes.YAxisRight.LineWidth != width || axes.YAxisRight.ShowLabels {
+		t.Fatalf("tick params not applied to right axis: %+v", axes.YAxisRight)
+	}
+
+	if err := axes.MinorticksOff("x"); err != nil {
+		t.Fatalf("MinorticksOff(x): %v", err)
+	}
+	if axes.XAxis.MinorLocator != nil || axes.XAxisTop.MinorLocator != nil {
+		t.Fatal("MinorticksOff(x) should clear minor locators on both x axes")
+	}
+}
+
+func TestAxes_TwinAxes(t *testing.T) {
+	fig := NewFigure(320, 240)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	twinX := ax.TwinX()
+	if twinX == nil {
+		t.Fatal("TwinX() returned nil")
+	}
+	if twinX.shareX != ax.xScaleRoot() {
+		t.Fatal("TwinX() should share the x-scale root")
+	}
+	if twinX.YAxisRight == nil {
+		t.Fatal("TwinX() should expose a right-side y-axis")
+	}
+	if twinX.XAxis.ShowTicks || twinX.XAxis.ShowLabels {
+		t.Fatal("TwinX() should hide the duplicate primary x-axis")
+	}
+
+	twinY := ax.TwinY()
+	if twinY == nil {
+		t.Fatal("TwinY() returned nil")
+	}
+	if twinY.shareY != ax.yScaleRoot() {
+		t.Fatal("TwinY() should share the y-scale root")
+	}
+	if twinY.XAxisTop == nil {
+		t.Fatal("TwinY() should expose a top-side x-axis")
+	}
+	if twinY.YAxis.ShowTicks || twinY.YAxis.ShowLabels {
+		t.Fatal("TwinY() should hide the duplicate primary y-axis")
+	}
+}
+
+func TestAxes_SecondaryAxesUseLinkedScale(t *testing.T) {
+	fig := NewFigure(320, 240)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	ax.SetXLim(0, 100)
+	ax.SetYLim(0, 10)
+
+	secondaryX, err := ax.SecondaryXAxis(AxisTop,
+		func(v float64) float64 { return v*1.8 + 32 },
+		func(v float64) (float64, bool) { return (v - 32) / 1.8, true },
+	)
+	if err != nil {
+		t.Fatalf("SecondaryXAxis: %v", err)
+	}
+	dMin, dMax := secondaryX.XScale.Domain()
+	if dMin != 32 || dMax != 212 {
+		t.Fatalf("secondary x domain = (%v, %v), want (32, 212)", dMin, dMax)
+	}
+	if got := secondaryX.XScale.Fwd(122); got != ax.XScale.Fwd(50) {
+		t.Fatalf("secondary x forward mapping mismatch: got %v want %v", got, ax.XScale.Fwd(50))
+	}
+	if secondaryX.XAxisTop == nil {
+		t.Fatal("SecondaryXAxis should expose a top x-axis")
+	}
+
+	secondaryY, err := ax.SecondaryYAxis(AxisRight,
+		func(v float64) float64 { return v * 1000 },
+		func(v float64) (float64, bool) { return v / 1000, true },
+	)
+	if err != nil {
+		t.Fatalf("SecondaryYAxis: %v", err)
+	}
+	dMin, dMax = secondaryY.YScale.Domain()
+	if dMin != 0 || dMax != 10000 {
+		t.Fatalf("secondary y domain = (%v, %v), want (0, 10000)", dMin, dMax)
+	}
+	if secondaryY.YAxisRight == nil {
+		t.Fatal("SecondaryYAxis should expose a right y-axis")
 	}
 }
 
@@ -275,7 +672,10 @@ func TestAxis_DrawTickLabels_OmitsXLabelsOutsideViewLimits(t *testing.T) {
 
 type axisLabelRecordingRenderer struct {
 	render.NullRenderer
-	texts []string
+	texts     []string
+	origins   []geom.Pt
+	bounds    map[string]render.TextBounds
+	useBounds bool
 }
 
 func (r *axisLabelRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
@@ -287,8 +687,91 @@ func (r *axisLabelRecordingRenderer) MeasureText(text string, size float64, _ st
 	}
 }
 
-func (r *axisLabelRecordingRenderer) DrawText(text string, _ geom.Pt, _ float64, _ render.Color) {
+func (r *axisLabelRecordingRenderer) MeasureTextBounds(text string, _ float64, _ string) (render.TextBounds, bool) {
+	if !r.useBounds || r.bounds == nil {
+		return render.TextBounds{}, false
+	}
+	b, ok := r.bounds[text]
+	return b, ok
+}
+
+func (r *axisLabelRecordingRenderer) DrawText(text string, origin geom.Pt, _ float64, _ render.Color) {
 	r.texts = append(r.texts, text)
+	r.origins = append(r.origins, origin)
+}
+
+func TestTickLabelPositionUsesBoundsForBottomXAxis(t *testing.T) {
+	axis := NewXAxis()
+	axis.Locator = staticLocator{2}
+	axis.Formatter = ScalarFormatter{Prec: 0}
+
+	var r axisLabelRecordingRenderer
+	r.useBounds = true
+	r.bounds = map[string]render.TextBounds{
+		"2": {X: 1, Y: -8, W: 5, H: 10},
+	}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if len(r.origins) != 1 {
+		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
+	}
+
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis.Side, ctx)})
+	labelPad := tickLabelPadPx(axis, ctx)
+	want := geom.Pt{
+		X: tickPos.X - (1 + 5.0/2.0),
+		Y: tickPos.Y + labelPad + 8,
+	}
+	if r.origins[0] != want {
+		t.Fatalf("bottom x tick origin = %+v, want %+v", r.origins[0], want)
+	}
+}
+
+func TestTickLabelPositionUsesBoundsForLeftYAxis(t *testing.T) {
+	axis := NewYAxis()
+	axis.Locator = staticLocator{4}
+	axis.Formatter = ScalarFormatter{Prec: 0}
+
+	var r axisLabelRecordingRenderer
+	r.useBounds = true
+	r.bounds = map[string]render.TextBounds{
+		"4": {X: 1, Y: -8, W: 5, H: 10},
+	}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if len(r.origins) != 1 {
+		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
+	}
+
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(axis.Side, ctx), Y: 4})
+	labelPad := tickLabelPadPx(axis, ctx)
+	want := geom.Pt{
+		X: tickPos.X - labelPad - (1 + 5.0),
+		Y: tickPos.Y + 3,
+	}
+	if r.origins[0] != want {
+		t.Fatalf("left y tick origin = %+v, want %+v", r.origins[0], want)
+	}
 }
 
 func TestAxes_AddGrid(t *testing.T) {
@@ -317,5 +800,30 @@ func TestAxes_AddGrid(t *testing.T) {
 	}
 	if yGrid.Axis != AxisLeft {
 		t.Errorf("AddYGrid should create grid for AxisLeft, got %v", yGrid.Axis)
+	}
+}
+
+func TestDrawFigure_ExplicitTopRightAxesSuppressFrameFallback(t *testing.T) {
+	fig := NewFigure(240, 180)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
+
+	top := ax.TopAxis()
+	top.ShowTicks = false
+	top.ShowLabels = false
+
+	right := ax.RightAxis()
+	right.ShowTicks = false
+	right.ShowLabels = false
+
+	r := &recordingRenderer{}
+	DrawFigure(fig, r)
+
+	if got := len(r.pathCalls); got != 4 {
+		t.Fatalf("expected exactly four spine paths with explicit top/right axes, got %d", got)
 	}
 }

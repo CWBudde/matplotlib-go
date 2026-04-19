@@ -1,8 +1,10 @@
 package core
 
 import (
+	"fmt"
 	"math"
 	"sort"
+	"strings"
 
 	"matplotlib-go/color"
 	"matplotlib-go/internal/geom"
@@ -82,9 +84,11 @@ type Axes struct {
 	zsorted      bool
 
 	// Axis control
-	XAxis     *Axis // bottom x-axis
-	YAxis     *Axis // left y-axis
-	ShowFrame bool  // draw top and right border lines (default true)
+	XAxis      *Axis // bottom x-axis
+	YAxis      *Axis // left y-axis
+	XAxisTop   *Axis // optional top x-axis
+	YAxisRight *Axis // optional right y-axis
+	ShowFrame  bool  // draw top and right border lines when no explicit top/right axis exists
 
 	// Text labels
 	Title  string // title above the plot
@@ -94,9 +98,31 @@ type Axes struct {
 	// Color cycling for multiple series
 	ColorCycle *color.ColorCycle
 
+	aspectMode  string
+	aspectValue float64
+	boxAspect   float64
+
 	shareX *Axes
 	shareY *Axes
 	figure *Figure
+}
+
+// TickParams controls axis tick visibility and styling.
+type TickParams struct {
+	Axis       string
+	Which      string
+	Color      *render.Color
+	Length     *float64
+	Width      *float64
+	ShowTicks  *bool
+	ShowLabels *bool
+}
+
+// LocatorParams controls the target tick density for automatic locators.
+type LocatorParams struct {
+	Axis       string
+	MajorCount int
+	MinorCount int
 }
 
 // AddAxes appends an Axes to the Figure. If opts are provided, the Axes gets its
@@ -118,6 +144,8 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 		YAxis:        NewYAxis(),
 		ShowFrame:    true,
 		ColorCycle:   color.NewColorCycle(effective.Palette()),
+		aspectMode:   "auto",
+		aspectValue:  1,
 		figure:       f,
 	}
 	ax.applyStyleDefaults(effective)
@@ -131,33 +159,77 @@ func (a *Axes) Add(art Artist) { a.Artists = append(a.Artists, art); a.zsorted =
 // SetXLim sets the x-axis limits.
 func (a *Axes) SetXLim(minVal, maxVal float64) {
 	target := a.xScaleRoot()
-	target.XScale = transform.NewLinear(minVal, maxVal)
+	target.XScale = replaceScaleDomain(target.XScale, minVal, maxVal)
 }
 
 // SetYLim sets the y-axis limits.
 func (a *Axes) SetYLim(minVal, maxVal float64) {
 	target := a.yScaleRoot()
-	target.YScale = transform.NewLinear(minVal, maxVal)
+	target.YScale = replaceScaleDomain(target.YScale, minVal, maxVal)
+}
+
+// SetXScale replaces the x-axis scale while preserving the current view limits.
+func (a *Axes) SetXScale(name string, opts ...transform.ScaleOption) error {
+	return a.setScale(true, name, opts...)
+}
+
+// SetYScale replaces the y-axis scale while preserving the current view limits.
+func (a *Axes) SetYScale(name string, opts ...transform.ScaleOption) error {
+	return a.setScale(false, name, opts...)
 }
 
 // SetXLimLog sets the x-axis to logarithmic scale with given limits.
 func (a *Axes) SetXLimLog(minVal, maxVal, base float64) {
 	target := a.xScaleRoot()
 	target.XScale = transform.NewLog(minVal, maxVal, base)
-	if target.XAxis != nil {
-		target.XAxis.Locator = LogLocator{Base: base, Minor: false}
-		target.XAxis.Formatter = LogFormatter{Base: base}
-	}
+	configureScaleAxes(target.XAxis, target.XAxisTop, "log", transform.ResolveScaleOptions(
+		transform.WithScaleDomain(minVal, maxVal),
+		transform.WithScaleBase(base),
+	))
 }
 
 // SetYLimLog sets the y-axis to logarithmic scale with given limits.
 func (a *Axes) SetYLimLog(minVal, maxVal, base float64) {
 	target := a.yScaleRoot()
 	target.YScale = transform.NewLog(minVal, maxVal, base)
-	if target.YAxis != nil {
-		target.YAxis.Locator = LogLocator{Base: base, Minor: false}
-		target.YAxis.Formatter = LogFormatter{Base: base}
+	configureScaleAxes(target.YAxis, target.YAxisRight, "log", transform.ResolveScaleOptions(
+		transform.WithScaleDomain(minVal, maxVal),
+		transform.WithScaleBase(base),
+	))
+}
+
+// InvertX reverses the x-axis direction while preserving the underlying scale type.
+func (a *Axes) InvertX() {
+	target := a.xScaleRoot()
+	if target == nil || target.XScale == nil {
+		return
 	}
+	target.XScale = toggleInvertedScale(target.XScale)
+}
+
+// InvertY reverses the y-axis direction while preserving the underlying scale type.
+func (a *Axes) InvertY() {
+	target := a.yScaleRoot()
+	if target == nil || target.YScale == nil {
+		return
+	}
+	target.YScale = toggleInvertedScale(target.YScale)
+}
+
+// XInverted reports whether the effective x-axis direction is reversed.
+func (a *Axes) XInverted() bool {
+	if a == nil {
+		return false
+	}
+	return scaleDomainDescending(a.effectiveXScale())
+}
+
+// YInverted reports whether the effective y-axis direction is reversed.
+func (a *Axes) YInverted() bool {
+	if a == nil {
+		return false
+	}
+	return scaleDomainDescending(a.effectiveYScale())
 }
 
 // AutoScale computes axis limits from the data bounds of all artists,
@@ -213,8 +285,8 @@ func (a *Axes) AutoScale(margin float64) {
 	yMin -= ySpan * margin
 	yMax += ySpan * margin
 
-	targetX.XScale = transform.NewLinear(xMin, xMax)
-	targetY.YScale = transform.NewLinear(yMin, yMax)
+	targetX.XScale = replaceScaleDomain(targetX.XScale, xMin, xMax)
+	targetY.YScale = replaceScaleDomain(targetY.YScale, yMin, yMax)
 }
 
 // AddGrid adds grid lines for the specified axis.
@@ -248,6 +320,56 @@ func (a *Axes) SetXLabel(label string) { a.XLabel = label }
 // SetYLabel sets the label displayed left of the y-axis.
 func (a *Axes) SetYLabel(label string) { a.YLabel = label }
 
+// SetAspect configures the data aspect ratio for the axes box.
+// Supported values are "auto", "equal", and "ratio" (which requires one numeric value).
+func (a *Axes) SetAspect(mode string, value ...float64) error {
+	if a == nil {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", "auto":
+		a.aspectMode = "auto"
+		a.aspectValue = 1
+	case "equal":
+		a.aspectMode = "equal"
+		a.aspectValue = 1
+	case "ratio":
+		if len(value) == 0 || value[0] <= 0 || math.IsNaN(value[0]) || math.IsInf(value[0], 0) {
+			return fmt.Errorf("ratio aspect requires a positive finite value")
+		}
+		a.aspectMode = "ratio"
+		a.aspectValue = value[0]
+	default:
+		return fmt.Errorf("unsupported aspect mode %q", mode)
+	}
+	return nil
+}
+
+// SetAxisEqual is a convenience helper for a 1:1 data aspect ratio.
+func (a *Axes) SetAxisEqual() {
+	_ = a.SetAspect("equal")
+}
+
+// SetBoxAspect constrains the physical height/width ratio of the axes box.
+func (a *Axes) SetBoxAspect(aspect float64) error {
+	if a == nil {
+		return nil
+	}
+	if aspect <= 0 || math.IsNaN(aspect) || math.IsInf(aspect, 0) {
+		return fmt.Errorf("box aspect must be a positive finite value")
+	}
+	a.boxAspect = aspect
+	return nil
+}
+
+// ClearBoxAspect removes any physical box-aspect constraint.
+func (a *Axes) ClearBoxAspect() {
+	if a == nil {
+		return
+	}
+	a.boxAspect = 0
+}
+
 // NextColor returns the next color in the axes color cycle.
 func (a *Axes) NextColor() render.Color {
 	if a.ColorCycle == nil {
@@ -269,6 +391,238 @@ func (a *Axes) ResetColorCycle() {
 	if a.ColorCycle != nil {
 		a.ColorCycle.Reset()
 	}
+}
+
+// TopAxis returns the explicit top x-axis, creating it on first use.
+func (a *Axes) TopAxis() *Axis {
+	if a == nil {
+		return nil
+	}
+	if a.XAxisTop == nil {
+		a.XAxisTop = cloneAxisForSide(a.XAxis, AxisTop)
+	}
+	return a.XAxisTop
+}
+
+// RightAxis returns the explicit right y-axis, creating it on first use.
+func (a *Axes) RightAxis() *Axis {
+	if a == nil {
+		return nil
+	}
+	if a.YAxisRight == nil {
+		a.YAxisRight = cloneAxisForSide(a.YAxis, AxisRight)
+	}
+	return a.YAxisRight
+}
+
+// HideTopAxis removes the explicit top x-axis.
+func (a *Axes) HideTopAxis() {
+	if a == nil {
+		return
+	}
+	a.XAxisTop = nil
+}
+
+// HideRightAxis removes the explicit right y-axis.
+func (a *Axes) HideRightAxis() {
+	if a == nil {
+		return
+	}
+	a.YAxisRight = nil
+}
+
+// SetXAxisSide repositions the primary x-axis to the requested side.
+func (a *Axes) SetXAxisSide(side AxisSide) error {
+	if a == nil {
+		return nil
+	}
+	if side != AxisBottom && side != AxisTop {
+		return fmt.Errorf("x-axis side must be bottom or top")
+	}
+	if a.XAxis == nil {
+		a.XAxis = cloneAxisForSide(nil, side)
+	} else {
+		a.XAxis.Side = side
+	}
+	if side == AxisTop {
+		a.XAxisTop = nil
+	}
+	return nil
+}
+
+// SetYAxisSide repositions the primary y-axis to the requested side.
+func (a *Axes) SetYAxisSide(side AxisSide) error {
+	if a == nil {
+		return nil
+	}
+	if side != AxisLeft && side != AxisRight {
+		return fmt.Errorf("y-axis side must be left or right")
+	}
+	if a.YAxis == nil {
+		a.YAxis = cloneAxisForSide(nil, side)
+	} else {
+		a.YAxis.Side = side
+	}
+	if side == AxisRight {
+		a.YAxisRight = nil
+	}
+	return nil
+}
+
+// MoveXAxisToTop is a convenience helper that repositions the primary x-axis.
+func (a *Axes) MoveXAxisToTop() error { return a.SetXAxisSide(AxisTop) }
+
+// MoveXAxisToBottom is a convenience helper that repositions the primary x-axis.
+func (a *Axes) MoveXAxisToBottom() error { return a.SetXAxisSide(AxisBottom) }
+
+// MoveYAxisToLeft is a convenience helper that repositions the primary y-axis.
+func (a *Axes) MoveYAxisToLeft() error { return a.SetYAxisSide(AxisLeft) }
+
+// MoveYAxisToRight is a convenience helper that repositions the primary y-axis.
+func (a *Axes) MoveYAxisToRight() error { return a.SetYAxisSide(AxisRight) }
+
+// MinorticksOn enables default minor locators on the requested axis selection.
+func (a *Axes) MinorticksOn(axis string) error {
+	if err := validateAxisSpec(axis); err != nil {
+		return err
+	}
+	for _, ax := range a.axesForSpec(axis) {
+		enableMinorTicks(ax)
+	}
+	return nil
+}
+
+// MinorticksOff disables minor locators on the requested axis selection.
+func (a *Axes) MinorticksOff(axis string) error {
+	if err := validateAxisSpec(axis); err != nil {
+		return err
+	}
+	for _, ax := range a.axesForSpec(axis) {
+		if ax != nil {
+			ax.MinorLocator = nil
+		}
+	}
+	return nil
+}
+
+// LocatorParams updates the target major/minor tick density for the selected axes.
+func (a *Axes) LocatorParams(params LocatorParams) error {
+	if err := validateAxisSpec(params.Axis); err != nil {
+		return err
+	}
+	for _, axis := range a.axesForSpec(params.Axis) {
+		if axis == nil {
+			continue
+		}
+		if params.MajorCount > 0 {
+			axis.MajorTickCount = params.MajorCount
+		}
+		if params.MinorCount > 0 {
+			axis.MinorTickCount = params.MinorCount
+		}
+	}
+	return nil
+}
+
+// TickParams applies visibility/styling updates to the selected axis ticks.
+func (a *Axes) TickParams(params TickParams) error {
+	if err := validateAxisSpec(params.Axis); err != nil {
+		return err
+	}
+	which := normalizeTickWhich(params.Which)
+	if which == "" {
+		return fmt.Errorf("unsupported tick selection %q", params.Which)
+	}
+
+	for _, axis := range a.axesForSpec(params.Axis) {
+		if axis == nil {
+			continue
+		}
+		if params.Color != nil {
+			axis.Color = *params.Color
+		}
+		if params.Width != nil {
+			axis.LineWidth = *params.Width
+		}
+		if params.ShowTicks != nil {
+			axis.ShowTicks = *params.ShowTicks
+		}
+		if params.ShowLabels != nil {
+			axis.ShowLabels = *params.ShowLabels
+		}
+		if params.Length != nil {
+			switch which {
+			case "major":
+				axis.TickSize = *params.Length
+			case "minor":
+				axis.MinorTickSize = *params.Length
+			case "both":
+				axis.TickSize = *params.Length
+				axis.MinorTickSize = *params.Length
+			}
+		}
+	}
+	return nil
+}
+
+// TwinX creates an overlay axes sharing the x-scale with an independent y-scale on the right.
+func (a *Axes) TwinX() *Axes {
+	twin := a.newOverlayAxes()
+	if twin == nil {
+		return nil
+	}
+	twin.shareX = a.xScaleRoot()
+	if twin.XAxis != nil {
+		twin.XAxis.ShowSpine = false
+		twin.XAxis.ShowTicks = false
+		twin.XAxis.ShowLabels = false
+	}
+	if twin.YAxis != nil {
+		twin.YAxis.ShowSpine = false
+		twin.YAxis.ShowTicks = false
+		twin.YAxis.ShowLabels = false
+	}
+	twin.ShowFrame = false
+	twin.RightAxis()
+	return twin
+}
+
+// TwinY creates an overlay axes sharing the y-scale with an independent x-scale on the top.
+func (a *Axes) TwinY() *Axes {
+	twin := a.newOverlayAxes()
+	if twin == nil {
+		return nil
+	}
+	twin.shareY = a.yScaleRoot()
+	if twin.YAxis != nil {
+		twin.YAxis.ShowSpine = false
+		twin.YAxis.ShowTicks = false
+		twin.YAxis.ShowLabels = false
+	}
+	if twin.XAxis != nil {
+		twin.XAxis.ShowSpine = false
+		twin.XAxis.ShowTicks = false
+		twin.XAxis.ShowLabels = false
+	}
+	twin.ShowFrame = false
+	twin.TopAxis()
+	return twin
+}
+
+// SecondaryXAxis creates an overlay axes that displays transformed x ticks on the requested side.
+func (a *Axes) SecondaryXAxis(side AxisSide, forward func(float64) float64, inverse func(float64) (float64, bool)) (*Axes, error) {
+	if side != AxisTop && side != AxisBottom {
+		return nil, fmt.Errorf("secondary x-axis side must be top or bottom")
+	}
+	return a.newSecondaryAxes(true, side, forward, inverse)
+}
+
+// SecondaryYAxis creates an overlay axes that displays transformed y ticks on the requested side.
+func (a *Axes) SecondaryYAxis(side AxisSide, forward func(float64) float64, inverse func(float64) (float64, bool)) (*Axes, error) {
+	if side != AxisLeft && side != AxisRight {
+		return nil, fmt.Errorf("secondary y-axis side must be left or right")
+	}
+	return a.newSecondaryAxes(false, side, forward, inverse)
 }
 
 // layout computes the pixel rectangle for this Axes inside the Figure.
@@ -308,17 +662,25 @@ func (a *Axes) yScaleRoot() *Axes {
 }
 
 func (a *Axes) effectiveXAxis() *Axis {
-	if a.shareX != nil {
-		return a.shareX.effectiveXAxis()
-	}
 	return a.XAxis
 }
 
 func (a *Axes) effectiveYAxis() *Axis {
-	if a.shareY != nil {
-		return a.shareY.effectiveYAxis()
-	}
 	return a.YAxis
+}
+
+func (a *Axes) effectiveTopAxis() *Axis {
+	if a == nil {
+		return nil
+	}
+	return a.XAxisTop
+}
+
+func (a *Axes) effectiveRightAxis() *Axis {
+	if a == nil {
+		return nil
+	}
+	return a.YAxisRight
 }
 
 func (a *Axes) effectiveXScale() transform.Scale {
@@ -333,6 +695,41 @@ func (a *Axes) effectiveYScale() transform.Scale {
 		return a.shareY.effectiveYScale()
 	}
 	return a.YScale
+}
+
+func (a *Axes) setScale(isX bool, name string, opts ...transform.ScaleOption) error {
+	var target *Axes
+	var current transform.Scale
+	var primary, secondary *Axis
+
+	if isX {
+		target = a.xScaleRoot()
+		current = target.XScale
+		primary = target.XAxis
+		secondary = target.XAxisTop
+	} else {
+		target = a.yScaleRoot()
+		current = target.YScale
+		primary = target.YAxis
+		secondary = target.YAxisRight
+	}
+
+	minVal, maxVal := currentScaleDomain(current)
+	cfg := transform.ResolveScaleOptions(append([]transform.ScaleOption{
+		transform.WithScaleDomain(minVal, maxVal),
+	}, opts...)...)
+	scale, err := transform.NewScaleWithOptions(name, cfg)
+	if err != nil {
+		return err
+	}
+
+	if isX {
+		target.XScale = scale
+	} else {
+		target.YScale = scale
+	}
+	configureScaleAxes(primary, secondary, name, cfg)
+	return nil
 }
 
 // effectiveRC resolves the RC for this axes, inheriting from the Figure if needed.
@@ -356,6 +753,52 @@ func (a *Axes) resolvedRC() style.RC {
 	return a.effectiveRC(a.figure)
 }
 
+func currentScaleDomain(s transform.Scale) (float64, float64) {
+	if s == nil {
+		return 0, 1
+	}
+	return s.Domain()
+}
+
+func replaceScaleDomain(s transform.Scale, minVal, maxVal float64) transform.Scale {
+	switch v := s.(type) {
+	case nil:
+		return transform.NewLinear(minVal, maxVal)
+	case transform.DomainSetter:
+		return v.WithDomain(minVal, maxVal)
+	case invertedScale:
+		return replaceScaleDomain(v.base, minVal, maxVal)
+	default:
+		return transform.NewLinear(minVal, maxVal)
+	}
+}
+
+func configureScaleAxes(primary, secondary *Axis, scaleName string, cfg transform.ScaleOptions) {
+	configureScaleAxis(primary, scaleName, cfg)
+	configureScaleAxis(secondary, scaleName, cfg)
+}
+
+func configureScaleAxis(axis *Axis, scaleName string, cfg transform.ScaleOptions) {
+	if axis == nil {
+		return
+	}
+
+	switch strings.ToLower(scaleName) {
+	case "log":
+		axis.Locator = LogLocator{Base: cfg.Base, Minor: false}
+		axis.Formatter = LogFormatter{Base: cfg.Base}
+		if len(cfg.Subs) > 0 {
+			axis.MinorLocator = LogLocator{Base: cfg.Base, Minor: true, Subs: cfg.Subs}
+		} else {
+			axis.MinorLocator = nil
+		}
+	default:
+		axis.Locator = LinearLocator{}
+		axis.Formatter = ScalarFormatter{Prec: 3}
+		axis.MinorLocator = nil
+	}
+}
+
 func (a *Axes) applyStyleDefaults(rc style.RC) {
 	if a == nil {
 		return
@@ -367,6 +810,14 @@ func (a *Axes) applyStyleDefaults(rc style.RC) {
 	if a.YAxis != nil {
 		a.YAxis.Color = rc.AxesEdgeColor
 		a.YAxis.LineWidth = rc.AxisLineWidth
+	}
+	if a.XAxisTop != nil {
+		a.XAxisTop.Color = rc.AxesEdgeColor
+		a.XAxisTop.LineWidth = rc.AxisLineWidth
+	}
+	if a.YAxisRight != nil {
+		a.YAxisRight.Color = rc.AxesEdgeColor
+		a.YAxisRight.LineWidth = rc.AxisLineWidth
 	}
 	if a.ColorCycle == nil {
 		a.ColorCycle = color.NewColorCycle(rc.Palette())
@@ -380,9 +831,11 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 	defer r.End()
 
 	for _, ax := range fig.Children {
-		px := ax.layout(fig)
+		px := ax.adjustedLayout(fig)
 		xAxis := ax.effectiveXAxis()
 		yAxis := ax.effectiveYAxis()
+		topAxis := ax.effectiveTopAxis()
+		rightAxis := ax.effectiveRightAxis()
 
 		// Build DrawContext with composed transform
 		ctx := &DrawContext{
@@ -436,12 +889,24 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		if yAxis != nil {
 			yAxis.Draw(r, ctx)
 		}
+		if topAxis != nil {
+			topAxis.Draw(r, ctx)
+		}
+		if rightAxis != nil {
+			rightAxis.Draw(r, ctx)
+		}
 		if ax.ShowFrame {
 			ref := xAxis
 			if ref == nil {
+				ref = topAxis
+			}
+			if ref == nil {
 				ref = yAxis
 			}
-			DrawFrame(r, ctx, ref)
+			if ref == nil {
+				ref = rightAxis
+			}
+			DrawFrame(r, ctx, ref, topAxis == nil, rightAxis == nil)
 		}
 
 		// Draw ticks (outward), tick labels, and text labels outside the clip rect.
@@ -452,6 +917,14 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		if yAxis != nil {
 			yAxis.DrawTicks(r, ctx)
 			yAxis.DrawTickLabels(r, ctx)
+		}
+		if topAxis != nil {
+			topAxis.DrawTicks(r, ctx)
+			topAxis.DrawTickLabels(r, ctx)
+		}
+		if rightAxis != nil {
+			rightAxis.DrawTicks(r, ctx)
+			rightAxis.DrawTickLabels(r, ctx)
 		}
 		drawAxesLabels(ax, r, ctx, px)
 	}
@@ -495,23 +968,35 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	if ax.XLabel != "" {
 		metrics := r.MeasureText(ax.XLabel, labelSize, ctx.RC.FontKey)
 		x := px.Min.X + (px.W()-metrics.W)/2
-		// Same baseline rule as the title: place the baseline below the axes
-		// using the ascent so the glyph box sits in the intended margin.
 		y := px.Max.Y + 18 + metrics.Ascent
+		if ax.XAxis != nil && ax.XAxis.Side == AxisTop {
+			y = px.Min.Y - 18 - metrics.Descent
+		}
 		textRen.DrawText(ax.XLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
 	}
 
 	// YLabel: vertical text if supported, else horizontal fallback
 	if ax.YLabel != "" {
-		center := geom.Pt{X: px.Min.X - 36, Y: px.Min.Y + px.H()/2}
+		anchor := yLabelAnchorPoint(ax, r, ctx, px)
+		angle := math.Pi / 2
+		if yAxis := ax.effectiveYAxis(); yAxis != nil && yAxis.Side == AxisRight {
+			angle = -math.Pi / 2
+		}
 		switch ren := r.(type) {
 		case render.RotatedTextDrawer:
-			ren.DrawTextRotated(ax.YLabel, center, labelSize, math.Pi/2, labelColor)
+			ren.DrawTextRotated(ax.YLabel, anchor, labelSize, angle, labelColor)
 		case render.VerticalTextDrawer:
-			ren.DrawTextVertical(ax.YLabel, center, labelSize, labelColor)
+			if angle < 0 {
+				metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
+				x := anchor.X - metrics.W/2
+				y := px.Min.Y + px.H()/2 + metrics.H/2
+				textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
+			} else {
+				ren.DrawTextVertical(ax.YLabel, geom.Pt{X: anchor.X, Y: anchor.Y}, labelSize, labelColor)
+			}
 		default:
 			metrics := r.MeasureText(ax.YLabel, labelSize, ctx.RC.FontKey)
-			x := px.Min.X - 42 - metrics.W/2
+			x := anchor.X - metrics.W/2
 			y := px.Min.Y + px.H()/2 + metrics.H/2
 			textRen.DrawText(ax.YLabel, geom.Pt{X: x, Y: y}, labelSize, labelColor)
 		}
@@ -540,6 +1025,103 @@ func titleBaselineAdjustPx(ctx *DrawContext) float64 {
 	return titleBaselineAdjustPxV
 }
 
+func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect) geom.Pt {
+	anchor := geom.Pt{
+		X: spinePixelX(AxisLeft, px) - axisLabelPadPx(ctx),
+		Y: px.Min.Y + px.H()/2,
+	}
+
+	yAxis := ax.effectiveYAxis()
+	if yAxis == nil {
+		return anchor
+	}
+
+	spineX := spinePixelX(yAxis.Side, px)
+	if yAxis.Side == AxisRight {
+		rightExtent := spineX
+		if tickBounds, ok := axisTickLabelBounds(yAxis, r, ctx); ok {
+			rightExtent = math.Max(rightExtent, tickBounds.Max.X)
+		}
+		anchor.X = rightExtent + axisLabelPadPx(ctx)
+		return anchor
+	}
+
+	leftExtent := spineX
+	if tickBounds, ok := axisTickLabelBounds(yAxis, r, ctx); ok {
+		leftExtent = math.Min(leftExtent, tickBounds.Min.X)
+	}
+	anchor.X = leftExtent - axisLabelPadPx(ctx)
+	return anchor
+}
+
+func axisLabelPadPx(ctx *DrawContext) float64 {
+	const labelPadPt = 4.0
+
+	dpi := 96.0
+	if ctx != nil && ctx.RC.DPI > 0 {
+		dpi = ctx.RC.DPI
+	}
+	return labelPadPt * dpi / 72.0
+}
+
+func spinePixelX(side AxisSide, px geom.Rect) float64 {
+	p1, _ := spinePixelEndpoints(side, px)
+	return p1.X
+}
+
+func (a *Axes) adjustedLayout(f *Figure) geom.Rect {
+	px := a.layout(f)
+	target := 0.0
+	if a.boxAspect > 0 {
+		target = a.boxAspect
+	} else {
+		switch a.aspectMode {
+		case "equal":
+			target = a.dataAspectTarget(1)
+		case "ratio":
+			target = a.dataAspectTarget(a.aspectValue)
+		}
+	}
+	if target <= 0 || math.IsNaN(target) || math.IsInf(target, 0) {
+		return px
+	}
+	return rectWithAspect(px, target)
+}
+
+func (a *Axes) dataAspectTarget(aspect float64) float64 {
+	if a == nil || aspect <= 0 {
+		return 0
+	}
+	xMin, xMax := currentScaleDomain(a.effectiveXScale())
+	yMin, yMax := currentScaleDomain(a.effectiveYScale())
+	xSpan := math.Abs(xMax - xMin)
+	ySpan := math.Abs(yMax - yMin)
+	if xSpan == 0 || ySpan == 0 {
+		return 0
+	}
+	return aspect * ySpan / xSpan
+}
+
+func rectWithAspect(r geom.Rect, target float64) geom.Rect {
+	if target <= 0 {
+		return r
+	}
+	cur := r.H() / r.W()
+	switch {
+	case cur > target:
+		newH := r.W() * target
+		pad := (r.H() - newH) / 2
+		r.Min.Y += pad
+		r.Max.Y -= pad
+	case cur < target:
+		newW := r.H() / target
+		pad := (r.W() - newW) / 2
+		r.Min.X += pad
+		r.Max.X -= pad
+	}
+	return r
+}
+
 // axesToPixel returns an affine mapping [0..1]^2 (axes space) -> pixel rect.
 // This maps axes coordinates to pixel coordinates with Y-flip for mathematical orientation:
 // - axes (0,0) -> pixel (px.Min.X, px.Max.Y) [bottom-left]
@@ -550,4 +1132,234 @@ func axesToPixel(px geom.Rect) geom.Affine {
 	tx := px.Min.X
 	ty := px.Max.Y // Start from bottom of pixel rect
 	return geom.Affine{A: sx, D: sy, E: tx, F: ty}
+}
+
+func cloneAxisForSide(src *Axis, side AxisSide) *Axis {
+	var axis Axis
+	if src != nil {
+		axis = *src
+	} else {
+		switch side {
+		case AxisBottom, AxisTop:
+			axis = *NewXAxis()
+		case AxisLeft, AxisRight:
+			axis = *NewYAxis()
+		}
+	}
+	axis.Side = side
+	axis.ShowSpine = true
+	axis.ShowTicks = true
+	axis.ShowLabels = true
+	return &axis
+}
+
+func (a *Axes) newOverlayAxes() *Axes {
+	if a == nil || a.figure == nil {
+		return nil
+	}
+	overlay := a.figure.AddAxes(a.RectFraction)
+	overlay.RC = a.RC
+	overlay.aspectMode = a.aspectMode
+	overlay.aspectValue = a.aspectValue
+	overlay.boxAspect = a.boxAspect
+	return overlay
+}
+
+func (a *Axes) newSecondaryAxes(isX bool, side AxisSide, forward func(float64) float64, inverse func(float64) (float64, bool)) (*Axes, error) {
+	if a == nil || a.figure == nil {
+		return nil, fmt.Errorf("secondary axes require a figure-backed axes")
+	}
+	if forward == nil || inverse == nil {
+		return nil, fmt.Errorf("secondary axes require forward and inverse functions")
+	}
+	overlay := a.newOverlayAxes()
+	if overlay == nil {
+		return nil, fmt.Errorf("could not create overlay axes")
+	}
+	overlay.ShowFrame = false
+
+	if isX {
+		overlay.XScale = linkedSecondaryScale{parent: a, isX: true, forward: forward, inverse: inverse}
+		overlay.shareY = a.yScaleRoot()
+		if overlay.YAxis != nil {
+			overlay.YAxis.ShowSpine = false
+			overlay.YAxis.ShowTicks = false
+			overlay.YAxis.ShowLabels = false
+		}
+		if overlay.XAxis != nil {
+			overlay.XAxis.ShowSpine = false
+			overlay.XAxis.ShowTicks = false
+			overlay.XAxis.ShowLabels = false
+		}
+		if side == AxisTop {
+			overlay.TopAxis()
+		} else {
+			overlay.XAxis = cloneAxisForSide(a.XAxis, AxisBottom)
+		}
+	} else {
+		overlay.YScale = linkedSecondaryScale{parent: a, isX: false, forward: forward, inverse: inverse}
+		overlay.shareX = a.xScaleRoot()
+		if overlay.XAxis != nil {
+			overlay.XAxis.ShowSpine = false
+			overlay.XAxis.ShowTicks = false
+			overlay.XAxis.ShowLabels = false
+		}
+		if overlay.YAxis != nil {
+			overlay.YAxis.ShowSpine = false
+			overlay.YAxis.ShowTicks = false
+			overlay.YAxis.ShowLabels = false
+		}
+		if side == AxisRight {
+			overlay.RightAxis()
+		} else {
+			overlay.YAxis = cloneAxisForSide(a.YAxis, AxisLeft)
+		}
+	}
+	return overlay, nil
+}
+
+type linkedSecondaryScale struct {
+	parent  *Axes
+	isX     bool
+	forward func(float64) float64
+	inverse func(float64) (float64, bool)
+}
+
+func (s linkedSecondaryScale) primaryScale() transform.Scale {
+	if s.parent == nil {
+		return nil
+	}
+	if s.isX {
+		return s.parent.effectiveXScale()
+	}
+	return s.parent.effectiveYScale()
+}
+
+func (s linkedSecondaryScale) Domain() (float64, float64) {
+	base := s.primaryScale()
+	if base == nil || s.forward == nil {
+		return 0, 1
+	}
+	minVal, maxVal := base.Domain()
+	return s.forward(minVal), s.forward(maxVal)
+}
+
+func (s linkedSecondaryScale) Fwd(x float64) float64 {
+	base := s.primaryScale()
+	if base == nil || s.inverse == nil {
+		return 0
+	}
+	primary, ok := s.inverse(x)
+	if !ok {
+		return math.NaN()
+	}
+	return base.Fwd(primary)
+}
+
+func (s linkedSecondaryScale) Inv(u float64) (float64, bool) {
+	base := s.primaryScale()
+	if base == nil || s.forward == nil {
+		return 0, false
+	}
+	primary, ok := base.Inv(u)
+	if !ok {
+		return 0, false
+	}
+	return s.forward(primary), true
+}
+
+func validateAxisSpec(spec string) error {
+	switch normalizeAxisSpec(spec) {
+	case "", "both", "x", "y", "bottom", "top", "left", "right":
+		return nil
+	default:
+		return fmt.Errorf("unsupported axis selection %q", spec)
+	}
+}
+
+func normalizeAxisSpec(spec string) string {
+	spec = strings.ToLower(strings.TrimSpace(spec))
+	if spec == "" {
+		return "both"
+	}
+	return spec
+}
+
+func normalizeTickWhich(which string) string {
+	switch strings.ToLower(strings.TrimSpace(which)) {
+	case "", "both":
+		return "both"
+	case "major":
+		return "major"
+	case "minor":
+		return "minor"
+	default:
+		return ""
+	}
+}
+
+func (a *Axes) axesForSpec(spec string) []*Axis {
+	switch normalizeAxisSpec(spec) {
+	case "x":
+		return []*Axis{a.XAxis, a.XAxisTop}
+	case "y":
+		return []*Axis{a.YAxis, a.YAxisRight}
+	case "bottom":
+		return []*Axis{a.XAxis}
+	case "top":
+		return []*Axis{a.XAxisTop}
+	case "left":
+		return []*Axis{a.YAxis}
+	case "right":
+		return []*Axis{a.YAxisRight}
+	default:
+		return []*Axis{a.XAxis, a.XAxisTop, a.YAxis, a.YAxisRight}
+	}
+}
+
+func enableMinorTicks(axis *Axis) {
+	if axis == nil || axis.MinorLocator != nil {
+		return
+	}
+	switch loc := axis.Locator.(type) {
+	case LogLocator:
+		axis.MinorLocator = LogLocator{Base: loc.Base, Minor: true, Subs: loc.Subs}
+	default:
+		axis.MinorLocator = MinorLinearLocator{}
+	}
+}
+
+type invertedScale struct {
+	base transform.Scale
+}
+
+func (s invertedScale) Fwd(x float64) float64 {
+	return 1 - s.base.Fwd(x)
+}
+
+func (s invertedScale) Inv(u float64) (float64, bool) {
+	return s.base.Inv(1 - u)
+}
+
+func (s invertedScale) Domain() (float64, float64) {
+	maxVal, minVal := s.base.Domain()
+	return minVal, maxVal
+}
+
+func toggleInvertedScale(s transform.Scale) transform.Scale {
+	if s == nil {
+		return nil
+	}
+	if inv, ok := s.(invertedScale); ok {
+		return inv.base
+	}
+	return invertedScale{base: s}
+}
+
+func scaleDomainDescending(s transform.Scale) bool {
+	if s == nil {
+		return false
+	}
+	minVal, maxVal := s.Domain()
+	return minVal > maxVal
 }

@@ -34,12 +34,23 @@ type Scale interface {
 	Domain() (min, max float64)
 }
 
+// DomainSetter can clone a scale with a different data domain.
+type DomainSetter interface {
+	WithDomain(min, max float64) Scale
+}
+
 // Linear maps [Min,Max] linearly to [0,1].
 type Linear struct{ Min, Max float64 }
 
 func NewLinear(minVal, maxVal float64) Linear { return Linear{Min: minVal, Max: maxVal} }
 
 func (s Linear) Domain() (float64, float64) { return s.Min, s.Max }
+
+func (s Linear) WithDomain(min, max float64) Scale {
+	s.Min = min
+	s.Max = max
+	return s
+}
 
 func (s Linear) Fwd(x float64) float64 {
 	den := s.Max - s.Min
@@ -58,11 +69,21 @@ func (s Linear) Inv(u float64) (float64, bool) {
 }
 
 // Log maps (Min,Max], Min>0, Base>1 to [0,1] using log with the given base.
-type Log struct{ Min, Max, Base float64 }
+type Log struct {
+	Min, Max, Base float64
+	NonPositive    NonPositiveMode
+}
 
-func NewLog(minVal, maxVal, base float64) Log { return Log{Min: minVal, Max: maxVal, Base: base} }
+func NewLog(minVal, maxVal, base float64) Log {
+	return Log{Min: minVal, Max: maxVal, Base: base, NonPositive: NonPositiveMask}
+}
 
 func (s Log) Domain() (float64, float64) { return s.Min, s.Max }
+
+func (s Log) WithDomain(min, max float64) Scale {
+	s.Min, s.Max = normalizeLogDomain(min, max, s.Base)
+	return s
+}
 
 func (s Log) valid() bool {
 	if s.Base <= 1 {
@@ -82,7 +103,10 @@ func (s Log) Fwd(x float64) float64 {
 		return 0
 	}
 	if x <= 0 { // outside domain
-		return math.NaN()
+		if s.NonPositive != NonPositiveClip {
+			return math.NaN()
+		}
+		x = logClipFloor(s.Min, s.Max, s.Base)
 	}
 	lb := math.Log(s.Base)
 	lo := math.Log(s.Min) / lb

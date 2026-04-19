@@ -2,9 +2,17 @@ package agg
 
 import (
 	"errors"
+	"math"
+	"os"
+	"sync"
 
 	agglib "github.com/cwbudde/agg_go"
+	xfont "golang.org/x/image/font"
+	"golang.org/x/image/font/sfnt"
+	"golang.org/x/image/math/fixed"
 )
+
+var sfntFontCache sync.Map
 
 // aggSurface owns the explicit AGG image buffer and the renderer attached to it.
 // This keeps backend construction local instead of routing through agglib.Context.
@@ -241,6 +249,14 @@ func (s *aggSurface) TextMetrics(text string) (width, ascent, descent float64) {
 		return 0, 0, 0
 	}
 
+	width = s.textContext.GetTextWidth(text)
+	if ascent, descent, ok := s.lineMetrics(); ok {
+		if width <= 0 {
+			_, _, width, _ = s.textContext.GetTextBounds(text)
+		}
+		return width, ascent, descent
+	}
+
 	x, y, width, height := s.textContext.GetTextBounds(text)
 	maxY := y + height
 	if y < 0 {
@@ -258,6 +274,61 @@ func (s *aggSurface) TextMetrics(text string) (width, ascent, descent float64) {
 	}
 	_ = x
 	return width, ascent, descent
+}
+
+func (s *aggSurface) lineMetrics() (ascent, descent float64, ok bool) {
+	if s.textFontPath == "" || s.textSize <= 0 {
+		return 0, 0, false
+	}
+	resolution := s.textResolution
+	if resolution == 0 {
+		resolution = 72
+	}
+
+	fontData, err := loadSFNTFont(s.textFontPath)
+	if err != nil {
+		return 0, 0, false
+	}
+
+	ppem := fixed.Int26_6(math.Round(s.textSize * float64(resolution) * 64.0 / 72.0))
+	if ppem <= 0 {
+		return 0, 0, false
+	}
+
+	metrics, err := fontData.Metrics(nil, ppem, xfont.HintingNone)
+	if err != nil {
+		return 0, 0, false
+	}
+
+	ascent = float64(metrics.Ascent) / 64.0
+	descent = float64(metrics.Descent) / 64.0
+	return ascent, descent, ascent > 0 || descent > 0
+}
+
+func loadSFNTFont(path string) (*sfnt.Font, error) {
+	if cached, ok := sfntFontCache.Load(path); ok {
+		return cached.(*sfnt.Font), nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	fontData, err := sfnt.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+
+	actual, _ := sfntFontCache.LoadOrStore(path, fontData)
+	return actual.(*sfnt.Font), nil
+}
+
+func (s *aggSurface) TextBounds(text string) (x, y, width, height float64) {
+	if s.textContext == nil || text == "" {
+		return 0, 0, 0, 0
+	}
+	return s.textContext.GetTextBounds(text)
 }
 
 func (s *aggSurface) TextAscent() float64 {

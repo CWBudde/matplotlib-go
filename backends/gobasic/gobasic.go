@@ -362,8 +362,9 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 	r.drawBitmapScaled(src, x, y, src.Bounds().Dx(), src.Bounds().Dy())
 }
 
-// DrawTextRotated renders text by rasterizing and rotating around center.
-func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size float64, angle float64, textColor render.Color) {
+// DrawTextRotated renders text using Matplotlib-like anchor rotation. The
+// anchor is the bottom-center of the unrotated text box.
+func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size float64, angle float64, textColor render.Color) {
 	if text == "" || size <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
 		return
 	}
@@ -374,14 +375,16 @@ func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size float64, an
 	}
 
 	const epsilon = 1e-12
+	pivotX := float64(src.Bounds().Dx()) / 2
+	pivotY := float64(src.Bounds().Dy())
 	if math.Abs(angle) <= epsilon {
-		x := int(math.Round(center.X - float64(src.Bounds().Dx())/2))
-		y := int(math.Round(center.Y - float64(src.Bounds().Dy())/2))
+		x := int(math.Round(anchor.X - pivotX))
+		y := int(math.Round(anchor.Y - pivotY))
 		r.drawBitmapScaled(src, x, y, src.Bounds().Dx(), src.Bounds().Dy())
 		return
 	}
 
-	r.drawBitmapRotated(src, center, angle)
+	r.drawBitmapRotated(src, anchor, geom.Pt{X: pivotX, Y: pivotY}, angle)
 }
 
 // DrawTextVertical renders one character per line.
@@ -477,7 +480,7 @@ func (r *Renderer) drawBitmapScaled(src *image.RGBA, dstX, dstY, dstW, dstH int)
 	}
 }
 
-func (r *Renderer) drawBitmapRotated(src *image.RGBA, center geom.Pt, angle float64) {
+func (r *Renderer) drawBitmapRotated(src *image.RGBA, anchor geom.Pt, pivot geom.Pt, angle float64) {
 	if src == nil {
 		return
 	}
@@ -489,14 +492,12 @@ func (r *Renderer) drawBitmapRotated(src *image.RGBA, center geom.Pt, angle floa
 	}
 
 	cos, sin := math.Cos(angle), math.Sin(angle)
-	halfW := srcW / 2
-	halfH := srcH / 2
 
 	corners := [4]struct{ x, y float64 }{
-		{-halfW, -halfH},
-		{halfW, -halfH},
-		{halfW, halfH},
-		{-halfW, halfH},
+		{-pivot.X, -pivot.Y},
+		{srcW - pivot.X, -pivot.Y},
+		{srcW - pivot.X, srcH - pivot.Y},
+		{-pivot.X, srcH - pivot.Y},
 	}
 
 	minX := math.Inf(1)
@@ -526,8 +527,8 @@ func (r *Renderer) drawBitmapRotated(src *image.RGBA, center geom.Pt, angle floa
 		return
 	}
 
-	minXInt := int(math.Floor(center.X + minX))
-	minYInt := int(math.Floor(center.Y + minY))
+	minXInt := int(math.Floor(anchor.X + minX))
+	minYInt := int(math.Floor(anchor.Y + minY))
 	drawBounds, ok := r.drawTargetRect(minXInt, minYInt, minXInt+boundsW, minYInt+boundsH)
 	if !ok {
 		return
@@ -536,15 +537,15 @@ func (r *Renderer) drawBitmapRotated(src *image.RGBA, center geom.Pt, angle floa
 	srcMin := src.Bounds().Min
 	for y := drawBounds.Min.Y; y < drawBounds.Max.Y; y++ {
 		for x := drawBounds.Min.X; x < drawBounds.Max.X; x++ {
-			localX := float64(x) - center.X
-			localY := float64(y) - center.Y
+			localX := float64(x) - anchor.X
+			localY := float64(y) - anchor.Y
 
 			// Inverse rotation from destination to source coordinates.
 			sxF := localX*cos + localY*sin
 			syF := -localX*sin + localY*cos
 
-			srcX := int(math.Round(sxF + halfW - 0.5))
-			srcY := int(math.Round(syF + halfH - 0.5))
+			srcX := int(math.Round(sxF + pivot.X - 0.5))
+			srcY := int(math.Round(syF + pivot.Y - 0.5))
 			if srcX < 0 || srcY < 0 || srcX >= int(srcW) || srcY >= int(srcH) {
 				continue
 			}

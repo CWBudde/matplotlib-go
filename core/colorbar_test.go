@@ -32,8 +32,14 @@ func TestFigureAddColorbarConfiguresAxes(t *testing.T) {
 	if cbAx.XAxis.ShowSpine || cbAx.XAxis.ShowTicks || cbAx.XAxis.ShowLabels {
 		t.Fatalf("expected hidden colorbar x-axis, got %+v", cbAx.XAxis)
 	}
-	if cbAx.YAxis.Side != AxisRight {
-		t.Fatalf("expected right-side y-axis, got %v", cbAx.YAxis.Side)
+	if cbAx.YAxis.ShowSpine || cbAx.YAxis.ShowTicks || cbAx.YAxis.ShowLabels {
+		t.Fatalf("expected hidden left-side y-axis, got %+v", cbAx.YAxis)
+	}
+	if cbAx.YAxisRight == nil {
+		t.Fatal("expected explicit right-side y-axis")
+	}
+	if cbAx.YAxisRight.Side != AxisRight {
+		t.Fatalf("expected right-side y-axis, got %v", cbAx.YAxisRight.Side)
 	}
 	if cbAx.YLabel != "Intensity" {
 		t.Fatalf("unexpected colorbar label %q", cbAx.YLabel)

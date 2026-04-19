@@ -1,0 +1,157 @@
+package transform
+
+import (
+	"math"
+	"math/rand"
+	"testing"
+)
+
+func TestScaleRegistryBuiltins(t *testing.T) {
+	names := ScaleNames()
+	want := []string{"asinh", "func", "function", "linear", "log", "logit", "symlog"}
+	for _, name := range want {
+		found := false
+		for _, got := range names {
+			if got == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("built-in scale %q not registered: %v", name, names)
+		}
+	}
+}
+
+func TestNewScale_LogNormalizesDefaultDomain(t *testing.T) {
+	scale, err := NewScale("log")
+	if err != nil {
+		t.Fatalf("NewScale(log): %v", err)
+	}
+
+	logScale, ok := scale.(Log)
+	if !ok {
+		t.Fatalf("log scale type = %T, want transform.Log", scale)
+	}
+
+	minVal, maxVal := logScale.Domain()
+	if minVal <= 0 || maxVal <= 0 || minVal == maxVal {
+		t.Fatalf("normalized log domain = (%v, %v), want positive non-degenerate range", minVal, maxVal)
+	}
+}
+
+func TestSymLogScale_RoundTrip(t *testing.T) {
+	r := rand.New(rand.NewSource(11))
+	s := NewSymLog(-250, 500, 10, 2, 1.5)
+	for i := 0; i < 200; i++ {
+		x := -250 + r.Float64()*750
+		u := s.Fwd(x)
+		xr, ok := s.Inv(u)
+		if !ok {
+			t.Fatalf("symlog inverse failed for x=%v", x)
+		}
+		if !approx(x, xr, 1e-9*(1+math.Abs(x))) {
+			t.Fatalf("symlog roundtrip mismatch: x=%v xr=%v", x, xr)
+		}
+	}
+}
+
+func TestAsinhScale_RoundTrip(t *testing.T) {
+	r := rand.New(rand.NewSource(12))
+	s := NewAsinh(-25, 40, 0.5)
+	for i := 0; i < 200; i++ {
+		x := -25 + r.Float64()*65
+		u := s.Fwd(x)
+		xr, ok := s.Inv(u)
+		if !ok {
+			t.Fatalf("asinh inverse failed for x=%v", x)
+		}
+		if !approx(x, xr, 1e-9*(1+math.Abs(x))) {
+			t.Fatalf("asinh roundtrip mismatch: x=%v xr=%v", x, xr)
+		}
+	}
+}
+
+func TestLogitScale_RoundTrip(t *testing.T) {
+	r := rand.New(rand.NewSource(13))
+	s := NewLogit(0.02, 0.98, NonPositiveMask, 1e-6)
+	for i := 0; i < 200; i++ {
+		x := 0.02 + r.Float64()*0.96
+		u := s.Fwd(x)
+		xr, ok := s.Inv(u)
+		if !ok {
+			t.Fatalf("logit inverse failed for x=%v", x)
+		}
+		if !approx(x, xr, 1e-9*(1+math.Abs(x))) {
+			t.Fatalf("logit roundtrip mismatch: x=%v xr=%v", x, xr)
+		}
+	}
+}
+
+func TestLogScale_NonPositiveClip(t *testing.T) {
+	s := Log{Min: 1, Max: 100, Base: 10, NonPositive: NonPositiveClip}
+	if got := s.Fwd(-5); math.IsNaN(got) || math.IsInf(got, 0) {
+		t.Fatalf("clipped log forward should stay finite, got %v", got)
+	}
+}
+
+func TestLogitScale_NonPositiveHandling(t *testing.T) {
+	mask := NewLogit(0.01, 0.99, NonPositiveMask, 1e-6)
+	if got := mask.Fwd(-0.5); !math.IsNaN(got) {
+		t.Fatalf("masked logit forward should be NaN, got %v", got)
+	}
+
+	clip := NewLogit(0.01, 0.99, NonPositiveClip, 1e-6)
+	if got := clip.Fwd(-0.5); math.IsNaN(got) || math.IsInf(got, 0) {
+		t.Fatalf("clipped logit forward should stay finite, got %v", got)
+	}
+}
+
+func TestFunctionScale(t *testing.T) {
+	scale, err := NewScale("function",
+		WithScaleDomain(-3, 3),
+		WithScaleFunctions(
+			func(x float64) float64 { return x * x * x },
+			func(y float64) (float64, bool) { return math.Cbrt(y), true },
+		),
+	)
+	if err != nil {
+		t.Fatalf("NewScale(function): %v", err)
+	}
+
+	for _, x := range []float64{-3, -1, -0.25, 0, 0.25, 1, 3} {
+		u := scale.Fwd(x)
+		xr, ok := scale.Inv(u)
+		if !ok {
+			t.Fatalf("function inverse failed for x=%v", x)
+		}
+		if !approx(x, xr, 1e-9*(1+math.Abs(x))) {
+			t.Fatalf("function roundtrip mismatch: x=%v xr=%v", x, xr)
+		}
+	}
+}
+
+func TestScaleRegistryRegister(t *testing.T) {
+	r := NewScaleRegistry()
+	if err := r.Register("custom", func(opts ScaleOptions) (Scale, error) {
+		return NewLinear(opts.DomainMin, opts.DomainMax), nil
+	}); err != nil {
+		t.Fatalf("Register(custom): %v", err)
+	}
+
+	scale, err := r.New("custom", WithScaleDomain(3, 7))
+	if err != nil {
+		t.Fatalf("New(custom): %v", err)
+	}
+
+	minVal, maxVal := scale.Domain()
+	if minVal != 3 || maxVal != 7 {
+		t.Fatalf("custom scale domain = (%v, %v), want (3, 7)", minVal, maxVal)
+	}
+
+	if err := r.Register("custom", func(opts ScaleOptions) (Scale, error) {
+		return NewLinear(opts.DomainMin, opts.DomainMax), nil
+	}); err == nil {
+		t.Fatal("duplicate Register(custom) should fail")
+	}
+}

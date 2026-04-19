@@ -167,6 +167,7 @@ func (m MinorLinearLocator) Ticks(minVal, maxVal float64, _ int) []float64 {
 type LogLocator struct {
 	Base  float64
 	Minor bool
+	Subs  []float64
 }
 
 func (l LogLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
@@ -192,14 +193,11 @@ func (l LogLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 			ticks = append(ticks, v)
 		}
 		if l.Minor {
-			// Minors at 2,5 per decade (common convention)
-			m2 := 2 * math.Pow(base, k)
-			m5 := 5 * math.Pow(base, k)
-			if m2 > v && m2 < math.Pow(base, k+1) && m2 >= minVal && m2 <= maxVal {
-				ticks = append(ticks, m2)
-			}
-			if m5 > v && m5 < math.Pow(base, k+1) && m5 >= minVal && m5 <= maxVal {
-				ticks = append(ticks, m5)
+			for _, sub := range l.minorMultipliers() {
+				mv := sub * math.Pow(base, k)
+				if mv > v && mv < math.Pow(base, k+1) && mv >= minVal && mv <= maxVal {
+					ticks = append(ticks, mv)
+				}
 			}
 		}
 	}
@@ -216,6 +214,34 @@ func (l LogLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 		}
 	}
 	return out
+}
+
+func (l LogLocator) minorMultipliers() []float64 {
+	subs := l.Subs
+	if len(subs) == 0 {
+		subs = []float64{2, 5}
+	}
+
+	out := make([]float64, 0, len(subs))
+	for _, sub := range subs {
+		if sub <= 1 || sub >= l.Base {
+			continue
+		}
+		out = append(out, sub)
+	}
+	sort.Float64s(out)
+
+	deduped := out[:0]
+	var last float64
+	first := true
+	for _, sub := range out {
+		if first || !approx(sub, last, 1e-12) {
+			deduped = append(deduped, sub)
+			last = sub
+			first = false
+		}
+	}
+	return deduped
 }
 
 // ScalarFormatter formats numbers with fixed precision and trims trailing zeros.

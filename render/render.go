@@ -1,8 +1,8 @@
 package render
 
 import (
-	"image"
 	"errors"
+	"image"
 
 	"matplotlib-go/internal/geom"
 )
@@ -84,6 +84,10 @@ type GlyphRun struct {
 
 // TextMetrics provides basic text measurements.
 type TextMetrics struct{ W, H, Ascent, Descent float64 }
+
+// TextBounds describes the rendered ink bounds of a string relative to the
+// baseline origin used for DrawText.
+type TextBounds struct{ X, Y, W, H float64 }
 
 // Image is a minimal interface for raster images passed to renderers.
 type Image interface {

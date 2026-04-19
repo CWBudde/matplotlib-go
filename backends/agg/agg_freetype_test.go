@@ -71,7 +71,7 @@ func TestRasterTextWidthTracksRendererDPI(t *testing.T) {
 	}
 }
 
-func TestMeasureTextUsesStringSpecificVerticalBounds(t *testing.T) {
+func TestMeasureTextUsesStableFontLineMetrics(t *testing.T) {
 	r := mustNew(t, 200, 100)
 
 	caps := r.MeasureText("H", 24, "")
@@ -80,8 +80,8 @@ func TestMeasureTextUsesStringSpecificVerticalBounds(t *testing.T) {
 	if caps.Ascent <= 0 || descender.Ascent <= 0 {
 		t.Fatalf("expected positive ascent, got caps=%+v descender=%+v", caps, descender)
 	}
-	if caps.Ascent == descender.Ascent && caps.Descent == descender.Descent {
-		t.Fatalf("expected string-specific vertical metrics, got caps=%+v descender=%+v", caps, descender)
+	if caps.Ascent != descender.Ascent || caps.Descent != descender.Descent {
+		t.Fatalf("expected font line metrics to stay stable across strings, got caps=%+v descender=%+v", caps, descender)
 	}
 }
 

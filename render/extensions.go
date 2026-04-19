@@ -15,7 +15,16 @@ type TextDrawer interface {
 // RotatedTextDrawer is implemented by renderers that support rotated text.
 type RotatedTextDrawer interface {
 	TextDrawer
-	DrawTextRotated(text string, center geom.Pt, size, angle float64, textColor Color)
+	// DrawTextRotated matches Matplotlib's default y-axis label anchoring:
+	// the point is the bottom-center anchor of the unrotated text box, and the
+	// text is then rotated around that anchor.
+	DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor Color)
+}
+
+// TextBounder is implemented by renderers that can report the actual ink bounds
+// of text relative to the baseline origin used for DrawText.
+type TextBounder interface {
+	MeasureTextBounds(text string, size float64, fontKey string) (TextBounds, bool)
 }
 
 // VerticalTextDrawer is implemented by renderers that support vertical text.

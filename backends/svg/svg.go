@@ -332,18 +332,28 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 	r.renderTextNode(text, origin.X, origin.Y, size, textColor, "")
 }
 
-// DrawTextRotated renders rotated text using an SVG transform.
-func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle float64, textColor render.Color) {
+// DrawTextRotated renders text using Matplotlib-like anchor rotation. The
+// anchor is the bottom-center of the unrotated text box.
+func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
 	if text == "" || size <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
 		return
 	}
 
+	metrics := r.MeasureText(text, size, "")
+	if metrics.W <= 0 || metrics.H <= 0 {
+		return
+	}
+
+	origin := geom.Pt{
+		X: anchor.X - metrics.W/2,
+		Y: anchor.Y - metrics.Descent,
+	}
 	transform := fmt.Sprintf("rotate(%s %s %s)",
 		formatFloat(-angle*180/math.Pi),
-		formatFloat(center.X),
-		formatFloat(center.Y),
+		formatFloat(anchor.X),
+		formatFloat(anchor.Y),
 	)
-	r.renderTextNode(text, center.X, center.Y, size, textColor, transform)
+	r.renderTextNode(text, origin.X, origin.Y, size, textColor, transform)
 }
 
 // DrawTextVertical renders one character per line.

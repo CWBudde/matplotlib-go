@@ -68,3 +68,75 @@ func TestTitleFontSizeUsesTitleOnlyCompensation(t *testing.T) {
 		t.Fatalf("titleFontSize() = %v, want %v", got, want)
 	}
 }
+
+type axesLabelRecordingRenderer struct {
+	render.NullRenderer
+	bounds         map[string]render.TextBounds
+	rotatedText    []string
+	rotatedAnchors []geom.Pt
+}
+
+func (r *axesLabelRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
+	switch text {
+	case "4":
+		return render.TextMetrics{W: 5, H: 10, Ascent: 8, Descent: 2}
+	case "Value":
+		return render.TextMetrics{W: size * 2, H: 10, Ascent: 8, Descent: 2}
+	default:
+		return render.TextMetrics{W: float64(len(text)) * size * 0.5, H: size, Ascent: size * 0.8, Descent: size * 0.2}
+	}
+}
+
+func (r *axesLabelRecordingRenderer) MeasureTextBounds(text string, _ float64, _ string) (render.TextBounds, bool) {
+	b, ok := r.bounds[text]
+	return b, ok
+}
+
+func (r *axesLabelRecordingRenderer) DrawText(_ string, _ geom.Pt, _ float64, _ render.Color) {}
+
+func (r *axesLabelRecordingRenderer) DrawTextRotated(text string, anchor geom.Pt, _ float64, _ float64, _ render.Color) {
+	r.rotatedText = append(r.rotatedText, text)
+	r.rotatedAnchors = append(r.rotatedAnchors, anchor)
+}
+
+func TestDrawAxesLabels_YLabelUsesTickBoundsAndLabelPad(t *testing.T) {
+	ax := &Axes{
+		YAxis:  NewYAxis(),
+		YLabel: "Value",
+	}
+	ax.YAxis.Locator = staticLocator{4}
+	ax.YAxis.Formatter = ScalarFormatter{Prec: 0}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+	px := geom.Rect{
+		Min: geom.Pt{X: 50, Y: 350},
+		Max: geom.Pt{X: 150, Y: 450},
+	}
+
+	r := &axesLabelRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"4": {X: 1, Y: -8, W: 5, H: 10},
+		},
+	}
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	defer r.End()
+
+	drawAxesLabels(ax, r, ctx, px)
+
+	if len(r.rotatedText) != 1 || r.rotatedText[0] != "Value" {
+		t.Fatalf("unexpected rotated text draws: %v", r.rotatedText)
+	}
+
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(ax.YAxis.Side, ctx), Y: 4})
+	tickLabelMinX := tickPos.X - tickLabelPadPx(ax.YAxis, ctx) - (1 + 5.0) + 1
+	want := geom.Pt{
+		X: math.Min(spinePixelX(AxisLeft, px), tickLabelMinX) - axisLabelPadPx(ctx),
+		Y: px.Min.Y + px.H()/2,
+	}
+	if r.rotatedAnchors[0] != want {
+		t.Fatalf("ylabel anchor = %+v, want %+v", r.rotatedAnchors[0], want)
+	}
+}

@@ -89,8 +89,13 @@ func (f *Figure) AddColorbar(parent *Axes, mappable *Image2D, opts ...ColorbarOp
 		ax.XAxis.ShowLabels = false
 	}
 	if ax.YAxis != nil {
-		ax.YAxis.Side = AxisRight
+		ax.YAxis.ShowSpine = false
+		ax.YAxis.ShowTicks = false
+		ax.YAxis.ShowLabels = false
 		ax.YAxis.MinorLocator = nil
+	}
+	if right := ax.RightAxis(); right != nil {
+		right.MinorLocator = nil
 	}
 	if cfg.Label != "" {
 		ax.SetYLabel(cfg.Label)

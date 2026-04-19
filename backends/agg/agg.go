@@ -71,6 +71,7 @@ var _ render.DPIAware = (*Renderer)(nil)
 var _ render.TextDrawer = (*Renderer)(nil)
 var _ render.RotatedTextDrawer = (*Renderer)(nil)
 var _ render.VerticalTextDrawer = (*Renderer)(nil)
+var _ render.TextBounder = (*Renderer)(nil)
 var _ render.ImageTransformer = (*Renderer)(nil)
 var _ render.PNGExporter = (*Renderer)(nil)
 
@@ -407,6 +408,32 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 	}
 }
 
+// MeasureTextBounds reports the actual ink bounds of text relative to the
+// baseline origin used for DrawText.
+func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) (render.TextBounds, bool) {
+	if text == "" || size <= 0 {
+		return render.TextBounds{}, false
+	}
+
+	if fontKey != "" {
+		r.lastFontKey = fontKey
+	} else {
+		fontKey = r.lastFontKey
+	}
+
+	font := r.configureTextFont(size, fontKey)
+	if font.backend != textBackendRaster {
+		return render.TextBounds{}, false
+	}
+	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
+		r.fallback = true
+		return render.TextBounds{}, false
+	}
+
+	x, y, w, h := r.ctx.TextBounds(text)
+	return render.TextBounds{X: x, Y: y, W: w, H: h}, true
+}
+
 // DrawText renders text at the given position with the specified size and color.
 // This is a helper method (not part of the Renderer interface).
 func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor render.Color) {
@@ -437,8 +464,9 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 	}
 }
 
-// DrawTextRotated renders text rotated around the provided center point.
-func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle float64, textColor render.Color) {
+// DrawTextRotated renders text using Matplotlib-like anchor rotation. The
+// anchor is the bottom-center of the unrotated text box.
+func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
 	if text == "" {
 		return
 	}
@@ -449,14 +477,32 @@ func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle floa
 	}
 
 	pad := 8.0
-	srcW := metrics.W + pad*2
-	srcH := metrics.H + pad*2
-	cosA := math.Abs(math.Cos(angle))
-	sinA := math.Abs(math.Sin(angle))
-	rotW := srcW*cosA + srcH*sinA
-	rotH := srcW*sinA + srcH*cosA
-	tempW := int(math.Ceil(math.Max(srcW, rotW)))
-	tempH := int(math.Ceil(math.Max(srcH, rotH)))
+	bounds, haveBounds := r.MeasureTextBounds(text, size, "")
+	inkW := metrics.W
+	inkH := metrics.H
+	origin := geom.Pt{
+		X: pad,
+		Y: pad + metrics.Ascent,
+	}
+	pivot := geom.Pt{
+		X: pad + metrics.W/2,
+		Y: pad + metrics.H,
+	}
+	if haveBounds && bounds.W > 0 && bounds.H > 0 {
+		inkW = bounds.W
+		inkH = bounds.H
+		origin = geom.Pt{
+			X: pad - bounds.X,
+			Y: pad - bounds.Y,
+		}
+		pivot = geom.Pt{
+			X: pad + bounds.W/2,
+			Y: pad + bounds.H,
+		}
+	}
+
+	tempW := int(math.Ceil(inkW + pad*2))
+	tempH := int(math.Ceil(inkH + pad*2))
 	if tempW <= 0 || tempH <= 0 {
 		return
 	}
@@ -467,23 +513,18 @@ func (r *Renderer) DrawTextRotated(text string, center geom.Pt, size, angle floa
 	}
 	tmp.SetResolution(r.resolution)
 	tmp.lastFontKey = r.lastFontKey
-	tmp.DrawText(text, geom.Pt{
-		X: float64(tempW)/2 - metrics.W/2,
-		Y: float64(tempH)/2 + (metrics.Ascent-metrics.Descent)/2,
-	}, size, textColor)
+	tmp.DrawText(text, origin, size, textColor)
 
 	rotImg, err := agglib.NewImageFromStandardImage(tmp.GetImage())
 	if err != nil {
 		return
 	}
 
-	cx := float64(tempW) / 2
-	cy := float64(tempH) / 2
 	rotAngle := -angle
 	cos := math.Cos(rotAngle)
 	sin := math.Sin(rotAngle)
-	tx := center.X - cos*cx + sin*cy
-	ty := center.Y - sin*cx - cos*cy
+	tx := anchor.X - cos*pivot.X + sin*pivot.Y
+	ty := anchor.Y - sin*pivot.X - cos*pivot.Y
 	tr := agglib.NewTransformationsFromValues(cos, sin, -sin, cos, tx, ty)
 	_ = r.ctx.DrawImageTransformed(rotImg, tr)
 }
