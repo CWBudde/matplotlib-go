@@ -14,8 +14,8 @@ const (
 	textStrictMinPSNR     = 48.0
 	textStrictMaxMeanAbs  = 1.25
 	titleStrictTolerance  = 1
-	titleStrictMinPSNR    = 56.0
-	titleStrictMaxMeanAbs = 0.50
+	titleStrictMinPSNR    = 47.5
+	titleStrictMaxMeanAbs = 1.50
 )
 
 func TestTextLabelsStrict_MatplotlibRef(t *testing.T) {

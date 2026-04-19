@@ -475,7 +475,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 var (
 	titleScaleFactor       = 1.0002
 	titleXAdjustPxValue    = -0.4375
-	titleBaselineAdjustPxV = -0.1640625
+	titleBaselineAdjustPxV = -0.15625
 )
 
 func titleFontSize(ctx *DrawContext) float64 {

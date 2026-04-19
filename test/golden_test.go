@@ -363,13 +363,13 @@ func renderScatterMarkerTypes() image.Image {
 			lineWidth = 1.44 // lw(2) at DPI=100 used by the reference generator
 		}
 		scatter := &core.Scatter2D{
-			XY:     []geom.Pt{{X: float64(1 + i), Y: 4}},
-			Size:   12.0,
-			Color:  colors[i],
+			XY:        []geom.Pt{{X: float64(1 + i), Y: 4}},
+			Size:      12.0,
+			Color:     colors[i],
 			EdgeColor: colors[i],
 			EdgeWidth: lineWidth,
-			Marker: markerType,
-			Alpha:  1.0,
+			Marker:    markerType,
+			Alpha:     1.0,
 		}
 		ax.Add(scatter)
 	}
@@ -956,23 +956,41 @@ func renderTextLabelsStrict() image.Image {
 }
 
 func renderTitleStrict() image.Image {
-	fig := core.NewFigure(320, 80)
-	ax := fig.AddAxes(geom.Rect{
-		Min: geom.Pt{X: 0.05, Y: 0.40},
-		Max: geom.Pt{X: 0.95, Y: 0.85},
-	})
-	ax.SetTitle("Histogram Strategies")
-	ax.SetXLim(0, 1)
-	ax.SetYLim(0, 1)
-	ax.XAxis.ShowSpine = false
-	ax.XAxis.ShowTicks = false
-	ax.XAxis.ShowLabels = false
-	ax.YAxis.ShowSpine = false
-	ax.YAxis.ShowTicks = false
-	ax.YAxis.ShowLabels = false
-	ax.ShowFrame = false
+	const (
+		w = 320
+		h = 280
+	)
 
-	r, err := agg.New(320, 80, render.Color{R: 1, G: 1, B: 1, A: 1})
+	fig := core.NewFigure(w, h)
+	titles := []string{
+		"Histogram Strategies",
+		"Fill to Baseline",
+		"Dash Patterns",
+		"Box Plots",
+		"Text Labels",
+	}
+	rows := []geom.Rect{
+		{Min: geom.Pt{X: 0.05, Y: 0.20}, Max: geom.Pt{X: 0.95, Y: 0.28}},
+		{Min: geom.Pt{X: 0.05, Y: 0.36}, Max: geom.Pt{X: 0.95, Y: 0.44}},
+		{Min: geom.Pt{X: 0.05, Y: 0.52}, Max: geom.Pt{X: 0.95, Y: 0.60}},
+		{Min: geom.Pt{X: 0.05, Y: 0.68}, Max: geom.Pt{X: 0.95, Y: 0.76}},
+		{Min: geom.Pt{X: 0.05, Y: 0.84}, Max: geom.Pt{X: 0.95, Y: 0.92}},
+	}
+	for i, title := range titles {
+		ax := fig.AddAxes(rows[i])
+		ax.SetTitle(title)
+		ax.SetXLim(0, 1)
+		ax.SetYLim(0, 1)
+		ax.XAxis.ShowSpine = false
+		ax.XAxis.ShowTicks = false
+		ax.XAxis.ShowLabels = false
+		ax.YAxis.ShowSpine = false
+		ax.YAxis.ShowTicks = false
+		ax.YAxis.ShowLabels = false
+		ax.ShowFrame = false
+	}
+
+	r, err := agg.New(w, h, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}
