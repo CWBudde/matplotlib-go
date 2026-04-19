@@ -44,6 +44,22 @@ func TestScatterAdvanced_Golden(t *testing.T) {
 	runGoldenTest(t, "scatter_advanced", renderScatterAdvanced)
 }
 
+func TestBarBasicFrame_Golden(t *testing.T) {
+	runGoldenTest(t, "bar_basic_frame", renderBarBasicFrame)
+}
+
+func TestBarBasicTicks_Golden(t *testing.T) {
+	runGoldenTest(t, "bar_basic_ticks", renderBarBasicTicks)
+}
+
+func TestBarBasicTickLabels_Golden(t *testing.T) {
+	runGoldenTest(t, "bar_basic_tick_labels", renderBarBasicTickLabels)
+}
+
+func TestBarBasicTitle_Golden(t *testing.T) {
+	runGoldenTest(t, "bar_basic_title", renderBarBasicTitle)
+}
+
 func TestBarBasic_Golden(t *testing.T) {
 	runGoldenTest(t, "bar_basic", renderBarBasic)
 }
@@ -415,6 +431,48 @@ func renderScatterAdvanced() image.Image {
 	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
+}
+
+func renderBarBasicScaffold(showTicks, showTickLabels, showTitle bool) image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.XScale = transform.NewLinear(0, 6)
+	ax.YScale = transform.NewLinear(0, 10)
+
+	ax.XAxis.ShowTicks = showTicks
+	ax.YAxis.ShowTicks = showTicks
+	ax.XAxis.ShowLabels = showTickLabels
+	ax.YAxis.ShowLabels = showTickLabels
+
+	if showTitle {
+		ax.SetTitle("Basic Bars")
+	}
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderBarBasicFrame() image.Image {
+	return renderBarBasicScaffold(false, false, false)
+}
+
+func renderBarBasicTicks() image.Image {
+	return renderBarBasicScaffold(true, false, false)
+}
+
+func renderBarBasicTickLabels() image.Image {
+	return renderBarBasicScaffold(true, true, false)
+}
+
+func renderBarBasicTitle() image.Image {
+	return renderBarBasicScaffold(true, true, true)
 }
 
 // renderBarBasic creates a basic vertical bar chart for golden testing

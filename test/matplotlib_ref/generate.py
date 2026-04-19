@@ -278,6 +278,44 @@ def scatter_advanced(out_dir):
     save(fig, out_dir, "scatter_advanced")
 
 
+def _bar_basic_scaffold(show_ticks: bool, show_tick_labels: bool, show_title: bool):
+    fig = make_fig()
+    ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
+    ax.set_xlim(0, 6)
+    ax.set_ylim(0, 10)
+    ax.tick_params(
+        axis="both",
+        which="both",
+        bottom=show_ticks,
+        left=show_ticks,
+        labelbottom=show_tick_labels,
+        labelleft=show_tick_labels,
+    )
+    if show_title:
+        ax.set_title("Basic Bars")
+    return fig, ax
+
+
+def bar_basic_frame(out_dir):
+    fig, ax = _bar_basic_scaffold(show_ticks=False, show_tick_labels=False, show_title=False)
+    save(fig, out_dir, "bar_basic_frame")
+
+
+def bar_basic_ticks(out_dir):
+    fig, ax = _bar_basic_scaffold(show_ticks=True, show_tick_labels=False, show_title=False)
+    save(fig, out_dir, "bar_basic_ticks")
+
+
+def bar_basic_tick_labels(out_dir):
+    fig, ax = _bar_basic_scaffold(show_ticks=True, show_tick_labels=True, show_title=False)
+    save(fig, out_dir, "bar_basic_tick_labels")
+
+
+def bar_basic_title(out_dir):
+    fig, ax = _bar_basic_scaffold(show_ticks=True, show_tick_labels=True, show_title=True)
+    save(fig, out_dir, "bar_basic_title")
+
+
 def bar_basic(out_dir):
     fig = make_fig()
     ax = fig.add_axes(go_rect(0.1, 0.1, 0.9, 0.9))
@@ -595,6 +633,7 @@ def image_heatmap(out_dir):
 ALL_PLOTS = [
     basic_line, joins_caps, dashes,
     scatter_basic, scatter_marker_types, scatter_advanced,
+    bar_basic_frame, bar_basic_ticks, bar_basic_tick_labels, bar_basic_title,
     bar_basic, bar_horizontal, bar_grouped,
     fill_basic, fill_between, fill_stacked,
     errorbar_basic,

@@ -1024,6 +1024,10 @@ const pageFooter = `</div>
   var viewerStateStorageKey = 'mpl-parity-viewer-state-v1';
   var viewerStateControlIDs = ['search', 'sort-select', 'diff-mode', 'matte-mode', 'resample-mode', 'original-size'];
 
+  function cardStateKey(card) {
+    return [card.dataset.suite || '', card.dataset.baseline || '', card.dataset.name || ''].join('::');
+  }
+
   function loadViewerState() {
     try {
       var raw = window.sessionStorage.getItem(viewerStateStorageKey);
@@ -1043,6 +1047,7 @@ const pageFooter = `</div>
       if (!el) return;
       state[id] = el.type === 'checkbox' ? el.checked : el.value;
     });
+    state.openCards = Array.from(document.querySelectorAll('.card.open')).map(cardStateKey);
     try {
       window.sessionStorage.setItem(viewerStateStorageKey, JSON.stringify(state));
     } catch (err) {
@@ -1062,6 +1067,11 @@ const pageFooter = `</div>
       if (typeof state[id] === 'string') {
         el.value = state[id];
       }
+    });
+    var openCards = Array.isArray(state.openCards) ? state.openCards : [];
+    var openCardSet = new Set(openCards);
+    document.querySelectorAll('.card').forEach(function(card) {
+      card.classList.toggle('open', openCardSet.has(cardStateKey(card)));
     });
   }
 
@@ -1215,6 +1225,7 @@ const pageFooter = `</div>
   document.querySelectorAll('.card-header').forEach(function(header) {
     header.addEventListener('click', function() {
       header.closest('.card').classList.toggle('open');
+      saveViewerState();
     });
   });
 

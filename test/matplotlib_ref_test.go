@@ -131,12 +131,18 @@ func TestMpl_ScatterMarkerTypes(t *testing.T) {
 	runMplTest(t, "scatter_marker_types", renderScatterMarkerTypes)
 }
 func TestMpl_ScatterAdvanced(t *testing.T) { runMplTest(t, "scatter_advanced", renderScatterAdvanced) }
-func TestMpl_BarBasic(t *testing.T)        { runMplTest(t, "bar_basic", renderBarBasic) }
-func TestMpl_BarHorizontal(t *testing.T)   { runMplTest(t, "bar_horizontal", renderBarHorizontal) }
-func TestMpl_BarGrouped(t *testing.T)      { runMplTest(t, "bar_grouped", renderBarGrouped) }
-func TestMpl_FillBasic(t *testing.T)       { runMplTest(t, "fill_basic", renderFillBasic) }
-func TestMpl_FillBetween(t *testing.T)     { runMplTest(t, "fill_between", renderFillBetween) }
-func TestMpl_FillStacked(t *testing.T)     { runMplTest(t, "fill_stacked", renderFillStacked) }
+func TestMpl_BarBasicFrame(t *testing.T)   { runMplTest(t, "bar_basic_frame", renderBarBasicFrame) }
+func TestMpl_BarBasicTicks(t *testing.T)   { runMplTest(t, "bar_basic_ticks", renderBarBasicTicks) }
+func TestMpl_BarBasicTickLabels(t *testing.T) {
+	runMplTest(t, "bar_basic_tick_labels", renderBarBasicTickLabels)
+}
+func TestMpl_BarBasicTitle(t *testing.T) { runMplTest(t, "bar_basic_title", renderBarBasicTitle) }
+func TestMpl_BarBasic(t *testing.T)      { runMplTest(t, "bar_basic", renderBarBasic) }
+func TestMpl_BarHorizontal(t *testing.T) { runMplTest(t, "bar_horizontal", renderBarHorizontal) }
+func TestMpl_BarGrouped(t *testing.T)    { runMplTest(t, "bar_grouped", renderBarGrouped) }
+func TestMpl_FillBasic(t *testing.T)     { runMplTest(t, "fill_basic", renderFillBasic) }
+func TestMpl_FillBetween(t *testing.T)   { runMplTest(t, "fill_between", renderFillBetween) }
+func TestMpl_FillStacked(t *testing.T)   { runMplTest(t, "fill_stacked", renderFillStacked) }
 func TestMpl_MultiSeriesBasic(t *testing.T) {
 	runMplTest(t, "multi_series_basic", renderMultiSeriesBasic)
 }

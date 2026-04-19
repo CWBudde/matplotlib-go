@@ -425,7 +425,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	}
 
 	labelColor := render.Color{R: 0, G: 0, B: 0, A: 1}
-	titleSize := ctx.RC.FontSize * 1.13
+	titleSize := ctx.RC.FontSize
 	labelSize := ctx.RC.FontSize * 0.97
 	if labelSize < 8 {
 		labelSize = 8
@@ -435,10 +435,10 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	if ax.Title != "" {
 		metrics := r.MeasureText(ax.Title, titleSize, ctx.RC.FontKey)
 		x := px.Min.X + (px.W()-metrics.W)/2
-		// DrawText uses the text baseline, so offset by ascent to keep the full
-		// glyph box above the axes edge instead of letting the baseline float
-		// too close to the plot.
-		y := px.Min.Y - 32 + metrics.Ascent
+		// Matplotlib positions axes titles at y=1.0 with a baseline-aligned
+		// transform offset by axes.titlepad (default 6 pt).
+		titlePadPx := ctx.RC.DPI * 6.0 / 72.0
+		y := px.Min.Y - titlePadPx
 		textRen.DrawText(ax.Title, geom.Pt{X: x, Y: y}, titleSize, labelColor)
 	}
 

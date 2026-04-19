@@ -94,6 +94,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Regenerate golden images using AGG backend
 - [x] Verify anti-aliased output quality vs GoBasic
 - [x] Update test infrastructure to use AGG backend (all 14 golden tests migrated)
+- [x] Add incremental bar-baseline parity fixtures (`bar_basic_frame` → `bar_basic_ticks` → `bar_basic_tick_labels` → `bar_basic_title`)
 - [ ] Refresh golden/reference baselines after the AGG text-path refactor
 - [ ] Re-run Matplotlib reference comparisons and either accept the new baseline or tighten text/layout parity
 
