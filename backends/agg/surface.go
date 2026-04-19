@@ -257,5 +257,11 @@ func (s *aggSurface) DrawText(text string, x, y float64) {
 	if s.painter == nil {
 		return
 	}
+	// Agg2D text rendering can pick up prior stroke state from path drawing.
+	// Reset to neutral text-safe defaults before issuing the text draw.
+	s.painter.LineWidth(1.0)
+	s.painter.LineCap(agglib.CapButt)
+	s.painter.LineJoin(agglib.JoinMiter)
+	s.painter.ResetPath()
 	s.painter.Text(x, y, text, false, 0, 0)
 }

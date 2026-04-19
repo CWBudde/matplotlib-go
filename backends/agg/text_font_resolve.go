@@ -36,29 +36,20 @@ func resolveFontPath(family string) string {
 
 func normalizeFontFamily(family string) string {
 	family = strings.TrimSpace(family)
-	if family == "" {
-		return ""
-	}
-
-	normalized := compactFontFamilyName(family)
-	switch normalized {
+	switch strings.ToLower(strings.ReplaceAll(family, " ", "")) {
 	case "":
 		return ""
-	case "dejavusans", "dejavusansregular":
+	case "dejavusans":
 		return "DejaVu Sans"
-	case "dejavuserif", "dejavuserifregular":
+	case "dejavuserif":
 		return "DejaVu Serif"
-	case "dejavusansmono", "dejavusansmonoregular":
+	case "dejavusansmono":
 		return "DejaVu Sans Mono"
-	case "sansserif", "sansserifdefault", "sansseriffont":
-		return fontFamilySansSerif
-	case "sans":
-		return fontFamilySansSerif
-	case "default":
+	case "sansserif":
 		return fontFamilySansSerif
 	case "serif":
 		return fontFamilySerif
-	case "monospace", "monospaced", "mono":
+	case "monospace", "monospaced":
 		return fontFamilyMonospace
 	default:
 		return family
@@ -187,19 +178,9 @@ func parseFCMatchOutput(out string) ([]string, string) {
 	return families, path
 }
 
-func compactFontFamilyName(family string) string {
-	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(family), " ", ""), "-", ""), "_", ""))
-}
-
 func familyListMatchesRequested(families []string, requested string) bool {
-	requestedCompact := compactFontFamilyName(requested)
-	if requestedCompact == "" {
-		return false
-	}
-
 	for _, family := range families {
-		candidateCompact := compactFontFamilyName(family)
-		if candidateCompact == requestedCompact || strings.HasPrefix(candidateCompact, requestedCompact) {
+		if strings.EqualFold(strings.TrimSpace(family), strings.TrimSpace(requested)) {
 			return true
 		}
 	}

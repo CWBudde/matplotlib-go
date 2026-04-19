@@ -3,6 +3,7 @@
 package agg
 
 import (
+	"bytes"
 	"math"
 	"testing"
 
@@ -66,5 +67,27 @@ func TestRasterTextWidthTracksRendererDPI(t *testing.T) {
 	wantRatio := 96.0 / 72.0
 	if math.Abs(gotRatio-wantRatio) > 0.15 {
 		t.Fatalf("unexpected DPI scaling ratio: got=%v want=%v", gotRatio, wantRatio)
+	}
+}
+
+func TestTrailingSpaceDoesNotRenderDuplicateGlyph(t *testing.T) {
+	renderText := func(text string) []byte {
+		r := mustNew(t, 160, 80)
+		viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 160, Y: 80}}
+		if err := r.Begin(viewport); err != nil {
+			t.Fatalf("Begin failed: %v", err)
+		}
+		r.DrawText(text, geom.Pt{X: 20, Y: 42}, 24, white)
+		if err := r.End(); err != nil {
+			t.Fatalf("End failed: %v", err)
+		}
+		img := r.GetImage()
+		return append([]byte(nil), img.Pix...)
+	}
+
+	withoutTrailingSpace := renderText("x")
+	withTrailingSpace := renderText("x ")
+	if !bytes.Equal(withoutTrailingSpace, withTrailingSpace) {
+		t.Fatal("expected trailing space to add no ink; raster text appears to replay the previous glyph")
 	}
 }
