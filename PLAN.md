@@ -293,10 +293,11 @@ core.SavePNG(fig, r, "output.png")
 
 ### 4.6 Figure-Level Labels and Annotation Helpers
 
-- [ ] `suptitle`, `supxlabel`, and `supylabel`
-- [ ] Figure-level legends
-- [ ] Annotation boxes / offset-box style anchored layout helpers
-- [ ] Better title/xlabel/ylabel alignment behavior across shared-axis figures
+- [x] `suptitle`, `supxlabel`, and `supylabel`
+- [x] Figure-level legends
+- [x] Annotation boxes / offset-box style anchored layout helpers
+- [x] Better title/xlabel/ylabel alignment behavior across shared-axis figures
+- [x] Example: `examples/figure_labels/basic.go`
 
 ### 4.7 Colorbars ✅
 

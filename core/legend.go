@@ -48,7 +48,8 @@ type legendEntry struct {
 // Legend renders a styled legend box inside an axes.
 // If no explicit internal entries are present, labeled artists on the owning axes are collected automatically.
 type Legend struct {
-	Axes *Axes
+	Axes   *Axes
+	Figure *Figure
 
 	entries []legendEntry
 
@@ -90,10 +91,40 @@ func NewLegend(ax *Axes) *Legend {
 	}
 }
 
+// NewFigureLegend creates a legend bound to the provided figure.
+func NewFigureLegend(fig *Figure) *Legend {
+	rc := style.Default
+	if fig != nil {
+		rc = fig.RC
+	}
+	return &Legend{
+		Figure:          fig,
+		Location:        LegendUpperRight,
+		Padding:         10,
+		Inset:           10,
+		RowGap:          6,
+		SampleWidth:     24,
+		SampleTextGap:   8,
+		CornerRadius:    0,
+		BackgroundColor: rc.LegendBackground,
+		BorderColor:     rc.LegendBorderColor,
+		TextColor:       rc.LegendTextColor,
+		BorderWidth:     1,
+		z:               1_000,
+	}
+}
+
 // AddLegend appends a legend to the axes.
 func (a *Axes) AddLegend() *Legend {
 	legend := NewLegend(a)
 	a.Add(legend)
+	return legend
+}
+
+// AddLegend appends a figure-level legend that collects labeled artists from all axes.
+func (f *Figure) AddLegend() *Legend {
+	legend := NewFigureLegend(f)
+	f.Add(legend)
 	return legend
 }
 
@@ -190,12 +221,27 @@ func (l *Legend) Bounds(*DrawContext) geom.Rect {
 }
 
 func (l *Legend) collectEntries() []legendEntry {
-	if l == nil || l.Axes == nil {
+	if l == nil {
 		return nil
 	}
 
-	entries := make([]legendEntry, 0, len(l.Axes.Artists))
-	for _, art := range l.Axes.Artists {
+	switch {
+	case l.Axes != nil:
+		return collectLegendEntries(l.Axes.Artists)
+	case l.Figure != nil:
+		var entries []legendEntry
+		for _, ax := range l.Figure.Children {
+			entries = append(entries, collectLegendEntries(ax.Artists)...)
+		}
+		return entries
+	default:
+		return nil
+	}
+}
+
+func collectLegendEntries(artists []Artist) []legendEntry {
+	entries := make([]legendEntry, 0, len(artists))
+	for _, art := range artists {
 		switch v := art.(type) {
 		case *Legend:
 			continue

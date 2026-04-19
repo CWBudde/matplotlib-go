@@ -134,7 +134,7 @@ func TestDrawAxesLabels_YLabelUsesTickBoundsAndLabelPad(t *testing.T) {
 	}
 	defer r.End()
 
-	drawAxesLabels(ax, r, ctx, px)
+	drawAxesLabels(ax, r, ctx, px, figureTextAlignment{})
 
 	if len(r.rotatedText) != 1 || r.rotatedText[0] != "Value" {
 		t.Fatalf("unexpected rotated text draws: %v", r.rotatedText)
@@ -176,7 +176,7 @@ func TestDrawAxesLabels_XLabelUsesTickBoundsAndLabelPad(t *testing.T) {
 	}
 	defer r.End()
 
-	drawAxesLabels(ax, r, ctx, px)
+	drawAxesLabels(ax, r, ctx, px, figureTextAlignment{})
 
 	if len(r.texts) != 1 || r.texts[0] != "Group" {
 		t.Fatalf("unexpected text draws: %v", r.texts)
@@ -229,7 +229,7 @@ func TestDrawAxesLabels_YLabelRightUsesRightTickBounds(t *testing.T) {
 	}
 	defer r.End()
 
-	drawAxesLabels(ax, r, ctx, px)
+	drawAxesLabels(ax, r, ctx, px, figureTextAlignment{})
 
 	if len(r.rotatedText) != 1 || r.rotatedText[0] != "Value" {
 		t.Fatalf("unexpected rotated text draws: %v", r.rotatedText)
@@ -276,7 +276,7 @@ func TestDrawAxesLabels_TopXLabelUsesTopTickBoundsAndLabelPad(t *testing.T) {
 	}
 	defer r.End()
 
-	drawAxesLabels(ax, r, ctx, px)
+	drawAxesLabels(ax, r, ctx, px, figureTextAlignment{})
 
 	if len(r.texts) != 1 || r.texts[0] != "Group" {
 		t.Fatalf("unexpected text draws: %v", r.texts)
@@ -328,7 +328,7 @@ func TestDrawAxesLabels_UsesSameFontSizeForXAndYLabels(t *testing.T) {
 	drawAxesLabels(ax, r, ctx, geom.Rect{
 		Min: geom.Pt{X: 50, Y: 350},
 		Max: geom.Pt{X: 150, Y: 450},
-	})
+	}, figureTextAlignment{})
 
 	if len(r.sizes) != 1 || len(r.rotatedSizes) != 1 {
 		t.Fatalf("unexpected label draw sizes: text=%v rotated=%v", r.sizes, r.rotatedSizes)

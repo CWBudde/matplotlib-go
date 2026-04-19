@@ -261,18 +261,27 @@ func unitSquareBounds(tr transform.T, fallback geom.Rect) (geom.Rect, bool) {
 
 // Figure is the root of the Artist tree. It contains Axes children.
 type Figure struct {
-	SizePx   geom.Pt
-	RC       style.RC
-	Children []*Axes
+	SizePx    geom.Pt
+	RC        style.RC
+	Children  []*Axes
+	Artists   []Artist
+	zsorted   bool
+	SupTitle  string
+	SupXLabel string
+	SupYLabel string
 }
 
 // NewFigure creates a new figure with pixel dimensions and optional style overrides.
 func NewFigure(w, h int, opts ...style.Option) *Figure {
 	rc := style.Apply(style.Default, opts...)
 	return &Figure{
-		SizePx:   geom.Pt{X: float64(w), Y: float64(h)},
-		RC:       rc,
-		Children: nil,
+		SizePx:    geom.Pt{X: float64(w), Y: float64(h)},
+		RC:        rc,
+		Children:  nil,
+		Artists:   nil,
+		SupTitle:  "",
+		SupXLabel: "",
+		SupYLabel: "",
 	}
 }
 
@@ -364,6 +373,15 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 	ax.applyStyleDefaults(effective)
 	f.Children = append(f.Children, ax)
 	return ax
+}
+
+// Add registers a figure-level Artist.
+func (f *Figure) Add(art Artist) {
+	if f == nil {
+		return
+	}
+	f.Artists = append(f.Artists, art)
+	f.zsorted = false
 }
 
 // Add registers an Artist with the Axes.
@@ -536,6 +554,36 @@ func (a *Axes) AddYGrid() *Grid {
 
 // SetTitle sets the title displayed above the plot.
 func (a *Axes) SetTitle(title string) { a.Title = title }
+
+// SetSuptitle sets the figure-level title.
+func (f *Figure) SetSuptitle(title string) {
+	if f != nil {
+		f.SupTitle = title
+	}
+}
+
+// SetSupTitle is an alias for SetSuptitle.
+func (f *Figure) SetSupTitle(title string) { f.SetSuptitle(title) }
+
+// SetSupxlabel sets the figure-level x label.
+func (f *Figure) SetSupxlabel(label string) {
+	if f != nil {
+		f.SupXLabel = label
+	}
+}
+
+// SetSupXLabel is an alias for SetSupxlabel.
+func (f *Figure) SetSupXLabel(label string) { f.SetSupxlabel(label) }
+
+// SetSupylabel sets the figure-level y label.
+func (f *Figure) SetSupylabel(label string) {
+	if f != nil {
+		f.SupYLabel = label
+	}
+}
+
+// SetSupYLabel is an alias for SetSupylabel.
+func (f *Figure) SetSupYLabel(label string) { f.SetSupylabel(label) }
 
 // SetXLabel sets the label displayed below the x-axis.
 func (a *Axes) SetXLabel(label string) { a.XLabel = label }
@@ -1184,6 +1232,8 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 	_ = r.Begin(vp)
 	defer r.End()
 
+	alignment := computeFigureTextAlignment(fig, r, vp)
+
 	for _, ax := range fig.Children {
 		px := ax.adjustedLayout(fig)
 		xAxis := ax.effectiveXAxis()
@@ -1192,17 +1242,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		rightAxis := ax.effectiveRightAxis()
 
 		// Build DrawContext with composed transform
-		ctx := &DrawContext{
-			DataToPixel: Transform2D{
-				XScale:      ax.effectiveXScale(),
-				YScale:      ax.effectiveYScale(),
-				DataToAxes:  transform.NewScaleTransform(ax.effectiveXScale(), ax.effectiveYScale()),
-				AxesToPixel: transform.NewDisplayRectTransform(px),
-			},
-			RC:         ax.effectiveRC(fig),
-			Clip:       px,
-			FigureRect: vp,
-		}
+		ctx := newAxesDrawContext(ax, fig, vp, px)
 
 		if ctx.RC.AxesBackground != fig.RC.FigureBackground() {
 			r.Path(pixelRectPath(px), &render.Paint{
@@ -1282,8 +1322,11 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			rightAxis.DrawTicks(r, ctx)
 			rightAxis.DrawTickLabels(r, ctx)
 		}
-		drawAxesLabels(ax, r, ctx, px)
+		drawAxesLabels(ax, r, ctx, px, alignment)
 	}
+
+	drawFigureArtists(fig, r, vp)
+	drawFigureLabels(fig, r, vp)
 }
 
 func setRendererResolution(r render.Renderer, dpi float64) {
@@ -1296,7 +1339,7 @@ func setRendererResolution(r render.Renderer, dpi float64) {
 }
 
 // drawAxesLabels renders title, xlabel, and ylabel outside the clipped axes area.
-func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect) {
+func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, alignment figureTextAlignment) {
 	textRen, ok := r.(render.TextDrawer)
 	if !ok {
 		return
@@ -1309,13 +1352,9 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	// Title: centered above the plot
 	if ax.Title != "" {
 		layout := measureSingleLineTextLayout(r, ax.Title, titleSize, ctx.RC.FontKey)
-		// Matplotlib positions axes titles at y=1.0 with a baseline-aligned
-		// transform offset by axes.titlepad (default 6 pt).
-		titlePadPx := ctx.RC.DPI * 6.0 / 72.0
-		anchor := transform.NewOffset(ctx.TransAxes(), geom.Pt{Y: -titlePadPx}).Apply(geom.Pt{X: 0.5, Y: 1})
 		textRen.DrawText(
 			ax.Title,
-			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignBaseline),
+			alignedSingleLineOrigin(titleAnchorPoint(ax, r, ctx, px, alignment), layout, TextAlignCenter, textLayoutVAlignBaseline),
 			titleSize,
 			labelColor,
 		)
@@ -1327,7 +1366,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	if ax.XLabel != "" {
 		side := ax.effectiveXLabelSide()
 		layout := measureSingleLineTextLayout(r, ax.XLabel, labelSize, ctx.RC.FontKey)
-		anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side)
+		anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side, alignment)
 		textRen.DrawText(
 			ax.XLabel,
 			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign),
@@ -1339,7 +1378,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 	// YLabel: vertical text if supported, else horizontal fallback
 	if ax.YLabel != "" {
 		side := ax.effectiveYLabelSide()
-		anchor := yLabelAnchorPoint(ax, r, ctx, px, side)
+		anchor := yLabelAnchorPoint(ax, r, ctx, px, side, alignment)
 		angle := math.Pi / 2
 		if side == AxisRight {
 			angle = -math.Pi / 2
@@ -1389,7 +1428,19 @@ func axisLabelFontSize(ctx *DrawContext) float64 {
 	return labelSize
 }
 
-func xLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, side AxisSide) (geom.Pt, textLayoutVerticalAlign) {
+func titleAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, alignment figureTextAlignment) geom.Pt {
+	titlePadPx := pointsToPixels(ctx.RC, 6)
+	topExtent := titleTopExtent(ax, r, ctx, px)
+	if aligned, ok := alignment.titleExtents[alignmentKey(AxisTop, spinePixelY(AxisTop, px))]; ok {
+		topExtent = aligned
+	}
+	return geom.Pt{
+		X: ctx.TransAxes().Apply(geom.Pt{X: 0.5, Y: 1}).X,
+		Y: topExtent - titlePadPx,
+	}
+}
+
+func xLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, side AxisSide, alignment figureTextAlignment) (geom.Pt, textLayoutVerticalAlign) {
 	anchor := ctx.TransAxes().Apply(geom.Pt{X: 0.5, Y: 0})
 
 	xAxis := ax.axisForXLabelSide(side)
@@ -1399,6 +1450,9 @@ func xLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Re
 			if tickBounds, ok := axisTickLabelBounds(xAxis, r, ctx); ok {
 				topExtent = math.Min(topExtent, tickBounds.Min.Y)
 			}
+		}
+		if aligned, ok := alignment.xLabelExtents[alignmentKey(side, spinePixelY(side, px))]; ok {
+			topExtent = aligned
 		}
 		anchor.Y = topExtent - axisLabelPadPx(ctx)
 		return anchor, textLayoutVAlignBaseline
@@ -1410,11 +1464,14 @@ func xLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Re
 			bottomExtent = math.Max(bottomExtent, tickBounds.Max.Y)
 		}
 	}
+	if aligned, ok := alignment.xLabelExtents[alignmentKey(side, spinePixelY(side, px))]; ok {
+		bottomExtent = aligned
+	}
 	anchor.Y = bottomExtent + axisLabelPadPx(ctx)
 	return anchor, textLayoutVAlignTop
 }
 
-func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, side AxisSide) geom.Pt {
+func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, side AxisSide, alignment figureTextAlignment) geom.Pt {
 	anchor := ctx.TransAxes().Apply(geom.Pt{X: 0, Y: 0.5})
 	anchor.X = spinePixelX(AxisLeft, px) - axisLabelPadPx(ctx)
 
@@ -1425,6 +1482,9 @@ func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Re
 		if tickBounds, ok := axisTickLabelBounds(yAxis, r, ctx); ok {
 			rightExtent = math.Max(rightExtent, tickBounds.Max.X)
 		}
+		if aligned, ok := alignment.yLabelExtents[alignmentKey(side, spinePixelX(side, px))]; ok {
+			rightExtent = aligned
+		}
 		anchor.X = rightExtent + axisLabelPadPx(ctx)
 		return anchor
 	}
@@ -1434,18 +1494,18 @@ func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Re
 	if tickBounds, ok := axisTickLabelBounds(yAxis, r, ctx); ok {
 		leftExtent = math.Min(leftExtent, tickBounds.Min.X)
 	}
+	if aligned, ok := alignment.yLabelExtents[alignmentKey(side, spinePixelX(side, px))]; ok {
+		leftExtent = aligned
+	}
 	anchor.X = leftExtent - axisLabelPadPx(ctx)
 	return anchor
 }
 
 func axisLabelPadPx(ctx *DrawContext) float64 {
-	const labelPadPt = 4.0
-
-	dpi := 96.0
-	if ctx != nil && ctx.RC.DPI > 0 {
-		dpi = ctx.RC.DPI
+	if ctx == nil {
+		return pointsToPixels(style.Default, 4)
 	}
-	return labelPadPt * dpi / 72.0
+	return pointsToPixels(ctx.RC, 4)
 }
 
 func (a *Axes) effectiveXLabelSide() AxisSide {
