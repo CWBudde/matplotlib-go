@@ -213,8 +213,8 @@ core.SavePNG(fig, r, "output.png")
 
 - [x] Stop forcing FreeType autohinting in the AGG raster path when Matplotlib is using the default hinting mode.
 - [x] Rework raster glyph compositing in `../agg_go` so normal text is blended glyph-by-glyph like Matplotlib Agg, instead of first OR-combining a full run mask.
-- [ ] Verify device-space origin snapping happens at the same stage as Matplotlib’s `round(0x40 * ...)` placement path.
-- [ ] Verify glyph placement uses the same coordinate convention as Matplotlib’s run bbox packing:
+- [x] Verify device-space origin snapping happens at the same stage as Matplotlib’s `round(0x40 * ...)` placement path.
+- [x] Verify glyph placement uses the same coordinate convention as Matplotlib’s run bbox packing:
   - `bitmap.left`
   - `bitmap.top`
   - `bbox.xMin`
