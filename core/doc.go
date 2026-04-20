@@ -15,5 +15,6 @@
 //   - DrawFigure: Traverses and renders a figure with proper z-ordering
 //   - Legend: Renders automatic legend boxes from labeled artists
 //   - Subplots: Creates subplot grids with automatic layout
+//   - GridSpec/SubplotSpec/SubFigure: Compose nested figure layouts and subplot spans
 //   - SavePNG: Placeholder for PNG export (requires backend renderer)
 package core

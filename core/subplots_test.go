@@ -83,6 +83,56 @@ func TestFigureSubplotsAxisSharing(t *testing.T) {
 	}
 }
 
+func TestFigureSubplotsShareModes(t *testing.T) {
+	fig := NewFigure(1000, 800)
+	grid := fig.Subplots(
+		2,
+		2,
+		WithSubplotShareXMode(ShareRow),
+		WithSubplotShareYMode(ShareCol),
+	)
+
+	grid[0][1].SetXLim(-4, 4)
+	xMin, xMax := grid[0][0].effectiveXScale().Domain()
+	if xMin != -4 || xMax != 4 {
+		t.Fatalf("expected row-shared x scale, got %v..%v", xMin, xMax)
+	}
+	otherXMin, otherXMax := grid[1][0].effectiveXScale().Domain()
+	if otherXMin == -4 || otherXMax == 4 {
+		t.Fatalf("expected bottom row x scale to remain independent, got %v..%v", otherXMin, otherXMax)
+	}
+
+	grid[1][0].SetYLim(-2, 2)
+	yMin, yMax := grid[0][0].effectiveYScale().Domain()
+	if yMin != -2 || yMax != 2 {
+		t.Fatalf("expected column-shared y scale, got %v..%v", yMin, yMax)
+	}
+	otherYMin, otherYMax := grid[0][1].effectiveYScale().Domain()
+	if otherYMin == -2 || otherYMax == 2 {
+		t.Fatalf("expected right column y scale to remain independent, got %v..%v", otherYMin, otherYMax)
+	}
+
+	if grid[0][1].XAxis != grid[0][0].XAxis {
+		t.Fatalf("expected row peers to share x-axis object")
+	}
+	if grid[1][1].XAxis != grid[1][0].XAxis {
+		t.Fatalf("expected bottom row peers to share x-axis object")
+	}
+	if grid[0][0].XAxis == grid[1][0].XAxis {
+		t.Fatalf("did not expect x-axis sharing across rows")
+	}
+
+	if grid[1][0].YAxis != grid[0][0].YAxis {
+		t.Fatalf("expected column peers to share y-axis object")
+	}
+	if grid[1][1].YAxis != grid[0][1].YAxis {
+		t.Fatalf("expected right column peers to share y-axis object")
+	}
+	if grid[0][0].YAxis == grid[0][1].YAxis {
+		t.Fatalf("did not expect y-axis sharing across columns")
+	}
+}
+
 func floatApprox(a, b, eps float64) bool {
 	if math.IsNaN(a) || math.IsNaN(b) {
 		return false

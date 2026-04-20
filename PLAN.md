@@ -263,11 +263,11 @@ core.SavePNG(fig, r, "output.png")
 
 ### 4.2 Figure Composition and GridSpec
 
-- [ ] `add_subplot` / subplot-spec style axes creation
-- [ ] `GridSpec`, nested grids, width/height ratios, and `subplot2grid`
-- [ ] `subplot_mosaic`
-- [ ] `SubFigure` / subfigure composition
-- [ ] More granular share modes (`row`, `col`, selected peers) instead of all-or-nothing grid sharing
+- [x] `add_subplot` / subplot-spec style axes creation
+- [x] `GridSpec`, nested grids, width/height ratios, and `subplot2grid`
+- [x] `subplot_mosaic`
+- [x] `SubFigure` / subfigure composition
+- [x] More granular share modes (`row`, `col`, selected peers) instead of all-or-nothing grid sharing
 
 ### 4.3 Layout Engines
 

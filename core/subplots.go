@@ -1,6 +1,14 @@
 package core
 
-import "matplotlib-go/internal/geom"
+// ShareMode controls how subplot axes reuse scale and axis state.
+type ShareMode uint8
+
+const (
+	ShareNone ShareMode = iota
+	ShareAll
+	ShareRow
+	ShareCol
+)
 
 // SubplotOptions controls automatic subplot placement and axis sharing.
 type SubplotOptions struct {
@@ -11,9 +19,9 @@ type SubplotOptions struct {
 	WSpace float64
 	HSpace float64
 
-	// ShareAxes controls whether all subplots reuse the same x/y scales and axis controls.
-	ShareX bool
-	ShareY bool
+	// Share modes determine how x/y scales and axis controls are reused.
+	ShareXMode ShareMode
+	ShareYMode ShareMode
 }
 
 // SubplotOption configures the behavior of Subplots.
@@ -40,22 +48,36 @@ func WithSubplotSpacing(wspace, hspace float64) SubplotOption {
 // WithSubplotShareX shares x scales and x-axis settings across all subplots.
 func WithSubplotShareX() SubplotOption {
 	return func(cfg *SubplotOptions) {
-		cfg.ShareX = true
+		cfg.ShareXMode = ShareAll
 	}
 }
 
 // WithSubplotShareY shares y scales and y-axis settings across all subplots.
 func WithSubplotShareY() SubplotOption {
 	return func(cfg *SubplotOptions) {
-		cfg.ShareY = true
+		cfg.ShareYMode = ShareAll
 	}
 }
 
 // WithSubplotShareBoth shares x and y scales and axis settings across all subplots.
 func WithSubplotShareBoth() SubplotOption {
 	return func(cfg *SubplotOptions) {
-		cfg.ShareX = true
-		cfg.ShareY = true
+		cfg.ShareXMode = ShareAll
+		cfg.ShareYMode = ShareAll
+	}
+}
+
+// WithSubplotShareXMode configures how x scales are shared within a subplot grid.
+func WithSubplotShareXMode(mode ShareMode) SubplotOption {
+	return func(cfg *SubplotOptions) {
+		cfg.ShareXMode = mode
+	}
+}
+
+// WithSubplotShareYMode configures how y scales are shared within a subplot grid.
+func WithSubplotShareYMode(mode ShareMode) SubplotOption {
+	return func(cfg *SubplotOptions) {
+		cfg.ShareYMode = mode
 	}
 }
 
@@ -77,58 +99,88 @@ func (f *Figure) Subplots(nRows, nCols int, opts ...SubplotOption) [][]*Axes {
 		opt(&cfg)
 	}
 
-	if nRows <= 0 || nCols <= 0 {
+	gs := f.GridSpec(
+		nRows,
+		nCols,
+		subplotGridSpecOptions(cfg.Left, cfg.Right, cfg.Bottom, cfg.Top, cfg.WSpace, cfg.HSpace)...,
+	)
+	if gs == nil {
 		return nil
 	}
-	if cfg.Right <= cfg.Left || cfg.Top <= cfg.Bottom {
-		return nil
-	}
-
-	// Effective cell sizes including spacing.
-	availableW := cfg.Right - cfg.Left - cfg.WSpace*float64(nCols-1)
-	availableH := cfg.Top - cfg.Bottom - cfg.HSpace*float64(nRows-1)
-	if availableW <= 0 || availableH <= 0 {
-		return nil
-	}
-	cellW := availableW / float64(nCols)
-	cellH := availableH / float64(nRows)
 
 	grid := make([][]*Axes, nRows)
-	var sharedX, sharedY *Axes
-
 	for row := 0; row < nRows; row++ {
 		rowAxes := make([]*Axes, nCols)
 		for col := 0; col < nCols; col++ {
-			minX := cfg.Left + float64(col)*(cellW+cfg.WSpace)
-			maxX := minX + cellW
-
-			maxY := cfg.Top - float64(row)*(cellH+cfg.HSpace)
-			minY := maxY - cellH
-
-			ax := f.AddAxes(geom.Rect{
-				Min: geom.Pt{X: minX, Y: minY},
-				Max: geom.Pt{X: maxX, Y: maxY},
-			})
-			if cfg.ShareX {
-				if sharedX == nil {
-					sharedX = ax
-				} else {
-					ax.shareX = sharedX
-					ax.XAxis = sharedX.XAxis
-				}
-			}
-			if cfg.ShareY {
-				if sharedY == nil {
-					sharedY = ax
-				} else {
-					ax.shareY = sharedY
-					ax.YAxis = sharedY.YAxis
-				}
-			}
-			rowAxes[col] = ax
+			rowAxes[col] = gs.Cell(row, col).AddAxes()
 		}
 		grid[row] = rowAxes
 	}
 
+	applyGridShareMode(grid, cfg.ShareXMode, true)
+	applyGridShareMode(grid, cfg.ShareYMode, false)
+
 	return grid
+}
+
+func subplotGridSpecOptions(left, right, bottom, top, wspace, hspace float64) []GridSpecOption {
+	gridW := 0.0
+	gridH := 0.0
+	if width := right - left; width > 0 {
+		gridW = wspace / width
+	}
+	if height := top - bottom; height > 0 {
+		gridH = hspace / height
+	}
+	return []GridSpecOption{
+		WithGridSpecPadding(left, right, bottom, top),
+		WithGridSpecSpacing(gridW, gridH),
+	}
+}
+
+func applyGridShareMode(grid [][]*Axes, mode ShareMode, isX bool) {
+	if len(grid) == 0 || len(grid[0]) == 0 || mode == ShareNone {
+		return
+	}
+
+	for row := range grid {
+		for col := range grid[row] {
+			ax := grid[row][col]
+			if ax == nil {
+				continue
+			}
+
+			root := sharedAxesRoot(grid, row, col, mode, isX)
+			if root == nil || root == ax {
+				continue
+			}
+
+			if isX {
+				ax.shareX = root.xScaleRoot()
+				ax.XAxis = root.xScaleRoot().XAxis
+			} else {
+				ax.shareY = root.yScaleRoot()
+				ax.YAxis = root.yScaleRoot().YAxis
+			}
+		}
+	}
+}
+
+func sharedAxesRoot(grid [][]*Axes, row, col int, mode ShareMode, isX bool) *Axes {
+	switch mode {
+	case ShareAll:
+		return grid[0][0]
+	case ShareRow:
+		if col == 0 {
+			return nil
+		}
+		return grid[row][0]
+	case ShareCol:
+		if row == 0 {
+			return nil
+		}
+		return grid[0][col]
+	default:
+		return nil
+	}
 }
