@@ -341,3 +341,126 @@ func TestDrawTextVerticalEmitsOneNodePerRune(t *testing.T) {
 		t.Fatalf("expected both vertical glyph nodes in %q", content)
 	}
 }
+
+func TestClipPathIsNoOpAndDoesNotReplaceRectClip(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.ClipRect(geom.Rect{
+			Min: geom.Pt{X: 10, Y: 15},
+			Max: geom.Pt{X: 70, Y: 75},
+		})
+
+		var clipPath geom.Path
+		clipPath.MoveTo(geom.Pt{X: 0, Y: 0})
+		clipPath.LineTo(geom.Pt{X: 30, Y: 0})
+		clipPath.LineTo(geom.Pt{X: 30, Y: 30})
+		clipPath.Close()
+		r.ClipPath(clipPath)
+
+		r.DrawText("still-rect-clipped", geom.Pt{X: 20, Y: 30}, 12, render.Color{A: 1})
+	})
+
+	if strings.Count(content, "<clipPath") != 1 {
+		t.Fatalf("ClipPath should currently be a no-op and not add extra defs, got %q", content)
+	}
+	if !strings.Contains(content, `<rect x="10.000000" y="15.000000" width="60.000000" height="60.000000" />`) {
+		t.Fatalf("expected rectangular clip to remain active, got %q", content)
+	}
+}
+
+func TestSetResolutionIgnoresZeroAndStoresPositiveDPI(t *testing.T) {
+	r := mustNewRenderer(t)
+
+	r.SetResolution(0)
+	if got := r.resolution; got != 72 {
+		t.Fatalf("zero DPI should be ignored, got %d", got)
+	}
+
+	r.SetResolution(144)
+	if got := r.resolution; got != 144 {
+		t.Fatalf("positive DPI should be stored, got %d", got)
+	}
+}
+
+func TestBuildPathDataSupportsQuadraticCubicAndClose(t *testing.T) {
+	path := geom.Path{
+		C: []geom.Cmd{geom.MoveTo, geom.QuadTo, geom.CubicTo, geom.ClosePath},
+		V: []geom.Pt{
+			{X: 1, Y: 2},
+			{X: 3, Y: 4},
+			{X: 5, Y: 6},
+			{X: 7, Y: 8},
+			{X: 9, Y: 10},
+			{X: 11, Y: 12},
+		},
+	}
+
+	got := buildPathData(path)
+	want := "M 1.000000 2.000000 Q 3.000000 4.000000 5.000000 6.000000 C 7.000000 8.000000 9.000000 10.000000 11.000000 12.000000 Z"
+	if got != want {
+		t.Fatalf("unexpected path data:\nwant %q\ngot  %q", want, got)
+	}
+}
+
+func TestBuildPathDataRejectsMalformedCommands(t *testing.T) {
+	tests := []geom.Path{
+		{C: []geom.Cmd{geom.MoveTo}},
+		{C: []geom.Cmd{geom.LineTo}},
+		{C: []geom.Cmd{geom.QuadTo}, V: []geom.Pt{{X: 1, Y: 2}}},
+		{C: []geom.Cmd{geom.CubicTo}, V: []geom.Pt{{X: 1, Y: 2}, {X: 3, Y: 4}}},
+		{C: []geom.Cmd{geom.Cmd(99)}, V: []geom.Pt{{X: 1, Y: 2}}},
+	}
+
+	for _, path := range tests {
+		if got := buildPathData(path); got != "" {
+			t.Fatalf("malformed path should serialize to empty data, got %q for %+v", got, path)
+		}
+	}
+}
+
+func TestHelperFormattingBranches(t *testing.T) {
+	if got := dashedArray([]float64{5}); got != "" {
+		t.Fatalf("single dash segment should not emit dash array, got %q", got)
+	}
+	if got := dashedArray([]float64{5, 2, 9}); got != "5.000000,2.000000" {
+		t.Fatalf("odd dash lists should ignore trailing value, got %q", got)
+	}
+
+	if got := mapLineJoin(render.JoinBevel); got != "bevel" {
+		t.Fatalf("expected bevel join mapping, got %q", got)
+	}
+	if got := mapLineJoin(render.LineJoin(99)); got != "miter" {
+		t.Fatalf("unknown join should fall back to miter, got %q", got)
+	}
+	if got := mapLineCap(render.CapRound); got != "round" {
+		t.Fatalf("expected round cap mapping, got %q", got)
+	}
+	if got := mapLineCap(render.LineCap(99)); got != "butt" {
+		t.Fatalf("unknown cap should fall back to butt, got %q", got)
+	}
+
+	if got := clamp01(-0.1); got != 0 {
+		t.Fatalf("negative colors should clamp to 0, got %v", got)
+	}
+	if got := clamp01(1.1); got != 1 {
+		t.Fatalf("oversaturated colors should clamp to 1, got %v", got)
+	}
+	if got := clampFloat(1.25); got != 1.25 {
+		t.Fatalf("finite float should pass through, got %v", got)
+	}
+}
+
+func TestFontFamilyVariants(t *testing.T) {
+	tests := map[string]string{
+		"serif":       "DejaVu Serif, serif",
+		"sans-serif":  "DejaVu Sans, Arial, sans-serif",
+		"monospace":   "DejaVu Sans Mono, monospace",
+		"mono_space":  "DejaVu Sans Mono, monospace",
+		"custom-font": "DejaVu Sans, Arial, sans-serif",
+	}
+
+	for key, want := range tests {
+		if got := fontFamily(key); got != want {
+			t.Fatalf("unexpected font family for %q: want %q, got %q", key, want, got)
+		}
+	}
+}

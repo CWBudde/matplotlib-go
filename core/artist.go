@@ -1070,9 +1070,10 @@ func (a *Axes) SecondaryYAxis(side AxisSide, forward func(float64) float64, inve
 
 // layout computes the pixel rectangle for this Axes inside the Figure.
 func (a *Axes) layout(f *Figure) (pixelRect geom.Rect) {
-	// Map fraction [0..1] to pixel coordinates
-	minPt := geom.Pt{X: f.SizePx.X * a.RectFraction.Min.X, Y: f.SizePx.Y * a.RectFraction.Min.Y}
-	maxPt := geom.Pt{X: f.SizePx.X * a.RectFraction.Max.X, Y: f.SizePx.Y * a.RectFraction.Max.Y}
+	// Figure fractions use a bottom-left origin, but display pixels use a
+	// top-left origin. Flip Y so subplot rows land in the expected order.
+	minPt := geom.Pt{X: f.SizePx.X * a.RectFraction.Min.X, Y: f.SizePx.Y * (1 - a.RectFraction.Max.Y)}
+	maxPt := geom.Pt{X: f.SizePx.X * a.RectFraction.Max.X, Y: f.SizePx.Y * (1 - a.RectFraction.Min.Y)}
 	return geom.Rect{Min: minPt, Max: maxPt}
 }
 
