@@ -23,7 +23,17 @@ func (a *Axes) DisplayRect() geom.Rect {
 
 // ContainsDisplayPoint reports whether a figure-pixel point lies inside the axes.
 func (a *Axes) ContainsDisplayPoint(p geom.Pt) bool {
-	return a.DisplayRect().Contains(p)
+	if a == nil {
+		return false
+	}
+	rect := a.DisplayRect()
+	if !rect.Contains(p) {
+		return false
+	}
+	if isPolarProjection(a.projection) {
+		return polarAxesContainsDisplayPoint(rect, p)
+	}
+	return true
 }
 
 // PixelToData resolves a figure-pixel point into this axes' data coordinates.

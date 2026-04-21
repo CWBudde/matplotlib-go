@@ -416,11 +416,11 @@ core.SavePNG(fig, r, "output.png")
 
 ### 6.6 Derived Image and Signal Helpers
 
-- [ ] `matshow`
-- [ ] `spy`
-- [ ] `specgram`
-- [ ] Signal-analysis helpers such as `psd`, `csd`, `cohere`, `xcorr`, and `acorr`
-- [ ] Annotated-heatmap / matrix-display helpers built on top of image + text primitives
+- [x] `matshow`
+- [x] `spy`
+- [x] `specgram`
+- [x] Signal-analysis helpers such as `psd`, `csd`, `cohere`, `xcorr`, and `acorr`
+- [x] Annotated-heatmap / matrix-display helpers built on top of image + text primitives
 
 **Exit Criteria:**
 
@@ -435,11 +435,16 @@ core.SavePNG(fig, r, "output.png")
 
 ### 7.1 Non-Cartesian Projections
 
-- [ ] Polar axes
+- [x] Polar axes
 - [ ] Geographic / geo projections
-- [ ] Projection registry and `projection=`-style axes creation
+- [x] Projection registry and `projection=`-style axes creation
 - [ ] Projection-specific ticks, labels, and transforms
 - [ ] Specialty projections built on top of the registry (`radar`, `skew-T`, other curvilinear examples)
+
+Current slice landed:
+
+- Built-in `polar` projection with circular spines, angular/radial grids, and polar tick labels
+- Projection registry plus `Figure.AddAxesProjection`, `Figure.AddPolarAxes`, and subplot `WithProjection(...)`
 
 ### 7.2 3D Toolkit
 

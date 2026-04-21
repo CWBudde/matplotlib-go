@@ -37,6 +37,10 @@ func (f ArtistFunc) Bounds(_ *DrawContext) geom.Rect          { return geom.Rect
 type DrawContext struct {
 	// DataToPixel maps data coordinates to pixels.
 	DataToPixel Transform2D
+	// Axes is the owning axes for axes-local drawing.
+	Axes *Axes
+	// Projection configures data->axes mapping and non-Cartesian behavior.
+	Projection Projection
 	// Styling configuration in effect.
 	RC style.RC
 	// Clip is the axes pixel rectangle.
@@ -294,6 +298,7 @@ type Axes struct {
 	RC           *style.RC // nil => inherit figure RC
 	XScale       transform.Scale
 	YScale       transform.Scale
+	projection   Projection
 	Artists      []Artist
 	zsorted      bool
 
@@ -353,6 +358,29 @@ type LocatorParams struct {
 // AddAxes appends an Axes to the Figure. If opts are provided, the Axes gets its
 // own RC copy; otherwise it inherits from the Figure.
 func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
+	proj, _ := lookupProjection("rectilinear")
+	return f.addAxesWithProjection(r, proj, opts...)
+}
+
+// AddAxesProjection appends an Axes with the requested named projection.
+func (f *Figure) AddAxesProjection(r geom.Rect, projection string, opts ...style.Option) (*Axes, error) {
+	proj, err := lookupProjection(projection)
+	if err != nil {
+		return nil, err
+	}
+	return f.addAxesWithProjection(r, proj, opts...), nil
+}
+
+// AddPolarAxes appends an Axes configured with the built-in polar projection.
+func (f *Figure) AddPolarAxes(r geom.Rect, opts ...style.Option) *Axes {
+	ax, err := f.AddAxesProjection(r, "polar", opts...)
+	if err != nil {
+		return nil
+	}
+	return ax
+}
+
+func (f *Figure) addAxesWithProjection(r geom.Rect, proj Projection, opts ...style.Option) *Axes {
 	var rc *style.RC
 	effective := f.RC
 	if len(opts) > 0 {
@@ -365,6 +393,7 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 		RC:           rc,
 		XScale:       transform.NewLinear(0, 1),
 		YScale:       transform.NewLinear(0, 1),
+		projection:   cloneProjection(proj),
 		XAxis:        NewXAxis(),
 		YAxis:        NewYAxis(),
 		ShowFrame:    true,
@@ -375,6 +404,10 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 		yLabelSide:   AxisLeft,
 		figure:       f,
 	}
+	if ax.projection == nil {
+		ax.projection, _ = lookupProjection("rectilinear")
+	}
+	ax.projection.ConfigureAxes(ax)
 	ax.applyStyleDefaults(effective)
 	ax.addDefaultGrids(effective)
 	f.Children = append(f.Children, ax)
@@ -392,6 +425,14 @@ func (f *Figure) Add(art Artist) {
 
 // Add registers an Artist with the Axes.
 func (a *Axes) Add(art Artist) { a.Artists = append(a.Artists, art); a.zsorted = false }
+
+// ProjectionName reports the normalized name of the axes projection.
+func (a *Axes) ProjectionName() string {
+	if a == nil || a.projection == nil {
+		return "rectilinear"
+	}
+	return a.projection.Name()
+}
 
 // SetXLim sets the x-axis limits.
 func (a *Axes) SetXLim(minVal, maxVal float64) {
@@ -1296,7 +1337,11 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		ctx := newAxesDrawContext(ax, fig, vp, px)
 
 		if ctx.RC.AxesBackground != fig.RC.FigureBackground() {
-			r.Path(pixelRectPath(px), &render.Paint{
+			backgroundPath := pixelRectPath(px)
+			if isPolarProjection(ctx.Projection) {
+				backgroundPath = polarAxesBackgroundPath(px)
+			}
+			r.Path(backgroundPath, &render.Paint{
 				Fill: ctx.RC.AxesBackground,
 			})
 		}
@@ -1304,6 +1349,9 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		// Draw only clipped content (data and grids) while the axes clip is active.
 		r.Save()
 		r.ClipRect(px)
+		if isPolarProjection(ctx.Projection) {
+			r.ClipPath(polarAxesBackgroundPath(px))
+		}
 
 		if !ax.zsorted {
 			sort.SliceStable(ax.Artists, func(i, j int) bool {
@@ -1703,7 +1751,7 @@ func (a *Axes) newOverlayAxes() *Axes {
 	if a == nil || a.figure == nil {
 		return nil
 	}
-	overlay := a.figure.AddAxes(a.RectFraction)
+	overlay := a.figure.addAxesWithProjection(a.RectFraction, cloneProjection(a.projection))
 	overlay.RC = a.RC
 	overlay.aspectMode = a.aspectMode
 	overlay.aspectValue = a.aspectValue

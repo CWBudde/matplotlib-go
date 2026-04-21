@@ -164,6 +164,42 @@ func TestVectorFieldHelpersDelegateToCurrentAxes(t *testing.T) {
 	}
 }
 
+func TestPhase66HelpersDelegateToCurrentAxes(t *testing.T) {
+	resetForTests()
+
+	mat := [][]float64{
+		{0, 1},
+		{2, 3},
+	}
+	if img := MatShow(mat); img == nil {
+		t.Fatal("MatShow() returned nil")
+	}
+	if spy := Spy(mat); spy == nil {
+		t.Fatal("Spy() returned nil")
+	}
+	if spec := Specgram([]float64{0, 1, 0, -1, 0, 1, 0, -1}, core.SpecgramOptions{NFFT: 4}); spec == nil {
+		t.Fatal("Specgram() returned nil")
+	}
+	if psd := PSD([]float64{0, 1, 0, -1, 0, 1, 0, -1}, core.SignalSpectrumOptions{NFFT: 4}); psd == nil {
+		t.Fatal("PSD() returned nil")
+	}
+	if csd := CSD([]float64{0, 1, 0, -1}, []float64{0, 1, 0, -1}, core.SignalSpectrumOptions{NFFT: 4}); csd == nil {
+		t.Fatal("CSD() returned nil")
+	}
+	if cohere := Cohere([]float64{0, 1, 0, -1}, []float64{0, 1, 0, -1}, core.SignalSpectrumOptions{NFFT: 4}); cohere == nil {
+		t.Fatal("Cohere() returned nil")
+	}
+	if xcorr := XCorr([]float64{1, 2, 3}, []float64{1, 2, 3}); xcorr == nil {
+		t.Fatal("XCorr() returned nil")
+	}
+	if acorr := ACorr([]float64{1, 2, 3}); acorr == nil {
+		t.Fatal("ACorr() returned nil")
+	}
+	if heatmap := AnnotatedHeatmap(mat); heatmap == nil {
+		t.Fatal("AnnotatedHeatmap() returned nil")
+	}
+}
+
 func TestSavefigWritesPNGAndSVG(t *testing.T) {
 	resetForTests()
 	t.Setenv("MATPLOTLIB_BACKEND", "gobasic")

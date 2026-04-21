@@ -46,9 +46,10 @@ type SubFigure struct {
 }
 
 type subplotAxesOptions struct {
-	shareX *Axes
-	shareY *Axes
-	style  []style.Option
+	shareX     *Axes
+	shareY     *Axes
+	style      []style.Option
+	projection string
 }
 
 // SubplotAxesOption configures axes creation from a subplot spec.
@@ -123,6 +124,13 @@ func WithSharedAxes(peer *Axes) SubplotAxesOption {
 func WithSubplotStyle(opts ...style.Option) SubplotAxesOption {
 	return func(cfg *subplotAxesOptions) {
 		cfg.style = append(cfg.style, opts...)
+	}
+}
+
+// WithProjection selects a named projection when creating subplot axes.
+func WithProjection(name string) SubplotAxesOption {
+	return func(cfg *subplotAxesOptions) {
+		cfg.projection = name
 	}
 }
 
@@ -365,7 +373,16 @@ func (spec SubplotSpec) AddAxes(opts ...SubplotAxesOption) *Axes {
 	}
 
 	rect := spec.Rect()
-	ax := spec.figure.AddAxes(rect, cfg.style...)
+	var ax *Axes
+	if cfg.projection != "" {
+		var err error
+		ax, err = spec.figure.AddAxesProjection(rect, cfg.projection, cfg.style...)
+		if err != nil {
+			return nil
+		}
+	} else {
+		ax = spec.figure.AddAxes(rect, cfg.style...)
+	}
 	ax.RectFraction = rect
 	ax.subplotSpec = &SubplotSpec{
 		figure:   spec.figure,

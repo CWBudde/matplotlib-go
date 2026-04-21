@@ -22,13 +22,19 @@ type figureTextAlignment struct {
 }
 
 func newAxesDrawContext(ax *Axes, fig *Figure, figureRect, clip geom.Rect) *DrawContext {
+	proj := cloneProjection(ax.projection)
+	if proj == nil {
+		proj, _ = lookupProjection("rectilinear")
+	}
 	return &DrawContext{
 		DataToPixel: Transform2D{
 			XScale:      ax.effectiveXScale(),
 			YScale:      ax.effectiveYScale(),
-			DataToAxes:  transform.NewScaleTransform(ax.effectiveXScale(), ax.effectiveYScale()),
+			DataToAxes:  proj.DataToAxes(ax),
 			AxesToPixel: transform.NewDisplayRectTransform(clip),
 		},
+		Axes:       ax,
+		Projection: proj,
 		RC:         ax.effectiveRC(fig),
 		Clip:       clip,
 		FigureRect: figureRect,
@@ -43,6 +49,8 @@ func newFigureDrawContext(fig *Figure, figureRect geom.Rect) *DrawContext {
 			DataToAxes:  transform.NewScaleTransform(transform.NewLinear(0, 1), transform.NewLinear(0, 1)),
 			AxesToPixel: transform.NewDisplayRectTransform(figureRect),
 		},
+		Axes:       nil,
+		Projection: cloneProjection(nil),
 		RC:         fig.RC,
 		Clip:       figureRect,
 		FigureRect: figureRect,

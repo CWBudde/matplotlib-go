@@ -184,6 +184,16 @@ func Image(data [][]float64, opts ...core.ImageOptions) *core.Image2D {
 	return GCA().Image(data, opts...)
 }
 
+// MatShow delegates to the current axes.
+func MatShow(data [][]float64, opts ...core.MatShowOptions) *core.Image2D {
+	return GCA().MatShow(data, opts...)
+}
+
+// Spy delegates to the current axes.
+func Spy(data [][]float64, opts ...core.SpyOptions) *core.SpyResult {
+	return GCA().Spy(data, opts...)
+}
+
 // PColor delegates to the current axes.
 func PColor(data [][]float64, opts ...core.MeshOptions) *core.QuadMesh {
 	return GCA().PColor(data, opts...)
@@ -197,6 +207,41 @@ func PColorMesh(data [][]float64, opts ...core.MeshOptions) *core.QuadMesh {
 // Hist2D delegates to the current axes.
 func Hist2D(x, y []float64, opts ...core.Hist2DOptions) *core.Hist2DResult {
 	return GCA().Hist2D(x, y, opts...)
+}
+
+// Specgram delegates to the current axes.
+func Specgram(samples []float64, opts ...core.SpecgramOptions) *core.SpecgramResult {
+	return GCA().Specgram(samples, opts...)
+}
+
+// PSD delegates to the current axes.
+func PSD(samples []float64, opts ...core.SignalSpectrumOptions) *core.SpectrumResult {
+	return GCA().PSD(samples, opts...)
+}
+
+// CSD delegates to the current axes.
+func CSD(x, y []float64, opts ...core.SignalSpectrumOptions) *core.SpectrumResult {
+	return GCA().CSD(x, y, opts...)
+}
+
+// Cohere delegates to the current axes.
+func Cohere(x, y []float64, opts ...core.SignalSpectrumOptions) *core.SpectrumResult {
+	return GCA().Cohere(x, y, opts...)
+}
+
+// XCorr delegates to the current axes.
+func XCorr(x, y []float64, opts ...core.CorrelationOptions) *core.CorrelationResult {
+	return GCA().XCorr(x, y, opts...)
+}
+
+// ACorr delegates to the current axes.
+func ACorr(x []float64, opts ...core.CorrelationOptions) *core.CorrelationResult {
+	return GCA().ACorr(x, opts...)
+}
+
+// AnnotatedHeatmap delegates to the current axes.
+func AnnotatedHeatmap(data [][]float64, opts ...core.AnnotatedHeatmapOptions) *core.AnnotatedHeatmapResult {
+	return GCA().AnnotatedHeatmap(data, opts...)
 }
 
 // Eventplot delegates to the current axes.

@@ -44,6 +44,10 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 	if !g.Major && !g.Minor {
 		return
 	}
+	if isPolarProjection(ctx.Projection) {
+		g.drawPolar(r, ctx)
+		return
+	}
 
 	var domainMin, domainMax float64
 	var isXAxis bool
@@ -96,6 +100,109 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 			g.drawLine(r, ctx, v, isXAxis, majorColor, g.LineWidth, g.Dashes)
 		}
 	}
+}
+
+func (g *Grid) drawPolar(r render.Renderer, ctx *DrawContext) {
+	majorColor := g.Color
+	if g.Alpha > 0 && g.Alpha <= 1 {
+		majorColor.A = g.Alpha
+	}
+
+	if g.Minor {
+		minorColor := g.MinorColor
+		if minorColor == (render.Color{}) {
+			minorColor = majorColor
+			minorColor.A = majorColor.A * 0.4
+		}
+		minorWidth := g.MinorLineWidth
+		if minorWidth <= 0 {
+			minorWidth = g.LineWidth * 0.5
+		}
+		g.drawPolarLines(r, ctx, true, minorColor, minorWidth, g.MinorDashes)
+	}
+
+	if g.Major {
+		g.drawPolarLines(r, ctx, false, majorColor, g.LineWidth, g.Dashes)
+	}
+}
+
+func (g *Grid) drawPolarLines(r render.Renderer, ctx *DrawContext, minor bool, color render.Color, width float64, dashes []float64) {
+	center, outerRadius := polarCenterAndRadius(ctx.Clip)
+	paint := polarTickPaint(color, width, dashes)
+
+	switch g.Axis {
+	case AxisBottom, AxisTop:
+		axis := axisForPolarGrid(ctx, true)
+		ticks := polarThetaTicks(axis, ctx.DataToPixel.XScale, minor)
+		if locator := g.polarLocator(axis, minor); locator != nil && ctx.DataToPixel.XScale != nil {
+			minVal, maxVal := ctx.DataToPixel.XScale.Domain()
+			ticks = visibleTicks(locator.Ticks(minVal, maxVal, polarTargetTickCount(axis, minor)), minVal, maxVal)
+		}
+		for _, tick := range ticks {
+			angle := polarAngleForTheta(ctx.DataToPixel.XScale, tick)
+			path := geom.Path{}
+			path.MoveTo(center)
+			path.LineTo(polarPixelPoint(center, outerRadius, angle))
+			r.Path(path, &paint)
+		}
+	case AxisLeft, AxisRight:
+		axis := axisForPolarGrid(ctx, false)
+		ticks := polarRadialTicks(axis, ctx.DataToPixel.YScale, minor)
+		if locator := g.polarLocator(axis, minor); locator != nil && ctx.DataToPixel.YScale != nil {
+			minVal, maxVal := ctx.DataToPixel.YScale.Domain()
+			ticks = visibleTicks(locator.Ticks(minVal, maxVal, polarTargetTickCount(axis, minor)), minVal, maxVal)
+		}
+		for _, tick := range ticks {
+			radius := outerRadius * ctx.DataToPixel.YScale.Fwd(tick)
+			if radius <= 0 {
+				continue
+			}
+			path := polarCirclePath(center, radius)
+			r.Path(path, &paint)
+		}
+	}
+}
+
+func axisForPolarGrid(ctx *DrawContext, isTheta bool) *Axis {
+	if ctx == nil || ctx.Axes == nil {
+		return nil
+	}
+	if isTheta {
+		return ctx.Axes.effectiveXAxis()
+	}
+	return ctx.Axes.effectiveYAxis()
+}
+
+func (g *Grid) polarLocator(axis *Axis, minor bool) Locator {
+	if minor {
+		if g.MinorLocator != nil {
+			return g.MinorLocator
+		}
+		if axis != nil {
+			return axis.MinorLocator
+		}
+		return nil
+	}
+	if g.Locator != nil {
+		return g.Locator
+	}
+	if axis != nil {
+		return axis.Locator
+	}
+	return nil
+}
+
+func polarTargetTickCount(axis *Axis, minor bool) int {
+	if axis == nil {
+		if minor {
+			return 30
+		}
+		return 6
+	}
+	if minor {
+		return axis.minorTickTargetCount()
+	}
+	return axis.majorTickTargetCount()
 }
 
 // drawLine draws a single grid line.
