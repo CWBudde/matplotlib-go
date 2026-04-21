@@ -25,7 +25,7 @@ type Grid struct {
 
 // NewGrid creates a new grid for the specified axis.
 func NewGrid(axis AxisSide) *Grid {
-	rc := style.Default
+	rc := style.CurrentDefaults()
 	return &Grid{
 		Axis:           axis,
 		Color:          rc.GridColor,

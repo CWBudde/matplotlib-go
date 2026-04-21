@@ -1,0 +1,254 @@
+package style
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+
+	"matplotlib-go/render"
+)
+
+// Params holds rcParam-style key/value overrides using Matplotlib-style names.
+type Params map[string]string
+
+var runtimeDefaults = struct {
+	mu      sync.Mutex
+	current RC
+	stack   []RC
+}{
+	current: Apply(Default),
+}
+
+// CurrentDefaults returns the active runtime defaults used for newly created figures.
+func CurrentDefaults() RC {
+	runtimeDefaults.mu.Lock()
+	defer runtimeDefaults.mu.Unlock()
+	return Apply(runtimeDefaults.current)
+}
+
+// CurrentParams returns the active runtime defaults serialized as rcParam values.
+func CurrentParams() Params {
+	return paramsFromRC(CurrentDefaults())
+}
+
+// ResetDefaults restores the active runtime defaults to the library baseline.
+func ResetDefaults() {
+	runtimeDefaults.mu.Lock()
+	defer runtimeDefaults.mu.Unlock()
+	runtimeDefaults.current = Apply(Default)
+	runtimeDefaults.stack = nil
+}
+
+// UpdateParams applies rcParam-style overrides to the active runtime defaults.
+func UpdateParams(params Params) (MPLStyleReport, error) {
+	runtimeDefaults.mu.Lock()
+	defer runtimeDefaults.mu.Unlock()
+
+	next, report, err := applyMPLStyleParams(runtimeDefaults.current, params)
+	if err != nil {
+		return report, err
+	}
+	runtimeDefaults.current = next
+	return report, nil
+}
+
+// PushContext applies temporary rcParam overrides and returns a restore function.
+func PushContext(params Params) (func(), MPLStyleReport, error) {
+	runtimeDefaults.mu.Lock()
+	defer runtimeDefaults.mu.Unlock()
+
+	next, report, err := applyMPLStyleParams(runtimeDefaults.current, params)
+	if err != nil {
+		return nil, report, err
+	}
+
+	previous := Apply(runtimeDefaults.current)
+	runtimeDefaults.stack = append(runtimeDefaults.stack, previous)
+	runtimeDefaults.current = next
+
+	restore := func() {
+		runtimeDefaults.mu.Lock()
+		defer runtimeDefaults.mu.Unlock()
+		n := len(runtimeDefaults.stack)
+		if n == 0 {
+			runtimeDefaults.current = Apply(Default)
+			return
+		}
+		runtimeDefaults.current = runtimeDefaults.stack[n-1]
+		runtimeDefaults.stack = runtimeDefaults.stack[:n-1]
+	}
+	return restore, report, nil
+}
+
+// LoadRCFile loads a Matplotlib-style rc file and replaces the active runtime defaults.
+func LoadRCFile(path string) (MPLStyleReport, error) {
+	resolved, err := resolveRCFilePath(path)
+	if err != nil {
+		return MPLStyleReport{}, err
+	}
+
+	data, err := os.ReadFile(resolved)
+	if err != nil {
+		return MPLStyleReport{}, err
+	}
+
+	rc, report, err := parseMPLStyleRC(Default, string(data))
+	if err != nil {
+		return report, err
+	}
+
+	runtimeDefaults.mu.Lock()
+	defer runtimeDefaults.mu.Unlock()
+	runtimeDefaults.current = rc
+	runtimeDefaults.stack = nil
+	return report, nil
+}
+
+// LoadDefaultRCFile searches the standard rc-file locations and applies the first match.
+func LoadDefaultRCFile() (string, MPLStyleReport, error) {
+	for _, path := range DefaultRCSearchPaths() {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			report, loadErr := LoadRCFile(path)
+			return path, report, loadErr
+		}
+	}
+	return "", MPLStyleReport{}, os.ErrNotExist
+}
+
+// DefaultRCSearchPaths returns the rc-file locations consulted by LoadDefaultRCFile.
+func DefaultRCSearchPaths() []string {
+	paths := make([]string, 0, 5)
+	seen := make(map[string]struct{})
+	add := func(path string) {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return
+		}
+		if _, ok := seen[path]; ok {
+			return
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
+	}
+
+	if envPath := strings.TrimSpace(os.Getenv("MATPLOTLIBRC")); envPath != "" {
+		add(normalizeRCEnvPath(envPath))
+	}
+	add("matplotlibrc")
+
+	if xdg := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); xdg != "" {
+		add(filepath.Join(xdg, "matplotlib", "matplotlibrc"))
+	}
+	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		add(filepath.Join(home, ".config", "matplotlib", "matplotlibrc"))
+		add(filepath.Join(home, ".matplotlib", "matplotlibrc"))
+	}
+
+	return paths
+}
+
+func resolveRCFilePath(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", errors.New("style: empty rc file path")
+	}
+	info, err := os.Stat(trimmed)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return filepath.Join(trimmed, "matplotlibrc"), nil
+	}
+	return trimmed, nil
+}
+
+func normalizeRCEnvPath(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return path
+	}
+	if info.IsDir() {
+		return filepath.Join(path, "matplotlibrc")
+	}
+	return path
+}
+
+func paramsFromRC(rc RC) Params {
+	params := make(Params, len(supportedMPLStyleKeys))
+
+	params["axes.edgecolor"] = formatMPLColor(rc.AxesEdgeColor)
+	params["axes.facecolor"] = formatMPLColor(rc.AxesBackground)
+	params["axes.labelcolor"] = formatMPLColor(rc.DefaultTextColor())
+	params["axes.linewidth"] = formatMPLPoints(rc.AxisLineWidth, rc.DPI)
+	params["axes.prop_cycle"] = formatMPLColorCycle(rc.Palette())
+	params["figure.dpi"] = formatMPLFloat(rc.DPI)
+	params["figure.facecolor"] = formatMPLColor(rc.FigureBackground())
+	params["font.family"] = rc.FontKey
+	params["font.size"] = formatMPLFloat(rc.FontSize)
+	params["grid.alpha"] = formatMPLFloat(rc.GridColor.A)
+	params["grid.color"] = formatMPLColor(rc.GridColor)
+	params["grid.linewidth"] = formatMPLPoints(rc.GridLineWidth, rc.DPI)
+	params["grid.major.color"] = formatMPLColor(rc.GridColor)
+	params["grid.minor.color"] = formatMPLColor(rc.MinorGridColor)
+	params["legend.edgecolor"] = formatMPLColor(rc.LegendBorderColor)
+	params["legend.facecolor"] = formatMPLColor(rc.LegendBackground)
+	params["legend.labelcolor"] = formatMPLColor(rc.LegendTextColor)
+	params["lines.color"] = formatMPLColor(rc.DefaultLineColor())
+	params["lines.linewidth"] = formatMPLPoints(rc.LineWidth, rc.DPI)
+	params["text.color"] = formatMPLColor(rc.DefaultTextColor())
+	params["xtick.color"] = formatMPLColor(rc.AxesEdgeColor)
+	params["ytick.color"] = formatMPLColor(rc.AxesEdgeColor)
+
+	return params
+}
+
+func formatMPLFloat(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func formatMPLPoints(pixels, dpi float64) string {
+	if dpi <= 0 {
+		dpi = Default.DPI
+	}
+	if dpi <= 0 {
+		dpi = 72
+	}
+	return formatMPLFloat(pixels * 72.0 / dpi)
+}
+
+func formatMPLColor(color render.Color) string {
+	r := colorChannelByte(color.R)
+	g := colorChannelByte(color.G)
+	b := colorChannelByte(color.B)
+	a := colorChannelByte(color.A)
+	if a == 0xFF {
+		return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+	}
+	return fmt.Sprintf("#%02x%02x%02x%02x", r, g, b, a)
+}
+
+func formatMPLColorCycle(palette []render.Color) string {
+	if len(palette) == 0 {
+		palette = Default.Palette()
+	}
+	parts := make([]string, len(palette))
+	for i, color := range palette {
+		parts[i] = fmt.Sprintf("'%s'", formatMPLColor(color))
+	}
+	return fmt.Sprintf("cycler('color', [%s])", strings.Join(parts, ", "))
+}
+
+func colorChannelByte(value float64) uint8 {
+	switch {
+	case value <= 0:
+		return 0
+	case value >= 1:
+		return 0xFF
+	default:
+		return uint8(value*255 + 0.5)
+	}
+}

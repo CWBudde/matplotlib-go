@@ -203,6 +203,44 @@ func Colorbar(mappable *core.Image2D, opts ...core.ColorbarOptions) *core.Axes {
 	return fig.AddColorbar(ax, mappable, opts...)
 }
 
+// RCParams returns the active rcParam-style defaults.
+func RCParams() style.Params {
+	return style.CurrentParams()
+}
+
+// RC applies rcParam-style overrides to the active defaults. When group is non-empty,
+// keys in params are prefixed with "group." unless already fully qualified.
+func RC(group string, params style.Params) error {
+	_, err := style.UpdateParams(qualifyRCParams(group, params))
+	return err
+}
+
+// RCContext applies temporary rcParam overrides and returns a restore function.
+func RCContext(params style.Params) (func(), error) {
+	restore, _, err := style.PushContext(params)
+	if err != nil {
+		return nil, err
+	}
+	return restore, nil
+}
+
+// RCDefaults restores the active defaults to the library baseline.
+func RCDefaults() {
+	style.ResetDefaults()
+}
+
+// LoadRCFile loads a Matplotlib-style rc file into the active defaults.
+func LoadRCFile(path string) error {
+	_, err := style.LoadRCFile(path)
+	return err
+}
+
+// LoadDefaultRCFile loads the first rc file found in the default search path.
+func LoadDefaultRCFile() (string, error) {
+	path, _, err := style.LoadDefaultRCFile()
+	return path, err
+}
+
 // Savefig renders the current figure to a file selected by extension.
 func Savefig(path string) error {
 	return saveFigure(GCF(), path)
@@ -260,6 +298,23 @@ func ensureDefaultAxes(fig *core.Figure) *core.Axes {
 
 func subplotKey(nRows, nCols, index int) string {
 	return fmt.Sprintf("%d:%d:%d", nRows, nCols, index)
+}
+
+func qualifyRCParams(group string, params style.Params) style.Params {
+	if len(params) == 0 {
+		return nil
+	}
+
+	qualified := make(style.Params, len(params))
+	group = strings.ToLower(strings.TrimSpace(group))
+	for key, value := range params {
+		normalizedKey := strings.ToLower(strings.TrimSpace(key))
+		if group != "" && !strings.Contains(normalizedKey, ".") {
+			normalizedKey = group + "." + normalizedKey
+		}
+		qualified[normalizedKey] = value
+	}
+	return qualified
 }
 
 func (r *registryState) rememberAxesLocked(fig *core.Figure, ax *core.Axes, key string) {
@@ -334,8 +389,9 @@ func newPNGRenderer(fig *core.Figure) (render.Renderer, error) {
 func rendererConfig(fig *core.Figure) backends.Config {
 	width := DefaultFigureWidth
 	height := DefaultFigureHeight
-	background := style.Default.FigureBackground()
-	dpi := style.Default.DPI
+	defaults := style.CurrentDefaults()
+	background := defaults.FigureBackground()
+	dpi := defaults.DPI
 
 	if fig != nil {
 		if fig.SizePx.X > 0 {
@@ -390,4 +446,5 @@ func resetForTests() {
 	registry.subplotAxes = make(map[*core.Figure]map[string]*core.Axes)
 	registry.showHandler = defaultShowHandler
 	registry.mu.Unlock()
+	style.ResetDefaults()
 }

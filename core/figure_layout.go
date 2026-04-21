@@ -242,7 +242,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 func pointsToPixels(rc style.RC, points float64) float64 {
 	dpi := rc.DPI
 	if dpi <= 0 {
-		dpi = style.Default.DPI
+		dpi = style.CurrentDefaults().DPI
 		if dpi <= 0 {
 			dpi = 96
 		}

@@ -48,7 +48,7 @@ func (a *Axes) AddAnchoredText(text string, opts ...AnchoredTextOptions) *Anchor
 
 // AddAnchoredText appends a figure-level anchored text box.
 func (f *Figure) AddAnchoredText(text string, opts ...AnchoredTextOptions) *AnchoredTextBox {
-	rc := style.Default
+	rc := style.CurrentDefaults()
 	if f != nil {
 		rc = f.RC
 	}

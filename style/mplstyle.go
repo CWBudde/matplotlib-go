@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -103,35 +104,14 @@ func SupportedMPLStyleKeys() []string {
 // Only the rcParams returned by SupportedMPLStyleKeys are applied. Unknown keys
 // are reported in the returned report and ignored.
 func ParseMPLStyle(name, src string) (Theme, MPLStyleReport, error) {
-	report := MPLStyleReport{}
-	state := mplStyleState{
-		rc: Default,
+	rc, report, err := parseMPLStyleRC(Default, src)
+	if err != nil {
+		return Theme{}, report, err
 	}
-
-	lines := strings.Split(src, "\n")
-	for i, rawLine := range lines {
-		lineNo := i + 1
-		line := strings.TrimSpace(rawLine)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		key, value, ok := splitMPLStyleLine(rawLine)
-		if !ok {
-			return Theme{}, report, fmt.Errorf("parse .mplstyle line %d: expected key: value", lineNo)
-		}
-
-		normalizedKey := normalizeThemeName(key)
-		if err := applyMPLStyleEntry(&state, normalizedKey, value, lineNo, &report); err != nil {
-			return Theme{}, report, err
-		}
-	}
-
-	finalizeMPLStyleState(&state)
 
 	return Theme{
 		Name: normalizeMPLStyleName(name),
-		RC:   Apply(state.rc),
+		RC:   rc,
 	}, report, nil
 }
 
@@ -145,6 +125,58 @@ func LoadMPLStyleFile(path string) (Theme, MPLStyleReport, error) {
 	base := filepath.Base(path)
 	name := strings.TrimSuffix(base, filepath.Ext(base))
 	return ParseMPLStyle(name, string(data))
+}
+
+func parseMPLStyleRC(base RC, src string) (RC, MPLStyleReport, error) {
+	report := MPLStyleReport{}
+	state := newMPLStyleState(base)
+
+	lines := strings.Split(src, "\n")
+	for i, rawLine := range lines {
+		lineNo := i + 1
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, value, ok := splitMPLStyleLine(rawLine)
+		if !ok {
+			return RC{}, report, fmt.Errorf("parse .mplstyle line %d: expected key: value", lineNo)
+		}
+
+		normalizedKey := normalizeThemeName(key)
+		if err := applyMPLStyleEntry(&state, normalizedKey, value, lineNo, &report); err != nil {
+			return RC{}, report, err
+		}
+	}
+
+	finalizeMPLStyleState(&state)
+	return Apply(state.rc), report, nil
+}
+
+func applyMPLStyleParams(base RC, params Params) (RC, MPLStyleReport, error) {
+	report := MPLStyleReport{}
+	state := newMPLStyleState(base)
+
+	keys := make([]string, 0, len(params))
+	for key := range params {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for i, key := range keys {
+		normalizedKey := normalizeThemeName(key)
+		if err := applyMPLStyleEntry(&state, normalizedKey, params[key], i+1, &report); err != nil {
+			return RC{}, report, err
+		}
+	}
+
+	finalizeMPLStyleState(&state)
+	return Apply(state.rc), report, nil
+}
+
+func newMPLStyleState(base RC) mplStyleState {
+	return mplStyleState{rc: Apply(base)}
 }
 
 func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, report *MPLStyleReport) error {

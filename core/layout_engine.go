@@ -309,7 +309,7 @@ func figureLabelMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine L
 func layoutPadPx(fig *Figure, engine LayoutEngine) float64 {
 	rc := fig.RC
 	if rc.DPI <= 0 {
-		rc = style.Default
+		rc = style.CurrentDefaults()
 	}
 	switch engine {
 	case LayoutEngineConstrained:

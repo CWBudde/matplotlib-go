@@ -275,7 +275,7 @@ type Figure struct {
 
 // NewFigure creates a new figure with pixel dimensions and optional style overrides.
 func NewFigure(w, h int, opts ...style.Option) *Figure {
-	rc := style.Apply(style.Default, opts...)
+	rc := style.Apply(style.CurrentDefaults(), opts...)
 	return &Figure{
 		SizePx:       geom.Pt{X: float64(w), Y: float64(h)},
 		RC:           rc,
@@ -1148,14 +1148,14 @@ func (a *Axes) effectiveRC(f *Figure) style.RC {
 		return a.figure.RC
 	}
 	if f == nil {
-		return style.Default
+		return style.CurrentDefaults()
 	}
 	return f.RC
 }
 
 func (a *Axes) resolvedRC() style.RC {
 	if a == nil {
-		return style.Default
+		return style.CurrentDefaults()
 	}
 	return a.effectiveRC(a.figure)
 }
@@ -1509,7 +1509,7 @@ func yLabelAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Re
 
 func axisLabelPadPx(ctx *DrawContext) float64 {
 	if ctx == nil {
-		return pointsToPixels(style.Default, 4)
+		return pointsToPixels(style.CurrentDefaults(), 4)
 	}
 	return pointsToPixels(ctx.RC, 4)
 }

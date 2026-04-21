@@ -70,7 +70,7 @@ type Legend struct {
 
 // NewLegend creates a legend bound to the provided axes.
 func NewLegend(ax *Axes) *Legend {
-	rc := style.Default
+	rc := style.CurrentDefaults()
 	if ax != nil {
 		rc = ax.resolvedRC()
 	}
@@ -93,7 +93,7 @@ func NewLegend(ax *Axes) *Legend {
 
 // NewFigureLegend creates a legend bound to the provided figure.
 func NewFigureLegend(fig *Figure) *Legend {
-	rc := style.Default
+	rc := style.CurrentDefaults()
 	if fig != nil {
 		rc = fig.RC
 	}

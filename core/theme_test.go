@@ -54,3 +54,28 @@ func TestAddGridAndLegendUseThemeDefaults(t *testing.T) {
 		t.Fatalf("legend text color = %+v, want %+v", legend.TextColor, fig.RC.LegendTextColor)
 	}
 }
+
+func TestNewFigureUsesRuntimeDefaults(t *testing.T) {
+	style.ResetDefaults()
+	t.Cleanup(style.ResetDefaults)
+
+	if _, err := style.UpdateParams(style.Params{
+		"figure.dpi":     "144",
+		"axes.edgecolor": "#224466",
+	}); err != nil {
+		t.Fatalf("UpdateParams() error = %v", err)
+	}
+
+	fig := NewFigure(400, 300)
+	if fig.RC.DPI != 144 {
+		t.Fatalf("figure DPI = %v, want 144", fig.RC.DPI)
+	}
+
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	if got := ax.XAxis.Color; got.R != 0x22/255.0 || got.G != 0x44/255.0 || got.B != 0x66/255.0 {
+		t.Fatalf("axis edge color = %+v", got)
+	}
+}
