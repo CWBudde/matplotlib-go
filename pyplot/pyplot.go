@@ -174,6 +174,11 @@ func ErrorBar(x, y, xErr, yErr []float64, opts ...core.ErrorBarOptions) *core.Er
 	return GCA().ErrorBar(x, y, xErr, yErr, opts...)
 }
 
+// Stem delegates to the current axes.
+func Stem(x, y []float64, opts ...core.StemOptions) *core.StemContainer {
+	return GCA().Stem(x, y, opts...)
+}
+
 // Image delegates to the current axes.
 func Image(data [][]float64, opts ...core.ImageOptions) *core.Image2D {
 	return GCA().Image(data, opts...)
@@ -192,6 +197,16 @@ func PColorMesh(data [][]float64, opts ...core.MeshOptions) *core.QuadMesh {
 // Hist2D delegates to the current axes.
 func Hist2D(x, y []float64, opts ...core.Hist2DOptions) *core.Hist2DResult {
 	return GCA().Hist2D(x, y, opts...)
+}
+
+// Eventplot delegates to the current axes.
+func Eventplot(positions [][]float64, opts ...core.EventPlotOptions) *core.EventCollection {
+	return GCA().Eventplot(positions, opts...)
+}
+
+// Hexbin delegates to the current axes.
+func Hexbin(x, y []float64, opts ...core.HexbinOptions) *core.HexbinCollection {
+	return GCA().Hexbin(x, y, opts...)
 }
 
 // Contour delegates to the current axes.
@@ -252,6 +267,26 @@ func BarbsGrid(x, y []float64, u, v [][]float64, opts ...core.BarbsOptions) *cor
 // Streamplot delegates to the current axes.
 func Streamplot(x, y []float64, u, v [][]float64, opts ...core.StreamplotOptions) *core.StreamplotSet {
 	return GCA().Streamplot(x, y, u, v, opts...)
+}
+
+// Pie delegates to the current axes.
+func Pie(values []float64, opts ...core.PieOptions) *core.PieContainer {
+	return GCA().Pie(values, opts...)
+}
+
+// Violinplot delegates to the current axes.
+func Violinplot(data [][]float64, opts ...core.ViolinOptions) *core.ViolinContainer {
+	return GCA().Violinplot(data, opts...)
+}
+
+// Table delegates to the current axes.
+func Table(opts ...core.TableOptions) *core.Table {
+	return GCA().Table(opts...)
+}
+
+// Sankey returns a builder bound to the current axes.
+func Sankey(opts ...core.SankeyOptions) *core.Sankey {
+	return core.NewSankey(GCA(), opts...)
 }
 
 // Title sets the current axes title.

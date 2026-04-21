@@ -402,13 +402,17 @@ core.SavePNG(fig, r, "output.png")
 
 ### 6.5 Statistical and Specialty Artists
 
-- [ ] `hexbin`
-- [ ] `pie`
-- [ ] `violinplot`
-- [ ] `eventplot`
-- [ ] `stem`
-- [ ] `table`
-- [ ] `sankey`
+- [x] `stem`
+- [x] `eventplot`
+- [x] `hexbin`
+- [x] `pie`
+- [x] `violinplot`
+- [x] `table`
+- [x] `sankey`
+- [x] Stateful `pyplot` wrappers for the Phase 6.5 artists/builders (`Stem`, `Eventplot`, `Hexbin`, `Pie`, `Violinplot`, `Table`, `Sankey`)
+- [x] Focused unit coverage for the new Phase 6.5 artist families and the Sankey builder
+- [x] Combined specialty example: `examples/specialty/main.go`
+- [ ] Golden and Matplotlib-reference parity fixtures for the new specialty artists
 
 ### 6.6 Derived Image and Signal Helpers
 
