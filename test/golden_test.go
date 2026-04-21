@@ -202,6 +202,10 @@ func TestVectorFields_Golden(t *testing.T) {
 	runGoldenTest(t, "vector_fields", renderVectorFields)
 }
 
+func TestPolarAxes_Golden(t *testing.T) {
+	runGoldenTest(t, "polar_axes", renderPolarAxes)
+}
+
 // runGoldenTest is a helper function for golden image testing
 func runGoldenTest(t *testing.T, testName string, renderFunc func() image.Image) {
 	// Render the plot
@@ -2077,6 +2081,54 @@ func renderVectorFields() image.Image {
 	})
 
 	r, err := agg.New(919, 620, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderPolarAxes() image.Image {
+	fig := core.NewFigure(720, 720)
+	ax := fig.AddPolarAxes(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.10},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	ax.SetTitle("Polar Axes")
+	ax.SetXLabel("theta")
+	ax.SetYLabel("radius")
+	ax.YScale = transform.NewLinear(0, 1.1)
+
+	thetaGrid := ax.AddGrid(core.AxisBottom)
+	thetaGrid.Color = render.Color{R: 0.8, G: 0.82, B: 0.86, A: 1}
+	thetaGrid.LineWidth = 0.9
+
+	radiusGrid := ax.AddGrid(core.AxisLeft)
+	radiusGrid.Color = render.Color{R: 0.82, G: 0.84, B: 0.88, A: 0.9}
+	radiusGrid.LineWidth = 0.8
+
+	const n = 720
+	theta := make([]float64, n)
+	radius := make([]float64, n)
+	for i := range n {
+		theta[i] = 2 * math.Pi * float64(i) / float64(n-1)
+		radius[i] = 0.55 + 0.35*math.Cos(5*theta[i])
+	}
+
+	lineColor := render.Color{R: 0.16, G: 0.33, B: 0.73, A: 1}
+	fillColor := render.Color{R: 0.36, G: 0.56, B: 0.92, A: 0.2}
+	lineWidth := 2.2
+
+	ax.Plot(theta, radius, core.PlotOptions{
+		Color:     &lineColor,
+		LineWidth: &lineWidth,
+		Label:     "r = 0.55 + 0.35 cos(5theta)",
+	})
+	ax.FillToBaseline(theta, radius, core.FillOptions{
+		Color: &fillColor,
+	})
+
+	r, err := agg.New(720, 720, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}

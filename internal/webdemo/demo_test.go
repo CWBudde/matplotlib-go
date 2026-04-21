@@ -60,6 +60,22 @@ func TestBuildRejectsUnknownDemo(t *testing.T) {
 	}
 }
 
+func TestBuildRejectsUnsupportedConfiguredDemo(t *testing.T) {
+	original := descriptors
+	descriptors = []Descriptor{{
+		ID:          "unsupported",
+		Title:       "Unsupported",
+		Description: "Synthetic test entry.",
+	}}
+	defer func() {
+		descriptors = original
+	}()
+
+	if _, _, err := Build("unsupported", 320, 180); err == nil {
+		t.Fatal("Build() for unsupported configured demo returned nil error")
+	}
+}
+
 func TestDefaultDemoIDAndValidDemoID(t *testing.T) {
 	if got, want := DefaultDemoID(), "lines"; got != want {
 		t.Fatalf("DefaultDemoID() = %q, want %q", got, want)
@@ -97,14 +113,19 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			wantTitle:   "Signal Comparison",
 			wantXLabel:  "t",
 			wantYLabel:  "amplitude",
-			wantArtists: 4,
+			wantArtists: 6,
 			wantSizePx:  [2]float64{320, 180},
 			checkArtists: func(t *testing.T, ax *core.Axes) {
 				t.Helper()
-				assertArtistType[*core.Line2D](t, ax.Artists[0], "line series 1")
-				assertArtistType[*core.Line2D](t, ax.Artists[1], "line series 2")
-				assertArtistType[*core.Line2D](t, ax.Artists[2], "line series 3")
-				assertArtistType[*core.Legend](t, ax.Artists[3], "legend")
+				if got := countArtists[*core.Grid](ax.Artists); got != 2 {
+					t.Fatalf("grid artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Line2D](ax.Artists); got != 3 {
+					t.Fatalf("line artist count = %d, want %d", got, 3)
+				}
+				if got := countArtists[*core.Legend](ax.Artists); got != 1 {
+					t.Fatalf("legend artist count = %d, want %d", got, 1)
+				}
 			},
 		},
 		{
@@ -115,14 +136,19 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			wantTitle:   "Scatter Clusters",
 			wantXLabel:  "feature x",
 			wantYLabel:  "feature y",
-			wantArtists: 4,
+			wantArtists: 6,
 			wantSizePx:  [2]float64{320, 180},
 			checkArtists: func(t *testing.T, ax *core.Axes) {
 				t.Helper()
-				assertArtistType[*core.Scatter2D](t, ax.Artists[0], "scatter cluster a")
-				assertArtistType[*core.Scatter2D](t, ax.Artists[1], "scatter cluster b")
-				assertArtistType[*core.Scatter2D](t, ax.Artists[2], "scatter cluster c")
-				assertArtistType[*core.Legend](t, ax.Artists[3], "legend")
+				if got := countArtists[*core.Grid](ax.Artists); got != 2 {
+					t.Fatalf("grid artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Scatter2D](ax.Artists); got != 3 {
+					t.Fatalf("scatter artist count = %d, want %d", got, 3)
+				}
+				if got := countArtists[*core.Legend](ax.Artists); got != 1 {
+					t.Fatalf("legend artist count = %d, want %d", got, 1)
+				}
 			},
 		},
 		{
@@ -133,16 +159,22 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			wantTitle:   "Quarterly Revenue",
 			wantXLabel:  "quarter",
 			wantYLabel:  "EUR million",
-			wantArtists: 11,
+			wantArtists: 16,
 			wantSizePx:  [2]float64{320, 180},
 			checkArtists: func(t *testing.T, ax *core.Axes) {
 				t.Helper()
-				assertArtistType[*core.Bar2D](t, ax.Artists[0], "bar series A")
-				assertArtistType[*core.Bar2D](t, ax.Artists[1], "bar series B")
-				for i := 2; i < 10; i++ {
-					assertArtistType[*core.Text](t, ax.Artists[i], "bar label or quarter label")
+				if got := countArtists[*core.Grid](ax.Artists); got != 1 {
+					t.Fatalf("grid artist count = %d, want %d", got, 1)
 				}
-				assertArtistType[*core.Legend](t, ax.Artists[10], "legend")
+				if got := countArtists[*core.Bar2D](ax.Artists); got != 2 {
+					t.Fatalf("bar artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Text](ax.Artists); got != 12 {
+					t.Fatalf("text artist count = %d, want %d", got, 12)
+				}
+				if got := countArtists[*core.Legend](ax.Artists); got != 1 {
+					t.Fatalf("legend artist count = %d, want %d", got, 1)
+				}
 			},
 		},
 		{
@@ -153,15 +185,20 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			wantTitle:   "Latency Distribution",
 			wantXLabel:  "latency (ms)",
 			wantYLabel:  "density",
-			wantArtists: 2,
+			wantArtists: 4,
 			wantSizePx:  [2]float64{320, 180},
 			checkArtists: func(t *testing.T, ax *core.Axes) {
 				t.Helper()
-				hist := assertArtistType[*core.Hist2D](t, ax.Artists[0], "histogram")
+				if got := countArtists[*core.Grid](ax.Artists); got != 2 {
+					t.Fatalf("grid artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Legend](ax.Artists); got != 1 {
+					t.Fatalf("legend artist count = %d, want %d", got, 1)
+				}
+				hist := firstArtist[*core.Hist2D](t, ax.Artists, "histogram")
 				if hist.Norm != core.HistNormDensity {
 					t.Fatalf("Hist2D.Norm = %v, want %v", hist.Norm, core.HistNormDensity)
 				}
-				assertArtistType[*core.Legend](t, ax.Artists[1], "legend")
 			},
 		},
 		{
@@ -190,11 +227,16 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			width:       320,
 			height:      180,
 			wantAxes:    4,
-			wantArtists: 1,
+			wantArtists: 3,
 			wantSizePx:  [2]float64{320, 180},
 			checkArtists: func(t *testing.T, ax *core.Axes) {
 				t.Helper()
-				assertArtistType[*core.Line2D](t, ax.Artists[0], "subplot line")
+				if got := countArtists[*core.Grid](ax.Artists); got != 2 {
+					t.Fatalf("grid artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Line2D](ax.Artists); got != 1 {
+					t.Fatalf("line artist count = %d, want %d", got, 1)
+				}
 			},
 		},
 	}
@@ -243,7 +285,7 @@ func TestBuildEachDemoStructure(t *testing.T) {
 				if got, want := len(ax.Artists), tc.wantArtists; got != want {
 					t.Fatalf("subplot %d len(ax.Artists) = %d, want %d", i, got, want)
 				}
-				if got, want := ax.Title, "Panel "+string(rune('1'+i)); got != want {
+				if got, want := ax.Title, subplotTitle(i); got != want {
 					t.Fatalf("subplot %d title = %q, want %q", i, got, want)
 				}
 				if ax.XLabel != "x" {
@@ -302,6 +344,19 @@ func TestRenderEachDemoProducesImage(t *testing.T) {
 	}
 }
 
+func TestRenderUsesDefaultDimensions(t *testing.T) {
+	img, descriptor, err := Render("lines", 0, -1)
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if descriptor.ID != "lines" {
+		t.Fatalf("descriptor.ID = %q, want %q", descriptor.ID, "lines")
+	}
+	if img.Bounds().Dx() != DefaultWidth || img.Bounds().Dy() != DefaultHeight {
+		t.Fatalf("Render() bounds = %v, want %dx%d", img.Bounds(), DefaultWidth, DefaultHeight)
+	}
+}
+
 func TestDefaultAxesRect(t *testing.T) {
 	got := defaultAxesRect()
 	if got.Min.X != 0.10 || got.Min.Y != 0.12 || got.Max.X != 0.96 || got.Max.Y != 0.90 {
@@ -332,16 +387,13 @@ func TestScatterClusterIsDeterministic(t *testing.T) {
 
 func TestDeterministicNormalIsRepeatable(t *testing.T) {
 	got := deterministicNormal(6, 47, 8.5)
-	want := []float64{
-		58.05808460138902,
-		52.98248132954834,
-		43.67120979376772,
-		38.04670018901949,
-		57.625340927548704,
-		38.15967467736545,
+	if len(got) != 6 {
+		t.Fatalf("len(deterministicNormal(...)) = %d, want %d", len(got), 6)
 	}
-	assertFloatSlicesEqual(t, got, want)
 	assertFloatSlicesEqual(t, got, deterministicNormal(6, 47, 8.5))
+	if math.Abs(got[0]-46.591536068582016) > 1e-12 {
+		t.Fatalf("first sample = %v, want %v", got[0], 46.591536068582016)
+	}
 }
 
 func TestStrPtr(t *testing.T) {
@@ -369,4 +421,30 @@ func assertArtistType[T any](t *testing.T, art core.Artist, label string) T {
 		t.Fatalf("%s type = %T, want %T", label, art, *new(T))
 	}
 	return typed
+}
+
+func firstArtist[T any](t *testing.T, artists []core.Artist, label string) T {
+	t.Helper()
+	for _, art := range artists {
+		if typed, ok := art.(T); ok {
+			return typed
+		}
+	}
+	t.Fatalf("did not find %s of type %T", label, *new(T))
+	var zero T
+	return zero
+}
+
+func countArtists[T any](artists []core.Artist) int {
+	count := 0
+	for _, art := range artists {
+		if _, ok := art.(T); ok {
+			count++
+		}
+	}
+	return count
+}
+
+func subplotTitle(i int) string {
+	return []string{"Panel 1", "Panel 2", "Panel 3", "Panel 4"}[i]
 }

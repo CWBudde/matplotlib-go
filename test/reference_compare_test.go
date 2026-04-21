@@ -57,6 +57,7 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "stem_plot", render: renderStemPlot},
 	{name: "units_overview", render: renderUnitsOverview, minPSNR: 43.5},
 	{name: "vector_fields", render: renderVectorFields, minPSNR: 41.5, maxMeanAbs: 2.8},
+	{name: "polar_axes", render: renderPolarAxes, minPSNR: 32.0, maxMeanAbs: 9.0},
 }
 
 func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {

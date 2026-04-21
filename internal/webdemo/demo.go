@@ -107,7 +107,18 @@ func Render(id string, width, height int) (*image.RGBA, Descriptor, error) {
 		return nil, Descriptor{}, err
 	}
 
-	r := gobasic.New(width, height, render.Color{R: 1, G: 1, B: 1, A: 1})
+	renderWidth := width
+	renderHeight := height
+	if fig != nil {
+		if w := int(fig.SizePx.X); w > 0 {
+			renderWidth = w
+		}
+		if h := int(fig.SizePx.Y); h > 0 {
+			renderHeight = h
+		}
+	}
+
+	r := gobasic.New(renderWidth, renderHeight, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if r == nil {
 		return nil, Descriptor{}, errors.New("webdemo: failed to create gobasic renderer")
 	}
