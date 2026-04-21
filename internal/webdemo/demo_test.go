@@ -9,7 +9,7 @@ import (
 
 func TestCatalogStable(t *testing.T) {
 	got := Catalog()
-	wantIDs := []string{"lines", "scatter", "bars", "histogram", "heatmap", "subplots"}
+	wantIDs := []string{"lines", "scatter", "bars", "fills", "histogram", "errorbars", "heatmap", "patches", "polar", "subplots"}
 	if len(got) != len(wantIDs) {
 		t.Fatalf("Catalog() len = %d, want %d", len(got), len(wantIDs))
 	}
@@ -178,6 +178,32 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			},
 		},
 		{
+			id:          "fills",
+			width:       320,
+			height:      180,
+			wantAxes:    1,
+			wantTitle:   "Filled Signals",
+			wantXLabel:  "t",
+			wantYLabel:  "value",
+			wantArtists: 6,
+			wantSizePx:  [2]float64{320, 180},
+			checkArtists: func(t *testing.T, ax *core.Axes) {
+				t.Helper()
+				if got := countArtists[*core.Grid](ax.Artists); got != 2 {
+					t.Fatalf("grid artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Fill2D](ax.Artists); got != 1 {
+					t.Fatalf("fill artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Line2D](ax.Artists); got != 2 {
+					t.Fatalf("line artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Legend](ax.Artists); got != 1 {
+					t.Fatalf("legend artist count = %d, want %d", got, 1)
+				}
+			},
+		},
+		{
 			id:          "histogram",
 			width:       320,
 			height:      180,
@@ -202,6 +228,35 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			},
 		},
 		{
+			id:          "errorbars",
+			width:       320,
+			height:      180,
+			wantAxes:    1,
+			wantTitle:   "Measured Trend With Error Bars",
+			wantXLabel:  "sample",
+			wantYLabel:  "response",
+			wantArtists: 6,
+			wantSizePx:  [2]float64{320, 180},
+			checkArtists: func(t *testing.T, ax *core.Axes) {
+				t.Helper()
+				if got := countArtists[*core.Grid](ax.Artists); got != 2 {
+					t.Fatalf("grid artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Line2D](ax.Artists); got != 1 {
+					t.Fatalf("line artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Scatter2D](ax.Artists); got != 1 {
+					t.Fatalf("scatter artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.ErrorBar](ax.Artists); got != 1 {
+					t.Fatalf("error bar artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Legend](ax.Artists); got != 1 {
+					t.Fatalf("legend artist count = %d, want %d", got, 1)
+				}
+			},
+		},
+		{
 			id:          "heatmap",
 			width:       320,
 			height:      180,
@@ -219,6 +274,64 @@ func TestBuildEachDemoStructure(t *testing.T) {
 				}
 				if len(img.Data) != 28 || len(img.Data[0]) != 36 {
 					t.Fatalf("Image2D.Data size = %dx%d, want 28x36", len(img.Data), len(img.Data[0]))
+				}
+			},
+		},
+		{
+			id:          "patches",
+			width:       320,
+			height:      180,
+			wantAxes:    1,
+			wantTitle:   "Patch Showcase",
+			wantXLabel:  "x",
+			wantYLabel:  "y",
+			wantArtists: 6,
+			wantSizePx:  [2]float64{320, 180},
+			checkArtists: func(t *testing.T, ax *core.Axes) {
+				t.Helper()
+				if got := countArtists[*core.Rectangle](ax.Artists); got != 1 {
+					t.Fatalf("rectangle artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Circle](ax.Artists); got != 1 {
+					t.Fatalf("circle artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Ellipse](ax.Artists); got != 1 {
+					t.Fatalf("ellipse artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Polygon](ax.Artists); got != 1 {
+					t.Fatalf("polygon artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.FancyArrow](ax.Artists); got != 1 {
+					t.Fatalf("arrow artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Legend](ax.Artists); got != 1 {
+					t.Fatalf("legend artist count = %d, want %d", got, 1)
+				}
+			},
+		},
+		{
+			id:          "polar",
+			width:       320,
+			height:      180,
+			wantAxes:    1,
+			wantTitle:   "Polar Wave",
+			wantXLabel:  "theta",
+			wantYLabel:  "radius",
+			wantArtists: 5,
+			wantSizePx:  [2]float64{320, 180},
+			checkArtists: func(t *testing.T, ax *core.Axes) {
+				t.Helper()
+				if got := countArtists[*core.Grid](ax.Artists); got != 2 {
+					t.Fatalf("grid artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Fill2D](ax.Artists); got != 1 {
+					t.Fatalf("fill artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Line2D](ax.Artists); got != 1 {
+					t.Fatalf("line artist count = %d, want %d", got, 1)
+				}
+				if got := countArtists[*core.Legend](ax.Artists); got != 1 {
+					t.Fatalf("legend artist count = %d, want %d", got, 1)
 				}
 			},
 		},

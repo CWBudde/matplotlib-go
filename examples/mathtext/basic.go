@@ -1,0 +1,67 @@
+package main
+
+import (
+	"fmt"
+	"math"
+
+	"matplotlib-go/backends"
+	_ "matplotlib-go/backends/all"
+	"matplotlib-go/core"
+	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
+)
+
+func main() {
+	fig := core.NewFigure(900, 540)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.10, Y: 0.12},
+		Max: geom.Pt{X: 0.92, Y: 0.88},
+	})
+
+	const n = 200
+	x := make([]float64, n)
+	y := make([]float64, n)
+	for i := 0; i < n; i++ {
+		t := float64(i) / float64(n-1) * 4 * math.Pi
+		x[i] = t
+		y[i] = math.Sin(t) * math.Exp(-0.08*t)
+	}
+
+	ax.Plot(x, y)
+	ax.SetTitle(`MathText $\\alpha^2 + \\beta_i$`)
+	ax.SetXLabel(`phase $\\theta$`)
+	ax.SetYLabel(`amplitude $\\frac{1}{\\sqrt{2}}$`)
+	ax.Text(0.98, 0.92, `$x_{\\mathrm{max}}$`, core.TextOptions{
+		Coords:   core.Coords(core.CoordAxes),
+		HAlign:   core.TextAlignRight,
+		VAlign:   core.TextVAlignTop,
+		FontSize: 12,
+	})
+	ax.Annotate(`$\\Delta y \\approx \\frac{1}{2}$`, 3.2, 0.35, core.AnnotationOptions{
+		OffsetX:  34,
+		OffsetY:  -26,
+		FontSize: 12,
+	})
+	ax.AddAnchoredText("$\\\\omega_n = 2\\\\pi f_n$", core.AnchoredTextOptions{
+		Location: core.LegendUpperLeft,
+		FontSize: 11,
+	})
+
+	r, _, err := backends.NewRendererFromEnv(backends.Config{
+		Width:      900,
+		Height:     540,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        96,
+	}, backends.TextCapabilities)
+	if err != nil {
+		fmt.Printf("error creating renderer: %v\n", err)
+		return
+	}
+
+	if err := core.SavePNG(fig, r, "mathtext_basic.png"); err != nil {
+		fmt.Printf("error saving PNG: %v\n", err)
+		return
+	}
+
+	fmt.Println("saved mathtext_basic.png")
+}

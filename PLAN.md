@@ -352,6 +352,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Embedding/runtime hosts for desktop or web backends
 - [x] Minimal browser runtime host for Go `js/wasm` demos using the GoBasic backend and an HTML canvas bridge
 - [x] Web demo stabilization for browser-hosted WASM callbacks: preserve the runtime on canvas focus/mouse input and fail clearly on stale generated web assets
+- [x] Broaden the WASM web demo gallery with showcase examples for fills, error bars, patches, and polar axes
 
 ### 5.5 Additional Export and Embedding Targets
 
@@ -500,6 +501,7 @@ Current slice landed:
 ### 8.3 MathText and TeX
 
 - [ ] MathText parser/layout
+  Basic milestone complete: inline MathText fallback normalization now covers `$...$` segments, common symbol commands, `\frac`, `\sqrt`, and grouped super/subscripts across the existing text backends.
 - [ ] LaTeX / `usetex` integration
 - [ ] Complex text shaping beyond the current basic glyph flow
 

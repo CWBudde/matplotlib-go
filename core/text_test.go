@@ -15,6 +15,38 @@ func TestNormalizeDisplayText_ReplacesBasicMathTokens(t *testing.T) {
 	}
 }
 
+func TestNormalizeDisplayText_ParsesInlineMath(t *testing.T) {
+	got := normalizeDisplayText(`signal $\\alpha^2 + \\beta_i$ peak`)
+	want := "signal α² + βᵢ peak"
+	if got != want {
+		t.Fatalf("unexpected inline math normalization: got %q want %q", got, want)
+	}
+}
+
+func TestNormalizeDisplayText_FormatsFractionsAndRoots(t *testing.T) {
+	got := normalizeDisplayText(`$\\frac{1}{\\sqrt{2}}$`)
+	want := "1⁄√2"
+	if got != want {
+		t.Fatalf("unexpected fraction/root normalization: got %q want %q", got, want)
+	}
+}
+
+func TestNormalizeDisplayText_HandlesGroupedScripts(t *testing.T) {
+	got := normalizeDisplayText(`$x_{\\mathrm{max}}$`)
+	want := "xₘₐₓ"
+	if got != want {
+		t.Fatalf("unexpected grouped subscript normalization: got %q want %q", got, want)
+	}
+}
+
+func TestNormalizeDisplayText_PreservesUnmatchedDollar(t *testing.T) {
+	got := normalizeDisplayText(`cost is $5`)
+	want := "cost is $5"
+	if got != want {
+		t.Fatalf("unexpected unmatched dollar normalization: got %q want %q", got, want)
+	}
+}
+
 func TestAlignedTextOrigin(t *testing.T) {
 	anchor := geom.Pt{X: 100, Y: 50}
 	metrics := render.TextMetrics{W: 40, Ascent: 8, Descent: 2}
@@ -147,4 +179,37 @@ func TestAxesTextSupportsAxesAndBlendedCoordinates(t *testing.T) {
 	if r.origins[1] != wantBlend {
 		t.Fatalf("blended coords origin = %+v, want %+v", r.origins[1], wantBlend)
 	}
+}
+
+func TestAxesLabelsDrawNormalizedMathText(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.SetTitle(`$\\alpha^2$`)
+	ax.SetXLabel(`phase $\\theta$`)
+	ax.SetYLabel(`amp $\\frac{1}{2}$`)
+
+	var r textRecordingRenderer
+	DrawFigure(fig, &r)
+
+	if !containsTextString(r.texts, "α²") {
+		t.Fatalf("missing normalized title draw: %v", r.texts)
+	}
+	if !containsTextString(r.texts, "phase θ") {
+		t.Fatalf("missing normalized xlabel draw: %v", r.texts)
+	}
+	if !containsTextString(r.texts, "amp 1⁄2") {
+		t.Fatalf("missing normalized ylabel draw: %v", r.texts)
+	}
+}
+
+func containsTextString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
