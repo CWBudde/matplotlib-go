@@ -183,7 +183,8 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 	}
 
 	ctx := newFigureDrawContext(fig, figureRect)
-	labelColor := fig.RC.DefaultTextColor()
+	titleColor := fig.RC.DefaultAxesTitleColor()
+	labelColor := fig.RC.DefaultAxesLabelColor()
 	titleSize := titleFontSize(ctx)
 	labelSize := axisLabelFontSize(ctx)
 	centerX := figureRect.Min.X + figureRect.W()/2
@@ -199,7 +200,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 			fig.SupTitle,
 			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignTop),
 			titleSize,
-			labelColor,
+			titleColor,
 		)
 	}
 

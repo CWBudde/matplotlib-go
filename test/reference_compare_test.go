@@ -51,8 +51,12 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "axes_top_right_inverted", render: renderAxesTopRightInverted},
 	{name: "axes_control_surface", render: renderAxesControlSurface, minPSNR: 35.0, maxMeanAbs: 6.5},
 	{name: "transform_coordinates", render: renderTransformCoordinates, minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "patch_showcase", render: renderPatchShowcase, minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "mesh_contour_tri", render: renderMeshContourTri, minPSNR: 37.5, maxMeanAbs: 7.5},
 	{name: "plot_variants", render: renderPlotVariants, minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "stem_plot", render: renderStemPlot},
 	{name: "units_overview", render: renderUnitsOverview, minPSNR: 43.5},
+	{name: "vector_fields", render: renderVectorFields, minPSNR: 41.5, maxMeanAbs: 2.8},
 }
 
 func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {

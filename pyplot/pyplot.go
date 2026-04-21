@@ -51,16 +51,17 @@ var registry = registryState{
 
 // Figure creates a new current figure using Matplotlib-like default dimensions.
 func Figure(opts ...style.Option) *core.Figure {
-	return FigureSized(DefaultFigureWidth, DefaultFigureHeight, opts...)
+	width, height := style.CurrentDefaults().DefaultFigureSizePx()
+	return FigureSized(width, height, opts...)
 }
 
 // FigureSized creates a new current figure with explicit pixel dimensions.
 func FigureSized(width, height int, opts ...style.Option) *core.Figure {
 	if width <= 0 {
-		width = DefaultFigureWidth
+		width, _ = style.CurrentDefaults().DefaultFigureSizePx()
 	}
 	if height <= 0 {
-		height = DefaultFigureHeight
+		_, height = style.CurrentDefaults().DefaultFigureSizePx()
 	}
 
 	fig := core.NewFigure(width, height, opts...)
@@ -178,6 +179,81 @@ func Image(data [][]float64, opts ...core.ImageOptions) *core.Image2D {
 	return GCA().Image(data, opts...)
 }
 
+// PColor delegates to the current axes.
+func PColor(data [][]float64, opts ...core.MeshOptions) *core.QuadMesh {
+	return GCA().PColor(data, opts...)
+}
+
+// PColorMesh delegates to the current axes.
+func PColorMesh(data [][]float64, opts ...core.MeshOptions) *core.QuadMesh {
+	return GCA().PColorMesh(data, opts...)
+}
+
+// Hist2D delegates to the current axes.
+func Hist2D(x, y []float64, opts ...core.Hist2DOptions) *core.Hist2DResult {
+	return GCA().Hist2D(x, y, opts...)
+}
+
+// Contour delegates to the current axes.
+func Contour(data [][]float64, opts ...core.ContourOptions) *core.ContourSet {
+	return GCA().Contour(data, opts...)
+}
+
+// Contourf delegates to the current axes.
+func Contourf(data [][]float64, opts ...core.ContourOptions) *core.ContourSet {
+	return GCA().Contourf(data, opts...)
+}
+
+// TriPlot delegates to the current axes.
+func TriPlot(tri core.Triangulation, opts ...core.TriPlotOptions) *core.LineCollection {
+	return GCA().TriPlot(tri, opts...)
+}
+
+// TriColor delegates to the current axes.
+func TriColor(tri core.Triangulation, values []float64, opts ...core.TriColorOptions) *core.PolyCollection {
+	return GCA().TriColor(tri, values, opts...)
+}
+
+// TriContour delegates to the current axes.
+func TriContour(tri core.Triangulation, values []float64, opts ...core.ContourOptions) *core.ContourSet {
+	return GCA().TriContour(tri, values, opts...)
+}
+
+// TriContourf delegates to the current axes.
+func TriContourf(tri core.Triangulation, values []float64, opts ...core.ContourOptions) *core.ContourSet {
+	return GCA().TriContourf(tri, values, opts...)
+}
+
+// Quiver delegates to the current axes.
+func Quiver(x, y, u, v []float64, opts ...core.QuiverOptions) *core.Quiver {
+	return GCA().Quiver(x, y, u, v, opts...)
+}
+
+// QuiverGrid delegates to the current axes.
+func QuiverGrid(x, y []float64, u, v [][]float64, opts ...core.QuiverOptions) *core.Quiver {
+	return GCA().QuiverGrid(x, y, u, v, opts...)
+}
+
+// QuiverKey delegates to the current axes.
+func QuiverKey(q *core.Quiver, x, y, u float64, label string, opts ...core.QuiverKeyOptions) *core.QuiverKey {
+	return GCA().QuiverKey(q, x, y, u, label, opts...)
+}
+
+// Barbs delegates to the current axes.
+func Barbs(x, y, u, v []float64, opts ...core.BarbsOptions) *core.Barbs {
+	return GCA().Barbs(x, y, u, v, opts...)
+}
+
+// BarbsGrid delegates to the current axes.
+func BarbsGrid(x, y []float64, u, v [][]float64, opts ...core.BarbsOptions) *core.Barbs {
+	return GCA().BarbsGrid(x, y, u, v, opts...)
+}
+
+// Streamplot delegates to the current axes.
+func Streamplot(x, y []float64, u, v [][]float64, opts ...core.StreamplotOptions) *core.StreamplotSet {
+	return GCA().Streamplot(x, y, u, v, opts...)
+}
+
 // Title sets the current axes title.
 func Title(label string) {
 	GCA().SetTitle(label)
@@ -199,7 +275,7 @@ func Legend() *core.Legend {
 }
 
 // Colorbar adds a figure-level colorbar for the current axes.
-func Colorbar(mappable *core.Image2D, opts ...core.ColorbarOptions) *core.Axes {
+func Colorbar(mappable core.ScalarMappable, opts ...core.ColorbarOptions) *core.Axes {
 	ax := GCA()
 	fig := GCF()
 	if cb := fig.AddColorbar(ax, mappable, opts...); cb != nil {
@@ -421,6 +497,7 @@ func rendererConfig(fig *core.Figure) backends.Config {
 	defaults := style.CurrentDefaults()
 	background := defaults.FigureBackground()
 	dpi := defaults.DPI
+	width, height = defaults.DefaultFigureSizePx()
 
 	if fig != nil {
 		if fig.SizePx.X > 0 {

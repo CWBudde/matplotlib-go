@@ -180,34 +180,58 @@ func normalizeRCEnvPath(path string) string {
 func paramsFromRC(rc RC) Params {
 	params := make(Params, len(supportedMPLStyleKeys))
 
+	params["axes.grid"] = formatMPLBool(rc.GridVisible)
+	params["axes.grid.axis"] = rc.GridAxis
+	params["axes.grid.which"] = rc.GridWhich
 	params["axes.edgecolor"] = formatMPLColor(rc.AxesEdgeColor)
 	params["axes.facecolor"] = formatMPLColor(rc.AxesBackground)
-	params["axes.labelcolor"] = formatMPLColor(rc.DefaultTextColor())
+	params["axes.labelcolor"] = formatMPLColor(rc.DefaultAxesLabelColor())
+	params["axes.labelsize"] = formatMPLFloat(rc.AxisLabelSize())
 	params["axes.linewidth"] = formatMPLPoints(rc.AxisLineWidth, rc.DPI)
 	params["axes.prop_cycle"] = formatMPLColorCycle(rc.Palette())
+	params["axes.titlecolor"] = formatMPLColor(rc.DefaultAxesTitleColor())
+	params["axes.titlesize"] = formatMPLFloat(rc.TitleSize())
 	params["figure.dpi"] = formatMPLFloat(rc.DPI)
 	params["figure.facecolor"] = formatMPLColor(rc.FigureBackground())
+	params["figure.figsize"] = fmt.Sprintf("%s, %s", formatMPLFloat(rc.FigureWidth), formatMPLFloat(rc.FigureHeight))
 	params["font.family"] = rc.FontKey
 	params["font.size"] = formatMPLFloat(rc.FontSize)
 	params["grid.alpha"] = formatMPLFloat(rc.GridColor.A)
 	params["grid.color"] = formatMPLColor(rc.GridColor)
 	params["grid.linewidth"] = formatMPLPoints(rc.GridLineWidth, rc.DPI)
+	params["grid.linestyle"] = formatMPLLineStyle(rc.GridDashes)
 	params["grid.major.color"] = formatMPLColor(rc.GridColor)
+	params["grid.major.linestyle"] = formatMPLLineStyle(rc.GridDashes)
 	params["grid.minor.color"] = formatMPLColor(rc.MinorGridColor)
+	params["grid.minor.linestyle"] = formatMPLLineStyle(rc.MinorGridDashes)
 	params["legend.edgecolor"] = formatMPLColor(rc.LegendBorderColor)
 	params["legend.facecolor"] = formatMPLColor(rc.LegendBackground)
+	params["legend.fontsize"] = formatMPLFloat(rc.LegendSize())
+	params["legend.framealpha"] = formatMPLFloat(rc.LegendFrameAlpha)
+	params["legend.frameon"] = formatMPLBool(rc.LegendFrameOn)
 	params["legend.labelcolor"] = formatMPLColor(rc.LegendTextColor)
 	params["lines.color"] = formatMPLColor(rc.DefaultLineColor())
 	params["lines.linewidth"] = formatMPLPoints(rc.LineWidth, rc.DPI)
 	params["text.color"] = formatMPLColor(rc.DefaultTextColor())
-	params["xtick.color"] = formatMPLColor(rc.AxesEdgeColor)
-	params["ytick.color"] = formatMPLColor(rc.AxesEdgeColor)
+	params["xtick.color"] = formatMPLColor(rc.XTickColor)
+	params["xtick.labelcolor"] = formatMPLColor(rc.XTickColor)
+	params["xtick.labelsize"] = formatMPLFloat(rc.TickLabelSize("x"))
+	params["ytick.color"] = formatMPLColor(rc.YTickColor)
+	params["ytick.labelcolor"] = formatMPLColor(rc.YTickColor)
+	params["ytick.labelsize"] = formatMPLFloat(rc.TickLabelSize("y"))
 
 	return params
 }
 
 func formatMPLFloat(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func formatMPLBool(value bool) string {
+	if value {
+		return "True"
+	}
+	return "False"
 }
 
 func formatMPLPoints(pixels, dpi float64) string {
@@ -231,6 +255,22 @@ func formatMPLColor(color render.Color) string {
 	return fmt.Sprintf("#%02x%02x%02x%02x", r, g, b, a)
 }
 
+func formatMPLLineStyle(dashes []float64) string {
+	switch {
+	case len(dashes) == 0:
+		return "-"
+	case len(dashes) == 2 && almostEqualFloat(dashes[0], 6) && almostEqualFloat(dashes[1], 6):
+		return "--"
+	case len(dashes) == 4 && almostEqualFloat(dashes[0], 6) && almostEqualFloat(dashes[1], 3) &&
+		almostEqualFloat(dashes[2], 1.5) && almostEqualFloat(dashes[3], 3):
+		return "-."
+	case len(dashes) == 2 && almostEqualFloat(dashes[0], 1.2) && almostEqualFloat(dashes[1], 2.4):
+		return ":"
+	default:
+		return "-"
+	}
+}
+
 func formatMPLColorCycle(palette []render.Color) string {
 	if len(palette) == 0 {
 		palette = Default.Palette()
@@ -251,4 +291,12 @@ func colorChannelByte(value float64) uint8 {
 	default:
 		return uint8(value*255 + 0.5)
 	}
+}
+
+func almostEqualFloat(a, b float64) bool {
+	const epsilon = 1e-9
+	if a > b {
+		return a-b < epsilon
+	}
+	return b-a < epsilon
 }

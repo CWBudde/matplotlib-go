@@ -376,6 +376,7 @@ func (f *Figure) AddAxes(r geom.Rect, opts ...style.Option) *Axes {
 		figure:       f,
 	}
 	ax.applyStyleDefaults(effective)
+	ax.addDefaultGrids(effective)
 	f.Children = append(f.Children, ax)
 	return ax
 }
@@ -543,6 +544,8 @@ func (a *Axes) AddGrid(axis AxisSide) *Grid {
 	grid.LineWidth = rc.GridLineWidth
 	grid.MinorColor = rc.MinorGridColor
 	grid.MinorLineWidth = rc.MinorGridLineWidth
+	grid.Dashes = styleCloneDashes(rc.GridDashes)
+	grid.MinorDashes = styleCloneDashes(rc.MinorGridDashes)
 	a.Add(grid)
 	return grid
 }
@@ -1211,24 +1214,66 @@ func (a *Axes) applyStyleDefaults(rc style.RC) {
 		return
 	}
 	if a.XAxis != nil {
-		a.XAxis.Color = rc.AxesEdgeColor
+		a.XAxis.Color = rc.XTickColor
 		a.XAxis.LineWidth = rc.AxisLineWidth
 	}
 	if a.YAxis != nil {
-		a.YAxis.Color = rc.AxesEdgeColor
+		a.YAxis.Color = rc.YTickColor
 		a.YAxis.LineWidth = rc.AxisLineWidth
 	}
 	if a.XAxisTop != nil {
-		a.XAxisTop.Color = rc.AxesEdgeColor
+		a.XAxisTop.Color = rc.XTickColor
 		a.XAxisTop.LineWidth = rc.AxisLineWidth
 	}
 	if a.YAxisRight != nil {
-		a.YAxisRight.Color = rc.AxesEdgeColor
+		a.YAxisRight.Color = rc.YTickColor
 		a.YAxisRight.LineWidth = rc.AxisLineWidth
 	}
 	if a.ColorCycle == nil {
 		a.ColorCycle = color.NewColorCycle(rc.Palette())
 	}
+}
+
+func (a *Axes) addDefaultGrids(rc style.RC) {
+	if a == nil || !rc.GridVisible {
+		return
+	}
+
+	addGrid := func(axis AxisSide) {
+		grid := a.AddGrid(axis)
+		grid.Dashes = styleCloneDashes(rc.GridDashes)
+		grid.MinorDashes = styleCloneDashes(rc.MinorGridDashes)
+		switch strings.ToLower(strings.TrimSpace(rc.GridWhich)) {
+		case "minor":
+			grid.Major = false
+			grid.Minor = true
+		case "both":
+			grid.Major = true
+			grid.Minor = true
+		default:
+			grid.Major = true
+			grid.Minor = false
+		}
+	}
+
+	switch strings.ToLower(strings.TrimSpace(rc.GridAxis)) {
+	case "x":
+		addGrid(AxisBottom)
+	case "y":
+		addGrid(AxisLeft)
+	default:
+		addGrid(AxisBottom)
+		addGrid(AxisLeft)
+	}
+}
+
+func styleCloneDashes(dashes []float64) []float64 {
+	if len(dashes) == 0 {
+		return nil
+	}
+	cloned := make([]float64, len(dashes))
+	copy(cloned, dashes)
+	return cloned
 }
 
 // DrawFigure performs a traversal and draws the figure into the renderer.
@@ -1351,7 +1396,8 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 		return
 	}
 
-	labelColor := ctx.RC.DefaultTextColor()
+	titleColor := ctx.RC.DefaultAxesTitleColor()
+	labelColor := ctx.RC.DefaultAxesLabelColor()
 	titleSize := titleFontSize(ctx)
 	labelSize := axisLabelFontSize(ctx)
 
@@ -1362,7 +1408,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 			ax.Title,
 			alignedSingleLineOrigin(titleAnchorPoint(ax, r, ctx, px, alignment), layout, TextAlignCenter, textLayoutVAlignBaseline),
 			titleSize,
-			labelColor,
+			titleColor,
 		)
 	}
 
@@ -1417,21 +1463,17 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 }
 
 func titleFontSize(ctx *DrawContext) float64 {
-	if ctx == nil || ctx.RC.FontSize <= 0 {
+	if ctx == nil {
 		return 12
 	}
-	return ctx.RC.FontSize
+	return ctx.RC.TitleSize()
 }
 
 func axisLabelFontSize(ctx *DrawContext) float64 {
-	if ctx == nil || ctx.RC.FontSize <= 0 {
+	if ctx == nil {
 		return 8
 	}
-	labelSize := ctx.RC.FontSize * 0.97
-	if labelSize < 8 {
-		return 8
-	}
-	return labelSize
+	return ctx.RC.AxisLabelSize()
 }
 
 func titleAnchorPoint(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, alignment figureTextAlignment) geom.Pt {

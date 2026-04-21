@@ -25,6 +25,7 @@ type Scatter2D struct {
 	Sizes      []float64      // marker sizes (radius in pixels), if nil uses Size
 	Colors     []render.Color // marker colors, if nil uses Color
 	EdgeColors []render.Color // edge colors for marker outlines, if nil uses EdgeColor
+	MarkerPath geom.Path      // optional custom marker path in normalized collection space
 	Size       float64        // default marker size (radius in pixels)
 	Color      render.Color   // default marker color
 	EdgeColor  render.Color   // default edge color for marker outlines
@@ -35,81 +36,14 @@ type Scatter2D struct {
 	z          float64        // z-order
 }
 
+var stemMarkerScale = math.Sqrt(math.Pi)
+
 // Draw renders scatter points by creating filled paths for each marker.
 func (s *Scatter2D) Draw(r render.Renderer, ctx *DrawContext) {
-	if len(s.XY) == 0 {
-		return // nothing to draw
+	if s == nil || len(s.XY) == 0 {
+		return
 	}
-
-	for i, pt := range s.XY {
-		// Transform to pixel coordinates
-		pixelPt := ctx.DataToPixel.Apply(pt)
-
-		// Get size for this point
-		size := s.Size
-		if s.Sizes != nil && i < len(s.Sizes) {
-			size = s.Sizes[i]
-		}
-
-		// Get fill color for this point
-		fillColor := s.Color
-		if s.Colors != nil && i < len(s.Colors) {
-			fillColor = s.Colors[i]
-		}
-
-		// Get edge color for this point
-		edgeColor := s.EdgeColor
-		if s.EdgeColors != nil && i < len(s.EdgeColors) {
-			edgeColor = s.EdgeColors[i]
-		}
-
-		// Apply alpha transparency
-		alpha := s.Alpha
-		if alpha <= 0 {
-			alpha = 1.0 // default to fully opaque
-		}
-		if alpha > 1 {
-			alpha = 1.0 // clamp to maximum opacity
-		}
-
-		// Apply alpha to colors
-		fillColor.A *= alpha
-		edgeColor.A *= alpha
-
-		// Create marker path
-		markerPath := s.createMarkerPath(pixelPt, size)
-		if len(markerPath.C) == 0 {
-			continue // skip invalid markers
-		}
-
-		isLineMarker := s.Marker == MarkerPlus || s.Marker == MarkerCross
-		lineWidth := s.EdgeWidth
-		if isLineMarker && lineWidth <= 0 && ctx != nil && ctx.RC.LineWidth > 0 {
-			lineWidth = ctx.RC.LineWidth
-		}
-
-		// Create paint for marker
-		paint := render.Paint{
-			Fill: fillColor,
-		}
-		if isLineMarker && edgeColor.A <= 0 {
-			edgeColor = fillColor
-		}
-		if isLineMarker {
-			paint.Fill.A = 0
-		}
-
-		// Add stroke if edge width is specified (or for line-only markers)
-		if lineWidth > 0 && edgeColor.A > 0 {
-			paint.Stroke = edgeColor
-			paint.LineWidth = lineWidth
-			paint.LineJoin = render.JoinRound
-			paint.LineCap = render.CapRound
-		}
-
-		// Draw marker
-		r.Path(markerPath, &paint)
-	}
+	s.toPathCollection(ctx).Draw(r, ctx)
 }
 
 // createMarkerPath creates a filled path for the given marker type at the specified position and size.
@@ -117,24 +51,75 @@ func (s *Scatter2D) createMarkerPath(center geom.Pt, radius float64) geom.Path {
 	if radius <= 0 {
 		return geom.Path{}
 	}
+	return scaleAndTranslatePath(s.markerPrototypePath(), radius*stemMarkerScale, center)
+}
 
-	scale := radius * math.Sqrt(math.Pi)
+func (s *Scatter2D) markerPrototypePath() geom.Path {
+	if len(s.MarkerPath.C) > 0 {
+		return s.MarkerPath
+	}
 
 	switch s.Marker {
 	case MarkerCircle:
-		return s.createCirclePath(center, scale)
+		return s.createCirclePath(geom.Pt{}, 1)
 	case MarkerSquare:
-		return s.createSquarePath(center, scale)
+		return s.createSquarePath(geom.Pt{}, 1)
 	case MarkerTriangle:
-		return s.createTrianglePath(center, scale)
+		return s.createTrianglePath(geom.Pt{}, 1)
 	case MarkerDiamond:
-		return s.createDiamondPath(center, scale)
+		return s.createDiamondPath(geom.Pt{}, 1)
 	case MarkerPlus:
-		return s.createPlusPath(center, scale)
+		return s.createPlusPath(geom.Pt{}, 1)
 	case MarkerCross:
-		return s.createCrossPath(center, scale)
+		return s.createCrossPath(geom.Pt{}, 1)
 	default:
-		return s.createCirclePath(center, scale) // default to circle
+		return s.createCirclePath(geom.Pt{}, 1)
+	}
+}
+
+func (s *Scatter2D) toPathCollection(ctx *DrawContext) *PathCollection {
+	alpha := s.Alpha
+	if alpha <= 0 {
+		alpha = 1
+	}
+
+	lineOnly := s.Marker == MarkerPlus || s.Marker == MarkerCross
+	lineWidth := s.EdgeWidth
+	if lineOnly && lineWidth <= 0 && ctx != nil && ctx.RC.LineWidth > 0 {
+		lineWidth = ctx.RC.LineWidth
+	}
+
+	sizes := make([]float64, len(s.XY))
+	for i := range s.XY {
+		size := s.Size
+		if len(s.Sizes) > 0 && i < len(s.Sizes) {
+			size = s.Sizes[i]
+		}
+		sizes[i] = size * stemMarkerScale
+	}
+
+	faceColor := s.Color
+	edgeColor := s.EdgeColor
+	if lineOnly && edgeColor.A <= 0 {
+		edgeColor = faceColor
+	}
+
+	return &PathCollection{
+		Collection: Collection{
+			Label: s.Label,
+			Alpha: alpha,
+			z:     s.z,
+		},
+		Path:          s.markerPrototypePath(),
+		Offsets:       append([]geom.Pt(nil), s.XY...),
+		Sizes:         sizes,
+		PathInDisplay: true,
+		FaceColors:    append([]render.Color(nil), s.Colors...),
+		FaceColor:     faceColor,
+		EdgeColors:    append([]render.Color(nil), s.EdgeColors...),
+		EdgeColor:     edgeColor,
+		EdgeWidth:     lineWidth,
+		LineOnly:      lineOnly,
 	}
 }
 

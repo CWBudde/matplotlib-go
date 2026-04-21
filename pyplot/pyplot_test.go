@@ -9,6 +9,7 @@ import (
 
 	"matplotlib-go/canvas"
 	"matplotlib-go/core"
+	"matplotlib-go/internal/geom"
 	"matplotlib-go/style"
 )
 
@@ -117,6 +118,49 @@ func TestColorbarUsesCurrentAxesAndFigure(t *testing.T) {
 	}
 	if cb.YLabel != "Intensity" {
 		t.Fatalf("colorbar label = %q, want %q", cb.YLabel, "Intensity")
+	}
+}
+
+func TestVectorFieldHelpersDelegateToCurrentAxes(t *testing.T) {
+	resetForTests()
+
+	q := Quiver(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[]float64{1, 0.5},
+		[]float64{0.25, 0.75},
+		core.QuiverOptions{Label: "q"},
+	)
+	if q == nil {
+		t.Fatal("Quiver() returned nil")
+	}
+	key := QuiverKey(q, 0.8, 0.2, 1, "1 unit")
+	if key == nil {
+		t.Fatal("QuiverKey() returned nil")
+	}
+	barbs := Barbs(
+		[]float64{0.5},
+		[]float64{0.5},
+		[]float64{12},
+		[]float64{3},
+	)
+	if barbs == nil {
+		t.Fatal("Barbs() returned nil")
+	}
+	stream := Streamplot(
+		[]float64{0, 1, 2},
+		[]float64{0, 1},
+		[][]float64{{1, 1, 1}, {1, 1, 1}},
+		[][]float64{{0, 0.2, 0.2}, {0, 0.2, 0.2}},
+		core.StreamplotOptions{StartPoints: []geom.Pt{{X: 0.2, Y: 0.4}}},
+	)
+	if stream == nil {
+		t.Fatal("Streamplot() returned nil")
+	}
+
+	ax := GCA()
+	if len(ax.Artists) != 4 {
+		t.Fatalf("len(ax.Artists) = %d, want 4", len(ax.Artists))
 	}
 }
 
@@ -278,6 +322,22 @@ func TestLoadRCFileUpdatesDefaults(t *testing.T) {
 	}
 	if got := Figure().RC.DPI; got != 175 {
 		t.Fatalf("figure DPI = %v, want 175", got)
+	}
+}
+
+func TestFigureUsesConfiguredFigureSize(t *testing.T) {
+	resetForTests()
+
+	if err := RC("figure", style.Params{
+		"dpi":     "120",
+		"figsize": "7.5, 5",
+	}); err != nil {
+		t.Fatalf("RC() error = %v", err)
+	}
+
+	fig := Figure()
+	if fig.SizePx.X != 900 || fig.SizePx.Y != 600 {
+		t.Fatalf("figure size = %.0fx%.0f, want 900x600", fig.SizePx.X, fig.SizePx.Y)
 	}
 }
 

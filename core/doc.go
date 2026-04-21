@@ -8,12 +8,16 @@
 //
 // Artists:
 //   - Line2D: Polyline artist for stroke-only line plots
+//   - Patch family: Rectangle, Circle, Ellipse, Polygon, PathPatch, FancyArrow, FancyBboxPatch
+//   - Collection family: PathCollection, LineCollection, PatchCollection, PolyCollection, QuadMesh, FillBetweenPolyCollection
 //   - BoxPlot2D: Statistical box plot artist with quartiles, whiskers, and fliers
 //   - ErrorBar: Symmetric error bars with optional caps for x/y data uncertainty
+//   - Quiver/Barbs/StreamplotSet: Vector-field and streamline artists
 //
 // Helpers:
 //   - DrawFigure: Traverses and renders a figure with proper z-ordering
 //   - Legend: Renders automatic legend boxes from labeled artists
+//   - BarContainer/ErrorbarContainer/StemContainer: Matplotlib-style grouped plot results
 //   - Subplots: Creates subplot grids with automatic layout
 //   - GridSpec/SubplotSpec/SubFigure: Compose nested figure layouts and subplot spans
 //   - LayoutEngine/SubplotsAdjust: Measured subplot reflow and manual subplot margin control

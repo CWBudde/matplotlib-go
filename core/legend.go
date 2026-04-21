@@ -36,13 +36,21 @@ type legendEntry struct {
 	dashes    []float64
 
 	marker          MarkerType
+	markerPath      geom.Path
 	markerFill      render.Color
 	markerEdge      render.Color
 	markerEdgeWidth float64
 
-	patchFill      render.Color
-	patchEdge      render.Color
-	patchEdgeWidth float64
+	patchFill       render.Color
+	patchEdge       render.Color
+	patchEdgeWidth  float64
+	patchHatch      string
+	patchHatchColor render.Color
+	patchHatchWidth float64
+}
+
+type legendEntryProvider interface {
+	legendEntry() (legendEntry, bool)
 }
 
 // Legend renders a styled legend box inside an axes.
@@ -87,6 +95,7 @@ func NewLegend(ax *Axes) *Legend {
 		BorderColor:     rc.LegendBorderColor,
 		TextColor:       rc.LegendTextColor,
 		BorderWidth:     1,
+		FontSize:        rc.LegendSize(),
 		z:               1_000,
 	}
 }
@@ -110,6 +119,7 @@ func NewFigureLegend(fig *Figure) *Legend {
 		BorderColor:     rc.LegendBorderColor,
 		TextColor:       rc.LegendTextColor,
 		BorderWidth:     1,
+		FontSize:        rc.LegendSize(),
 		z:               1_000,
 	}
 }
@@ -145,7 +155,7 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 
 	fontSize := l.FontSize
 	if fontSize <= 0 {
-		fontSize = ctx.RC.FontSize * 0.92
+		fontSize = ctx.RC.LegendSize()
 	}
 	if fontSize < 8 {
 		fontSize = 8
@@ -242,111 +252,19 @@ func (l *Legend) collectEntries() []legendEntry {
 func collectLegendEntries(artists []Artist) []legendEntry {
 	entries := make([]legendEntry, 0, len(artists))
 	for _, art := range artists {
-		switch v := art.(type) {
+		switch art.(type) {
 		case *Legend:
 			continue
-		case *Line2D:
-			if v.Label == "" {
+		default:
+			provider, ok := art.(legendEntryProvider)
+			if !ok {
 				continue
 			}
-			entries = append(entries, legendEntry{
-				Label:     v.Label,
-				kind:      legendEntryLine,
-				lineColor: v.Col,
-				lineWidth: v.W,
-				dashes:    append([]float64(nil), v.Dashes...),
-			})
-		case *Scatter2D:
-			if v.Label == "" {
+			entry, ok := provider.legendEntry()
+			if !ok {
 				continue
-			}
-			entry := legendEntry{
-				Label:           v.Label,
-				kind:            legendEntryMarker,
-				marker:          v.Marker,
-				markerFill:      v.Color,
-				markerEdge:      v.EdgeColor,
-				markerEdgeWidth: v.EdgeWidth,
-			}
-			if len(v.Colors) > 0 {
-				entry.markerFill = v.Colors[0]
-			}
-			if len(v.EdgeColors) > 0 {
-				entry.markerEdge = v.EdgeColors[0]
 			}
 			entries = append(entries, entry)
-		case *Bar2D:
-			if v.Label == "" {
-				continue
-			}
-			entry := legendEntry{
-				Label:          v.Label,
-				kind:           legendEntryPatch,
-				patchFill:      v.Color,
-				patchEdge:      v.EdgeColor,
-				patchEdgeWidth: v.EdgeWidth,
-			}
-			if len(v.Colors) > 0 {
-				entry.patchFill = v.Colors[0]
-			}
-			if len(v.EdgeColors) > 0 {
-				entry.patchEdge = v.EdgeColors[0]
-			}
-			entries = append(entries, entry)
-		case *Fill2D:
-			if v.Label == "" {
-				continue
-			}
-			entries = append(entries, legendEntry{
-				Label:          v.Label,
-				kind:           legendEntryPatch,
-				patchFill:      v.Color,
-				patchEdge:      v.EdgeColor,
-				patchEdgeWidth: v.EdgeWidth,
-			})
-		case *Hist2D:
-			if v.Label == "" {
-				continue
-			}
-			entries = append(entries, legendEntry{
-				Label:          v.Label,
-				kind:           legendEntryPatch,
-				patchFill:      v.Color,
-				patchEdge:      v.EdgeColor,
-				patchEdgeWidth: v.EdgeWidth,
-			})
-		case *BoxPlot2D:
-			if v.Label == "" {
-				continue
-			}
-			entries = append(entries, legendEntry{
-				Label:          v.Label,
-				kind:           legendEntryPatch,
-				patchFill:      v.Color,
-				patchEdge:      v.EdgeColor,
-				patchEdgeWidth: v.EdgeWidth,
-			})
-		case *Image2D:
-			if v.Label == "" {
-				continue
-			}
-			entries = append(entries, legendEntry{
-				Label:          v.Label,
-				kind:           legendEntryPatch,
-				patchFill:      render.Color{R: 0.45, G: 0.45, B: 0.45, A: 1},
-				patchEdge:      render.Color{R: 0.2, G: 0.2, B: 0.2, A: 0.9},
-				patchEdgeWidth: 1,
-			})
-		case *ErrorBar:
-			if v.Label == "" {
-				continue
-			}
-			entries = append(entries, legendEntry{
-				Label:     v.Label,
-				kind:      legendEntryLine,
-				lineColor: v.Color,
-				lineWidth: v.LineWidth,
-			})
 		}
 	}
 	return entries
@@ -388,19 +306,26 @@ func (l *Legend) drawSample(r render.Renderer, entry legendEntry, sample geom.Re
 			Min: geom.Pt{X: sample.Min.X + 2, Y: center.Y - 5},
 			Max: geom.Pt{X: sample.Max.X - 2, Y: center.Y + 5},
 		}
-		r.Path(pixelRectPath(patchRect), &render.Paint{
-			Fill:      entry.patchFill,
-			Stroke:    entry.patchEdge,
-			LineWidth: entry.patchEdgeWidth,
-			LineJoin:  render.JoinMiter,
-			LineCap:   render.CapButt,
-		})
-	case legendEntryMarker:
-		sampleScatter := Scatter2D{
-			Marker:    entry.marker,
-			EdgeWidth: entry.markerEdgeWidth,
+		patch := Patch{
+			FaceColor:  entry.patchFill,
+			EdgeColor:  entry.patchEdge,
+			EdgeWidth:  entry.patchEdgeWidth,
+			Hatch:      entry.patchHatch,
+			HatchColor: entry.patchHatchColor,
+			HatchWidth: entry.patchHatchWidth,
+			LineJoin:   render.JoinMiter,
+			LineCap:    render.CapButt,
 		}
-		r.Path(sampleScatter.createMarkerPath(center, 5), &render.Paint{
+		patch.drawStyledPath(r, pixelRectPath(patchRect), geom.Path{})
+	case legendEntryMarker:
+		markerPath := entry.markerPath
+		if len(markerPath.C) == 0 {
+			sampleScatter := Scatter2D{Marker: entry.marker}
+			markerPath = sampleScatter.createMarkerPath(center, 5)
+		} else {
+			markerPath = scaleAndTranslatePath(markerPath, 5, center)
+		}
+		r.Path(markerPath, &render.Paint{
 			Fill:      entry.markerFill,
 			Stroke:    entry.markerEdge,
 			LineWidth: entry.markerEdgeWidth,

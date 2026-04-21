@@ -1,14 +1,25 @@
 "use strict";
 
+import {
+  buildAPICompatibilityMessage,
+  buildRuntimeExitMessage,
+  missingAPIMethods,
+} from "./runtime.mjs";
+
 const go = new Go();
 const DEFAULT_WIDTH = 960;
 const DEFAULT_HEIGHT = 540;
 
 let api;
-let canvas;
+let runtimeExited = false;
+let runtimeExitMessage = buildRuntimeExitMessage();
 
 async function init() {
-  canvas = document.getElementById("plotCanvas");
+  const canvas = document.getElementById("plotCanvas");
+  if (!canvas) {
+    updateStatus("Failed to load WASM: canvas element was not found");
+    return;
+  }
 
   try {
     let result;
@@ -24,8 +35,9 @@ async function init() {
       console.warn("instantiateStreaming failed, fell back to ArrayBuffer", streamError);
     }
 
-    go.run(result.instance);
+    monitorRuntime(go.run(result.instance));
     api = await waitForAPI();
+    ensureCompatibleAPI(api);
 
     const demos = api.listDemos();
     populateSelector(demos, api.defaultDemoID());
@@ -49,6 +61,10 @@ function waitForAPI() {
     const startedAt = Date.now();
 
     function poll() {
+      if (runtimeExited) {
+        reject(new Error(runtimeExitMessage));
+        return;
+      }
       if (window.matplotlibGoWASM) {
         resolve(window.matplotlibGoWASM);
         return;
@@ -62,6 +78,28 @@ function waitForAPI() {
 
     poll();
   });
+}
+
+function ensureCompatibleAPI(candidate) {
+  const missingMethods = missingAPIMethods(candidate);
+  if (missingMethods.length > 0) {
+    throw new Error(buildAPICompatibilityMessage(missingMethods));
+  }
+}
+
+function monitorRuntime(runPromise) {
+  Promise.resolve(runPromise)
+    .then(() => {
+      runtimeExited = true;
+      runtimeExitMessage = buildRuntimeExitMessage();
+      updateStatus(runtimeExitMessage);
+    })
+    .catch((error) => {
+      runtimeExited = true;
+      runtimeExitMessage = buildRuntimeExitMessage(error);
+      updateStatus(runtimeExitMessage);
+      console.error(error);
+    });
 }
 
 function populateSelector(demos, selectedID) {
@@ -80,6 +118,11 @@ function populateSelector(demos, selectedID) {
 }
 
 function mountSelectedDemo() {
+  if (runtimeExited) {
+    updateStatus(runtimeExitMessage);
+    return;
+  }
+
   const selector = document.getElementById("demoSelector");
   const demoID = selector.value || api.defaultDemoID();
 

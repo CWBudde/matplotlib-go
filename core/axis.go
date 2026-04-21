@@ -411,7 +411,7 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		return
 	}
 
-	fontSize := tickLabelFontSize(ctx)
+	fontSize := tickLabelFontSize(a, ctx)
 	style = normalizeTickLabelStyle(style)
 	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 
@@ -450,17 +450,17 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 	}
 }
 
-func tickLabelFontSize(ctx *DrawContext) float64 {
-	const mediumOverLarge = 10.0 / 12.0
-
-	fontSize := 12.0
-	if ctx != nil && ctx.RC.FontSize > 0 {
-		fontSize = ctx.RC.FontSize * mediumOverLarge
-	}
-	if fontSize < 8 {
+func tickLabelFontSize(a *Axis, ctx *DrawContext) float64 {
+	if ctx == nil {
 		return 8
 	}
-	return fontSize
+
+	switch {
+	case a != nil && (a.Side == AxisLeft || a.Side == AxisRight):
+		return ctx.RC.TickLabelSize("y")
+	default:
+		return ctx.RC.TickLabelSize("x")
+	}
 }
 
 func tickLabelPadPx(a *Axis, ctx *DrawContext) float64 {
@@ -647,7 +647,7 @@ func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks
 		return geom.Rect{}, false
 	}
 
-	fontSize := tickLabelFontSize(ctx)
+	fontSize := tickLabelFontSize(a, ctx)
 	style = normalizeTickLabelStyle(style)
 	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 

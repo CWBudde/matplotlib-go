@@ -46,27 +46,27 @@ type ImageOptions struct {
 	// and are interpreted in data coordinates.
 	RotationAnchorX *float64
 	RotationAnchorY *float64
-	Label          string
+	Label           string
 }
 
 // Image2D renders scalar matrix data as an image/heatmap.
 type Image2D struct {
-	Data       [][]float64
-	Colormap   string
-	VMin       float64
-	VMax       float64
-	Alpha      float64
-	XMin       float64
-	XMax       float64
-	YMin       float64
-	YMax       float64
-	Origin     ImageOrigin
-	AngleDeg   float64
-	RotateAt   ImageAnchor
-	RotateX    float64
-	RotateY    float64
-	Label      string
-	z          float64
+	Data     [][]float64
+	Colormap string
+	VMin     float64
+	VMax     float64
+	Alpha    float64
+	XMin     float64
+	XMax     float64
+	YMin     float64
+	YMax     float64
+	Origin   ImageOrigin
+	AngleDeg float64
+	RotateAt ImageAnchor
+	RotateX  float64
+	RotateY  float64
+	Label    string
+	z        float64
 }
 
 // Bounds returns the image extent in data space.
@@ -83,6 +83,18 @@ func (i *Image2D) Bounds(*DrawContext) geom.Rect {
 // Z returns z-order.
 func (i *Image2D) Z() float64 {
 	return i.z
+}
+
+// ScalarMap exposes the image's scalar mapping for helpers such as colorbars.
+func (i *Image2D) ScalarMap() ScalarMapInfo {
+	if i == nil {
+		return ScalarMapInfo{}
+	}
+	return ScalarMapInfo{
+		Colormap: i.Colormap,
+		VMin:     i.VMin,
+		VMax:     i.VMax,
+	}
 }
 
 // Image creates an Image2D artist for matrix-like heatmap rendering.

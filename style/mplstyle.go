@@ -31,71 +31,128 @@ type MPLStyleReport struct {
 var supportedMPLStyleKeys = []string{
 	"axes.edgecolor",
 	"axes.facecolor",
+	"axes.grid",
+	"axes.grid.axis",
+	"axes.grid.which",
 	"axes.labelcolor",
+	"axes.labelsize",
 	"axes.linewidth",
 	"axes.prop_cycle",
+	"axes.titlecolor",
+	"axes.titlesize",
 	"figure.dpi",
 	"figure.facecolor",
+	"figure.figsize",
 	"font.family",
 	"font.size",
 	"grid.alpha",
 	"grid.color",
 	"grid.linewidth",
+	"grid.linestyle",
 	"grid.major.color",
+	"grid.major.linestyle",
 	"grid.minor.color",
+	"grid.minor.linestyle",
 	"legend.edgecolor",
 	"legend.facecolor",
+	"legend.framealpha",
+	"legend.frameon",
+	"legend.fontsize",
 	"legend.labelcolor",
 	"lines.color",
 	"lines.linewidth",
 	"text.color",
 	"xtick.color",
+	"xtick.labelcolor",
+	"xtick.labelsize",
 	"ytick.color",
+	"ytick.labelcolor",
+	"ytick.labelsize",
 }
 
 type mplStyleState struct {
 	rc RC
 
+	fontSizeSet bool
+
 	figureFaceValue string
 	figureFaceSet   bool
+	figureWidth     float64
+	figureHeight    float64
+	figureSizeSet   bool
 	textColorValue  string
 	textColorSet    bool
 	lineColorValue  string
 	lineColorSet    bool
 
-	axesFaceValue string
-	axesFaceSet   bool
-	axesEdgeValue string
-	axesEdgeSet   bool
+	axesFaceValue   string
+	axesFaceSet     bool
+	axesEdgeValue   string
+	axesEdgeSet     bool
+	titleColorValue string
+	titleColorSet   bool
+	labelColorValue string
+	labelColorSet   bool
+	xTickColorValue string
+	xTickColorSet   bool
+	yTickColorValue string
+	yTickColorSet   bool
 
 	lineWidthPt      float64
 	lineWidthSet     bool
 	axisLineWidthPt  float64
 	axisLineWidthSet bool
+	titleFontSize    float64
+	titleFontSizeSet bool
+	labelFontSize    float64
+	labelFontSizeSet bool
+	xTickFontSize    float64
+	xTickFontSizeSet bool
+	yTickFontSize    float64
+	yTickFontSizeSet bool
 	gridLineWidthPt  float64
 	gridLineWidthSet bool
 
-	gridColorValue string
-	gridColorSet   bool
-	gridMajorValue string
-	gridMajorSet   bool
-	gridMinorValue string
-	gridMinorSet   bool
-	gridAlpha      float64
-	gridAlphaSet   bool
+	gridColorValue     string
+	gridColorSet       bool
+	gridMajorValue     string
+	gridMajorSet       bool
+	gridMinorValue     string
+	gridMinorSet       bool
+	gridAlpha          float64
+	gridAlphaSet       bool
+	gridVisible        bool
+	gridVisibleSet     bool
+	gridAxis           string
+	gridAxisSet        bool
+	gridWhich          string
+	gridWhichSet       bool
+	gridDashes         []float64
+	gridDashesSet      bool
+	gridMajorDashes    []float64
+	gridMajorDashesSet bool
+	gridMinorDashes    []float64
+	gridMinorDashesSet bool
 
-	legendFaceValue string
-	legendFaceSet   bool
-	legendEdgeValue string
-	legendEdgeSet   bool
-	legendTextValue string
-	legendTextSet   bool
+	legendFaceValue     string
+	legendFaceSet       bool
+	legendEdgeValue     string
+	legendEdgeSet       bool
+	legendTextValue     string
+	legendTextSet       bool
+	legendFontSize      float64
+	legendFontSet       bool
+	legendFrameAlpha    float64
+	legendFrameAlphaSet bool
+	legendFrameOn       bool
+	legendFrameOnSet    bool
 }
 
 // SupportedMPLStyleKeys returns the subset of rcParams understood by the loader.
 func SupportedMPLStyleKeys() []string {
 	keys := make([]string, len(supportedMPLStyleKeys))
 	copy(keys, supportedMPLStyleKeys)
+	sort.Strings(keys)
 	return keys
 }
 
@@ -197,6 +254,14 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.figureFaceValue = normalizeMPLValue(value)
 		state.figureFaceSet = true
+	case "figure.figsize":
+		width, height, err := parseMPLFigureSize(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.figureWidth = width
+		state.figureHeight = height
+		state.figureSizeSet = true
 	case "font.family":
 		parsed, err := parseMPLFontFamily(value)
 		if err != nil {
@@ -204,11 +269,12 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.rc.FontKey = parsed
 	case "font.size":
-		parsed, err := parseMPLFloat(value)
+		parsed, err := parseMPLFontSize(value, state.rc.FontSize)
 		if err != nil {
 			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
 		}
 		state.rc.FontSize = parsed
+		state.fontSizeSet = true
 	case "text.color":
 		if err := validateMPLColorValue(value, state.rc, false); err != nil {
 			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
@@ -234,7 +300,7 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.axesFaceValue = normalizeMPLValue(value)
 		state.axesFaceSet = true
-	case "axes.edgecolor", "xtick.color", "ytick.color":
+	case "axes.edgecolor":
 		if err := validateMPLColorValue(value, state.rc, false); err != nil {
 			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
 		}
@@ -244,8 +310,26 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		if err := validateMPLColorValue(value, state.rc, false); err != nil {
 			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
 		}
-		state.textColorValue = normalizeMPLValue(value)
-		state.textColorSet = true
+		state.labelColorValue = normalizeMPLValue(value)
+		state.labelColorSet = true
+	case "axes.titlecolor":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.titleColorValue = normalizeMPLValue(value)
+		state.titleColorSet = true
+	case "xtick.color", "xtick.labelcolor":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.xTickColorValue = normalizeMPLValue(value)
+		state.xTickColorSet = true
+	case "ytick.color", "ytick.labelcolor":
+		if err := validateMPLColorValue(value, state.rc, false); err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.yTickColorValue = normalizeMPLValue(value)
+		state.yTickColorSet = true
 	case "axes.linewidth":
 		parsed, err := parseMPLFloat(value)
 		if err != nil {
@@ -253,12 +337,47 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.axisLineWidthPt = parsed
 		state.axisLineWidthSet = true
+	case "axes.titlesize":
+		parsed, err := parseMPLFontSize(value, state.rc.FontSize)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.titleFontSize = parsed
+		state.titleFontSizeSet = true
+	case "axes.labelsize":
+		parsed, err := parseMPLFontSize(value, state.rc.FontSize)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.labelFontSize = parsed
+		state.labelFontSizeSet = true
 	case "axes.prop_cycle":
 		parsed, err := parseMPLColorCycle(value, state.rc)
 		if err != nil {
 			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
 		}
 		state.rc.ColorCycle = parsed
+	case "axes.grid":
+		parsed, err := parseMPLBool(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.gridVisible = parsed
+		state.gridVisibleSet = true
+	case "axes.grid.axis":
+		parsed, err := parseMPLGridAxis(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.gridAxis = parsed
+		state.gridAxisSet = true
+	case "axes.grid.which":
+		parsed, err := parseMPLGridWhich(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.gridWhich = parsed
+		state.gridWhichSet = true
 	case "grid.color":
 		if err := validateMPLColorValue(value, state.rc, false); err != nil {
 			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
@@ -291,6 +410,27 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.gridLineWidthPt = parsed
 		state.gridLineWidthSet = true
+	case "grid.linestyle":
+		parsed, err := parseMPLLineStyle(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.gridDashes = parsed
+		state.gridDashesSet = true
+	case "grid.major.linestyle":
+		parsed, err := parseMPLLineStyle(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.gridMajorDashes = parsed
+		state.gridMajorDashesSet = true
+	case "grid.minor.linestyle":
+		parsed, err := parseMPLLineStyle(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.gridMinorDashes = parsed
+		state.gridMinorDashesSet = true
 	case "legend.facecolor":
 		if err := validateMPLColorValue(value, state.rc, true); err != nil {
 			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
@@ -309,6 +449,41 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.legendTextValue = normalizeMPLValue(value)
 		state.legendTextSet = true
+	case "legend.fontsize":
+		parsed, err := parseMPLFontSize(value, state.rc.FontSize)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.legendFontSize = parsed
+		state.legendFontSet = true
+	case "legend.framealpha":
+		parsed, err := parseMPLFloat(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.legendFrameAlpha = parsed
+		state.legendFrameAlphaSet = true
+	case "legend.frameon":
+		parsed, err := parseMPLBool(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.legendFrameOn = parsed
+		state.legendFrameOnSet = true
+	case "xtick.labelsize":
+		parsed, err := parseMPLFontSize(value, state.rc.FontSize)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.xTickFontSize = parsed
+		state.xTickFontSizeSet = true
+	case "ytick.labelsize":
+		parsed, err := parseMPLFontSize(value, state.rc.FontSize)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.yTickFontSize = parsed
+		state.yTickFontSizeSet = true
 	default:
 		report.Unsupported = append(report.Unsupported, MPLStyleIssue{
 			Line:  lineNo,
@@ -332,9 +507,22 @@ func finalizeMPLStyleState(state *mplStyleState) {
 			state.rc.Background = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
 		}
 	}
+	if state.figureSizeSet {
+		state.rc.FigureWidth = state.figureWidth
+		state.rc.FigureHeight = state.figureHeight
+	}
 	if state.textColorSet {
 		if parsed, err := parseMPLColor(state.textColorValue, state.rc); err == nil {
 			state.rc.TextColor = [4]float64{parsed.R, parsed.G, parsed.B, parsed.A}
+			if !state.titleColorSet {
+				state.rc.AxesTitleColor = parsed
+			}
+			if !state.labelColorSet {
+				state.rc.AxesLabelColor = parsed
+			}
+			if !state.legendTextSet {
+				state.rc.LegendTextColor = parsed
+			}
 		}
 	}
 	if state.lineColorSet {
@@ -350,6 +538,32 @@ func finalizeMPLStyleState(state *mplStyleState) {
 	if state.axesEdgeSet {
 		if parsed, err := parseMPLColor(state.axesEdgeValue, state.rc); err == nil {
 			state.rc.AxesEdgeColor = parsed
+			if !state.xTickColorSet {
+				state.rc.XTickColor = parsed
+			}
+			if !state.yTickColorSet {
+				state.rc.YTickColor = parsed
+			}
+		}
+	}
+	if state.titleColorSet {
+		if parsed, err := parseMPLColor(state.titleColorValue, state.rc); err == nil {
+			state.rc.AxesTitleColor = parsed
+		}
+	}
+	if state.labelColorSet {
+		if parsed, err := parseMPLColor(state.labelColorValue, state.rc); err == nil {
+			state.rc.AxesLabelColor = parsed
+		}
+	}
+	if state.xTickColorSet {
+		if parsed, err := parseMPLColor(state.xTickColorValue, state.rc); err == nil {
+			state.rc.XTickColor = parsed
+		}
+	}
+	if state.yTickColorSet {
+		if parsed, err := parseMPLColor(state.yTickColorValue, state.rc); err == nil {
+			state.rc.YTickColor = parsed
 		}
 	}
 
@@ -358,6 +572,30 @@ func finalizeMPLStyleState(state *mplStyleState) {
 	}
 	if state.axisLineWidthSet {
 		state.rc.AxisLineWidth = mplPointsToPixels(state.axisLineWidthPt, state.rc.DPI)
+	}
+	if state.fontSizeSet || state.titleFontSizeSet {
+		state.rc.TitleFontSize = maxFloat(8, state.rc.FontSize)
+	}
+	if state.titleFontSizeSet {
+		state.rc.TitleFontSize = maxFloat(8, state.titleFontSize)
+	}
+	if state.fontSizeSet || state.labelFontSizeSet {
+		state.rc.AxisLabelFontSize = maxFloat(8, state.rc.FontSize*0.97)
+	}
+	if state.labelFontSizeSet {
+		state.rc.AxisLabelFontSize = maxFloat(8, state.labelFontSize)
+	}
+	if state.fontSizeSet || state.xTickFontSizeSet {
+		state.rc.XTickLabelFontSize = maxFloat(8, state.rc.FontSize*10.0/12.0)
+	}
+	if state.xTickFontSizeSet {
+		state.rc.XTickLabelFontSize = maxFloat(8, state.xTickFontSize)
+	}
+	if state.fontSizeSet || state.yTickFontSizeSet {
+		state.rc.YTickLabelFontSize = maxFloat(8, state.rc.FontSize*10.0/12.0)
+	}
+	if state.yTickFontSizeSet {
+		state.rc.YTickLabelFontSize = maxFloat(8, state.yTickFontSize)
 	}
 	if state.gridLineWidthSet {
 		width := mplPointsToPixels(state.gridLineWidthPt, state.rc.DPI)
@@ -389,6 +627,26 @@ func finalizeMPLStyleState(state *mplStyleState) {
 	}
 	state.rc.GridColor = major
 	state.rc.MinorGridColor = minor
+	if state.gridDashesSet {
+		state.rc.GridDashes = cloneDashPattern(state.gridDashes)
+	}
+	if state.gridMajorDashesSet {
+		state.rc.GridDashes = cloneDashPattern(state.gridMajorDashes)
+	}
+	if state.gridMinorDashesSet {
+		state.rc.MinorGridDashes = cloneDashPattern(state.gridMinorDashes)
+	} else if state.gridDashesSet {
+		state.rc.MinorGridDashes = cloneDashPattern(state.gridDashes)
+	}
+	if state.gridVisibleSet {
+		state.rc.GridVisible = state.gridVisible
+	}
+	if state.gridAxisSet {
+		state.rc.GridAxis = state.gridAxis
+	}
+	if state.gridWhichSet {
+		state.rc.GridWhich = state.gridWhich
+	}
 
 	if state.legendFaceSet {
 		state.rc.LegendBackground = resolveMPLSpecialColor(state.legendFaceValue, state.rc, state.rc.AxesBackground)
@@ -398,6 +656,24 @@ func finalizeMPLStyleState(state *mplStyleState) {
 	}
 	if state.legendTextSet {
 		state.rc.LegendTextColor = resolveMPLSpecialColor(state.legendTextValue, state.rc, state.rc.DefaultTextColor())
+	}
+	if state.fontSizeSet || state.legendFontSet {
+		state.rc.LegendFontSize = maxFloat(8, state.rc.FontSize*0.92)
+	}
+	if state.legendFontSet {
+		state.rc.LegendFontSize = maxFloat(8, state.legendFontSize)
+	}
+	if state.legendFrameAlphaSet {
+		state.rc.LegendFrameAlpha = state.legendFrameAlpha
+		state.rc.LegendBackground.A = state.legendFrameAlpha
+		state.rc.LegendBorderColor.A = state.legendFrameAlpha
+	}
+	if state.legendFrameOnSet {
+		state.rc.LegendFrameOn = state.legendFrameOn
+		if !state.legendFrameOn {
+			state.rc.LegendBackground.A = 0
+			state.rc.LegendBorderColor.A = 0
+		}
 	}
 }
 
@@ -457,6 +733,102 @@ func parseMPLFloat(value string) (float64, error) {
 		return 0, fmt.Errorf("invalid float %q", value)
 	}
 	return parsed, nil
+}
+
+func parseMPLBool(value string) (bool, error) {
+	switch strings.ToLower(normalizeMPLValue(value)) {
+	case "1", "true", "yes", "on":
+		return true, nil
+	case "0", "false", "no", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid bool %q", value)
+	}
+}
+
+func parseMPLFigureSize(value string) (float64, float64, error) {
+	normalized := normalizeMPLValue(value)
+	normalized = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(normalized, "]"), "["))
+	normalized = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(normalized, ")"), "("))
+	parts := splitOutsideQuotes(normalized, ',')
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("expected width,height pair, got %q", value)
+	}
+	width, err := parseMPLFloat(parts[0])
+	if err != nil {
+		return 0, 0, err
+	}
+	height, err := parseMPLFloat(parts[1])
+	if err != nil {
+		return 0, 0, err
+	}
+	return width, height, nil
+}
+
+func parseMPLFontSize(value string, base float64) (float64, error) {
+	if parsed, err := parseMPLFloat(value); err == nil {
+		return parsed, nil
+	}
+
+	if base <= 0 {
+		base = Default.FontSize
+	}
+
+	switch strings.ToLower(normalizeMPLValue(value)) {
+	case "xx-small":
+		return base * (6.94 / 12.0), nil
+	case "x-small":
+		return base * (8.33 / 12.0), nil
+	case "small":
+		return base * (10.0 / 12.0), nil
+	case "medium":
+		return base, nil
+	case "large":
+		return base * 1.2, nil
+	case "x-large":
+		return base * 1.44, nil
+	case "xx-large":
+		return base * 1.728, nil
+	case "smaller":
+		return base * (10.0 / 12.0), nil
+	case "larger":
+		return base * 1.2, nil
+	default:
+		return 0, fmt.Errorf("invalid font size %q", value)
+	}
+}
+
+func parseMPLGridAxis(value string) (string, error) {
+	switch strings.ToLower(normalizeMPLValue(value)) {
+	case "both", "x", "y":
+		return strings.ToLower(normalizeMPLValue(value)), nil
+	default:
+		return "", fmt.Errorf("invalid grid axis %q", value)
+	}
+}
+
+func parseMPLGridWhich(value string) (string, error) {
+	switch strings.ToLower(normalizeMPLValue(value)) {
+	case "major", "minor", "both":
+		return strings.ToLower(normalizeMPLValue(value)), nil
+	default:
+		return "", fmt.Errorf("invalid grid which %q", value)
+	}
+}
+
+func parseMPLLineStyle(value string) ([]float64, error) {
+	switch strings.ToLower(normalizeMPLValue(value)) {
+	case "", "-", "solid":
+		return nil, nil
+	case "--", "dashed":
+		return []float64{6, 6}, nil
+	case "-.", "dashdot":
+		return []float64{6, 3, 1.5, 3}, nil
+	case ":", "dotted":
+		return []float64{1.2, 2.4}, nil
+	default:
+		return nil, fmt.Errorf("unsupported line style %q", value)
+	}
 }
 
 func parseMPLFontFamily(value string) (string, error) {
@@ -726,6 +1098,15 @@ func resolveMPLSpecialColor(value string, rc RC, inherited render.Color) render.
 		}
 		return parsed
 	}
+}
+
+func cloneDashPattern(dashes []float64) []float64 {
+	if len(dashes) == 0 {
+		return nil
+	}
+	cloned := make([]float64, len(dashes))
+	copy(cloned, dashes)
+	return cloned
 }
 
 func mplPointsToPixels(points, dpi float64) float64 {

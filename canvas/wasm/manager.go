@@ -315,7 +315,7 @@ func (c *figureCanvas) focus() {
 		return
 	}
 	if focus := c.element.Get("focus"); focus.Type() == js.TypeFunction {
-		focus.Invoke()
+		c.element.Call("focus")
 	}
 }
 

@@ -79,3 +79,30 @@ func TestNewFigureUsesRuntimeDefaults(t *testing.T) {
 		t.Fatalf("axis edge color = %+v", got)
 	}
 }
+
+func TestAddAxesAppliesDefaultGridConfiguration(t *testing.T) {
+	fig := NewFigure(400, 300)
+	fig.RC.GridVisible = true
+	fig.RC.GridAxis = "y"
+	fig.RC.GridWhich = "both"
+	fig.RC.GridDashes = []float64{6, 6}
+	fig.RC.MinorGridDashes = []float64{1.2, 2.4}
+
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	if len(ax.Artists) != 1 {
+		t.Fatalf("expected one default grid artist, got %d", len(ax.Artists))
+	}
+	grid, ok := ax.Artists[0].(*Grid)
+	if !ok {
+		t.Fatalf("expected first artist to be Grid, got %T", ax.Artists[0])
+	}
+	if grid.Axis != AxisLeft || !grid.Major || !grid.Minor {
+		t.Fatalf("unexpected grid configuration: axis=%v major=%v minor=%v", grid.Axis, grid.Major, grid.Minor)
+	}
+	if len(grid.Dashes) != 2 || len(grid.MinorDashes) != 2 {
+		t.Fatalf("expected default grid dash styles, got major=%v minor=%v", grid.Dashes, grid.MinorDashes)
+	}
+}

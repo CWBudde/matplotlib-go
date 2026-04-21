@@ -28,8 +28,8 @@ type Colorbar struct {
 }
 
 // AddColorbar creates a dedicated axes to the right of a plot and populates it
-// with a colorbar derived from an image artist.
-func (f *Figure) AddColorbar(parent *Axes, mappable *Image2D, opts ...ColorbarOptions) *Axes {
+// with a colorbar derived from a scalar-mappable artist.
+func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...ColorbarOptions) *Axes {
 	if f == nil || parent == nil || mappable == nil {
 		return nil
 	}
@@ -48,15 +48,16 @@ func (f *Figure) AddColorbar(parent *Axes, mappable *Image2D, opts ...ColorbarOp
 		}
 	}
 
-	cmap := mappable.Colormap
+	mapping := mappable.ScalarMap().Resolved()
+	cmap := mapping.Colormap
 	if cfg.Colormap != nil && *cfg.Colormap != "" {
 		cmap = *cfg.Colormap
 	}
-	vmin := mappable.VMin
+	vmin := mapping.VMin
 	if cfg.VMin != nil {
 		vmin = *cfg.VMin
 	}
-	vmax := mappable.VMax
+	vmax := mapping.VMax
 	if cfg.VMax != nil {
 		vmax = *cfg.VMax
 	}

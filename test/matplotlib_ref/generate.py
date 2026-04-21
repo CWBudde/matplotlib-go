@@ -25,6 +25,9 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import matplotlib.path as mpath
+import matplotlib.tri as mtri
 
 DPI = 100
 W_PX, H_PX = 640, 360
@@ -961,6 +964,301 @@ def units_overview(out_dir):
     save(fig, out_dir, "units_overview")
 
 
+def patch_showcase(out_dir):
+    fig = make_fig_px(930, 340)
+
+    left = fig.add_axes(go_rect(0.05, 0.16, 0.31, 0.88))
+    left.set_title("Patch Primitives")
+    left.set_xlim(0, 6)
+    left.set_ylim(0, 4)
+    left.add_patch(mpatches.Rectangle(
+        (0.6, 0.7), 1.5, 1.0,
+        facecolor=(0.95, 0.70, 0.23, 0.86),
+        edgecolor=(0.48, 0.27, 0.08, 1.0),
+        linewidth=lw(1.1),
+        hatch="/",
+    ))
+    left.add_patch(mpatches.Circle(
+        (3.0, 1.25), 0.56,
+        facecolor=(0.22, 0.57, 0.82, 0.82),
+        edgecolor=(0.11, 0.29, 0.44, 1.0),
+        linewidth=lw(1.0),
+    ))
+    left.add_patch(mpatches.Ellipse(
+        (4.8, 2.75), 1.55, 0.95, angle=28,
+        facecolor=(0.23, 0.72, 0.51, 0.80),
+        edgecolor=(0.10, 0.36, 0.24, 1.0),
+        linewidth=lw(1.0),
+    ))
+    left.add_patch(mpatches.Polygon(
+        [[2.15, 3.2], [2.85, 2.25], [1.35, 2.45]],
+        closed=True,
+        facecolor=(0.84, 0.34, 0.34, 0.82),
+        edgecolor=(0.48, 0.14, 0.14, 1.0),
+        linewidth=lw(1.0),
+    ))
+
+    middle = fig.add_axes(go_rect(0.37, 0.16, 0.63, 0.88))
+    middle.set_title("Fancy Arrow + Path")
+    middle.set_xlim(0, 6)
+    middle.set_ylim(0, 4)
+    middle.add_patch(mpatches.FancyArrow(
+        0.9, 3.2, 2.2, -1.0,
+        width=0.18,
+        head_width=0.62,
+        head_length=0.62,
+        facecolor=(0.91, 0.42, 0.22, 0.88),
+        edgecolor=(0.58, 0.22, 0.10, 1.0),
+        linewidth=lw(1.0),
+        length_includes_head=True,
+    ))
+    star_vertices = [
+        (4.15, 0.95), (4.45, 1.70), (5.22, 1.75), (4.63, 2.22), (4.84, 2.96),
+        (4.15, 2.54), (3.46, 2.96), (3.67, 2.22), (3.08, 1.75), (3.85, 1.70), (4.15, 0.95),
+    ]
+    star_codes = [mpath.Path.MOVETO] + [mpath.Path.LINETO] * 9 + [mpath.Path.CLOSEPOLY]
+    middle.add_patch(mpatches.PathPatch(
+        mpath.Path(star_vertices, star_codes),
+        facecolor=(0.76, 0.76, 0.86, 0.72),
+        edgecolor=(0.29, 0.29, 0.45, 1.0),
+        linewidth=lw(1.0),
+        hatch="x",
+    ))
+
+    right = fig.add_axes(go_rect(0.69, 0.16, 0.95, 0.88))
+    right.set_title("Fancy Boxes")
+    right.set_xlim(0, 6)
+    right.set_ylim(0, 4)
+    right.add_patch(mpatches.FancyBboxPatch(
+        (0.9, 0.8), 2.1, 1.25,
+        boxstyle="round,pad=0.14,rounding_size=0.24",
+        facecolor=(0.29, 0.67, 0.78, 0.28),
+        edgecolor=(0.10, 0.37, 0.45, 1.0),
+        linewidth=lw(1.0),
+        hatch="/",
+    ))
+    right.add_patch(mpatches.FancyBboxPatch(
+        (3.35, 1.55), 1.65, 1.05,
+        boxstyle="square,pad=0.10",
+        facecolor=(0.96, 0.87, 0.60, 0.82),
+        edgecolor=(0.50, 0.39, 0.12, 1.0),
+        linewidth=lw(1.0),
+    ))
+
+    save(fig, out_dir, "patch_showcase")
+
+
+def mesh_contour_tri(out_dir):
+    fig = make_fig_px(980, 620)
+    axes = {
+        "mesh": fig.add_axes(go_rect(0.07, 0.57, 0.46, 0.93)),
+        "contour": fig.add_axes(go_rect(0.57, 0.57, 0.96, 0.93)),
+        "hist2d": fig.add_axes(go_rect(0.07, 0.10, 0.46, 0.46)),
+        "tri": fig.add_axes(go_rect(0.57, 0.10, 0.96, 0.46)),
+    }
+
+    mesh_ax = axes["mesh"]
+    mesh_ax.set_title("PColorMesh")
+    mesh_ax.set_xlim(0, 4)
+    mesh_ax.set_ylim(0, 3)
+    data = np.array([
+        [0.2, 0.6, 0.3, 0.9],
+        [0.4, 0.8, 0.5, 0.7],
+        [0.1, 0.3, 0.9, 0.6],
+    ])
+    xedges = np.array([0, 1, 2, 3, 4], dtype=float)
+    yedges = np.array([0, 1, 2, 3], dtype=float)
+    mesh_ax.pcolormesh(
+        xedges, yedges, data,
+        shading="flat",
+        edgecolors=[(0.95, 0.95, 0.95, 1.0)],
+        linewidth=lw(0.8),
+    )
+
+    contour_ax = axes["contour"]
+    contour_ax.set_title("Contour + Contourf")
+    contour_ax.set_xlim(0, 4)
+    contour_ax.set_ylim(0, 4)
+    contour_data = np.array([
+        [0.0, 0.4, 0.8, 0.4, 0.0],
+        [0.2, 0.8, 1.3, 0.8, 0.2],
+        [0.3, 1.0, 1.7, 1.0, 0.3],
+        [0.2, 0.8, 1.3, 0.8, 0.2],
+        [0.0, 0.4, 0.8, 0.4, 0.0],
+    ])
+    xx = np.arange(5, dtype=float)
+    yy = np.arange(5, dtype=float)
+    contour_levels = [0.2, 0.6, 1.0, 1.4, 1.8]
+    contour_ax.contourf(xx, yy, contour_data, levels=contour_levels)
+    lines = contour_ax.contour(
+        xx, yy, contour_data,
+        levels=[0.4, 0.8, 1.2, 1.6],
+        colors=[(0.18, 0.18, 0.18, 1.0)],
+        linewidths=lw(1.0),
+    )
+    contour_ax.clabel(lines, fmt="%g", fontsize=10)
+
+    hist_ax = axes["hist2d"]
+    hist_ax.set_title("Hist2D")
+    hist_ax.set_xlim(0, 4)
+    hist_ax.set_ylim(0, 4)
+    hx = [0.4, 0.7, 1.1, 1.4, 1.8, 2.1, 2.3, 2.6, 2.9, 3.2, 3.4, 3.6]
+    hy = [0.6, 1.0, 1.2, 1.6, 1.4, 2.0, 2.3, 2.1, 2.8, 3.0, 3.2, 3.4]
+    hist_ax.hist2d(
+        hx, hy,
+        bins=[np.array([0, 1, 2, 3, 4], dtype=float), np.array([0, 1, 2, 3, 4], dtype=float)],
+        edgecolor=(0.95, 0.95, 0.95, 1.0),
+        linewidth=lw(0.8),
+    )
+
+    tri_ax = axes["tri"]
+    tri_ax.set_title("Triangulation")
+    tri_ax.set_xlim(0, 4)
+    tri_ax.set_ylim(0, 4)
+    tx = np.array([0.4, 1.6, 3.0, 0.8, 2.1, 3.5], dtype=float)
+    ty = np.array([0.5, 0.4, 0.7, 2.2, 2.8, 2.1], dtype=float)
+    tri = mtri.Triangulation(tx, ty, triangles=[[0, 1, 3], [1, 4, 3], [1, 2, 4], [2, 5, 4]])
+    values = np.array([0.2, 0.8, 1.0, 1.5, 1.1, 0.6], dtype=float)
+    tri_ax.tripcolor(tri, values, shading="flat")
+    tri_ax.triplot(tri, color=(0.15, 0.15, 0.15), linewidth=lw(1.0))
+    tri_ax.tricontour(tri, values, levels=[0.7, 1.1], colors=[(0.98, 0.98, 0.98, 1.0)], linewidths=lw(1.0))
+
+    save(fig, out_dir, "mesh_contour_tri")
+
+
+def stem_plot(out_dir):
+    fig = make_fig_px(720, 420)
+    ax = fig.add_axes(go_rect(0.10, 0.16, 0.94, 0.86))
+    ax.set_title("Stem")
+    ax.set_xlabel("Sample")
+    ax.set_ylabel("Amplitude")
+    ax.set_xlim(0.5, 7.5)
+    ax.set_ylim(-0.2, 4.2)
+    ax.grid(True, axis="y", color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    ax.set_axisbelow(True)
+    markerline, stemlines, baseline = ax.stem(
+        [1, 2, 3, 4, 5, 6, 7],
+        [0.9, 2.2, 1.6, 3.3, 2.4, 3.7, 2.1],
+        basefmt="-",
+        bottom=0.3,
+    )
+    stem_color = (0.15, 0.42, 0.73)
+    plt.setp(stemlines, color=stem_color, linewidth=lw(1.5))
+    plt.setp(markerline, color=stem_color, markerfacecolor=stem_color, markeredgecolor=stem_color, markersize=7)
+    plt.setp(baseline, color=(0.32, 0.32, 0.32), linewidth=lw(1.5))
+
+    save(fig, out_dir, "stem_plot")
+
+
+def vector_fields(out_dir):
+    fig = make_fig_px(919, 620)
+    axes = {
+        "quiver": fig.add_axes(go_rect(0.07, 0.58, 0.47, 0.92)),
+        "barbs": fig.add_axes(go_rect(0.57, 0.58, 0.97, 0.92)),
+        "stream": fig.add_axes(go_rect(0.07, 0.10, 0.47, 0.44)),
+        "xy": fig.add_axes(go_rect(0.57, 0.10, 0.97, 0.44)),
+    }
+
+    quiver_ax = axes["quiver"]
+    quiver_ax.set_title("Quiver + Key")
+    quiver_ax.set_xlim(0, 6)
+    quiver_ax.set_ylim(0, 5)
+    quiver_ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    quiver_ax.set_axisbelow(True)
+    qx, qy, qu, qv = [], [], [], []
+    for row in range(4):
+        for col in range(5):
+            x = 0.8 + col * 1.0
+            y = 0.8 + row * 0.95
+            qx.append(x)
+            qy.append(y)
+            qu.append(0.55 + 0.08 * math.sin(y * 0.9))
+            qv.append(0.22 * math.cos(x * 0.8))
+    q = quiver_ax.quiver(
+        qx, qy, qu, qv,
+        color=(0.14, 0.42, 0.73),
+        scale=10.0,
+        scale_units="width",
+        units="dots",
+        width=2.2,
+    )
+    quiver_ax.quiverkey(q, 0.78, 0.12, 0.5, "0.5", coordinates="axes", labelpos="E")
+
+    barb_ax = axes["barbs"]
+    barb_ax.set_title("Barbs")
+    barb_ax.set_xlim(0, 6)
+    barb_ax.set_ylim(0, 5)
+    barb_ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    barb_ax.set_axisbelow(True)
+    bx, by, bu, bv = [], [], [], []
+    for row in range(4):
+        for col in range(5):
+            x = 0.9 + col * 0.95
+            y = 0.8 + row * 0.95
+            bx.append(x)
+            by.append(y)
+            bu.append(14 + 5 * math.sin(y * 0.8))
+            bv.append(8 * math.cos(x * 0.7))
+    barb_ax.barbs(
+        bx, by, bu, bv,
+        barbcolor=(0.47, 0.23, 0.12),
+        flagcolor=(0.86, 0.52, 0.24),
+        length=6.0,
+        linewidth=lw(1.0),
+    )
+
+    stream_ax = axes["stream"]
+    stream_ax.set_title("Streamplot")
+    stream_ax.set_xlim(0, 6)
+    stream_ax.set_ylim(0, 5)
+    stream_ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    stream_ax.set_axisbelow(True)
+    sx = np.array([0, 1, 2, 3, 4, 5, 6], dtype=float)
+    sy = np.array([0, 1, 2, 3, 4, 5], dtype=float)
+    su = np.zeros((len(sy), len(sx)))
+    sv = np.zeros((len(sy), len(sx)))
+    for yi, y in enumerate(sy):
+        for xi, x in enumerate(sx):
+            su[yi, xi] = 1.0 + 0.12 * math.cos(y * 0.7)
+            sv[yi, xi] = 0.35 * math.sin((x - 3) * 0.8) - 0.10 * (y - 2.5)
+    stream_ax.streamplot(
+        sx, sy, su, sv,
+        start_points=np.array([[0.4, 0.8], [0.4, 2.2], [0.4, 3.6]], dtype=float),
+        broken_streamlines=False,
+        integration_direction="forward",
+        color=(0.13, 0.53, 0.39),
+        linewidth=lw(1.5),
+        arrowsize=1.0,
+    )
+
+    xy_ax = axes["xy"]
+    xy_ax.set_title("Quiver XY")
+    xy_ax.set_xlim(0, 6)
+    xy_ax.set_ylim(0, 5)
+    xy_ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    xy_ax.set_axisbelow(True)
+    xg = np.array([0.8, 1.8, 2.8, 3.8, 4.8], dtype=float)
+    yg = np.array([0.8, 1.8, 2.8, 3.8], dtype=float)
+    ugu = np.zeros((len(yg), len(xg)))
+    ugv = np.zeros((len(yg), len(xg)))
+    for yi, y in enumerate(yg):
+        for xi, x in enumerate(xg):
+            ugu[yi, xi] = -(y - 2.4) * 0.35
+            ugv[yi, xi] = (x - 2.8) * 0.35
+    xy_ax.quiver(
+        xg, yg, ugu, ugv,
+        color=(0.74, 0.23, 0.27),
+        pivot="middle",
+        angles="xy",
+        scale=9.0,
+        scale_units="width",
+        units="dots",
+        width=1.9,
+    )
+
+    save(fig, out_dir, "vector_fields")
+
+
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 ALL_PLOTS = [
@@ -978,8 +1276,12 @@ ALL_PLOTS = [
     axes_top_right_inverted,
     axes_control_surface,
     transform_coordinates,
+    patch_showcase,
+    mesh_contour_tri,
     plot_variants,
+    stem_plot,
     units_overview,
+    vector_fields,
 ]
 
 

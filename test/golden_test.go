@@ -182,6 +182,26 @@ func TestUnitsOverview_Golden(t *testing.T) {
 	runGoldenTest(t, "units_overview", renderUnitsOverview)
 }
 
+func TestPatchShowcase_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "patch_showcase", renderPatchShowcase)
+}
+
+func TestMeshContourTri_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mesh_contour_tri", renderMeshContourTri)
+}
+
+func TestStemPlot_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "stem_plot", renderStemPlot)
+}
+
+func TestVectorFields_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "vector_fields", renderVectorFields)
+}
+
 // runGoldenTest is a helper function for golden image testing
 func runGoldenTest(t *testing.T, testName string, renderFunc func() image.Image) {
 	// Render the plot
@@ -1673,6 +1693,390 @@ func renderUnitsOverview() image.Image {
 	unitAx.AutoScale(0.08)
 
 	r, err := agg.New(1200, 420, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderPatchShowcase() image.Image {
+	fig := core.NewFigure(930, 340)
+
+	left := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.05, Y: 0.16}, Max: geom.Pt{X: 0.31, Y: 0.88}})
+	left.SetTitle("Patch Primitives")
+	left.SetXLim(0, 6)
+	left.SetYLim(0, 4)
+	left.AddPatch(&core.Rectangle{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.95, G: 0.70, B: 0.23, A: 0.86},
+			EdgeColor: render.Color{R: 0.48, G: 0.27, B: 0.08, A: 1},
+			EdgeWidth: 1.1,
+			Hatch:     "/",
+		},
+		XY:     geom.Pt{X: 0.6, Y: 0.7},
+		Width:  1.5,
+		Height: 1.0,
+	})
+	left.AddPatch(&core.Circle{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.22, G: 0.57, B: 0.82, A: 0.82},
+			EdgeColor: render.Color{R: 0.11, G: 0.29, B: 0.44, A: 1},
+			EdgeWidth: 1.0,
+		},
+		Center: geom.Pt{X: 3.0, Y: 1.25},
+		Radius: 0.56,
+	})
+	left.AddPatch(&core.Ellipse{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.23, G: 0.72, B: 0.51, A: 0.80},
+			EdgeColor: render.Color{R: 0.10, G: 0.36, B: 0.24, A: 1},
+			EdgeWidth: 1.0,
+		},
+		Center: geom.Pt{X: 4.8, Y: 2.75},
+		Width:  1.55,
+		Height: 0.95,
+		Angle:  28,
+	})
+	left.AddPatch(&core.Polygon{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.84, G: 0.34, B: 0.34, A: 0.82},
+			EdgeColor: render.Color{R: 0.48, G: 0.14, B: 0.14, A: 1},
+			EdgeWidth: 1.0,
+		},
+		XY: []geom.Pt{
+			{X: 2.15, Y: 3.2},
+			{X: 2.85, Y: 2.25},
+			{X: 1.35, Y: 2.45},
+		},
+	})
+
+	middle := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.37, Y: 0.16}, Max: geom.Pt{X: 0.63, Y: 0.88}})
+	middle.SetTitle("Fancy Arrow + Path")
+	middle.SetXLim(0, 6)
+	middle.SetYLim(0, 4)
+	middle.AddPatch(&core.FancyArrow{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.91, G: 0.42, B: 0.22, A: 0.88},
+			EdgeColor: render.Color{R: 0.58, G: 0.22, B: 0.10, A: 1},
+			EdgeWidth: 1.0,
+		},
+		XY:         geom.Pt{X: 0.9, Y: 3.2},
+		DX:         2.2,
+		DY:         -1.0,
+		Width:      0.18,
+		HeadWidth:  0.62,
+		HeadLength: 0.62,
+	})
+	star := geom.Path{}
+	star.MoveTo(geom.Pt{X: 4.15, Y: 0.95})
+	star.LineTo(geom.Pt{X: 4.45, Y: 1.70})
+	star.LineTo(geom.Pt{X: 5.22, Y: 1.75})
+	star.LineTo(geom.Pt{X: 4.63, Y: 2.22})
+	star.LineTo(geom.Pt{X: 4.84, Y: 2.96})
+	star.LineTo(geom.Pt{X: 4.15, Y: 2.54})
+	star.LineTo(geom.Pt{X: 3.46, Y: 2.96})
+	star.LineTo(geom.Pt{X: 3.67, Y: 2.22})
+	star.LineTo(geom.Pt{X: 3.08, Y: 1.75})
+	star.LineTo(geom.Pt{X: 3.85, Y: 1.70})
+	star.Close()
+	middle.AddPatch(&core.PathPatch{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.76, G: 0.76, B: 0.86, A: 0.72},
+			EdgeColor: render.Color{R: 0.29, G: 0.29, B: 0.45, A: 1},
+			EdgeWidth: 1.0,
+			Hatch:     "x",
+		},
+		Path: star,
+	})
+
+	right := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.69, Y: 0.16}, Max: geom.Pt{X: 0.95, Y: 0.88}})
+	right.SetTitle("Fancy Boxes")
+	right.SetXLim(0, 6)
+	right.SetYLim(0, 4)
+	right.AddPatch(&core.FancyBboxPatch{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.29, G: 0.67, B: 0.78, A: 0.28},
+			EdgeColor: render.Color{R: 0.10, G: 0.37, B: 0.45, A: 1},
+			EdgeWidth: 1.0,
+			Hatch:     "/",
+		},
+		XY:           geom.Pt{X: 0.9, Y: 0.8},
+		Width:        2.1,
+		Height:       1.25,
+		Pad:          0.14,
+		BoxStyle:     core.BoxStyleRound,
+		RoundingSize: 0.24,
+	})
+	right.AddPatch(&core.FancyBboxPatch{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.96, G: 0.87, B: 0.60, A: 0.82},
+			EdgeColor: render.Color{R: 0.50, G: 0.39, B: 0.12, A: 1},
+			EdgeWidth: 1.0,
+		},
+		XY:       geom.Pt{X: 3.35, Y: 1.55},
+		Width:    1.65,
+		Height:   1.05,
+		Pad:      0.10,
+		BoxStyle: core.BoxStyleSquare,
+	})
+
+	r, err := agg.New(930, 340, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMeshContourTri() image.Image {
+	fig := core.NewFigure(980, 620)
+	grid := fig.Subplots(
+		2,
+		2,
+		core.WithSubplotPadding(0.07, 0.97, 0.10, 0.93),
+		core.WithSubplotSpacing(0.12, 0.18),
+	)
+
+	meshAx := grid[0][0]
+	meshAx.SetTitle("PColorMesh")
+	meshAx.SetXLim(0, 4)
+	meshAx.SetYLim(0, 3)
+	meshEdgeWidth := 0.8
+	meshEdgeColor := render.Color{R: 0.95, G: 0.95, B: 0.95, A: 1}
+	meshAx.PColorMesh([][]float64{
+		{0.2, 0.6, 0.3, 0.9},
+		{0.4, 0.8, 0.5, 0.7},
+		{0.1, 0.3, 0.9, 0.6},
+	}, core.MeshOptions{
+		XEdges:    []float64{0, 1, 2, 3, 4},
+		YEdges:    []float64{0, 1, 2, 3},
+		EdgeColor: &meshEdgeColor,
+		EdgeWidth: &meshEdgeWidth,
+	})
+
+	contourAx := grid[0][1]
+	contourAx.SetTitle("Contour + Contourf")
+	contourAx.SetXLim(0, 4)
+	contourAx.SetYLim(0, 4)
+	contourData := [][]float64{
+		{0.0, 0.4, 0.8, 0.4, 0.0},
+		{0.2, 0.8, 1.3, 0.8, 0.2},
+		{0.3, 1.0, 1.7, 1.0, 0.3},
+		{0.2, 0.8, 1.3, 0.8, 0.2},
+		{0.0, 0.4, 0.8, 0.4, 0.0},
+	}
+	contourLevels := []float64{0.2, 0.6, 1.0, 1.4, 1.8}
+	contourAx.Contourf(contourData, core.ContourOptions{
+		Levels: contourLevels,
+	})
+	contourAx.Contour(contourData, core.ContourOptions{
+		Levels:     []float64{0.4, 0.8, 1.2, 1.6},
+		LabelLines: true,
+		Color:      &render.Color{R: 0.18, G: 0.18, B: 0.18, A: 1},
+	})
+
+	histAx := grid[1][0]
+	histAx.SetTitle("Hist2D")
+	histAx.SetXLim(0, 4)
+	histAx.SetYLim(0, 4)
+	histAx.Hist2D(
+		[]float64{0.4, 0.7, 1.1, 1.4, 1.8, 2.1, 2.3, 2.6, 2.9, 3.2, 3.4, 3.6},
+		[]float64{0.6, 1.0, 1.2, 1.6, 1.4, 2.0, 2.3, 2.1, 2.8, 3.0, 3.2, 3.4},
+		core.Hist2DOptions{
+			XBinEdges: []float64{0, 1, 2, 3, 4},
+			YBinEdges: []float64{0, 1, 2, 3, 4},
+			EdgeColor: &meshEdgeColor,
+			EdgeWidth: &meshEdgeWidth,
+		},
+	)
+
+	triAx := grid[1][1]
+	triAx.SetTitle("Triangulation")
+	triAx.SetXLim(0, 4)
+	triAx.SetYLim(0, 4)
+	tri := core.Triangulation{
+		X:         []float64{0.4, 1.6, 3.0, 0.8, 2.1, 3.5},
+		Y:         []float64{0.5, 0.4, 0.7, 2.2, 2.8, 2.1},
+		Triangles: [][3]int{{0, 1, 3}, {1, 4, 3}, {1, 2, 4}, {2, 5, 4}},
+	}
+	triAx.TriColor(tri, []float64{0.2, 0.8, 1.0, 1.5, 1.1, 0.6})
+	triLineWidth := 1.0
+	triAx.TriPlot(tri, core.TriPlotOptions{
+		Color:     &render.Color{R: 0.15, G: 0.15, B: 0.15, A: 1},
+		LineWidth: &triLineWidth,
+	})
+	triAx.TriContour(tri, []float64{0.2, 0.8, 1.0, 1.5, 1.1, 0.6}, core.ContourOptions{
+		Levels: []float64{0.7, 1.1},
+		Color:  &render.Color{R: 0.98, G: 0.98, B: 0.98, A: 1},
+	})
+
+	r, err := agg.New(980, 620, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderStemPlot() image.Image {
+	fig := core.NewFigure(720, 420)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.16}, Max: geom.Pt{X: 0.94, Y: 0.86}})
+	ax.SetTitle("Stem")
+	ax.SetXLabel("Sample")
+	ax.SetYLabel("Amplitude")
+	ax.SetXLim(0.5, 7.5)
+	ax.SetYLim(-0.2, 4.2)
+	ax.AddYGrid()
+	stemColor := render.Color{R: 0.15, G: 0.42, B: 0.73, A: 1}
+	baseline := 0.3
+	markerSize := 7.0
+	ax.Stem(
+		[]float64{1, 2, 3, 4, 5, 6, 7},
+		[]float64{0.9, 2.2, 1.6, 3.3, 2.4, 3.7, 2.1},
+		core.StemOptions{
+			Color:         &stemColor,
+			Baseline:      &baseline,
+			MarkerSize:    &markerSize,
+			Label:         "samples",
+			BaselineColor: &render.Color{R: 0.32, G: 0.32, B: 0.32, A: 1},
+		},
+	)
+
+	r, err := agg.New(720, 420, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderVectorFields() image.Image {
+	fig := core.NewFigure(919, 620)
+	grid := fig.Subplots(
+		2,
+		2,
+		core.WithSubplotPadding(0.07, 0.97, 0.10, 0.92),
+		core.WithSubplotSpacing(0.10, 0.16),
+	)
+
+	quiverAx := grid[0][0]
+	quiverAx.SetTitle("Quiver + Key")
+	quiverAx.SetXLim(0, 6)
+	quiverAx.SetYLim(0, 5)
+	quiverAx.AddXGrid()
+	quiverAx.AddYGrid()
+	var qx, qy, qu, qv []float64
+	for row := 0; row < 4; row++ {
+		for col := 0; col < 5; col++ {
+			x := 0.8 + float64(col)*1.0
+			y := 0.8 + float64(row)*0.95
+			qx = append(qx, x)
+			qy = append(qy, y)
+			qu = append(qu, 0.55+0.08*math.Sin(y*0.9))
+			qv = append(qv, 0.22*math.Cos(x*0.8))
+		}
+	}
+	scaleWidth := 10.0
+	widthDots := 2.2
+	quiver := quiverAx.Quiver(qx, qy, qu, qv, core.QuiverOptions{
+		Color:      &render.Color{R: 0.14, G: 0.42, B: 0.73, A: 1},
+		Scale:      &scaleWidth,
+		ScaleUnits: "width",
+		Units:      "dots",
+		Width:      &widthDots,
+	})
+	if quiver != nil {
+		quiverAx.QuiverKey(quiver, 0.78, 0.12, 0.5, "0.5", core.QuiverKeyOptions{
+			Coords:   core.Coords(core.CoordAxes),
+			LabelPos: "E",
+		})
+	}
+
+	barbAx := grid[0][1]
+	barbAx.SetTitle("Barbs")
+	barbAx.SetXLim(0, 6)
+	barbAx.SetYLim(0, 5)
+	barbAx.AddXGrid()
+	barbAx.AddYGrid()
+	var bx, by, bu, bv []float64
+	for row := 0; row < 4; row++ {
+		for col := 0; col < 5; col++ {
+			x := 0.9 + float64(col)*0.95
+			y := 0.8 + float64(row)*0.95
+			bx = append(bx, x)
+			by = append(by, y)
+			bu = append(bu, 14+5*math.Sin(y*0.8))
+			bv = append(bv, 8*math.Cos(x*0.7))
+		}
+	}
+	barbLen := 16.0
+	barbAx.Barbs(bx, by, bu, bv, core.BarbsOptions{
+		BarbColor: &render.Color{R: 0.47, G: 0.23, B: 0.12, A: 1},
+		FlagColor: &render.Color{R: 0.86, G: 0.52, B: 0.24, A: 1},
+		Length:    &barbLen,
+		Units:     "dots",
+	})
+
+	streamAx := grid[1][0]
+	streamAx.SetTitle("Streamplot")
+	streamAx.SetXLim(0, 6)
+	streamAx.SetYLim(0, 5)
+	streamAx.AddXGrid()
+	streamAx.AddYGrid()
+	sx := []float64{0, 1, 2, 3, 4, 5, 6}
+	sy := []float64{0, 1, 2, 3, 4, 5}
+	su := make([][]float64, len(sy))
+	sv := make([][]float64, len(sy))
+	for yi, y := range sy {
+		su[yi] = make([]float64, len(sx))
+		sv[yi] = make([]float64, len(sx))
+		for xi, x := range sx {
+			su[yi][xi] = 1.0 + 0.12*math.Cos(y*0.7)
+			sv[yi][xi] = 0.35*math.Sin((x-3)*0.8) - 0.10*(y-2.5)
+		}
+	}
+	streamFalse := false
+	streamArrows := 2
+	streamAx.Streamplot(sx, sy, su, sv, core.StreamplotOptions{
+		StartPoints:          []geom.Pt{{X: 0.4, Y: 0.8}, {X: 0.4, Y: 2.2}, {X: 0.4, Y: 3.6}},
+		BrokenStreamlines:    &streamFalse,
+		IntegrationDirection: "forward",
+		ArrowCount:           &streamArrows,
+		Color:                &render.Color{R: 0.13, G: 0.53, B: 0.39, A: 1},
+	})
+
+	xyAx := grid[1][1]
+	xyAx.SetTitle("Quiver XY")
+	xyAx.SetXLim(0, 6)
+	xyAx.SetYLim(0, 5)
+	xyAx.AddXGrid()
+	xyAx.AddYGrid()
+	xg := []float64{0.8, 1.8, 2.8, 3.8, 4.8}
+	yg := []float64{0.8, 1.8, 2.8, 3.8}
+	ugu := make([][]float64, len(yg))
+	ugv := make([][]float64, len(yg))
+	for yi, y := range yg {
+		ugu[yi] = make([]float64, len(xg))
+		ugv[yi] = make([]float64, len(xg))
+		for xi, x := range xg {
+			ugu[yi][xi] = -(y - 2.4) * 0.35
+			ugv[yi][xi] = (x - 2.8) * 0.35
+		}
+	}
+	xyScale := 9.0
+	xyWidth := 1.9
+	xyAx.QuiverGrid(xg, yg, ugu, ugv, core.QuiverOptions{
+		Color:      &render.Color{R: 0.74, G: 0.23, B: 0.27, A: 1},
+		Pivot:      "middle",
+		Angles:     "xy",
+		Scale:      &xyScale,
+		ScaleUnits: "width",
+		Units:      "dots",
+		Width:      &xyWidth,
+	})
+
+	r, err := agg.New(919, 620, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}

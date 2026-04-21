@@ -164,8 +164,12 @@ func TestMpl_AxesControlSurface(t *testing.T) {
 func TestMpl_TransformCoordinates(t *testing.T) {
 	runMplTest(t, "transform_coordinates", renderTransformCoordinates)
 }
+func TestMpl_PatchShowcase(t *testing.T) { runMplTest(t, "patch_showcase", renderPatchShowcase) }
+func TestMpl_MeshContourTri(t *testing.T) { runMplTest(t, "mesh_contour_tri", renderMeshContourTri) }
 func TestMpl_PlotVariants(t *testing.T)  { runMplTest(t, "plot_variants", renderPlotVariants) }
+func TestMpl_StemPlot(t *testing.T)      { runMplTest(t, "stem_plot", renderStemPlot) }
 func TestMpl_UnitsOverview(t *testing.T) { runMplTest(t, "units_overview", renderUnitsOverview) }
+func TestMpl_VectorFields(t *testing.T)  { runMplTest(t, "vector_fields", renderVectorFields) }
 func TestMpl_ErrorBars(t *testing.T)     { runMplTest(t, "errorbar_basic", renderErrorBars) }
 func TestMpl_TitleStrict(t *testing.T)   { runMplTest(t, "title_strict", renderTitleStrict) }
 func TestMpl_ImageHeatmap(t *testing.T)  { runMplTest(t, "image_heatmap", renderImageHeatmap) }

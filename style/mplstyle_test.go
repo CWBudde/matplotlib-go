@@ -66,11 +66,20 @@ patch.facecolor: 348ABD
 	if got := theme.RC.AxesBackground; !almostEqual(got.R, 0xE5/255.0) || !almostEqual(got.G, 0xE5/255.0) || !almostEqual(got.B, 0xE5/255.0) {
 		t.Fatalf("axes background = %+v", got)
 	}
-	if got := theme.RC.AxesEdgeColor; !almostEqual(got.R, 0x55/255.0) || !almostEqual(got.G, 0x55/255.0) || !almostEqual(got.B, 0x55/255.0) {
+	if got := theme.RC.AxesEdgeColor; got.R != 1 || got.G != 1 || got.B != 1 {
 		t.Fatalf("axes edge color = %+v", got)
 	}
-	if got := theme.RC.DefaultTextColor(); !almostEqual(got.R, 0x55/255.0) || !almostEqual(got.G, 0x55/255.0) || !almostEqual(got.B, 0x55/255.0) {
+	if got := theme.RC.XTickColor; !almostEqual(got.R, 0x55/255.0) || !almostEqual(got.G, 0x55/255.0) || !almostEqual(got.B, 0x55/255.0) {
+		t.Fatalf("x tick color = %+v", got)
+	}
+	if got := theme.RC.YTickColor; !almostEqual(got.R, 0x55/255.0) || !almostEqual(got.G, 0x55/255.0) || !almostEqual(got.B, 0x55/255.0) {
+		t.Fatalf("y tick color = %+v", got)
+	}
+	if got := theme.RC.DefaultTextColor(); !almostEqual(got.R, 0x33/255.0) || !almostEqual(got.G, 0x33/255.0) || !almostEqual(got.B, 0x33/255.0) {
 		t.Fatalf("text color = %+v", got)
+	}
+	if got := theme.RC.DefaultAxesLabelColor(); !almostEqual(got.R, 0x55/255.0) || !almostEqual(got.G, 0x55/255.0) || !almostEqual(got.B, 0x55/255.0) {
+		t.Fatalf("axes label color = %+v", got)
 	}
 	if got := theme.RC.GridColor; !almostEqual(got.A, 0.75) {
 		t.Fatalf("grid alpha = %v, want 0.75", got.A)
@@ -106,6 +115,89 @@ axes.prop_cycle: cycler(color=['003FFF', '03ED3A'])
 	}
 	if got, want := theme.RC.Palette()[1], mustParseTestColor(t, "03ED3A"); got != want {
 		t.Fatalf("palette[1] = %+v, want %+v", got, want)
+	}
+}
+
+func TestParseMPLStyleBroaderCoverage(t *testing.T) {
+	src := `
+font.size: 12
+figure.figsize: 7.5, 4.25
+axes.grid: true
+axes.grid.axis: y
+axes.grid.which: both
+axes.titlecolor: "#221144"
+axes.titlesize: large
+axes.labelcolor: "#334455"
+axes.labelsize: small
+xtick.color: "#445566"
+xtick.labelsize: x-small
+ytick.labelcolor: "#556677"
+ytick.labelsize: 9
+grid.linestyle: --
+grid.minor.linestyle: :
+legend.fontsize: medium
+legend.framealpha: 0.4
+legend.frameon: false
+`
+
+	theme, report, err := ParseMPLStyle("broader", src)
+	if err != nil {
+		t.Fatalf("ParseMPLStyle() error = %v", err)
+	}
+	if len(report.Unsupported) != 0 {
+		t.Fatalf("unexpected unsupported entries: %+v", report.Unsupported)
+	}
+
+	if got, want := theme.RC.FigureWidth, 7.5; !almostEqual(got, want) {
+		t.Fatalf("figure width = %v, want %v", got, want)
+	}
+	if got, want := theme.RC.FigureHeight, 4.25; !almostEqual(got, want) {
+		t.Fatalf("figure height = %v, want %v", got, want)
+	}
+	if !theme.RC.GridVisible || theme.RC.GridAxis != "y" || theme.RC.GridWhich != "both" {
+		t.Fatalf("unexpected grid defaults: visible=%v axis=%q which=%q", theme.RC.GridVisible, theme.RC.GridAxis, theme.RC.GridWhich)
+	}
+	if got, want := theme.RC.TitleSize(), 12*1.2; !almostEqual(got, want) {
+		t.Fatalf("title size = %v, want %v", got, want)
+	}
+	if got, want := theme.RC.AxisLabelSize(), 10.0; !almostEqual(got, want) {
+		t.Fatalf("label size = %v, want %v", got, want)
+	}
+	if got, want := theme.RC.TickLabelSize("x"), 8.33; math.Abs(got-want) > 0.02 {
+		t.Fatalf("x tick size = %v, want about %v", got, want)
+	}
+	if got, want := theme.RC.TickLabelSize("y"), 9.0; !almostEqual(got, want) {
+		t.Fatalf("y tick size = %v, want %v", got, want)
+	}
+	if got := theme.RC.DefaultAxesTitleColor(); !almostEqual(got.R, 0x22/255.0) || !almostEqual(got.G, 0x11/255.0) || !almostEqual(got.B, 0x44/255.0) {
+		t.Fatalf("title color = %+v", got)
+	}
+	if got := theme.RC.DefaultAxesLabelColor(); !almostEqual(got.R, 0x33/255.0) || !almostEqual(got.G, 0x44/255.0) || !almostEqual(got.B, 0x55/255.0) {
+		t.Fatalf("label color = %+v", got)
+	}
+	if got := theme.RC.XTickColor; !almostEqual(got.R, 0x44/255.0) || !almostEqual(got.G, 0x55/255.0) || !almostEqual(got.B, 0x66/255.0) {
+		t.Fatalf("x tick color = %+v", got)
+	}
+	if got := theme.RC.YTickColor; !almostEqual(got.R, 0x55/255.0) || !almostEqual(got.G, 0x66/255.0) || !almostEqual(got.B, 0x77/255.0) {
+		t.Fatalf("y tick color = %+v", got)
+	}
+	if got, want := theme.RC.GridDashes, []float64{6, 6}; !equalFloatSlices(got, want) {
+		t.Fatalf("grid dashes = %v, want %v", got, want)
+	}
+	if got, want := theme.RC.MinorGridDashes, []float64{1.2, 2.4}; !equalFloatSlices(got, want) {
+		t.Fatalf("minor grid dashes = %v, want %v", got, want)
+	}
+	if got, want := theme.RC.LegendSize(), 12.0; !almostEqual(got, want) {
+		t.Fatalf("legend size = %v, want %v", got, want)
+	}
+	if got, want := theme.RC.LegendFrameAlpha, 0.4; !almostEqual(got, want) {
+		t.Fatalf("legend frame alpha = %v, want %v", got, want)
+	}
+	if theme.RC.LegendFrameOn {
+		t.Fatal("legend frame should be disabled")
+	}
+	if got := theme.RC.LegendBackground.A; got != 0 {
+		t.Fatalf("legend background alpha = %v, want 0", got)
 	}
 }
 
@@ -161,4 +253,16 @@ func mustParseTestColor(t *testing.T, value string) render.Color {
 
 func almostEqual(a, b float64) bool {
 	return math.Abs(a-b) < 1e-9
+}
+
+func equalFloatSlices(a, b []float64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !almostEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
 }

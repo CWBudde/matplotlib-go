@@ -1,6 +1,8 @@
 package style
 
 import (
+	"strings"
+
 	"matplotlib-go/color"
 	"matplotlib-go/render"
 )
@@ -8,26 +10,44 @@ import (
 // RC holds global rendering defaults (rc-like configuration).
 // Fields are simple value types to keep configuration immutable-ish by copy.
 type RC struct {
-	DPI        float64
-	FontKey    string
-	FontSize   float64
-	LineWidth  float64
-	TextColor  [4]float64
-	LineColor  [4]float64
-	Background [4]float64
-	TickCountX int
-	TickCountY int
+	DPI          float64
+	FontKey      string
+	FontSize     float64
+	LineWidth    float64
+	TextColor    [4]float64
+	LineColor    [4]float64
+	Background   [4]float64
+	TickCountX   int
+	TickCountY   int
+	FigureWidth  float64
+	FigureHeight float64
 
 	AxesBackground     render.Color
 	AxesEdgeColor      render.Color
+	AxesTitleColor     render.Color
+	AxesLabelColor     render.Color
 	AxisLineWidth      float64
+	XTickColor         render.Color
+	YTickColor         render.Color
+	TitleFontSize      float64
+	AxisLabelFontSize  float64
+	XTickLabelFontSize float64
+	YTickLabelFontSize float64
 	GridColor          render.Color
 	MinorGridColor     render.Color
 	GridLineWidth      float64
 	MinorGridLineWidth float64
+	GridDashes         []float64
+	MinorGridDashes    []float64
+	GridVisible        bool
+	GridAxis           string
+	GridWhich          string
 	LegendBackground   render.Color
 	LegendBorderColor  render.Color
 	LegendTextColor    render.Color
+	LegendFontSize     float64
+	LegendFrameAlpha   float64
+	LegendFrameOn      bool
 	ColorCycle         color.Palette
 }
 
@@ -42,16 +62,32 @@ var Default = RC{
 	Background:         [4]float64{1, 1, 1, 1},
 	TickCountX:         5,
 	TickCountY:         5,
+	FigureWidth:        6.4,
+	FigureHeight:       4.8,
 	AxesBackground:     render.Color{R: 1, G: 1, B: 1, A: 1},
 	AxesEdgeColor:      render.Color{R: 0, G: 0, B: 0, A: 1},
+	AxesTitleColor:     render.Color{R: 0, G: 0, B: 0, A: 1},
+	AxesLabelColor:     render.Color{R: 0, G: 0, B: 0, A: 1},
 	AxisLineWidth:      0.8 * 100.0 / 72.0,
+	XTickColor:         render.Color{R: 0, G: 0, B: 0, A: 1},
+	YTickColor:         render.Color{R: 0, G: 0, B: 0, A: 1},
+	TitleFontSize:      12,
+	AxisLabelFontSize:  12 * 0.97,
+	XTickLabelFontSize: 12 * 10.0 / 12.0,
+	YTickLabelFontSize: 12 * 10.0 / 12.0,
 	GridColor:          render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1},
 	MinorGridColor:     render.Color{R: 0.8, G: 0.8, B: 0.8, A: 0.4},
 	GridLineWidth:      0.5,
 	MinorGridLineWidth: 0.25,
+	GridVisible:        false,
+	GridAxis:           "both",
+	GridWhich:          "major",
 	LegendBackground:   render.Color{R: 1, G: 1, B: 1, A: 0.9},
 	LegendBorderColor:  render.Color{R: 0.2, G: 0.2, B: 0.2, A: 0.7},
 	LegendTextColor:    render.Color{R: 0.1, G: 0.1, B: 0.1, A: 1},
+	LegendFontSize:     12 * 0.92,
+	LegendFrameAlpha:   0.9,
+	LegendFrameOn:      true,
 	ColorCycle:         color.Tab10,
 }
 
@@ -64,6 +100,8 @@ type Option func(*RC)
 func Apply(base RC, opts ...Option) RC {
 	rc := base
 	rc.ColorCycle = clonePalette(rc.ColorCycle)
+	rc.GridDashes = cloneDashes(rc.GridDashes)
+	rc.MinorGridDashes = cloneDashes(rc.MinorGridDashes)
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&rc)
@@ -77,7 +115,14 @@ func WithDPI(d float64) Option { return func(rc *RC) { rc.DPI = d } }
 
 // WithFont sets the font key and size.
 func WithFont(key string, size float64) Option {
-	return func(rc *RC) { rc.FontKey, rc.FontSize = key, size }
+	return func(rc *RC) {
+		rc.FontKey, rc.FontSize = key, size
+		rc.TitleFontSize = size
+		rc.AxisLabelFontSize = maxFloat(8, size*0.97)
+		rc.XTickLabelFontSize = maxFloat(8, size*10.0/12.0)
+		rc.YTickLabelFontSize = maxFloat(8, size*10.0/12.0)
+		rc.LegendFontSize = maxFloat(8, size*0.92)
+	}
 }
 
 // WithLineWidth sets the default line width.
@@ -85,7 +130,13 @@ func WithLineWidth(w float64) Option { return func(rc *RC) { rc.LineWidth = w } 
 
 // WithTextColor sets the default text color as normalized sRGBA (0..1).
 func WithTextColor(r, g, b, a float64) Option {
-	return func(rc *RC) { rc.TextColor = [4]float64{r, g, b, a} }
+	return func(rc *RC) {
+		color := render.Color{R: r, G: g, B: b, A: a}
+		rc.TextColor = [4]float64{r, g, b, a}
+		rc.AxesTitleColor = color
+		rc.AxesLabelColor = color
+		rc.LegendTextColor = color
+	}
 }
 
 // WithLineColor sets the default stroke color as normalized sRGBA (0..1).
@@ -108,7 +159,11 @@ func WithAxesBackground(c render.Color) Option {
 
 // WithAxesEdgeColor sets the axes spine and tick color.
 func WithAxesEdgeColor(c render.Color) Option {
-	return func(rc *RC) { rc.AxesEdgeColor = c }
+	return func(rc *RC) {
+		rc.AxesEdgeColor = c
+		rc.XTickColor = c
+		rc.YTickColor = c
+	}
 }
 
 // WithAxisLineWidth sets the default axes spine and tick width.
@@ -181,6 +236,67 @@ func (rc RC) DefaultLineColor() render.Color {
 	}
 }
 
+// DefaultAxesTitleColor returns the configured axes-title color.
+func (rc RC) DefaultAxesTitleColor() render.Color {
+	return rc.AxesTitleColor
+}
+
+// DefaultAxesLabelColor returns the configured axes-label color.
+func (rc RC) DefaultAxesLabelColor() render.Color {
+	return rc.AxesLabelColor
+}
+
+// TitleSize returns the configured title size with a minimum fallback.
+func (rc RC) TitleSize() float64 {
+	if rc.TitleFontSize >= 8 {
+		return rc.TitleFontSize
+	}
+	if rc.FontSize > 0 {
+		return maxFloat(8, rc.FontSize)
+	}
+	return 12
+}
+
+// AxisLabelSize returns the configured axis-label size with a minimum fallback.
+func (rc RC) AxisLabelSize() float64 {
+	if rc.AxisLabelFontSize >= 8 {
+		return rc.AxisLabelFontSize
+	}
+	if rc.FontSize > 0 {
+		return maxFloat(8, rc.FontSize*0.97)
+	}
+	return 8
+}
+
+// TickLabelSize returns the configured tick-label size for the requested axis.
+func (rc RC) TickLabelSize(axis string) float64 {
+	switch strings.ToLower(strings.TrimSpace(axis)) {
+	case "y":
+		if rc.YTickLabelFontSize >= 8 {
+			return rc.YTickLabelFontSize
+		}
+	default:
+		if rc.XTickLabelFontSize >= 8 {
+			return rc.XTickLabelFontSize
+		}
+	}
+	if rc.FontSize > 0 {
+		return maxFloat(8, rc.FontSize*10.0/12.0)
+	}
+	return 8
+}
+
+// LegendSize returns the configured legend font size with a minimum fallback.
+func (rc RC) LegendSize() float64 {
+	if rc.LegendFontSize >= 8 {
+		return rc.LegendFontSize
+	}
+	if rc.FontSize > 0 {
+		return maxFloat(8, rc.FontSize*0.92)
+	}
+	return 8
+}
+
 // Palette returns a copy of the configured automatic color cycle.
 func (rc RC) Palette() color.Palette {
 	return clonePalette(rc.ColorCycle)
@@ -193,4 +309,37 @@ func clonePalette(palette color.Palette) color.Palette {
 	cloned := make(color.Palette, len(palette))
 	copy(cloned, palette)
 	return cloned
+}
+
+func cloneDashes(dashes []float64) []float64 {
+	if len(dashes) == 0 {
+		return nil
+	}
+	cloned := make([]float64, len(dashes))
+	copy(cloned, dashes)
+	return cloned
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// DefaultFigureSizePx returns the configured default figure size in pixels.
+func (rc RC) DefaultFigureSizePx() (int, int) {
+	dpi := rc.DPI
+	if dpi <= 0 {
+		dpi = Default.DPI
+	}
+	width := int(rc.FigureWidth*dpi + 0.5)
+	height := int(rc.FigureHeight*dpi + 0.5)
+	if width <= 0 {
+		width = 640
+	}
+	if height <= 0 {
+		height = 480
+	}
+	return width, height
 }

@@ -87,6 +87,11 @@ Build the web artifact locally with:
 just web-build
 ```
 
+`web/main.wasm` and `web/wasm_exec.js` are generated build outputs. Re-run
+`just web-build` before serving `web/`, especially after changes under
+[`cmd/wasm`](cmd/wasm) or the browser bridge, or the page may report an
+incompatible WASM build.
+
 Then serve the `web/` directory with any static file server, for example:
 
 ```bash

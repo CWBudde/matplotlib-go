@@ -3,6 +3,8 @@
 package main
 
 import (
+	"fmt"
+	"runtime/debug"
 	"syscall/js"
 
 	plotcanvas "matplotlib-go/canvas"
@@ -13,13 +15,15 @@ import (
 var callbacks []js.Func
 var currentManager plotcanvas.FigureManager
 
+type wasmCallback func(js.Value, []js.Value) any
+
 func main() {
 	callbacks = append(callbacks,
-		js.FuncOf(listDemos),
-		js.FuncOf(mountDemo),
-		js.FuncOf(resizeDemo),
-		js.FuncOf(unmountDemo),
-		js.FuncOf(defaultDemoID),
+		safeCallback("listDemos", func(string) any { return js.Global().Get("Array").New() }, listDemos),
+		safeCallback("mountDemo", errorResult, mountDemo),
+		safeCallback("resizeDemo", errorResult, resizeDemo),
+		safeCallback("unmountDemo", errorResult, unmountDemo),
+		safeCallback("defaultDemoID", func(string) any { return webdemo.DefaultDemoID() }, defaultDemoID),
 	)
 
 	api := js.Global().Get("Object").New()
@@ -32,6 +36,39 @@ func main() {
 	js.Global().Get("console").Call("log", "matplotlib-go wasm ready")
 
 	select {}
+}
+
+func safeCallback(name string, fallback func(string) any, fn wasmCallback) js.Func {
+	return js.FuncOf(func(this js.Value, args []js.Value) (result any) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				message := fmt.Sprintf("matplotlib-go wasm: %s panicked: %v", name, recovered)
+				consoleError(message)
+				consoleError(string(debug.Stack()))
+				if fallback != nil {
+					result = fallback(message)
+					return
+				}
+				result = nil
+			}
+		}()
+
+		return fn(this, args)
+	})
+}
+
+func errorResult(message string) any {
+	result := js.Global().Get("Object").New()
+	result.Set("error", message)
+	return result
+}
+
+func consoleError(message string) {
+	console := js.Global().Get("console")
+	if console.IsUndefined() || console.IsNull() {
+		return
+	}
+	console.Call("error", message)
 }
 
 func listDemos(_ js.Value, _ []js.Value) any {

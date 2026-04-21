@@ -337,18 +337,21 @@ core.SavePNG(fig, r, "output.png")
 - [x] Color palettes and defaults
 - [x] Publication-ready themes
 - [x] Example: `examples/styling/themes.go`
+- [x] Runtime rc defaults wired through new figures and the `pyplot` stateful API
 - [x] `rcParams`, `rc`, `rc_context`, `rcdefaults`, and rc-file loading semantics
 - [x] Example: `examples/styling/rc/main.go`
-- [ ] Much broader `.mplstyle` coverage than the current supported subset
+- [x] Much broader `.mplstyle` coverage than the current supported subset
+- [x] Broader `.mplstyle` coverage for typography, tick styling, grid defaults/styles, legend frame controls, and `figure.figsize`
 - [ ] Style-library discovery beyond the built-in named theme registry
 
 ### 5.4 Backend Runtime, Canvas, and Tooling
 
-- [ ] `FigureCanvas` / `FigureManager` abstraction instead of only renderer factories
-- [ ] Event model shared across backends (mouse, keyboard, resize, draw, close)
-- [ ] Tool manager / toolbar abstractions
-- [ ] Embedding/runtime hosts for desktop or web backends
+- [x] `FigureCanvas` / `FigureManager` abstraction instead of only renderer factories
+- [x] Event model shared across backends (mouse, keyboard, resize, draw, close)
+- [x] Tool manager / toolbar abstractions
+- [x] Embedding/runtime hosts for desktop or web backends
 - [x] Minimal browser runtime host for Go `js/wasm` demos using the GoBasic backend and an HTML canvas bridge
+- [x] Web demo stabilization for browser-hosted WASM callbacks: preserve the runtime on canvas focus/mouse input and fail clearly on stale generated web assets
 
 ### 5.5 Additional Export and Embedding Targets
 
@@ -361,7 +364,7 @@ core.SavePNG(fig, r, "output.png")
 
 - [ ] Both object-oriented and optional stateful APIs are usable
 - [ ] Configuration is no longer limited to hard-coded theme structs plus a tiny `.mplstyle` subset
-- [ ] Output/runtime capabilities are organized around backend canvases rather than ad-hoc helpers
+- [x] Output/runtime capabilities are organized around backend canvases rather than ad-hoc helpers
 
 ---
 
@@ -371,31 +374,31 @@ core.SavePNG(fig, r, "output.png")
 
 ### 6.1 Patch Hierarchy
 
-- [ ] Introduce a `Patch` base artist instead of baking patch logic into one-off plot types
-- [ ] `Rectangle`, `Circle`, `Ellipse`, `Polygon`, and `PathPatch`
-- [ ] Arrow/fancy-box support (`arrow`, `FancyArrow`, box styles)
-- [ ] Hatch fill support
+- [x] Introduce a `Patch` base artist instead of baking patch logic into one-off plot types
+- [x] `Rectangle`, `Circle`, `Ellipse`, `Polygon`, and `PathPatch`
+- [x] Arrow/fancy-box support (`arrow`, `FancyArrow`, box styles)
+- [x] Hatch fill support
 
 ### 6.2 Collections and Result Containers
 
-- [ ] `Collection`, `PathCollection`, `LineCollection`, `PatchCollection`, `PolyCollection`
-- [ ] `QuadMesh` and `FillBetweenPolyCollection`-style primitives
-- [ ] Generalize scatter onto collection semantics for arbitrary marker paths and better batching
-- [ ] Matplotlib-style result containers (`BarContainer`, `ErrorbarContainer`, `StemContainer`)
+- [x] `Collection`, `PathCollection`, `LineCollection`, `PatchCollection`, `PolyCollection`
+- [x] `QuadMesh` and `FillBetweenPolyCollection`-style primitives
+- [x] Generalize scatter onto collection semantics for arbitrary marker paths and better batching
+- [x] Matplotlib-style result containers (`BarContainer`, `ErrorbarContainer`, `StemContainer`)
 
 ### 6.3 Mesh, Contour, and Triangulation Plots
 
-- [ ] `pcolor` / `pcolormesh`
-- [ ] `contour` / `contourf` and contour labels
-- [ ] `hist2d`
-- [ ] Unstructured triangulation family: `triplot`, `tricontour`, `tricontourf`, `tripcolor`
+- [x] `pcolor` / `pcolormesh`
+- [x] `contour` / `contourf` and contour labels
+- [x] `hist2d`
+- [x] Unstructured triangulation family: `triplot`, `tricontour`, `tricontourf`, `tripcolor`
 
 ### 6.4 Vector Fields and Field Visualization
 
-- [ ] `quiver`
-- [ ] `quiverkey`
-- [ ] `barbs`
-- [ ] `streamplot`
+- [x] `quiver`
+- [x] `quiverkey`
+- [x] `barbs`
+- [x] `streamplot`
 
 ### 6.5 Statistical and Specialty Artists
 
