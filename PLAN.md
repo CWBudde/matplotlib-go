@@ -438,13 +438,14 @@ core.SavePNG(fig, r, "output.png")
 - [x] Polar axes
 - [ ] Geographic / geo projections
 - [x] Projection registry and `projection=`-style axes creation
-- [ ] Projection-specific ticks, labels, and transforms
+- [x] Projection-specific ticks, labels, and transforms
 - [ ] Specialty projections built on top of the registry (`radar`, `skew-T`, other curvilinear examples)
 
 Current slice landed:
 
 - Built-in `polar` projection with circular spines, angular/radial grids, and polar tick labels
 - Projection registry plus `Figure.AddAxesProjection`, `Figure.AddPolarAxes`, and subplot `WithProjection(...)`
+- Polar-specific theta zero-location, theta-direction, radial-label-angle controls, and projection-stage transform access via `DrawContext.TransProjection()`
 
 ### 7.2 3D Toolkit
 

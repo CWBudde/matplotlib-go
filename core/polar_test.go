@@ -148,3 +148,86 @@ func TestPolarTickLabelsUseAngularFormatting(t *testing.T) {
 		t.Fatal("expected a radial tick label")
 	}
 }
+
+func TestPolarThetaConfigurationAffectsProjectionTransform(t *testing.T) {
+	fig := NewFigure(400, 400)
+	ax := fig.AddPolarAxes(unitRect())
+	if err := ax.SetThetaZeroLocation("N"); err != nil {
+		t.Fatalf("SetThetaZeroLocation(N): %v", err)
+	}
+	if err := ax.SetThetaDirection("clockwise"); err != nil {
+		t.Fatalf("SetThetaDirection(clockwise): %v", err)
+	}
+
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	center, radius := polarCenterAndRadius(ax.adjustedLayout(fig))
+
+	if got := ctx.TransProjection().Apply(geom.Pt{X: 0, Y: 1}); !approx(got.X, 0.5, 1e-9) || !approx(got.Y, 1, 1e-9) {
+		t.Fatalf("transProjection(theta=0,r=1) = %+v, want {0.5 1}", got)
+	}
+
+	north := ctx.DataToPixel.Apply(geom.Pt{X: 0, Y: 1})
+	wantNorth := geom.Pt{X: center.X, Y: center.Y - radius}
+	if !approx(north.X, wantNorth.X, 1e-6) || !approx(north.Y, wantNorth.Y, 1e-6) {
+		t.Fatalf("theta=0 point = %+v, want %+v", north, wantNorth)
+	}
+
+	east := ctx.DataToPixel.Apply(geom.Pt{X: math.Pi / 2, Y: 1})
+	wantEast := geom.Pt{X: center.X + radius, Y: center.Y}
+	if !approx(east.X, wantEast.X, 1e-6) || !approx(east.Y, wantEast.Y, 1e-6) {
+		t.Fatalf("theta=pi/2 point = %+v, want %+v", east, wantEast)
+	}
+
+	data, ok := ax.PixelToData(east)
+	if !ok {
+		t.Fatal("PixelToData should invert configured polar transforms")
+	}
+	if !approx(data.X, math.Pi/2, 1e-6) || !approx(data.Y, 1, 1e-6) {
+		t.Fatalf("PixelToData = %+v, want theta=pi/2 radius=1", data)
+	}
+}
+
+func TestPolarRadialLabelPositionAffectsTicksAndLabels(t *testing.T) {
+	fig := NewFigure(400, 400)
+	ax := fig.AddPolarAxes(unitRect())
+	if err := ax.SetRadialLabelPosition(180); err != nil {
+		t.Fatalf("SetRadialLabelPosition(180): %v", err)
+	}
+	ax.YAxis.Locator = FixedLocator{TicksList: []float64{0.5}}
+	ax.YAxis.MinorLocator = nil
+	ax.YAxis.Formatter = FuncFormatter(func(float64) string { return "radial" })
+
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	center, outerRadius := polarCenterAndRadius(ax.adjustedLayout(fig))
+	r := &polarTextRenderer{}
+
+	ax.YAxis.Draw(r, ctx)
+	ax.YAxis.DrawTickLabels(r, ctx)
+
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("expected one radial spine path, got %d", len(r.pathCalls))
+	}
+	if len(r.texts) != 1 {
+		t.Fatalf("expected one radial tick label, got %d (%v)", len(r.texts), r.texts)
+	}
+
+	spine := r.pathCalls[0].path
+	if len(spine.V) != 2 {
+		t.Fatalf("radial spine path = %+v, want line segment", spine)
+	}
+	wantEnd := polarPixelPoint(center, outerRadius, math.Pi)
+	if !approx(spine.V[1].X, wantEnd.X, 1e-6) || !approx(spine.V[1].Y, wantEnd.Y, 1e-6) {
+		t.Fatalf("radial spine end = %+v, want %+v", spine.V[1], wantEnd)
+	}
+
+	fontSize := tickLabelFontSize(ax.YAxis, ctx)
+	labelPadPx := tickLabelPadForSize(ax.YAxis.TickSize, ax.YAxis.MajorLabelStyle, ctx)
+	layout := measureSingleLineTextLayout(r, "radial", fontSize, ctx.RC.FontKey)
+	anchor := polarPixelPoint(center, outerRadius*0.5+labelPadPx, math.Pi)
+	hAlign, vAlign := polarTickLabelAlignments(math.Pi)
+	wantOrigin := alignedSingleLineOrigin(anchor, layout, hAlign, vAlign)
+
+	if !approx(r.origins[0].X, wantOrigin.X, 1e-6) || !approx(r.origins[0].Y, wantOrigin.Y, 1e-6) {
+		t.Fatalf("radial tick label origin = %+v, want %+v", r.origins[0], wantOrigin)
+	}
+}

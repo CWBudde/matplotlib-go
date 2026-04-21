@@ -2,6 +2,7 @@ package core
 
 import (
 	"math"
+	"strings"
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -9,14 +10,16 @@ import (
 )
 
 const (
-	polarCircleSegments   = 128
-	polarArcMinSegments   = 12
-	polarRadialLabelAngle = math.Pi / 8
+	polarCircleSegments          = 128
+	polarArcMinSegments          = 12
+	defaultPolarRadialLabelAngle = math.Pi / 8
 )
 
 type polarDataTransform struct {
-	theta transform.Scale
-	r     transform.Scale
+	theta          transform.Scale
+	r              transform.Scale
+	thetaOffset    float64
+	thetaDirection float64
 }
 
 func (t polarDataTransform) Apply(p geom.Pt) geom.Pt {
@@ -29,7 +32,7 @@ func (t polarDataTransform) Apply(p geom.Pt) geom.Pt {
 		uRadius = t.r.Fwd(p.Y)
 	}
 
-	angle := 2 * math.Pi * uTheta
+	angle := polarTransformAngle(t.thetaOffset, t.thetaDirection, uTheta)
 	return geom.Pt{
 		X: 0.5 + 0.5*uRadius*math.Cos(angle),
 		Y: 0.5 + 0.5*uRadius*math.Sin(angle),
@@ -44,7 +47,7 @@ func (t polarDataTransform) Invert(p geom.Pt) (geom.Pt, bool) {
 	if angle < 0 {
 		angle += 2 * math.Pi
 	}
-	uTheta := angle / (2 * math.Pi)
+	uTheta := polarInvertAngle(t.thetaOffset, t.thetaDirection, angle)
 
 	theta := 0.0
 	if t.theta != nil {
@@ -120,11 +123,12 @@ func polarPixelPoint(center geom.Pt, radius, angle float64) geom.Pt {
 	}
 }
 
-func polarAngleForTheta(scale transform.Scale, theta float64) float64 {
+func polarAngleForTheta(proj Projection, scale transform.Scale, theta float64) float64 {
+	offset, direction, _ := polarProjectionState(proj)
 	if scale == nil {
-		return 0
+		return normalizePolarAngle(offset)
 	}
-	return 2 * math.Pi * scale.Fwd(theta)
+	return polarTransformAngle(offset, direction, scale.Fwd(theta))
 }
 
 func polarThetaTicks(axis *Axis, scale transform.Scale, minor bool) []float64 {
@@ -235,4 +239,93 @@ func polarTickLabelAlignments(angle float64) (TextAlign, textLayoutVerticalAlign
 func polarAxesContainsDisplayPoint(clip geom.Rect, p geom.Pt) bool {
 	center, radius := polarCenterAndRadius(clip)
 	return math.Hypot(p.X-center.X, p.Y-center.Y) <= radius
+}
+
+func polarTransformAngle(offset, direction, uTheta float64) float64 {
+	if direction == 0 {
+		direction = 1
+	}
+	return normalizePolarAngle(offset + direction*2*math.Pi*uTheta)
+}
+
+func polarInvertAngle(offset, direction, angle float64) float64 {
+	if direction == 0 {
+		direction = 1
+	}
+	return normalizePolarFraction(direction * (angle - offset) / (2 * math.Pi))
+}
+
+func normalizePolarAngle(angle float64) float64 {
+	angle = math.Mod(angle, 2*math.Pi)
+	if angle < 0 {
+		angle += 2 * math.Pi
+	}
+	return angle
+}
+
+func normalizePolarFraction(v float64) float64 {
+	v = math.Mod(v, 1)
+	if v < 0 {
+		v += 1
+	}
+	if approx(v, 1, 1e-12) {
+		return 0
+	}
+	return v
+}
+
+func polarProjectionForAxes(ax *Axes) (*polarProjection, bool) {
+	if ax == nil {
+		return nil, false
+	}
+	return polarProjectionFor(ax.projection)
+}
+
+func polarProjectionFor(proj Projection) (*polarProjection, bool) {
+	p, ok := proj.(*polarProjection)
+	return p, ok && p != nil
+}
+
+func polarProjectionState(proj Projection) (offset, direction, radialLabelAngle float64) {
+	offset = 0
+	direction = 1
+	radialLabelAngle = defaultPolarRadialLabelAngle
+	if p, ok := polarProjectionFor(proj); ok {
+		offset = p.thetaOffset
+		if p.thetaDirection != 0 {
+			direction = p.thetaDirection
+		}
+		if p.radialLabelAngle != 0 {
+			radialLabelAngle = p.radialLabelAngle
+		}
+	}
+	return offset, direction, radialLabelAngle
+}
+
+func polarRadialLabelAngleForProjection(proj Projection) float64 {
+	_, _, angle := polarProjectionState(proj)
+	return angle
+}
+
+func polarCompassAngle(location string) (float64, bool) {
+	switch strings.ToLower(strings.TrimSpace(location)) {
+	case "e", "east":
+		return 0, true
+	case "ne", "northeast", "north-east":
+		return math.Pi / 4, true
+	case "n", "north":
+		return math.Pi / 2, true
+	case "nw", "northwest", "north-west":
+		return 3 * math.Pi / 4, true
+	case "w", "west":
+		return math.Pi, true
+	case "sw", "southwest", "south-west":
+		return 5 * math.Pi / 4, true
+	case "s", "south":
+		return 3 * math.Pi / 2, true
+	case "se", "southeast", "south-east":
+		return 7 * math.Pi / 4, true
+	default:
+		return 0, false
+	}
 }

@@ -209,7 +209,8 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 		})
 
 		baselineY := centerY - labelMetric.H/2 + labelMetric.Ascent
-		textRen.DrawText(
+		drawDisplayText(
+			textRen,
 			entry.Label,
 			geom.Pt{X: box.Min.X + l.Padding + l.SampleWidth + l.SampleTextGap, Y: baselineY},
 			fontSize,

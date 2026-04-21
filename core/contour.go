@@ -120,13 +120,13 @@ func (c *ContourSet) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 		if rotated, ok := r.(render.RotatedTextDrawer); ok {
 			layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey)
 			anchor := geom.Pt{X: displayPt.X, Y: displayPt.Y + layout.Height*0.5}
-			rotated.DrawTextRotated(text, anchor, fontSize, label.Angle, color)
+			drawDisplayTextRotated(rotated, text, anchor, fontSize, label.Angle, color)
 			continue
 		}
 
 		layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey)
 		origin := alignedSingleLineOrigin(displayPt, layout, TextAlignCenter, textLayoutVAlignCenter)
-		textRen.DrawText(text, origin, fontSize, color)
+		drawDisplayText(textRen, text, origin, fontSize, color)
 	}
 }
 

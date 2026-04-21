@@ -204,7 +204,8 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 			X: centerX,
 			Y: figureRect.Min.Y + pointsToPixels(fig.RC, 6),
 		}
-		textRen.DrawText(
+		drawDisplayText(
+			textRen,
 			fig.SupTitle,
 			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignTop),
 			titleSize,
@@ -218,7 +219,8 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 			X: centerX,
 			Y: figureRect.Max.Y - pointsToPixels(fig.RC, 4),
 		}
-		textRen.DrawText(
+		drawDisplayText(
+			textRen,
 			fig.SupXLabel,
 			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignBottom),
 			labelSize,
@@ -233,12 +235,13 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 		}
 		switch ren := r.(type) {
 		case render.RotatedTextDrawer:
-			ren.DrawTextRotated(fig.SupYLabel, anchor, labelSize, math.Pi/2, labelColor)
+			drawDisplayTextRotated(ren, fig.SupYLabel, anchor, labelSize, math.Pi/2, labelColor)
 		case render.VerticalTextDrawer:
-			ren.DrawTextVertical(fig.SupYLabel, anchor, labelSize, labelColor)
+			drawDisplayTextVertical(ren, fig.SupYLabel, anchor, labelSize, labelColor)
 		default:
 			layout := measureSingleLineTextLayout(r, fig.SupYLabel, labelSize, fig.RC.FontKey)
-			textRen.DrawText(
+			drawDisplayText(
+				textRen,
 				fig.SupYLabel,
 				alignedSingleLineOrigin(anchor, layout, TextAlignLeft, textLayoutVAlignCenter),
 				labelSize,

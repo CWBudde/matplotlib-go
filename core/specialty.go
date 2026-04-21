@@ -1164,7 +1164,7 @@ func (t *Table) Draw(r render.Renderer, ctx *DrawContext) {
 			if cell.IsHeader {
 				color = t.HeaderTextColor
 			}
-			textRen.DrawText(text, alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignCenter), t.FontSize, color)
+			drawDisplayText(textRen, text, alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignCenter), t.FontSize, color)
 		}
 	}
 }

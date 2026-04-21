@@ -128,6 +128,18 @@ func (ctx *DrawContext) TransData() transform.T {
 	return ctx.DataToPixel.transData()
 }
 
+// TransProjection returns the projection-specific data->axes transform stage
+// before the final axes->display mapping is applied.
+func (ctx *DrawContext) TransProjection() transform.T {
+	if ctx == nil {
+		return nil
+	}
+	if ctx.DataToPixel.DataToAxes != nil {
+		return ctx.DataToPixel.DataToAxes
+	}
+	return transform.NewScaleTransform(ctx.DataToPixel.XScale, ctx.DataToPixel.YScale)
+}
+
 // TransAxes returns the Matplotlib-style axes-fraction->display transform.
 func (ctx *DrawContext) TransAxes() transform.T {
 	if ctx == nil {
@@ -432,6 +444,56 @@ func (a *Axes) ProjectionName() string {
 		return "rectilinear"
 	}
 	return a.projection.Name()
+}
+
+// SetThetaZeroLocation changes the display angle used for theta=0 on polar
+// axes. Supported values include the compass points E, NE, N, NW, W, SW, S,
+// and SE, plus the full direction names.
+func (a *Axes) SetThetaZeroLocation(location string, offsetDeg ...float64) error {
+	proj, ok := polarProjectionForAxes(a)
+	if !ok {
+		return fmt.Errorf("theta zero location requires polar axes")
+	}
+
+	base, ok := polarCompassAngle(location)
+	if !ok {
+		return fmt.Errorf("unsupported theta zero location %q", location)
+	}
+	if len(offsetDeg) > 0 {
+		base += offsetDeg[0] * math.Pi / 180
+	}
+	proj.thetaOffset = normalizePolarAngle(base)
+	return nil
+}
+
+// SetThetaDirection changes whether theta increases clockwise or
+// counterclockwise on polar axes.
+func (a *Axes) SetThetaDirection(direction string) error {
+	proj, ok := polarProjectionForAxes(a)
+	if !ok {
+		return fmt.Errorf("theta direction requires polar axes")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(direction)) {
+	case "counterclockwise", "anticlockwise", "ccw", "1", "+1", "positive":
+		proj.thetaDirection = 1
+	case "clockwise", "cw", "-1", "negative":
+		proj.thetaDirection = -1
+	default:
+		return fmt.Errorf("unsupported theta direction %q", direction)
+	}
+	return nil
+}
+
+// SetRadialLabelPosition changes the angle used for radial ticks, labels, and
+// the radial spine on polar axes.
+func (a *Axes) SetRadialLabelPosition(angleDeg float64) error {
+	proj, ok := polarProjectionForAxes(a)
+	if !ok {
+		return fmt.Errorf("radial label position requires polar axes")
+	}
+	proj.radialLabelAngle = normalizePolarAngle(angleDeg * math.Pi / 180)
+	return nil
 }
 
 // SetXLim sets the x-axis limits.
@@ -1453,7 +1515,8 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 	// Title: centered above the plot
 	if ax.Title != "" {
 		layout := measureSingleLineTextLayout(r, ax.Title, titleSize, ctx.RC.FontKey)
-		textRen.DrawText(
+		drawDisplayText(
+			textRen,
 			ax.Title,
 			alignedSingleLineOrigin(titleAnchorPoint(ax, r, ctx, px, alignment), layout, TextAlignCenter, textLayoutVAlignBaseline),
 			titleSize,
@@ -1468,7 +1531,8 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 		side := ax.effectiveXLabelSide()
 		layout := measureSingleLineTextLayout(r, ax.XLabel, labelSize, ctx.RC.FontKey)
 		anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side, alignment)
-		textRen.DrawText(
+		drawDisplayText(
+			textRen,
 			ax.XLabel,
 			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign),
 			labelSize,
@@ -1486,22 +1550,24 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 		}
 		switch ren := r.(type) {
 		case render.RotatedTextDrawer:
-			ren.DrawTextRotated(ax.YLabel, anchor, labelSize, angle, labelColor)
+			drawDisplayTextRotated(ren, ax.YLabel, anchor, labelSize, angle, labelColor)
 		case render.VerticalTextDrawer:
 			if angle < 0 {
 				layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey)
-				textRen.DrawText(
+				drawDisplayText(
+					textRen,
 					ax.YLabel,
 					alignedSingleLineOrigin(geom.Pt{X: anchor.X, Y: px.Min.Y + px.H()/2}, layout, TextAlignCenter, textLayoutVAlignCenter),
 					labelSize,
 					labelColor,
 				)
 			} else {
-				ren.DrawTextVertical(ax.YLabel, geom.Pt{X: anchor.X, Y: anchor.Y}, labelSize, labelColor)
+				drawDisplayTextVertical(ren, ax.YLabel, geom.Pt{X: anchor.X, Y: anchor.Y}, labelSize, labelColor)
 			}
 		default:
 			layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey)
-			textRen.DrawText(
+			drawDisplayText(
+				textRen,
 				ax.YLabel,
 				alignedSingleLineOrigin(geom.Pt{X: anchor.X, Y: px.Min.Y + px.H()/2}, layout, TextAlignCenter, textLayoutVAlignCenter),
 				labelSize,

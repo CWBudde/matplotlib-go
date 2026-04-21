@@ -19,6 +19,12 @@ type Projection interface {
 	DataToAxes(ax *Axes) transform.T
 }
 
+// ProjectionCloner preserves projection-local state when axes create derived
+// contexts or overlay axes.
+type ProjectionCloner interface {
+	CloneProjection() Projection
+}
+
 var (
 	projectionRegistryMu sync.RWMutex
 	projectionRegistry   = map[string]ProjectionFactory{}
@@ -26,7 +32,7 @@ var (
 
 func init() {
 	mustRegisterProjection("rectilinear", func() Projection { return rectilinearProjection{} })
-	mustRegisterProjection("polar", func() Projection { return polarProjection{} })
+	mustRegisterProjection("polar", func() Projection { return newPolarProjection() })
 }
 
 // RegisterProjection installs a named axes projection.
@@ -80,6 +86,9 @@ func cloneProjection(proj Projection) Projection {
 		clone, _ := lookupProjection("rectilinear")
 		return clone
 	}
+	if cloner, ok := proj.(ProjectionCloner); ok {
+		return cloner.CloneProjection()
+	}
 	clone, err := lookupProjection(proj.Name())
 	if err != nil {
 		return proj
@@ -104,11 +113,30 @@ func (rectilinearProjection) DataToAxes(ax *Axes) transform.T {
 	return transform.NewScaleTransform(ax.effectiveXScale(), ax.effectiveYScale())
 }
 
-type polarProjection struct{}
+type polarProjection struct {
+	thetaOffset      float64
+	thetaDirection   float64
+	radialLabelAngle float64
+}
 
-func (polarProjection) Name() string { return "polar" }
+func newPolarProjection() *polarProjection {
+	return &polarProjection{
+		thetaDirection:   1,
+		radialLabelAngle: defaultPolarRadialLabelAngle,
+	}
+}
 
-func (polarProjection) ConfigureAxes(ax *Axes) {
+func (*polarProjection) Name() string { return "polar" }
+
+func (p *polarProjection) CloneProjection() Projection {
+	if p == nil {
+		return newPolarProjection()
+	}
+	clone := *p
+	return &clone
+}
+
+func (p *polarProjection) ConfigureAxes(ax *Axes) {
 	if ax == nil {
 		return
 	}
@@ -136,13 +164,15 @@ func (polarProjection) ConfigureAxes(ax *Axes) {
 	ax.YAxis.ShowLabels = true
 }
 
-func (polarProjection) DataToAxes(ax *Axes) transform.T {
+func (p *polarProjection) DataToAxes(ax *Axes) transform.T {
 	if ax == nil {
 		return nil
 	}
 	return polarDataTransform{
-		theta: ax.effectiveXScale(),
-		r:     ax.effectiveYScale(),
+		theta:          ax.effectiveXScale(),
+		r:              ax.effectiveYScale(),
+		thetaOffset:    p.thetaOffset,
+		thetaDirection: p.thetaDirection,
 	}
 }
 

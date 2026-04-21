@@ -177,6 +177,57 @@ func TestPathStroke(t *testing.T) {
 	}
 }
 
+func TestClipRectAllowsPathDrawingAcrossIndependentRegions(t *testing.T) {
+	r := New(240, 240, render.Color{R: 1, G: 1, B: 1, A: 1})
+
+	err := r.Begin(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 240, Y: 240}})
+	if err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+	defer r.End()
+
+	quadrants := []geom.Rect{
+		{Min: geom.Pt{X: 20, Y: 20}, Max: geom.Pt{X: 100, Y: 100}},
+		{Min: geom.Pt{X: 140, Y: 20}, Max: geom.Pt{X: 220, Y: 100}},
+		{Min: geom.Pt{X: 20, Y: 140}, Max: geom.Pt{X: 100, Y: 220}},
+		{Min: geom.Pt{X: 140, Y: 140}, Max: geom.Pt{X: 220, Y: 220}},
+	}
+	colors := []render.Color{
+		{R: 1, G: 0, B: 0, A: 1},
+		{R: 0, G: 1, B: 0, A: 1},
+		{R: 0, G: 0, B: 1, A: 1},
+		{R: 1, G: 0.5, B: 0, A: 1},
+	}
+
+	for i, clip := range quadrants {
+		r.Save()
+		r.ClipRect(clip)
+		path := geom.Path{
+			C: []geom.Cmd{geom.MoveTo, geom.LineTo, geom.LineTo, geom.LineTo, geom.ClosePath},
+			V: []geom.Pt{
+				{X: clip.Min.X + 8, Y: clip.Min.Y + 8},
+				{X: clip.Max.X - 8, Y: clip.Min.Y + 8},
+				{X: clip.Max.X - 8, Y: clip.Max.Y - 8},
+				{X: clip.Min.X + 8, Y: clip.Max.Y - 8},
+			},
+		}
+		r.Path(path, &render.Paint{Fill: colors[i]})
+		r.Restore()
+	}
+
+	img := r.GetImage()
+	white := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	for i, clip := range quadrants {
+		center := image.Point{
+			X: int((clip.Min.X + clip.Max.X) / 2),
+			Y: int((clip.Min.Y + clip.Max.Y) / 2),
+		}
+		if got := img.RGBAAt(center.X, center.Y); got == white {
+			t.Fatalf("quadrant %d center remained background at %v", i, center)
+		}
+	}
+}
+
 func TestMeasureText(t *testing.T) {
 	r := New(200, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
 

@@ -3,7 +3,9 @@ package svg
 import (
 	"image"
 	"image/color"
+	"math"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,6 +13,13 @@ import (
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
+
+type sizeOnlyImage struct {
+	w int
+	h int
+}
+
+func (i sizeOnlyImage) Size() (w, h int) { return i.w, i.h }
 
 func mustNewRenderer(t *testing.T) *Renderer {
 	t.Helper()
@@ -462,5 +471,107 @@ func TestFontFamilyVariants(t *testing.T) {
 		if got := fontFamily(key); got != want {
 			t.Fatalf("unexpected font family for %q: want %q, got %q", key, want, got)
 		}
+	}
+}
+
+func TestDrawTextAndRotationGuardsSkipInvalidInput(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.DrawText("", geom.Pt{X: 10, Y: 10}, 12, render.Color{A: 1})
+		r.DrawText("zero", geom.Pt{X: 10, Y: 10}, 0, render.Color{A: 1})
+		r.DrawTextRotated("nan", geom.Pt{X: 10, Y: 10}, 12, math.NaN(), render.Color{A: 1})
+		r.DrawTextRotated("inf", geom.Pt{X: 10, Y: 10}, 12, math.Inf(1), render.Color{A: 1})
+		r.DrawTextRotated("zero", geom.Pt{X: 10, Y: 10}, 0, 1, render.Color{A: 1})
+		r.DrawTextVertical("", geom.Pt{X: 10, Y: 10}, 12, render.Color{A: 1})
+		r.DrawTextVertical("zero", geom.Pt{X: 10, Y: 10}, 0, render.Color{A: 1})
+	})
+
+	if strings.Contains(content, "<text") {
+		t.Fatalf("invalid text inputs should not emit text nodes, got %q", content)
+	}
+}
+
+func TestGlyphRunSkipsMissingGlyphsAndFallsBackToMeasuredAdvance(t *testing.T) {
+	r := mustNewRenderer(t)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 180, Y: 120}}
+	if err := r.Begin(viewport); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	expectedAdvance := r.MeasureText("A", 12, "monospace").W
+	r.nodes = nil
+
+	r.GlyphRun(render.GlyphRun{
+		Glyphs: []render.Glyph{
+			{ID: 0, Advance: 5},
+			{ID: 'A', Advance: 0},
+			{ID: 'B', Advance: 4},
+		},
+		Origin:  geom.Pt{X: 10, Y: 20},
+		Size:    12,
+		FontKey: "monospace",
+	}, render.Color{A: 1})
+
+	if err := r.End(); err != nil {
+		t.Fatalf("End failed: %v", err)
+	}
+
+	content := r.renderSVG()
+	if strings.Count(content, "<text") != 2 {
+		t.Fatalf("expected only visible glyphs to emit text nodes, got %q", content)
+	}
+	if !strings.Contains(content, `<text x="15.000000" y="20.000000"`) {
+		t.Fatalf("expected skipped glyph advance to shift first visible glyph, got %q", content)
+	}
+	secondX := `x="` + formatFloat(15+expectedAdvance) + `"`
+	if !strings.Contains(content, secondX) {
+		t.Fatalf("expected measured advance fallback to place second glyph at %s in %q", secondX, content)
+	}
+	if !strings.Contains(content, `font-family="DejaVu Sans Mono, monospace"`) {
+		t.Fatalf("glyph run should propagate font key to rendered glyphs, got %q", content)
+	}
+}
+
+func TestImageSkipsUnsupportedImageAndDegenerateRect(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.Image(sizeOnlyImage{w: 10, h: 10}, geom.Rect{
+			Min: geom.Pt{X: 0, Y: 0},
+			Max: geom.Pt{X: 10, Y: 10},
+		})
+		r.Image(render.NewImageData(image.NewRGBA(image.Rect(0, 0, 1, 1))), geom.Rect{
+			Min: geom.Pt{X: 10, Y: 10},
+			Max: geom.Pt{X: 10, Y: 20},
+		})
+	})
+
+	if strings.Contains(content, "<image") {
+		t.Fatalf("unsupported images and degenerate rects should not emit image nodes, got %q", content)
+	}
+}
+
+func TestSaveSVGErrorPaths(t *testing.T) {
+	r := mustNewRenderer(t)
+
+	if err := r.SaveSVG(""); err == nil {
+		t.Fatal("empty output path should return an error")
+	}
+
+	dir := t.TempDir()
+	if err := r.SaveSVG(filepath.Join(dir, ".")); err == nil {
+		t.Fatal("writing SVG to a directory should return an error")
+	}
+}
+
+func TestHelperImageBranches(t *testing.T) {
+	if _, err := encodeImage(nil); err == nil {
+		t.Fatal("encoding nil image should fail")
+	}
+	if got := asRGBAImage(sizeOnlyImage{w: 3, h: 4}); got != nil {
+		t.Fatalf("non-RGBA image should not convert, got %#v", got)
+	}
+
+	img := image.NewRGBA(image.Rect(0, 0, 2, 3))
+	converted := asRGBAImage(render.NewImageData(img))
+	if converted == nil || converted.Bounds() != img.Bounds() {
+		t.Fatalf("expected RGBA image conversion to preserve bounds, got %#v", converted)
 	}
 }

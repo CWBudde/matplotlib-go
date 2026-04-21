@@ -32,8 +32,9 @@ type singleLineTextLayout struct {
 }
 
 func measureSingleLineTextLayout(r render.Renderer, text string, size float64, fontKey string) singleLineTextLayout {
-	metrics := r.MeasureText(text, size, fontKey)
-	bounds, haveBounds := measureTextBounds(r, text, size, fontKey)
+	display := normalizeDisplayText(text)
+	metrics := r.MeasureText(display, size, fontKey)
+	bounds, haveBounds := measureTextBounds(r, display, size, fontKey)
 
 	fontHeights := render.FontHeightMetrics{
 		Ascent:  max0(metrics.Ascent),

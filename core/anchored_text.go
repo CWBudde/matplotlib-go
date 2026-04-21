@@ -172,7 +172,8 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 			X: box.Min.X + a.Padding,
 			Y: y,
 		}
-		textRen.DrawText(
+		drawDisplayText(
+			textRen,
 			line,
 			alignedSingleLineOrigin(anchor, layout, TextAlignLeft, textLayoutVAlignTop),
 			fontSize,

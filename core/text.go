@@ -2,7 +2,6 @@ package core
 
 import (
 	"math"
-	"strings"
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -85,32 +84,6 @@ type Annotation struct {
 	Coords        CoordinateSpec
 	z             float64
 }
-
-var basicSymbolReplacer = strings.NewReplacer(
-	`\\alpha`, "α",
-	`\\beta`, "β",
-	`\\gamma`, "γ",
-	`\\delta`, "δ",
-	`\\epsilon`, "ε",
-	`\\theta`, "θ",
-	`\\lambda`, "λ",
-	`\\mu`, "μ",
-	`\\pi`, "π",
-	`\\sigma`, "σ",
-	`\\omega`, "ω",
-	`\\Delta`, "Δ",
-	`\\Theta`, "Θ",
-	`\\Lambda`, "Λ",
-	`\\Sigma`, "Σ",
-	`\\Omega`, "Ω",
-	`\\pm`, "±",
-	`\\times`, "×",
-	`\\deg`, "°",
-	`\\le`, "≤",
-	`\\ge`, "≥",
-	`\\neq`, "≠",
-	`\\rightarrow`, "→",
-)
 
 // Text adds arbitrary text positioned in data coordinates.
 func (a *Axes) Text(x, y float64, text string, opts ...TextOptions) *Text {
@@ -268,10 +241,6 @@ func (a *Annotation) Bounds(*DrawContext) geom.Rect { return geom.Rect{} }
 
 // Z returns the annotation z-order.
 func (a *Annotation) Z() float64 { return a.z }
-
-func normalizeDisplayText(text string) string {
-	return basicSymbolReplacer.Replace(text)
-}
 
 func defaultTextColor(c render.Color) render.Color {
 	return resolvedTextColor(c, nil)

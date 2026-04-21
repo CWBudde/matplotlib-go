@@ -454,11 +454,11 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		}
 
 		if style.Rotation != 0 && rotRen != nil {
-			rotRen.DrawTextRotated(label, tickLabelRotationAnchor(labelPos, layout), fontSize, style.Rotation*math.Pi/180.0, a.Color)
+			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout), fontSize, style.Rotation*math.Pi/180.0, a.Color)
 			continue
 		}
 
-		textRen.DrawText(label, labelPos, fontSize, a.Color)
+		drawDisplayText(textRen, label, labelPos, fontSize, a.Color)
 	}
 }
 
@@ -670,9 +670,10 @@ func (a *Axis) drawPolarSpine(r render.Renderer, ctx *DrawContext) {
 		path := polarCirclePath(center, radius)
 		r.Path(path, &paint)
 	case AxisLeft, AxisRight:
+		labelAngle := polarRadialLabelAngleForProjection(ctx.Projection)
 		path := geom.Path{}
 		path.MoveTo(center)
-		path.LineTo(polarPixelPoint(center, radius, polarRadialLabelAngle))
+		path.LineTo(polarPixelPoint(center, radius, labelAngle))
 		r.Path(path, &paint)
 	}
 }
@@ -700,7 +701,7 @@ func (a *Axis) drawPolarThetaTicks(r render.Renderer, ctx *DrawContext, ticks []
 	paint := polarTickPaint(a.Color, a.LineWidth, nil)
 
 	for _, tick := range ticks {
-		angle := polarAngleForTheta(ctx.DataToPixel.XScale, tick)
+		angle := polarAngleForTheta(ctx.Projection, ctx.DataToPixel.XScale, tick)
 		path := geom.Path{}
 		path.MoveTo(polarPixelPoint(center, radius, angle))
 		path.LineTo(polarPixelPoint(center, radius+tickSize, angle))
@@ -714,6 +715,7 @@ func (a *Axis) drawPolarRadialTicks(r render.Renderer, ctx *DrawContext, ticks [
 	}
 	center, outerRadius := polarCenterAndRadius(ctx.Clip)
 	paint := polarTickPaint(a.Color, a.LineWidth, nil)
+	labelAngle := polarRadialLabelAngleForProjection(ctx.Projection)
 
 	for _, tick := range ticks {
 		u := ctx.DataToPixel.YScale.Fwd(tick)
@@ -723,7 +725,7 @@ func (a *Axis) drawPolarRadialTicks(r render.Renderer, ctx *DrawContext, ticks [
 		}
 		span := tickSize / math.Max(radius, 1)
 		segments := int(math.Max(float64(polarArcMinSegments), math.Ceil(span*24)))
-		path := polarArcPath(center, radius, polarRadialLabelAngle-span/2, polarRadialLabelAngle+span/2, segments, false)
+		path := polarArcPath(center, radius, labelAngle-span/2, labelAngle+span/2, segments, false)
 		r.Path(path, &paint)
 	}
 }
@@ -770,10 +772,10 @@ func (a *Axis) drawPolarThetaTickLabels(textRen render.TextDrawer, r render.Rend
 			continue
 		}
 		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
-		angle := polarAngleForTheta(ctx.DataToPixel.XScale, tick)
+		angle := polarAngleForTheta(ctx.Projection, ctx.DataToPixel.XScale, tick)
 		anchor := polarPixelPoint(center, radius+labelPadPx, angle)
 		hAlign, vAlign := polarTickLabelAlignments(angle)
-		textRen.DrawText(label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color)
+		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color)
 	}
 }
 
@@ -785,6 +787,7 @@ func (a *Axis) drawPolarRadialTickLabels(textRen render.TextDrawer, r render.Ren
 	center, outerRadius := polarCenterAndRadius(ctx.Clip)
 	fontSize := tickLabelFontSize(a, ctx)
 	labelPadPx := tickLabelPadForSize(tickSize, normalizeTickLabelStyle(style), ctx)
+	labelAngle := polarRadialLabelAngleForProjection(ctx.Projection)
 
 	for i, tick := range ticks {
 		label := formatTickLabel(formatter, tick, i, ticks)
@@ -793,9 +796,9 @@ func (a *Axis) drawPolarRadialTickLabels(textRen render.TextDrawer, r render.Ren
 		}
 		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
 		radius := outerRadius * ctx.DataToPixel.YScale.Fwd(tick)
-		anchor := polarPixelPoint(center, radius+labelPadPx, polarRadialLabelAngle)
-		hAlign, vAlign := polarTickLabelAlignments(polarRadialLabelAngle)
-		textRen.DrawText(label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color)
+		anchor := polarPixelPoint(center, radius+labelPadPx, labelAngle)
+		hAlign, vAlign := polarTickLabelAlignments(labelAngle)
+		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color)
 	}
 }
 
@@ -870,6 +873,7 @@ func (a *Axis) polarTickLabelBoundsForLevel(r render.Renderer, ctx *DrawContext,
 	center, outerRadius := polarCenterAndRadius(ctx.Clip)
 	fontSize := tickLabelFontSize(a, ctx)
 	labelPadPx := tickLabelPadForSize(tickSize, normalizeTickLabelStyle(style), ctx)
+	labelAngle := polarRadialLabelAngleForProjection(ctx.Projection)
 
 	var (
 		union geom.Rect
@@ -890,13 +894,13 @@ func (a *Axis) polarTickLabelBoundsForLevel(r render.Renderer, ctx *DrawContext,
 		)
 
 		if a.Side == AxisBottom || a.Side == AxisTop {
-			angle := polarAngleForTheta(ctx.DataToPixel.XScale, tick)
+			angle := polarAngleForTheta(ctx.Projection, ctx.DataToPixel.XScale, tick)
 			anchor = polarPixelPoint(center, outerRadius+labelPadPx, angle)
 			hAlign, vAlign = polarTickLabelAlignments(angle)
 		} else {
 			radius := outerRadius * ctx.DataToPixel.YScale.Fwd(tick)
-			anchor = polarPixelPoint(center, radius+labelPadPx, polarRadialLabelAngle)
-			hAlign, vAlign = polarTickLabelAlignments(polarRadialLabelAngle)
+			anchor = polarPixelPoint(center, radius+labelPadPx, labelAngle)
+			hAlign, vAlign = polarTickLabelAlignments(labelAngle)
 		}
 
 		origin := alignedSingleLineOrigin(anchor, layout, hAlign, vAlign)

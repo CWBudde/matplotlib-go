@@ -231,19 +231,39 @@ func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 	red, green, blue, alpha := fillColor.ToPremultipliedRGBA()
 	c := color.RGBA{R: red, G: green, B: blue, A: alpha}
 
-	// Apply clipping if set
-	bounds := r.dst.Bounds()
-	if r.clipRect != nil {
-		clipBounds := image.Rect(
-			int(math.Floor(r.clipRect.Min.X)),
-			int(math.Floor(r.clipRect.Min.Y)),
-			int(math.Ceil(r.clipRect.Max.X)),
-			int(math.Ceil(r.clipRect.Max.Y)),
-		)
-		bounds = bounds.Intersect(clipBounds)
+	if r.clipRect == nil {
+		r.rasterizer.Draw(r.dst, r.dst.Bounds(), image.NewUniform(c), image.Point{})
+		return
 	}
 
-	r.rasterizer.Draw(r.dst, bounds, image.NewUniform(c), image.Point{})
+	clipBounds := image.Rect(
+		int(math.Floor(r.clipRect.Min.X)),
+		int(math.Floor(r.clipRect.Min.Y)),
+		int(math.Ceil(r.clipRect.Max.X)),
+		int(math.Ceil(r.clipRect.Max.Y)),
+	).Intersect(r.dst.Bounds())
+	if clipBounds.Empty() {
+		return
+	}
+
+	// Drawing into a temporary surface and compositing the clipped region keeps
+	// clipped paths correct for any clip origin. The direct bounds-based draw
+	// path can drop clipped output outside the first clip region.
+	tmp := image.NewRGBA(r.dst.Bounds())
+	r.rasterizer.Draw(tmp, tmp.Bounds(), image.NewUniform(c), image.Point{})
+	for y := clipBounds.Min.Y; y < clipBounds.Max.Y; y++ {
+		rowOffset := tmp.PixOffset(clipBounds.Min.X, y)
+		for x := clipBounds.Min.X; x < clipBounds.Max.X; x++ {
+			srcOffset := rowOffset + (x-clipBounds.Min.X)*4
+			src := color.RGBA{
+				R: tmp.Pix[srcOffset],
+				G: tmp.Pix[srcOffset+1],
+				B: tmp.Pix[srcOffset+2],
+				A: tmp.Pix[srcOffset+3],
+			}
+			r.blendPixel(x, y, src)
+		}
+	}
 }
 
 // drawStroke handles stroke drawing for paths using proper stroke geometry.

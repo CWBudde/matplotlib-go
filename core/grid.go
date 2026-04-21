@@ -139,7 +139,7 @@ func (g *Grid) drawPolarLines(r render.Renderer, ctx *DrawContext, minor bool, c
 			ticks = visibleTicks(locator.Ticks(minVal, maxVal, polarTargetTickCount(axis, minor)), minVal, maxVal)
 		}
 		for _, tick := range ticks {
-			angle := polarAngleForTheta(ctx.DataToPixel.XScale, tick)
+			angle := polarAngleForTheta(ctx.Projection, ctx.DataToPixel.XScale, tick)
 			path := geom.Path{}
 			path.MoveTo(center)
 			path.LineTo(polarPixelPoint(center, outerRadius, angle))
