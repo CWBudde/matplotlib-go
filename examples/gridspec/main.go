@@ -10,6 +10,7 @@ import (
 
 func main() {
 	fig := core.NewFigure(960, 640)
+	fig.ConstrainedLayout()
 
 	outer := fig.GridSpec(
 		2,

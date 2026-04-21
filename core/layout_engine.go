@@ -1,0 +1,426 @@
+package core
+
+import (
+	"math"
+
+	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
+	"matplotlib-go/style"
+)
+
+// LayoutEngine controls draw-time subplot reflow.
+type LayoutEngine uint8
+
+const (
+	LayoutEngineNone LayoutEngine = iota
+	LayoutEngineTight
+	LayoutEngineConstrained
+)
+
+// SubplotAdjust mirrors Matplotlib's subplots_adjust surface for managed grids.
+type SubplotAdjust struct {
+	Left   *float64
+	Right  *float64
+	Bottom *float64
+	Top    *float64
+	WSpace *float64
+	HSpace *float64
+}
+
+type figureMargin struct {
+	left   float64
+	right  float64
+	top    float64
+	bottom float64
+}
+
+type axesDecorationPadding struct {
+	left   float64
+	right  float64
+	top    float64
+	bottom float64
+}
+
+// SetLayoutEngine selects the draw-time subplot layout engine.
+func (f *Figure) SetLayoutEngine(engine LayoutEngine) {
+	if f == nil {
+		return
+	}
+	f.layoutEngine = engine
+}
+
+// TightLayout enables a measured layout pass with compact padding.
+func (f *Figure) TightLayout() {
+	f.SetLayoutEngine(LayoutEngineTight)
+}
+
+// ConstrainedLayout enables a measured layout pass with roomier padding.
+func (f *Figure) ConstrainedLayout() {
+	f.SetLayoutEngine(LayoutEngineConstrained)
+}
+
+// LayoutEngine reports the active draw-time layout engine.
+func (f *Figure) LayoutEngine() LayoutEngine {
+	if f == nil {
+		return LayoutEngineNone
+	}
+	return f.layoutEngine
+}
+
+// SubplotsAdjust applies persistent subplot parameter changes to managed grids.
+func (f *Figure) SubplotsAdjust(cfg SubplotAdjust) {
+	if f == nil {
+		return
+	}
+	for _, grid := range managedRootGrids(f) {
+		if cfg.Left != nil {
+			grid.options.Left = *cfg.Left
+		}
+		if cfg.Right != nil {
+			grid.options.Right = *cfg.Right
+		}
+		if cfg.Bottom != nil {
+			grid.options.Bottom = *cfg.Bottom
+		}
+		if cfg.Top != nil {
+			grid.options.Top = *cfg.Top
+		}
+		if cfg.WSpace != nil {
+			grid.options.WSpace = *cfg.WSpace
+		}
+		if cfg.HSpace != nil {
+			grid.options.HSpace = *cfg.HSpace
+		}
+	}
+	syncAxesToSubplotSpecs(f, nil)
+}
+
+func prepareFigureLayout(fig *Figure, r render.Renderer, vp geom.Rect) {
+	if fig == nil {
+		return
+	}
+	syncAxesToSubplotSpecs(fig, nil)
+	if fig.layoutEngine == LayoutEngineNone {
+		return
+	}
+
+	gridAxes := axesByManagedGrid(fig)
+	if len(gridAxes) == 0 {
+		return
+	}
+
+	children := childGrids(gridAxes)
+	state := map[*GridSpec]GridSpecOptions{}
+
+	for iter := 0; iter < 2; iter++ {
+		syncAxesToSubplotSpecs(fig, state)
+		for _, root := range managedRootGrids(fig) {
+			resolveMeasuredGridLayout(fig, r, vp, root, gridAxes, children, state)
+		}
+	}
+	syncAxesToSubplotSpecs(fig, state)
+}
+
+func resolveMeasuredGridLayout(fig *Figure, r render.Renderer, vp geom.Rect, grid *GridSpec, gridAxes map[*GridSpec][]*Axes, children map[*GridSpec][]*GridSpec, state map[*GridSpec]GridSpecOptions) {
+	if grid == nil {
+		return
+	}
+
+	syncAxesToSubplotSpecs(fig, state)
+	alignment := computeFigureTextAlignment(fig, r, vp)
+	state[grid] = measuredGridOptions(fig, r, vp, grid, gridAxes[grid], state, alignment)
+	syncAxesToSubplotSpecs(fig, state)
+
+	for _, child := range children[grid] {
+		resolveMeasuredGridLayout(fig, r, vp, child, gridAxes, children, state)
+	}
+}
+
+func measuredGridOptions(fig *Figure, r render.Renderer, vp geom.Rect, grid *GridSpec, axes []*Axes, state map[*GridSpec]GridSpecOptions, alignment figureTextAlignment) GridSpecOptions {
+	opts := grid.options
+	if grid == nil {
+		return opts
+	}
+
+	parentRect := grid.parentRectForState(state)
+	parentPx := fractionRectToPixels(parentRect, vp)
+	if parentPx.W() <= 0 || parentPx.H() <= 0 {
+		return opts
+	}
+
+	leftMargins := make([]float64, grid.nCols)
+	rightMargins := make([]float64, grid.nCols)
+	topMargins := make([]float64, grid.nRows)
+	bottomMargins := make([]float64, grid.nRows)
+
+	for _, ax := range axes {
+		if ax == nil || ax.subplotSpec == nil {
+			continue
+		}
+		padding := measureAxesDecorationPadding(ax, fig, r, vp, alignment)
+		leftMargins[ax.subplotSpec.colStart] = math.Max(leftMargins[ax.subplotSpec.colStart], padding.left)
+		rightMargins[ax.subplotSpec.colEnd-1] = math.Max(rightMargins[ax.subplotSpec.colEnd-1], padding.right)
+		topMargins[ax.subplotSpec.rowStart] = math.Max(topMargins[ax.subplotSpec.rowStart], padding.top)
+		bottomMargins[ax.subplotSpec.rowEnd-1] = math.Max(bottomMargins[ax.subplotSpec.rowEnd-1], padding.bottom)
+	}
+
+	outerPad := layoutPadPx(fig, fig.layoutEngine)
+	innerPad := outerPad
+	global := figureLabelMarginsPx(fig, r, vp, fig.layoutEngine)
+	if !gridCoversWholeFigure(grid) {
+		global = figureMargin{}
+	}
+
+	leftPx := leftMargins[0] + outerPad + global.left
+	rightPx := rightMargins[len(rightMargins)-1] + outerPad + global.right
+	topPx := topMargins[0] + outerPad + global.top
+	bottomPx := bottomMargins[len(bottomMargins)-1] + outerPad + global.bottom
+
+	opts.Left = clamp01(leftPx / parentPx.W())
+	opts.Right = clamp01(1 - rightPx/parentPx.W())
+	opts.Bottom = clamp01(bottomPx / parentPx.H())
+	opts.Top = clamp01(1 - topPx/parentPx.H())
+
+	if opts.Right <= opts.Left || opts.Top <= opts.Bottom {
+		return grid.options
+	}
+
+	innerW := parentPx.W() * (opts.Right - opts.Left)
+	innerH := parentPx.H() * (opts.Top - opts.Bottom)
+	if innerW <= 0 || innerH <= 0 {
+		return grid.options
+	}
+
+	maxGapX := 0.0
+	for col := 0; col < len(leftMargins)-1; col++ {
+		maxGapX = math.Max(maxGapX, rightMargins[col]+leftMargins[col+1]+innerPad)
+	}
+	maxGapY := 0.0
+	for row := 0; row < len(topMargins)-1; row++ {
+		maxGapY = math.Max(maxGapY, bottomMargins[row]+topMargins[row+1]+innerPad)
+	}
+
+	if grid.nCols > 1 {
+		gap := capLayoutGap(maxGapX, innerW, grid.nCols)
+		opts.WSpace = gap / innerW
+	} else {
+		opts.WSpace = 0
+	}
+	if grid.nRows > 1 {
+		gap := capLayoutGap(maxGapY, innerH, grid.nRows)
+		opts.HSpace = gap / innerH
+	} else {
+		opts.HSpace = 0
+	}
+
+	return opts
+}
+
+func measureAxesDecorationPadding(ax *Axes, fig *Figure, r render.Renderer, vp geom.Rect, alignment figureTextAlignment) axesDecorationPadding {
+	px := ax.adjustedLayout(fig)
+	ctx := newAxesDrawContext(ax, fig, vp, px)
+	union := px
+
+	for _, axis := range []*Axis{ax.effectiveXAxis(), ax.effectiveYAxis(), ax.effectiveTopAxis(), ax.effectiveRightAxis()} {
+		if bounds, ok := axisTickLabelBounds(axis, r, ctx); ok {
+			union = unionRect(union, bounds)
+		}
+	}
+
+	if bounds, ok := titleBounds(ax, r, ctx, px, alignment); ok {
+		union = unionRect(union, bounds)
+	}
+	if bounds, ok := xLabelBounds(ax, r, ctx, px, alignment); ok {
+		union = unionRect(union, bounds)
+	}
+	if bounds, ok := yLabelBounds(ax, r, ctx, px, alignment); ok {
+		union = unionRect(union, bounds)
+	}
+
+	return axesDecorationPadding{
+		left:   math.Max(0, px.Min.X-union.Min.X),
+		right:  math.Max(0, union.Max.X-px.Max.X),
+		top:    math.Max(0, px.Min.Y-union.Min.Y),
+		bottom: math.Max(0, union.Max.Y-px.Max.Y),
+	}
+}
+
+func titleBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, alignment figureTextAlignment) (geom.Rect, bool) {
+	if ax == nil || ax.Title == "" {
+		return geom.Rect{}, false
+	}
+	layout := measureSingleLineTextLayout(r, ax.Title, titleFontSize(ctx), ctx.RC.FontKey)
+	return textInkRect(alignedSingleLineOrigin(titleAnchorPoint(ax, r, ctx, px, alignment), layout, TextAlignCenter, textLayoutVAlignBaseline), layout)
+}
+
+func xLabelBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, alignment figureTextAlignment) (geom.Rect, bool) {
+	if ax == nil || ax.XLabel == "" {
+		return geom.Rect{}, false
+	}
+	side := ax.effectiveXLabelSide()
+	layout := measureSingleLineTextLayout(r, ax.XLabel, axisLabelFontSize(ctx), ctx.RC.FontKey)
+	anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side, alignment)
+	return textInkRect(alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign), layout)
+}
+
+func yLabelBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, alignment figureTextAlignment) (geom.Rect, bool) {
+	if ax == nil || ax.YLabel == "" {
+		return geom.Rect{}, false
+	}
+	side := ax.effectiveYLabelSide()
+	layout := measureSingleLineTextLayout(r, ax.YLabel, axisLabelFontSize(ctx), ctx.RC.FontKey)
+	anchor := yLabelAnchorPoint(ax, r, ctx, px, side, alignment)
+	centerY := px.Min.Y + px.H()/2
+	if side == AxisRight {
+		return geom.Rect{
+			Min: geom.Pt{X: anchor.X, Y: centerY - layout.Width/2},
+			Max: geom.Pt{X: anchor.X + layout.Height, Y: centerY + layout.Width/2},
+		}, true
+	}
+	return geom.Rect{
+		Min: geom.Pt{X: anchor.X - layout.Height, Y: centerY - layout.Width/2},
+		Max: geom.Pt{X: anchor.X, Y: centerY + layout.Width/2},
+	}, true
+}
+
+func figureLabelMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {
+	if fig == nil {
+		return figureMargin{}
+	}
+	pad := layoutPadPx(fig, engine)
+	margins := figureMargin{}
+
+	ctx := newFigureDrawContext(fig, vp)
+	if fig.SupTitle != "" {
+		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleFontSize(ctx), fig.RC.FontKey)
+		margins.top += layout.Height + pad
+	}
+	if fig.SupXLabel != "" {
+		layout := measureSingleLineTextLayout(r, fig.SupXLabel, axisLabelFontSize(ctx), fig.RC.FontKey)
+		margins.bottom += layout.Height + pad
+	}
+	if fig.SupYLabel != "" {
+		layout := measureSingleLineTextLayout(r, fig.SupYLabel, axisLabelFontSize(ctx), fig.RC.FontKey)
+		margins.left += layout.Height + pad
+	}
+	return margins
+}
+
+func layoutPadPx(fig *Figure, engine LayoutEngine) float64 {
+	rc := fig.RC
+	if rc.DPI <= 0 {
+		rc = style.Default
+	}
+	switch engine {
+	case LayoutEngineConstrained:
+		return pointsToPixels(rc, 8)
+	case LayoutEngineTight:
+		return pointsToPixels(rc, 4)
+	default:
+		return 0
+	}
+}
+
+func capLayoutGap(gap, inner float64, count int) float64 {
+	if gap <= 0 || inner <= 0 || count <= 1 {
+		return 0
+	}
+	maxGap := inner / float64(count+1)
+	if gap > maxGap {
+		return maxGap
+	}
+	return gap
+}
+
+func syncAxesToSubplotSpecs(fig *Figure, state map[*GridSpec]GridSpecOptions) {
+	if fig == nil {
+		return
+	}
+	for _, ax := range fig.Children {
+		if ax != nil && ax.subplotSpec != nil {
+			ax.RectFraction = ax.subplotSpec.rectWithOptions(state)
+		}
+	}
+}
+
+func axesByManagedGrid(fig *Figure) map[*GridSpec][]*Axes {
+	out := map[*GridSpec][]*Axes{}
+	if fig == nil {
+		return out
+	}
+	for _, ax := range fig.Children {
+		if ax == nil || ax.subplotSpec == nil || ax.subplotSpec.grid == nil {
+			continue
+		}
+		out[ax.subplotSpec.grid] = append(out[ax.subplotSpec.grid], ax)
+	}
+	return out
+}
+
+func childGrids(gridAxes map[*GridSpec][]*Axes) map[*GridSpec][]*GridSpec {
+	children := map[*GridSpec][]*GridSpec{}
+	for grid := range gridAxes {
+		if grid == nil || grid.parent == nil || grid.parent.grid == nil {
+			continue
+		}
+		parent := grid.parent.grid
+		children[parent] = append(children[parent], grid)
+	}
+	return children
+}
+
+func managedRootGrids(fig *Figure) []*GridSpec {
+	seen := map[*GridSpec]bool{}
+	var roots []*GridSpec
+	for _, ax := range fig.Children {
+		if ax == nil || ax.subplotSpec == nil || ax.subplotSpec.grid == nil {
+			continue
+		}
+		grid := ax.subplotSpec.grid
+		for grid != nil && grid.parent != nil && grid.parent.grid != nil {
+			grid = grid.parent.grid
+		}
+		if grid != nil && !seen[grid] {
+			seen[grid] = true
+			roots = append(roots, grid)
+		}
+	}
+	return roots
+}
+
+func gridCoversWholeFigure(grid *GridSpec) bool {
+	if grid == nil || grid.parent != nil {
+		return false
+	}
+	return grid.base.Min.X == 0 && grid.base.Min.Y == 0 && grid.base.Max.X == 1 && grid.base.Max.Y == 1
+}
+
+func fractionRectToPixels(r geom.Rect, vp geom.Rect) geom.Rect {
+	return geom.Rect{
+		Min: geom.Pt{
+			X: vp.Min.X + r.Min.X*vp.W(),
+			Y: vp.Min.Y + r.Min.Y*vp.H(),
+		},
+		Max: geom.Pt{
+			X: vp.Min.X + r.Max.X*vp.W(),
+			Y: vp.Min.Y + r.Max.Y*vp.H(),
+		},
+	}
+}
+
+func unionRect(a, b geom.Rect) geom.Rect {
+	return geom.Rect{
+		Min: geom.Pt{
+			X: math.Min(a.Min.X, b.Min.X),
+			Y: math.Min(a.Min.Y, b.Min.Y),
+		},
+		Max: geom.Pt{
+			X: math.Max(a.Max.X, b.Max.X),
+			Y: math.Max(a.Max.Y, b.Max.Y),
+		},
+	}
+}
+
+func clamp01(v float64) float64 {
+	return math.Max(0, math.Min(1, v))
+}

@@ -16,5 +16,6 @@
 //   - Legend: Renders automatic legend boxes from labeled artists
 //   - Subplots: Creates subplot grids with automatic layout
 //   - GridSpec/SubplotSpec/SubFigure: Compose nested figure layouts and subplot spans
+//   - LayoutEngine/SubplotsAdjust: Measured subplot reflow and manual subplot margin control
 //   - SavePNG: Placeholder for PNG export (requires backend renderer)
 package core

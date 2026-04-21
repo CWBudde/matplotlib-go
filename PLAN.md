@@ -271,11 +271,11 @@ core.SavePNG(fig, r, "output.png")
 
 ### 4.3 Layout Engines
 
-- [ ] `subplots_adjust`
-- [ ] `tight_layout`
-- [ ] `constrained_layout`
-- [ ] Automatic label/title alignment across axes
-- [ ] Margin computation driven by measured text extents instead of fixed subplot padding
+- [x] `subplots_adjust`
+- [x] `tight_layout`
+- [x] `constrained_layout`
+- [x] Automatic label/title alignment across axes
+- [x] Margin computation driven by measured text extents instead of fixed subplot padding
 
 ### 4.4 Legends ✅
 
@@ -327,9 +327,9 @@ core.SavePNG(fig, r, "output.png")
 
 ### 5.2 Pyplot / Stateful API
 
-- [ ] Optional `pyplot`-style figure registry (`Figure`, `GCF`, `GCA`, `Subplot`, `Subplots`)
-- [ ] Stateful helpers for `title`, `xlabel`, `ylabel`, `legend`, `colorbar`, `savefig`, `show`, and `pause`
-- [ ] Keep the explicit object API first-class while offering a migration-friendly convenience layer
+- [x] Optional `pyplot`-style figure registry (`Figure`, `GCF`, `GCA`, `Subplot`, `Subplots`)
+- [x] Stateful helpers for `title`, `xlabel`, `ylabel`, `legend`, `colorbar`, `savefig`, `show`, and `pause`
+- [x] Keep the explicit object API first-class while offering a migration-friendly convenience layer
 
 ### 5.3 Styling and Configuration Parity
 

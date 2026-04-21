@@ -184,6 +184,35 @@ func TestSubplotSpecExplicitPeerSharing(t *testing.T) {
 	}
 }
 
+func TestFigureSubplotsAdjustUpdatesManagedGrid(t *testing.T) {
+	fig := NewFigure(1000, 800)
+	grid := fig.Subplots(2, 2)
+
+	left := 0.2
+	right := 0.85
+	bottom := 0.15
+	top := 0.88
+	fig.SubplotsAdjust(SubplotAdjust{
+		Left:   &left,
+		Right:  &right,
+		Bottom: &bottom,
+		Top:    &top,
+	})
+
+	if !floatApprox(grid[0][0].RectFraction.Min.X, left, 1e-12) {
+		t.Fatalf("left margin = %v, want %v", grid[0][0].RectFraction.Min.X, left)
+	}
+	if !floatApprox(grid[0][0].RectFraction.Max.Y, top, 1e-12) {
+		t.Fatalf("top margin = %v, want %v", grid[0][0].RectFraction.Max.Y, top)
+	}
+	if !floatApprox(grid[1][1].RectFraction.Max.X, right, 1e-12) {
+		t.Fatalf("right margin = %v, want %v", grid[1][1].RectFraction.Max.X, right)
+	}
+	if !floatApprox(grid[1][1].RectFraction.Min.Y, bottom, 1e-12) {
+		t.Fatalf("bottom margin = %v, want %v", grid[1][1].RectFraction.Min.Y, bottom)
+	}
+}
+
 func assertRectApprox(t *testing.T, got, want geom.Rect) {
 	t.Helper()
 	if !floatApprox(got.Min.X, want.Min.X, 1e-12) ||

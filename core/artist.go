@@ -269,19 +269,22 @@ type Figure struct {
 	SupTitle  string
 	SupXLabel string
 	SupYLabel string
+
+	layoutEngine LayoutEngine
 }
 
 // NewFigure creates a new figure with pixel dimensions and optional style overrides.
 func NewFigure(w, h int, opts ...style.Option) *Figure {
 	rc := style.Apply(style.Default, opts...)
 	return &Figure{
-		SizePx:    geom.Pt{X: float64(w), Y: float64(h)},
-		RC:        rc,
-		Children:  nil,
-		Artists:   nil,
-		SupTitle:  "",
-		SupXLabel: "",
-		SupYLabel: "",
+		SizePx:       geom.Pt{X: float64(w), Y: float64(h)},
+		RC:           rc,
+		Children:     nil,
+		Artists:      nil,
+		SupTitle:     "",
+		SupXLabel:    "",
+		SupYLabel:    "",
+		layoutEngine: LayoutEngineNone,
 	}
 }
 
@@ -321,6 +324,8 @@ type Axes struct {
 
 	xUnits *axisUnitsState
 	yUnits *axisUnitsState
+
+	subplotSpec *SubplotSpec
 }
 
 // TickParams controls axis tick visibility and styling.
@@ -1232,6 +1237,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 	_ = r.Begin(vp)
 	defer r.End()
 
+	prepareFigureLayout(fig, r, vp)
 	alignment := computeFigureTextAlignment(fig, r, vp)
 
 	for _, ax := range fig.Children {

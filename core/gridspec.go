@@ -23,6 +23,7 @@ type GridSpecOptions struct {
 type GridSpec struct {
 	figure  *Figure
 	base    geom.Rect
+	parent  *SubplotSpec
 	nRows   int
 	nCols   int
 	options GridSpecOptions
@@ -31,7 +32,6 @@ type GridSpec struct {
 // SubplotSpec describes a span within a GridSpec.
 type SubplotSpec struct {
 	figure   *Figure
-	rect     geom.Rect
 	grid     *GridSpec
 	rowStart int
 	rowEnd   int
@@ -128,7 +128,7 @@ func WithSubplotStyle(opts ...style.Option) SubplotAxesOption {
 
 // GridSpec creates a grid over the whole figure.
 func (f *Figure) GridSpec(nRows, nCols int, opts ...GridSpecOption) *GridSpec {
-	return newGridSpec(f, geom.Rect{Max: geom.Pt{X: 1, Y: 1}}, nRows, nCols, opts...)
+	return newGridSpec(f, geom.Rect{Max: geom.Pt{X: 1, Y: 1}}, nil, nRows, nCols, opts...)
 }
 
 // AddSubFigure creates a composition region inside the figure.
@@ -273,7 +273,7 @@ func (sf *SubFigure) GridSpec(nRows, nCols int, opts ...GridSpecOption) *GridSpe
 	if sf == nil {
 		return nil
 	}
-	return newGridSpec(sf.figure, sf.RectFraction, nRows, nCols, opts...)
+	return newGridSpec(sf.figure, sf.RectFraction, nil, nRows, nCols, opts...)
 }
 
 // AddAxes creates axes positioned relative to the subfigure rectangle.
@@ -338,12 +338,19 @@ func (sf *SubFigure) Subplot2Grid(shape [2]int, loc [2]int, rowSpan, colSpan int
 
 // GridSpec creates a nested grid inside the subplot span.
 func (spec SubplotSpec) GridSpec(nRows, nCols int, opts ...GridSpecOption) *GridSpec {
-	return newGridSpec(spec.figure, spec.rect, nRows, nCols, opts...)
+	return newGridSpec(spec.figure, geom.Rect{}, &spec, nRows, nCols, opts...)
 }
 
 // Rect returns the figure-normalized rectangle occupied by this subplot span.
 func (spec SubplotSpec) Rect() geom.Rect {
-	return spec.rect
+	return spec.rectWithOptions(nil)
+}
+
+func (spec SubplotSpec) rectWithOptions(state map[*GridSpec]GridSpecOptions) geom.Rect {
+	if spec.grid == nil {
+		return geom.Rect{}
+	}
+	return spec.grid.rectForSpan(spec.rowStart, spec.rowEnd, spec.colStart, spec.colEnd, state)
 }
 
 // AddAxes creates axes covering this subplot span.
@@ -357,7 +364,17 @@ func (spec SubplotSpec) AddAxes(opts ...SubplotAxesOption) *Axes {
 		opt(&cfg)
 	}
 
-	ax := spec.figure.AddAxes(spec.rect, cfg.style...)
+	rect := spec.Rect()
+	ax := spec.figure.AddAxes(rect, cfg.style...)
+	ax.RectFraction = rect
+	ax.subplotSpec = &SubplotSpec{
+		figure:   spec.figure,
+		grid:     spec.grid,
+		rowStart: spec.rowStart,
+		rowEnd:   spec.rowEnd,
+		colStart: spec.colStart,
+		colEnd:   spec.colEnd,
+	}
 	if cfg.shareX != nil {
 		root := cfg.shareX.xScaleRoot()
 		ax.shareX = root
@@ -378,7 +395,7 @@ func (spec SubplotSpec) SubFigure() *SubFigure {
 	}
 	return &SubFigure{
 		figure:       spec.figure,
-		RectFraction: spec.rect,
+		RectFraction: spec.Rect(),
 	}
 }
 
@@ -400,7 +417,7 @@ func (gs *GridSpec) Slice(rowStart, rowEnd, colStart, colEnd int) SubplotSpec {
 	return gs.slice(rowStart, rowEnd, colStart, colEnd)
 }
 
-func newGridSpec(figure *Figure, base geom.Rect, nRows, nCols int, opts ...GridSpecOption) *GridSpec {
+func newGridSpec(figure *Figure, base geom.Rect, parent *SubplotSpec, nRows, nCols int, opts ...GridSpecOption) *GridSpec {
 	cfg := defaultGridSpecOptions()
 	for _, opt := range opts {
 		opt(&cfg)
@@ -428,6 +445,7 @@ func newGridSpec(figure *Figure, base geom.Rect, nRows, nCols int, opts ...GridS
 	return &GridSpec{
 		figure:  figure,
 		base:    base,
+		parent:  parent,
 		nRows:   nRows,
 		nCols:   nCols,
 		options: cfg,
@@ -442,23 +460,40 @@ func (gs *GridSpec) slice(rowStart, rowEnd, colStart, colEnd int) SubplotSpec {
 		return SubplotSpec{}
 	}
 
-	inner := composeRect(gs.base, geom.Rect{
-		Min: geom.Pt{X: gs.options.Left, Y: gs.options.Bottom},
-		Max: geom.Pt{X: gs.options.Right, Y: gs.options.Top},
+	return SubplotSpec{
+		figure:   gs.figure,
+		grid:     gs,
+		rowStart: rowStart,
+		rowEnd:   rowEnd,
+		colStart: colStart,
+		colEnd:   colEnd,
+	}
+}
+
+func (gs *GridSpec) rectForSpan(rowStart, rowEnd, colStart, colEnd int, state map[*GridSpec]GridSpecOptions) geom.Rect {
+	if gs == nil {
+		return geom.Rect{}
+	}
+
+	opts := gs.optionsForState(state)
+	parent := gs.parentRectForState(state)
+	inner := composeRect(parent, geom.Rect{
+		Min: geom.Pt{X: opts.Left, Y: opts.Bottom},
+		Max: geom.Pt{X: opts.Right, Y: opts.Top},
 	})
 
 	baseW := inner.W()
 	baseH := inner.H()
-	spacingW := gs.options.WSpace * baseW
-	spacingH := gs.options.HSpace * baseH
+	spacingW := opts.WSpace * baseW
+	spacingH := opts.HSpace * baseH
 	availableW := baseW - spacingW*float64(gs.nCols-1)
 	availableH := baseH - spacingH*float64(gs.nRows-1)
 	if availableW <= 0 || availableH <= 0 {
-		return SubplotSpec{}
+		return geom.Rect{}
 	}
 
-	widths := distributeRatios(gs.options.WidthRatios, gs.nCols, availableW)
-	heights := distributeRatios(gs.options.HeightRatios, gs.nRows, availableH)
+	widths := distributeRatios(opts.WidthRatios, gs.nCols, availableW)
+	heights := distributeRatios(opts.HeightRatios, gs.nRows, availableH)
 
 	minX := inner.Min.X + accumulate(widths, colStart) + spacingW*float64(colStart)
 	maxX := minX + accumulate(widths[colStart:colEnd], len(widths[colStart:colEnd])) + spacingW*float64(colEnd-colStart-1)
@@ -467,15 +502,29 @@ func (gs *GridSpec) slice(rowStart, rowEnd, colStart, colEnd int) SubplotSpec {
 	maxY := inner.Max.Y - offsetFromTop
 	minY := maxY - accumulate(heights[rowStart:rowEnd], len(heights[rowStart:rowEnd])) - spacingH*float64(rowEnd-rowStart-1)
 
-	return SubplotSpec{
-		figure:   gs.figure,
-		rect:     geom.Rect{Min: geom.Pt{X: minX, Y: minY}, Max: geom.Pt{X: maxX, Y: maxY}},
-		grid:     gs,
-		rowStart: rowStart,
-		rowEnd:   rowEnd,
-		colStart: colStart,
-		colEnd:   colEnd,
+	return geom.Rect{
+		Min: geom.Pt{X: minX, Y: minY},
+		Max: geom.Pt{X: maxX, Y: maxY},
 	}
+}
+
+func (gs *GridSpec) parentRectForState(state map[*GridSpec]GridSpecOptions) geom.Rect {
+	if gs == nil {
+		return geom.Rect{}
+	}
+	if gs.parent != nil {
+		return gs.parent.rectWithOptions(state)
+	}
+	return gs.base
+}
+
+func (gs *GridSpec) optionsForState(state map[*GridSpec]GridSpecOptions) GridSpecOptions {
+	if state != nil {
+		if opts, ok := state[gs]; ok {
+			return opts
+		}
+	}
+	return gs.options
 }
 
 func composeRect(parent, child geom.Rect) geom.Rect {

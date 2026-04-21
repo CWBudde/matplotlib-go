@@ -194,6 +194,80 @@ func TestDrawFigure_AlignsTitlesAcrossRow(t *testing.T) {
 	}
 }
 
+func TestDrawFigure_TightLayoutRespondsToMeasuredTextExtents(t *testing.T) {
+	small := newTightLayoutProbeFigure()
+	small.TightLayout()
+	DrawFigure(small, &figureLayoutRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"edge": {X: 0, Y: -8, W: 18, H: 10},
+		},
+	})
+
+	large := newTightLayoutProbeFigure()
+	large.TightLayout()
+	DrawFigure(large, &figureLayoutRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"edge": {X: 0, Y: -14, W: 72, H: 18},
+		},
+	})
+
+	smallAx := small.Children[0]
+	largeAx := large.Children[0]
+	if largeAx.RectFraction.Min.X <= smallAx.RectFraction.Min.X {
+		t.Fatalf("expected larger left margin for larger labels, got %v <= %v", largeAx.RectFraction.Min.X, smallAx.RectFraction.Min.X)
+	}
+	if largeAx.RectFraction.Min.Y <= smallAx.RectFraction.Min.Y {
+		t.Fatalf("expected larger bottom margin for larger labels, got %v <= %v", largeAx.RectFraction.Min.Y, smallAx.RectFraction.Min.Y)
+	}
+}
+
+func TestDrawFigure_ConstrainedLayoutRespondsToNeighboringDecorations(t *testing.T) {
+	small := newConstrainedLayoutProbeFigure()
+	small.ConstrainedLayout()
+	DrawFigure(small, &figureLayoutRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"edge": {X: 0, Y: -8, W: 18, H: 10},
+		},
+	})
+
+	large := newConstrainedLayoutProbeFigure()
+	large.ConstrainedLayout()
+	DrawFigure(large, &figureLayoutRecordingRenderer{
+		bounds: map[string]render.TextBounds{
+			"edge": {X: 0, Y: -10, W: 64, H: 14},
+		},
+	})
+
+	smallGap := small.Children[1].RectFraction.Min.X - small.Children[0].RectFraction.Max.X
+	largeGap := large.Children[1].RectFraction.Min.X - large.Children[0].RectFraction.Max.X
+	if largeGap <= smallGap {
+		t.Fatalf("expected larger constrained-layout gap for larger labels, got %v <= %v", largeGap, smallGap)
+	}
+}
+
+func newTightLayoutProbeFigure() *Figure {
+	fig := NewFigure(800, 600)
+	ax := fig.AddSubplot(1, 1, 1)
+	ax.SetTitle("Overview")
+	ax.SetXLabel("time")
+	ax.SetYLabel("value")
+	ax.XAxis.Locator = staticLocator{1}
+	ax.XAxis.Formatter = FixedFormatter{Labels: []string{"edge"}}
+	ax.YAxis.Locator = staticLocator{1}
+	ax.YAxis.Formatter = FixedFormatter{Labels: []string{"edge"}}
+	return fig
+}
+
+func newConstrainedLayoutProbeFigure() *Figure {
+	fig := NewFigure(800, 600)
+	grid := fig.Subplots(1, 2)
+	grid[0][0].RightAxis().Locator = staticLocator{1}
+	grid[0][0].RightAxis().Formatter = FixedFormatter{Labels: []string{"edge"}}
+	grid[0][1].YAxis.Locator = staticLocator{1}
+	grid[0][1].YAxis.Formatter = FixedFormatter{Labels: []string{"edge"}}
+	return fig
+}
+
 type figureLayoutRecordingRenderer struct {
 	render.NullRenderer
 	bounds         map[string]render.TextBounds
