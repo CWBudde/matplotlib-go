@@ -89,6 +89,7 @@ func (r *Renderer) Begin(viewport geom.Rect) error {
 	r.clipRect = nil
 	r.clipDefs = map[string]string{}
 	r.clipOrder = nil
+	r.lastFontKey = ""
 	return nil
 }
 
@@ -259,14 +260,12 @@ func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
 		return
 	}
 
-	penY := run.Origin.Y
-	if len(run.Glyphs) > 0 {
-		penY += run.Glyphs[0].Offset.Y
+	if run.FontKey != "" {
+		r.lastFontKey = run.FontKey
 	}
+
 	penX := run.Origin.X
-	if len(run.Glyphs) > 0 {
-		penX += run.Glyphs[0].Offset.X
-	}
+	penY := run.Origin.Y
 
 	size := run.Size
 	if size <= 0 {
@@ -287,7 +286,7 @@ func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
 		if advance <= 0 {
 			advance = r.MeasureText(string(rune(glyph.ID)), size, run.FontKey).W
 		}
-		penX += glyph.Offset.X + advance
+		penX += advance
 	}
 }
 
@@ -760,6 +759,8 @@ func fontFamily(key string) string {
 	key = strings.ReplaceAll(key, "-", "")
 
 	switch {
+	case strings.Contains(key, "sansserif"):
+		return "DejaVu Sans, Arial, sans-serif"
 	case strings.Contains(key, "serif"):
 		return "DejaVu Serif, serif"
 	case strings.Contains(key, "mono") || strings.Contains(key, "monospace"):
