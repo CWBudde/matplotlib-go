@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 
+	"matplotlib-go/canvas"
+	"matplotlib-go/core"
 	"matplotlib-go/render"
 )
 
@@ -71,12 +73,20 @@ type SkiaConfig struct {
 // Factory creates a new renderer instance.
 type Factory func(config Config) (render.Renderer, error)
 
+// CanvasFactory creates a backend-managed figure canvas.
+type CanvasFactory func(config Config, fig *core.Figure) (canvas.FigureCanvas, error)
+
+// ManagerFactory creates a backend-managed figure manager.
+type ManagerFactory func(config Config, fig *core.Figure) (canvas.FigureManager, error)
+
 // BackendInfo describes a backend's capabilities and factory.
 type BackendInfo struct {
 	Name         string
 	Description  string
 	Capabilities []Capability
 	Factory      Factory
+	CanvasFactory  CanvasFactory
+	ManagerFactory ManagerFactory
 	Available    bool // Whether dependencies are available
 }
 

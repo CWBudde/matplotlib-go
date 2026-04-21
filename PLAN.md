@@ -337,9 +337,10 @@ core.SavePNG(fig, r, "output.png")
 - [x] Color palettes and defaults
 - [x] Publication-ready themes
 - [x] Example: `examples/styling/themes.go`
-- [ ] `rcParams`, `rc`, `rc_context`, `rcdefaults`, and rc-file loading semantics
+- [x] `rcParams`, `rc`, `rc_context`, `rcdefaults`, and rc-file loading semantics
+- [x] Example: `examples/styling/rc/main.go`
 - [ ] Much broader `.mplstyle` coverage than the current supported subset
-- [ ] Style-library discovery and context-scoped temporary overrides
+- [ ] Style-library discovery beyond the built-in named theme registry
 
 ### 5.4 Backend Runtime, Canvas, and Tooling
 

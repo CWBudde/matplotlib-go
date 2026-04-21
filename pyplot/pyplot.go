@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"matplotlib-go/backends"
+	"matplotlib-go/canvas"
 	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
 	"matplotlib-go/render"
@@ -28,19 +29,24 @@ const (
 // ShowHandler renders or presents a figure when Show or Pause is called.
 type ShowHandler func(*core.Figure) error
 
+// ManagerFactory creates a figure manager for pyplot Show/Pause lifecycle calls.
+type ManagerFactory func(*core.Figure) (canvas.FigureManager, error)
+
 type registryState struct {
 	mu          sync.Mutex
 	current     *core.Figure
 	figures     []*core.Figure
 	currentAxes map[*core.Figure]*core.Axes
 	subplotAxes map[*core.Figure]map[string]*core.Axes
-	showHandler ShowHandler
+	managers    map[*core.Figure]canvas.FigureManager
+	managerFactory ManagerFactory
 }
 
 var registry = registryState{
 	currentAxes: make(map[*core.Figure]*core.Axes),
 	subplotAxes: make(map[*core.Figure]map[string]*core.Axes),
-	showHandler: defaultShowHandler,
+	managers:    make(map[*core.Figure]canvas.FigureManager),
+	managerFactory: defaultManagerFactory,
 }
 
 // Figure creates a new current figure using Matplotlib-like default dimensions.
@@ -246,29 +252,53 @@ func Savefig(path string) error {
 	return saveFigure(GCF(), path)
 }
 
-// SetShowHandler overrides how Show and Pause present figures. Passing nil
-// restores the default headless render behavior.
-func SetShowHandler(handler ShowHandler) {
-	registry.mu.Lock()
-	if handler == nil {
-		handler = defaultShowHandler
+// SetManagerFactory overrides how pyplot creates managers for Show and Pause.
+// Passing nil restores the default backend-driven manager selection.
+func SetManagerFactory(factory ManagerFactory) {
+	if factory == nil {
+		factory = defaultManagerFactory
 	}
-	registry.showHandler = handler
+
+	registry.mu.Lock()
+	existing := registry.managers
+	registry.managers = make(map[*core.Figure]canvas.FigureManager)
+	registry.managerFactory = factory
 	registry.mu.Unlock()
+
+	for _, manager := range existing {
+		if manager != nil {
+			_ = manager.Close()
+		}
+	}
+}
+
+// SetShowHandler overrides how Show and Pause present figures. Passing nil
+// restores the default manager-backed behavior.
+func SetShowHandler(handler ShowHandler) {
+	if handler == nil {
+		SetManagerFactory(nil)
+		return
+	}
+	SetManagerFactory(func(fig *core.Figure) (canvas.FigureManager, error) {
+		return newShowHandlerManager(fig, handler), nil
+	})
 }
 
 // Show renders all registered figures through the configured show handler.
 func Show() error {
 	registry.mu.Lock()
 	figures := append([]*core.Figure(nil), registry.figures...)
-	handler := registry.showHandler
 	registry.mu.Unlock()
 
 	for _, fig := range figures {
 		if fig == nil {
 			continue
 		}
-		if err := handler(fig); err != nil {
+		manager, err := ensureManager(fig)
+		if err != nil {
+			return err
+		}
+		if err := manager.Show(); err != nil {
 			return err
 		}
 	}
@@ -331,13 +361,12 @@ func (r *registryState) rememberAxesLocked(fig *core.Figure, ax *core.Axes, key 
 	r.currentAxes[fig] = ax
 }
 
-func defaultShowHandler(fig *core.Figure) error {
-	renderer, _, err := backends.NewRendererFromEnv(rendererConfig(fig), backends.TextCapabilities)
+func defaultManagerFactory(fig *core.Figure) (canvas.FigureManager, error) {
+	manager, _, err := backends.NewManagerFromEnv(rendererConfig(fig), fig, backends.TextCapabilities)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	core.DrawFigure(fig, renderer)
-	return nil
+	return manager, nil
 }
 
 func saveFigure(fig *core.Figure, path string) error {
@@ -444,7 +473,128 @@ func resetForTests() {
 	registry.figures = nil
 	registry.currentAxes = make(map[*core.Figure]*core.Axes)
 	registry.subplotAxes = make(map[*core.Figure]map[string]*core.Axes)
-	registry.showHandler = defaultShowHandler
+	registry.managers = make(map[*core.Figure]canvas.FigureManager)
+	registry.managerFactory = defaultManagerFactory
 	registry.mu.Unlock()
 	style.ResetDefaults()
+}
+
+func ensureManager(fig *core.Figure) (canvas.FigureManager, error) {
+	registry.mu.Lock()
+	if manager := registry.managers[fig]; manager != nil {
+		registry.mu.Unlock()
+		return manager, nil
+	}
+	factory := registry.managerFactory
+	registry.mu.Unlock()
+
+	manager, err := factory(fig)
+	if err != nil {
+		return nil, err
+	}
+
+	registry.mu.Lock()
+	if existing := registry.managers[fig]; existing != nil {
+		registry.mu.Unlock()
+		_ = manager.Close()
+		return existing, nil
+	}
+	registry.managers[fig] = manager
+	registry.mu.Unlock()
+	return manager, nil
+}
+
+type showHandlerManager struct {
+	canvas *showHandlerCanvas
+	tools  *canvas.ToolManager
+}
+
+type showHandlerCanvas struct {
+	figure     *core.Figure
+	handler    ShowHandler
+	dispatcher canvas.Dispatcher
+	closed     bool
+}
+
+func newShowHandlerManager(fig *core.Figure, handler ShowHandler) canvas.FigureManager {
+	c := &showHandlerCanvas{figure: fig, handler: handler}
+	manager := &showHandlerManager{
+		canvas: c,
+		tools:  canvas.NewToolManager(),
+	}
+	manager.tools.Register(canvas.ToolFunc{
+		Name: "redraw",
+		Run: func(canvas.ToolArgs) error {
+			return c.Draw()
+		},
+	})
+	return manager
+}
+
+func (m *showHandlerManager) Canvas() canvas.FigureCanvas { return m.canvas }
+
+func (m *showHandlerManager) Show() error { return m.canvas.Draw() }
+
+func (m *showHandlerManager) Close() error { return m.canvas.Close() }
+
+func (m *showHandlerManager) SetTitle(string) {}
+
+func (m *showHandlerManager) ToolManager() *canvas.ToolManager { return m.tools }
+
+func (c *showHandlerCanvas) Figure() *core.Figure { return c.figure }
+
+func (c *showHandlerCanvas) Draw() error {
+	if c.closed {
+		return nil
+	}
+	if c.handler == nil {
+		return nil
+	}
+	if err := c.handler(c.figure); err != nil {
+		return err
+	}
+	return c.dispatcher.Emit(canvas.Event{
+		Type:   canvas.EventDraw,
+		Figure: c.figure,
+		Width:  int(c.figure.SizePx.X + 0.5),
+		Height: int(c.figure.SizePx.Y + 0.5),
+	})
+}
+
+func (c *showHandlerCanvas) Resize(width, height int) error {
+	if c.closed {
+		return nil
+	}
+	if c.figure != nil {
+		c.figure.SizePx.X = float64(width)
+		c.figure.SizePx.Y = float64(height)
+	}
+	if err := c.dispatcher.Emit(canvas.Event{
+		Type:   canvas.EventResize,
+		Figure: c.figure,
+		Width:  width,
+		Height: height,
+	}); err != nil {
+		return err
+	}
+	return c.Draw()
+}
+
+func (c *showHandlerCanvas) Connect(eventType canvas.EventType, handler canvas.Handler) canvas.ConnectionID {
+	return c.dispatcher.Connect(eventType, handler)
+}
+
+func (c *showHandlerCanvas) Disconnect(id canvas.ConnectionID) {
+	c.dispatcher.Disconnect(id)
+}
+
+func (c *showHandlerCanvas) Close() error {
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	return c.dispatcher.Emit(canvas.Event{
+		Type:   canvas.EventClose,
+		Figure: c.figure,
+	})
 }
