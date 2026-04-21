@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"matplotlib-go/canvas"
 	"matplotlib-go/core"
 	"matplotlib-go/style"
 )
@@ -176,6 +177,40 @@ func TestShowAndPauseUseConfiguredHandler(t *testing.T) {
 	}
 }
 
+func TestSetManagerFactoryCachesManagerPerFigure(t *testing.T) {
+	resetForTests()
+
+	fig := Figure()
+	factoryCalls := 0
+	showCalls := 0
+
+	SetManagerFactory(func(got *core.Figure) (canvas.FigureManager, error) {
+		factoryCalls++
+		if got != fig {
+			t.Fatalf("factory figure = %p, want %p", got, fig)
+		}
+		return &testFigureManager{
+			canvas: &testFigureCanvas{figure: got},
+			onShow: func() { showCalls++ },
+			tools:  canvas.NewToolManager(),
+		}, nil
+	})
+
+	if err := Show(); err != nil {
+		t.Fatalf("Show() error = %v", err)
+	}
+	if err := Show(); err != nil {
+		t.Fatalf("Show() second call error = %v", err)
+	}
+
+	if factoryCalls != 1 {
+		t.Fatalf("factory calls = %d, want 1", factoryCalls)
+	}
+	if showCalls != 2 {
+		t.Fatalf("show calls = %d, want 2", showCalls)
+	}
+}
+
 func TestRCUpdatesActiveDefaultsForNewFigures(t *testing.T) {
 	resetForTests()
 
@@ -245,3 +280,46 @@ func TestLoadRCFileUpdatesDefaults(t *testing.T) {
 		t.Fatalf("figure DPI = %v, want 175", got)
 	}
 }
+
+type testFigureManager struct {
+	canvas canvas.FigureCanvas
+	onShow func()
+	tools  *canvas.ToolManager
+}
+
+func (m *testFigureManager) Canvas() canvas.FigureCanvas { return m.canvas }
+
+func (m *testFigureManager) Show() error {
+	if m.onShow != nil {
+		m.onShow()
+	}
+	return nil
+}
+
+func (m *testFigureManager) Close() error { return nil }
+
+func (m *testFigureManager) SetTitle(string) {}
+
+func (m *testFigureManager) ToolManager() *canvas.ToolManager { return m.tools }
+
+type testFigureCanvas struct {
+	figure *core.Figure
+}
+
+func (c *testFigureCanvas) Figure() *core.Figure { return c.figure }
+
+func (c *testFigureCanvas) Draw() error { return nil }
+
+func (c *testFigureCanvas) Resize(width, height int) error {
+	if c.figure != nil {
+		c.figure.SizePx.X = float64(width)
+		c.figure.SizePx.Y = float64(height)
+	}
+	return nil
+}
+
+func (c *testFigureCanvas) Connect(canvas.EventType, canvas.Handler) canvas.ConnectionID { return 0 }
+
+func (c *testFigureCanvas) Disconnect(canvas.ConnectionID) {}
+
+func (c *testFigureCanvas) Close() error { return nil }

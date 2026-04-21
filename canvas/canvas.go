@@ -7,6 +7,12 @@ import (
 	"matplotlib-go/internal/geom"
 )
 
+// Figure aliases the plotting figure type for runtime-facing APIs.
+type Figure = core.Figure
+
+// Axes aliases the plotting axes type for runtime-facing APIs.
+type Axes = core.Axes
+
 // EventType identifies a canvas runtime event.
 type EventType string
 
@@ -45,8 +51,8 @@ const (
 // Event carries normalized runtime input and lifecycle information.
 type Event struct {
 	Type            EventType
-	Figure          *core.Figure
-	Axes            *core.Axes
+	Figure          *Figure
+	Axes            *Axes
 	Position        geom.Pt
 	DataPosition    geom.Pt
 	HasDataPosition bool
@@ -68,7 +74,7 @@ type Handler func(Event) error
 
 // FigureCanvas exposes drawing, sizing, and event subscription for one figure.
 type FigureCanvas interface {
-	Figure() *core.Figure
+	Figure() *Figure
 	Draw() error
 	Resize(width, height int) error
 	Connect(EventType, Handler) ConnectionID
@@ -86,7 +92,7 @@ type FigureManager interface {
 }
 
 // ResolveEventTarget resolves the topmost axes under a figure-pixel position.
-func ResolveEventTarget(fig *core.Figure, position geom.Pt) (*core.Axes, geom.Pt, bool) {
+func ResolveEventTarget(fig *Figure, position geom.Pt) (*Axes, geom.Pt, bool) {
 	if fig == nil {
 		return nil, geom.Pt{}, false
 	}

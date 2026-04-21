@@ -5,11 +5,17 @@ import (
 	"sync/atomic"
 )
 
+type handlerEntry struct {
+	id      ConnectionID
+	handler Handler
+}
+
 // Dispatcher manages event subscribers for a figure canvas.
 type Dispatcher struct {
 	next     atomic.Int64
 	mu       sync.RWMutex
-	handlers map[EventType]map[ConnectionID]Handler
+	handlers map[EventType][]handlerEntry
+	index    map[ConnectionID]EventType
 }
 
 // Connect registers a handler for one event type.
@@ -22,12 +28,13 @@ func (d *Dispatcher) Connect(eventType EventType, handler Handler) ConnectionID 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.handlers == nil {
-		d.handlers = make(map[EventType]map[ConnectionID]Handler)
+		d.handlers = make(map[EventType][]handlerEntry)
 	}
-	if d.handlers[eventType] == nil {
-		d.handlers[eventType] = make(map[ConnectionID]Handler)
+	if d.index == nil {
+		d.index = make(map[ConnectionID]EventType)
 	}
-	d.handlers[eventType][id] = handler
+	d.handlers[eventType] = append(d.handlers[eventType], handlerEntry{id: id, handler: handler})
+	d.index[id] = eventType
 	return id
 }
 
@@ -39,14 +46,20 @@ func (d *Dispatcher) Disconnect(id ConnectionID) {
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	for eventType, handlers := range d.handlers {
-		if _, ok := handlers[id]; !ok {
+	eventType, ok := d.index[id]
+	if !ok {
+		return
+	}
+	handlers := d.handlers[eventType]
+	for i, entry := range handlers {
+		if entry.id != id {
 			continue
 		}
-		delete(handlers, id)
-		if len(handlers) == 0 {
+		d.handlers[eventType] = append(handlers[:i], handlers[i+1:]...)
+		if len(d.handlers[eventType]) == 0 {
 			delete(d.handlers, eventType)
 		}
+		delete(d.index, id)
 		return
 	}
 }
@@ -55,8 +68,8 @@ func (d *Dispatcher) Disconnect(id ConnectionID) {
 func (d *Dispatcher) Emit(event Event) error {
 	d.mu.RLock()
 	handlers := make([]Handler, 0, len(d.handlers[event.Type]))
-	for _, handler := range d.handlers[event.Type] {
-		handlers = append(handlers, handler)
+	for _, entry := range d.handlers[event.Type] {
+		handlers = append(handlers, entry.handler)
 	}
 	d.mu.RUnlock()
 

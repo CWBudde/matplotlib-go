@@ -6,11 +6,9 @@ const DEFAULT_HEIGHT = 540;
 
 let api;
 let canvas;
-let ctx;
 
 async function init() {
   canvas = document.getElementById("plotCanvas");
-  ctx = canvas.getContext("2d");
 
   try {
     let result;
@@ -34,12 +32,12 @@ async function init() {
 
     document
       .getElementById("renderBtn")
-      .addEventListener("click", () => renderSelectedDemo());
+      .addEventListener("click", () => mountSelectedDemo());
     document
       .getElementById("demoSelector")
-      .addEventListener("change", () => renderSelectedDemo());
+      .addEventListener("change", () => mountSelectedDemo());
 
-    renderSelectedDemo();
+    mountSelectedDemo();
   } catch (error) {
     updateStatus(`Failed to load WASM: ${error.message}`);
     console.error(error);
@@ -81,22 +79,17 @@ function populateSelector(demos, selectedID) {
   }
 }
 
-function renderSelectedDemo() {
+function mountSelectedDemo() {
   const selector = document.getElementById("demoSelector");
   const demoID = selector.value || api.defaultDemoID();
 
   updateStatus(`Rendering ${demoID}…`);
 
-  const result = api.renderDemo(demoID, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+  const result = api.mountDemo("plotCanvas", demoID, DEFAULT_WIDTH, DEFAULT_HEIGHT);
   if (result.error) {
     updateStatus(result.error);
     return;
   }
-
-  canvas.width = result.width;
-  canvas.height = result.height;
-  const imageData = new ImageData(result.pixels, result.width, result.height);
-  ctx.putImageData(imageData, 0, 0);
 
   document.getElementById("demoTitle").textContent = result.title;
   document.getElementById("demoDescription").textContent = result.description;

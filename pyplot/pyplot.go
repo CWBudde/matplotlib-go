@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"matplotlib-go/backends"
-	"matplotlib-go/canvas"
 	_ "matplotlib-go/backends/all"
+	"matplotlib-go/canvas"
 	"matplotlib-go/core"
 	"matplotlib-go/render"
 	"matplotlib-go/style"
@@ -33,19 +33,19 @@ type ShowHandler func(*core.Figure) error
 type ManagerFactory func(*core.Figure) (canvas.FigureManager, error)
 
 type registryState struct {
-	mu          sync.Mutex
-	current     *core.Figure
-	figures     []*core.Figure
-	currentAxes map[*core.Figure]*core.Axes
-	subplotAxes map[*core.Figure]map[string]*core.Axes
-	managers    map[*core.Figure]canvas.FigureManager
+	mu             sync.Mutex
+	current        *core.Figure
+	figures        []*core.Figure
+	currentAxes    map[*core.Figure]*core.Axes
+	subplotAxes    map[*core.Figure]map[string]*core.Axes
+	managers       map[*core.Figure]canvas.FigureManager
 	managerFactory ManagerFactory
 }
 
 var registry = registryState{
-	currentAxes: make(map[*core.Figure]*core.Axes),
-	subplotAxes: make(map[*core.Figure]map[string]*core.Axes),
-	managers:    make(map[*core.Figure]canvas.FigureManager),
+	currentAxes:    make(map[*core.Figure]*core.Axes),
+	subplotAxes:    make(map[*core.Figure]map[string]*core.Axes),
+	managers:       make(map[*core.Figure]canvas.FigureManager),
 	managerFactory: defaultManagerFactory,
 }
 

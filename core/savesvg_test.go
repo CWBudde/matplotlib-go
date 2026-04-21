@@ -1,4 +1,4 @@
-package core
+package core_test
 
 import (
 	"os"
@@ -7,12 +7,13 @@ import (
 
 	"matplotlib-go/backends"
 	_ "matplotlib-go/backends/all"
+	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
 
 func TestSaveSVGWithSupportedRenderer(t *testing.T) {
-	fig := NewFigure(120, 80)
+	fig := core.NewFigure(120, 80)
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
@@ -38,7 +39,7 @@ func TestSaveSVGWithSupportedRenderer(t *testing.T) {
 	out.Close()
 	t.Cleanup(func() { _ = os.Remove(path) })
 
-	err = SaveSVG(fig, renderer, path)
+	err = core.SaveSVG(fig, renderer, path)
 	if err != nil {
 		t.Fatalf("SaveSVG failed: %v", err)
 	}
@@ -57,8 +58,8 @@ func TestSaveSVGWithSupportedRenderer(t *testing.T) {
 }
 
 func TestSaveSVGUnsupportedRenderer(t *testing.T) {
-	fig := NewFigure(20, 20)
-	err := SaveSVG(fig, &render.NullRenderer{}, "unsupported.svg")
+	fig := core.NewFigure(20, 20)
+	err := core.SaveSVG(fig, &render.NullRenderer{}, "unsupported.svg")
 	if err == nil || !strings.Contains(err.Error(), "not supported") {
 		t.Fatalf("expected unsupported renderer error, got %v", err)
 	}

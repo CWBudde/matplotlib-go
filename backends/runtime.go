@@ -3,18 +3,18 @@ package backends
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"matplotlib-go/canvas"
-	"matplotlib-go/core"
 	"matplotlib-go/render"
 )
 
 type headlessCanvas struct {
 	mu         sync.Mutex
-	figure     *core.Figure
+	figure     *canvas.Figure
 	backend    Backend
 	config     Config
 	factory    Factory
@@ -41,12 +41,12 @@ type figureHomeState struct {
 }
 
 type axesHomeState struct {
-	axes       *core.Axes
+	axes       *canvas.Axes
 	xMin, xMax float64
 	yMin, yMax float64
 }
 
-func NewCanvas(choice string, config Config, fig *core.Figure, required []Capability) (canvas.FigureCanvas, Backend, error) {
+func NewCanvas(choice string, config Config, fig *canvas.Figure, required []Capability) (canvas.FigureCanvas, Backend, error) {
 	backend, info, err := resolveBackendInfo(choice, required)
 	if err != nil {
 		return nil, "", err
@@ -58,11 +58,11 @@ func NewCanvas(choice string, config Config, fig *core.Figure, required []Capabi
 	return newHeadlessCanvas(fig, backend, config, info.Factory), backend, nil
 }
 
-func NewCanvasFromEnv(config Config, fig *core.Figure, required []Capability) (canvas.FigureCanvas, Backend, error) {
-	return NewCanvas(strings.TrimSpace(getBackendEnv()), config, fig, required)
+func NewCanvasFromEnv(config Config, fig *canvas.Figure, required []Capability) (canvas.FigureCanvas, Backend, error) {
+	return NewCanvas(strings.TrimSpace(os.Getenv("MATPLOTLIB_BACKEND")), config, fig, required)
 }
 
-func NewManager(choice string, config Config, fig *core.Figure, required []Capability) (canvas.FigureManager, Backend, error) {
+func NewManager(choice string, config Config, fig *canvas.Figure, required []Capability) (canvas.FigureManager, Backend, error) {
 	backend, info, err := resolveBackendInfo(choice, required)
 	if err != nil {
 		return nil, "", err
@@ -82,8 +82,8 @@ func NewManager(choice string, config Config, fig *core.Figure, required []Capab
 	return newDefaultManager(headless, headless.save), backend, nil
 }
 
-func NewManagerFromEnv(config Config, fig *core.Figure, required []Capability) (canvas.FigureManager, Backend, error) {
-	return NewManager(strings.TrimSpace(getBackendEnv()), config, fig, required)
+func NewManagerFromEnv(config Config, fig *canvas.Figure, required []Capability) (canvas.FigureManager, Backend, error) {
+	return NewManager(strings.TrimSpace(os.Getenv("MATPLOTLIB_BACKEND")), config, fig, required)
 }
 
 func resolveBackendInfo(choice string, required []Capability) (Backend, *BackendInfo, error) {
@@ -98,7 +98,7 @@ func resolveBackendInfo(choice string, required []Capability) (Backend, *Backend
 	return backend, info, nil
 }
 
-func newHeadlessCanvas(fig *core.Figure, backend Backend, config Config, factory Factory) *headlessCanvas {
+func newHeadlessCanvas(fig *canvas.Figure, backend Backend, config Config, factory Factory) *headlessCanvas {
 	return &headlessCanvas{
 		figure:  fig,
 		backend: backend,
@@ -107,7 +107,7 @@ func newHeadlessCanvas(fig *core.Figure, backend Backend, config Config, factory
 	}
 }
 
-func (c *headlessCanvas) Figure() *core.Figure {
+func (c *headlessCanvas) Figure() *canvas.Figure {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.figure
@@ -147,8 +147,11 @@ func (c *headlessCanvas) Resize(width, height int) error {
 	if err := c.dispatcher.Emit(event); err != nil {
 		return err
 	}
-	_, err := c.draw(false)
-	return err
+	drawEvent, err := c.draw(false)
+	if err != nil {
+		return err
+	}
+	return c.dispatcher.Emit(drawEvent)
 }
 
 func (c *headlessCanvas) Connect(eventType canvas.EventType, handler canvas.Handler) canvas.ConnectionID {
@@ -218,7 +221,7 @@ func (c *headlessCanvas) draw(skipEmit bool) (canvas.Event, error) {
 	if err != nil {
 		return canvas.Event{}, err
 	}
-	core.DrawFigure(c.figure, renderer)
+	canvas.DrawFigure(c.figure, renderer)
 	c.renderer = renderer
 
 	event := c.normalizeEvent(canvas.Event{
@@ -226,9 +229,6 @@ func (c *headlessCanvas) draw(skipEmit bool) (canvas.Event, error) {
 		Width:  c.config.Width,
 		Height: c.config.Height,
 	})
-	if skipEmit {
-		return event, nil
-	}
 	return event, nil
 }
 
@@ -308,7 +308,7 @@ func (m *defaultManager) SetTitle(title string) { m.title = title }
 
 func (m *defaultManager) ToolManager() *canvas.ToolManager { return m.tools }
 
-func snapshotFigureHome(fig *core.Figure) figureHomeState {
+func snapshotFigureHome(fig *canvas.Figure) figureHomeState {
 	state := figureHomeState{}
 	if fig == nil {
 		return state
@@ -357,8 +357,4 @@ func restoreFigureHome(state figureHomeState, figCanvas canvas.FigureCanvas) err
 		return figCanvas.Resize(state.width, state.height)
 	}
 	return figCanvas.Draw()
-}
-
-func getBackendEnv() string {
-	return getenv("MATPLOTLIB_BACKEND")
 }
