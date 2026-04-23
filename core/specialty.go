@@ -1089,7 +1089,7 @@ func (w *Wedge) Draw(ren render.Renderer, ctx *DrawContext) {
 		return
 	}
 	path := buildDisplayPath(ctx, w.Coords, w.localPath(), geom.Identity())
-	w.Patch.drawStyledPath(ren, path, geom.Path{})
+	w.drawStyledPath(ren, path, geom.Path{})
 }
 
 // Bounds returns the wedge's data-space bounds when applicable.

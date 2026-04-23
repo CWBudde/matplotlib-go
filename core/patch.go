@@ -376,7 +376,7 @@ func (r *Rectangle) Draw(ren render.Renderer, ctx *DrawContext) {
 		return
 	}
 	path := buildDisplayPath(ctx, r.Coords, rectanglePath(r.Width, r.Height), patchAffine(r.XY, r.Angle))
-	r.Patch.drawStyledPath(ren, path, geom.Path{})
+	r.drawStyledPath(ren, path, geom.Path{})
 }
 
 // Bounds returns the rectangle's data-space bounding box when applicable.
@@ -396,7 +396,7 @@ func (c *Circle) Draw(ren render.Renderer, ctx *DrawContext) {
 	}
 	local := ellipsePath(c.Radius*2, c.Radius*2)
 	path := buildDisplayPath(ctx, c.Coords, local, translateAffine(c.Center))
-	c.Patch.drawStyledPath(ren, path, geom.Path{})
+	c.drawStyledPath(ren, path, geom.Path{})
 }
 
 // Bounds returns the circle's data-space bounding box when applicable.
@@ -417,7 +417,7 @@ func (e *Ellipse) Draw(ren render.Renderer, ctx *DrawContext) {
 	}
 	local := ellipsePath(e.Width, e.Height)
 	path := buildDisplayPath(ctx, e.Coords, local, patchAffine(e.Center, e.Angle))
-	e.Patch.drawStyledPath(ren, path, geom.Path{})
+	e.drawStyledPath(ren, path, geom.Path{})
 }
 
 // Bounds returns the ellipse's data-space bounding box when applicable.
@@ -436,7 +436,7 @@ func (p *Polygon) Draw(ren render.Renderer, ctx *DrawContext) {
 		return
 	}
 	path := buildDisplayPath(ctx, p.Coords, polygonPath(p.XY, !p.Open), geom.Identity())
-	p.Patch.drawStyledPath(ren, path, geom.Path{})
+	p.drawStyledPath(ren, path, geom.Path{})
 }
 
 // Bounds returns the polygon's data-space bounding box when applicable.
@@ -457,7 +457,7 @@ func (p *PathPatch) Draw(ren render.Renderer, ctx *DrawContext) {
 		return
 	}
 	path := buildDisplayPath(ctx, p.Coords, p.Path, geom.Identity())
-	p.Patch.drawStyledPath(ren, path, geom.Path{})
+	p.drawStyledPath(ren, path, geom.Path{})
 }
 
 // Bounds returns the path's data-space bounding box when applicable.
@@ -475,7 +475,7 @@ func (a *FancyArrow) Draw(ren render.Renderer, ctx *DrawContext) {
 		return
 	}
 	path := buildDisplayPath(ctx, a.Coords, a.localPath(), geom.Identity())
-	a.Patch.drawStyledPath(ren, path, geom.Path{})
+	a.drawStyledPath(ren, path, geom.Path{})
 }
 
 // Bounds returns the arrow's data-space bounding box when applicable.
@@ -533,7 +533,7 @@ func (b *FancyBboxPatch) Draw(ren render.Renderer, ctx *DrawContext) {
 		return
 	}
 	path := buildDisplayPath(ctx, b.Coords, b.localPath(), translateAffine(b.XY))
-	b.Patch.drawStyledPath(ren, path, geom.Path{})
+	b.drawStyledPath(ren, path, geom.Path{})
 }
 
 // Bounds returns the fancy bbox's data-space bounding box when applicable.

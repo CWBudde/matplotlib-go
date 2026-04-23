@@ -147,10 +147,10 @@ def make_fig():
 def go_rect(min_x, min_y, max_x, max_y):
     """Convert Go RectFraction to matplotlib add_axes rect.
 
-    Go uses top-left origin (min_y < max_y, y increases downward).
-    Matplotlib add_axes uses [left, bottom, width, height] with bottom-left origin.
+    Go RectFraction and matplotlib add_axes both use bottom-left figure
+    fractions. Matplotlib wants [left, bottom, width, height].
     """
-    return [min_x, 1.0 - max_y, max_x - min_x, max_y - min_y]
+    return [min_x, min_y, max_x - min_x, max_y - min_y]
 
 
 def lw(go_width_px):

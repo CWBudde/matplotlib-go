@@ -110,10 +110,7 @@ func TestHistogramTopHeights_ParsedDataParity(t *testing.T) {
 }
 
 func histogramBoundaryColumns(axes geom.Rect, series []histogramHeightSeries, pxTolerance int) []bool {
-	ax := geom.Rect{
-		Min: geom.Pt{X: float64(histogramFigureWidth) * axes.Min.X, Y: float64(histogramFigureHeight) * axes.Min.Y},
-		Max: geom.Pt{X: float64(histogramFigureWidth) * axes.Max.X, Y: float64(histogramFigureHeight) * axes.Max.Y},
-	}
+	ax := histogramAxesPixelRect(axes)
 
 	xMin := math.Inf(1)
 	xMax := math.Inf(-1)
@@ -209,10 +206,7 @@ func expectedHistogramTopProfile(t *testing.T, axes geom.Rect, series []histogra
 	}
 	axMargin := 0.05
 
-	ax := geom.Rect{
-		Min: geom.Pt{X: float64(histogramFigureWidth) * axes.Min.X, Y: float64(histogramFigureHeight) * axes.Min.Y},
-		Max: geom.Pt{X: float64(histogramFigureWidth) * axes.Max.X, Y: float64(histogramFigureHeight) * axes.Max.Y},
-	}
+	ax := histogramAxesPixelRect(axes)
 	xSpan := xMax - xMin
 	xMin -= xSpan * axMargin
 	xMax += xSpan * axMargin
@@ -286,10 +280,10 @@ func assertHistogramTopProfile(
 ) {
 	t.Helper()
 
-	ax := geom.Rect{
-		Min: geom.Pt{X: float64(histogramFigureWidth) * histogramAxesMinX, Y: float64(histogramFigureHeight) * histogramAxesMinY},
-		Max: geom.Pt{X: float64(histogramFigureWidth) * histogramAxesMaxX, Y: float64(histogramFigureHeight) * histogramAxesMaxY},
-	}
+	ax := histogramAxesPixelRect(geom.Rect{
+		Min: geom.Pt{X: histogramAxesMinX, Y: histogramAxesMinY},
+		Max: geom.Pt{X: histogramAxesMaxX, Y: histogramAxesMaxY},
+	})
 	observed := extractHistogramTopProfile(img, ax)
 
 	if len(skip) != len(observed) || len(skip) != len(expected) {
@@ -335,6 +329,19 @@ func assertHistogramTopProfile(
 
 	if mismatches > 0 {
 		t.Fatalf("%s histogram height profile mismatch count=%d", name, mismatches)
+	}
+}
+
+func histogramAxesPixelRect(axes geom.Rect) geom.Rect {
+	return geom.Rect{
+		Min: geom.Pt{
+			X: float64(histogramFigureWidth) * axes.Min.X,
+			Y: float64(histogramFigureHeight) * (1 - axes.Max.Y),
+		},
+		Max: geom.Pt{
+			X: float64(histogramFigureWidth) * axes.Max.X,
+			Y: float64(histogramFigureHeight) * (1 - axes.Min.Y),
+		},
 	}
 }
 
