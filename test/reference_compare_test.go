@@ -54,6 +54,7 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "patch_showcase", render: renderPatchShowcase, minPSNR: 35.0, maxMeanAbs: 6.5},
 	{name: "mesh_contour_tri", render: renderMeshContourTri, minPSNR: 37.5, maxMeanAbs: 7.5},
 	{name: "plot_variants", render: renderPlotVariants, minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "stat_variants", render: renderStatVariants, minPSNR: 32.0, maxMeanAbs: 9.0},
 	{name: "stem_plot", render: renderStemPlot},
 	{name: "units_overview", render: renderUnitsOverview, minPSNR: 43.5},
 	{name: "units_dates", render: renderUnitsDates, minPSNR: 45.0, maxMeanAbs: 1.5},

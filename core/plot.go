@@ -364,15 +364,18 @@ func (a *Axes) FillBetweenPlot(x, y1, y2 []float64, opts ...FillOptions) *Fill2D
 
 // HistOptions holds optional parameters for histogram plots.
 type HistOptions struct {
-	Bins      int         // number of bins (0 = auto)
-	BinEdges  []float64   // explicit bin edges (overrides Bins)
-	BinStrat  BinStrategy // automatic binning strategy
-	Norm      HistNorm    // normalization mode
-	Color     *render.Color
-	EdgeColor *render.Color
-	EdgeWidth *float64
-	Alpha     *float64
-	Label     string
+	Bins       int         // number of bins (0 = auto)
+	BinEdges   []float64   // explicit bin edges (overrides Bins)
+	BinStrat   BinStrategy // automatic binning strategy
+	Norm       HistNorm    // normalization mode
+	Cumulative bool        // accumulate bin heights from left to right
+	HistType   HistType    // bar, step, or filled step presentation
+	Baselines  []float64   // optional per-bin baselines for stacked histograms
+	Color      *render.Color
+	EdgeColor  *render.Color
+	EdgeWidth  *float64
+	Alpha      *float64
+	Label      string
 }
 
 // Hist creates a histogram from raw data with automatic color cycling.
@@ -394,11 +397,15 @@ func (a *Axes) Hist(data []float64, opts ...HistOptions) *Hist2D {
 	edgeColor := render.Color{R: 0, G: 0, B: 0, A: 0}
 	if opt.EdgeColor != nil {
 		edgeColor = *opt.EdgeColor
+	} else if opt.HistType != HistTypeBar {
+		edgeColor = color
 	}
 
 	edgeWidth := 0.0
 	if opt.EdgeWidth != nil {
 		edgeWidth = *opt.EdgeWidth
+	} else if opt.HistType != HistTypeBar {
+		edgeWidth = 1.5
 	}
 
 	alpha := 1.0
@@ -407,16 +414,19 @@ func (a *Axes) Hist(data []float64, opts ...HistOptions) *Hist2D {
 	}
 
 	hist := &Hist2D{
-		Data:      data,
-		Bins:      opt.Bins,
-		BinEdges:  opt.BinEdges,
-		BinStrat:  opt.BinStrat,
-		Norm:      opt.Norm,
-		Color:     color,
-		EdgeColor: edgeColor,
-		EdgeWidth: edgeWidth,
-		Alpha:     alpha,
-		Label:     opt.Label,
+		Data:       data,
+		Bins:       opt.Bins,
+		BinEdges:   opt.BinEdges,
+		BinStrat:   opt.BinStrat,
+		Norm:       opt.Norm,
+		Cumulative: opt.Cumulative,
+		HistType:   opt.HistType,
+		Baselines:  append([]float64(nil), opt.Baselines...),
+		Color:      color,
+		EdgeColor:  edgeColor,
+		EdgeWidth:  edgeWidth,
+		Alpha:      alpha,
+		Label:      opt.Label,
 	}
 
 	a.Add(hist)

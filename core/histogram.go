@@ -28,20 +28,32 @@ const (
 	HistNormDensity                     // count/(total*width) — area integrates to 1
 )
 
+// HistType controls how histogram bins are presented.
+type HistType uint8
+
+const (
+	HistTypeBar HistType = iota
+	HistTypeStep
+	HistTypeStepFilled
+)
+
 // Hist2D renders histogram plots computed from raw data.
 // Bars span from edge[i] to edge[i+1] with no gap between adjacent bins.
 type Hist2D struct {
-	Data      []float64    // raw data values
-	Bins      int          // number of bins (0 = auto)
-	BinEdges  []float64    // explicit bin edges; overrides Bins when len > 1
-	BinStrat  BinStrategy  // automatic binning strategy (used when Bins==0 and BinEdges==nil)
-	Norm      HistNorm     // normalization mode
-	Color     render.Color // bar fill color
-	EdgeColor render.Color // bar outline color
-	EdgeWidth float64      // bar outline width in pixels (0 = no outline)
-	Alpha     float64      // alpha transparency (0-1, 0 means 1.0)
-	Label     string       // series label for legend
-	z         float64      // z-order
+	Data       []float64    // raw data values
+	Bins       int          // number of bins (0 = auto)
+	BinEdges   []float64    // explicit bin edges; overrides Bins when len > 1
+	BinStrat   BinStrategy  // automatic binning strategy (used when Bins==0 and BinEdges==nil)
+	Norm       HistNorm     // normalization mode
+	Cumulative bool         // accumulate bin heights from left to right
+	HistType   HistType     // bar, step, or filled step presentation
+	Baselines  []float64    // optional per-bin baselines for stacked histograms
+	Color      render.Color // bar fill color
+	EdgeColor  render.Color // bar outline color
+	EdgeWidth  float64      // bar outline width in pixels (0 = no outline)
+	Alpha      float64      // alpha transparency (0-1, 0 means 1.0)
+	Label      string       // series label for legend
+	z          float64      // z-order
 
 	// Computed lazily on first Draw/Bounds call.
 	computed bool
@@ -80,6 +92,13 @@ func (h *Hist2D) compute() {
 			raw[idx]++
 		}
 	}
+	if h.Cumulative {
+		running := 0.0
+		for i, c := range raw {
+			running += c
+			raw[i] = running
+		}
+	}
 
 	// Apply normalization.
 	total := float64(len(h.Data))
@@ -89,6 +108,10 @@ func (h *Hist2D) compute() {
 		case HistNormProbability:
 			h.counts[i] = c / total
 		case HistNormDensity:
+			if h.Cumulative {
+				h.counts[i] = c / total
+				continue
+			}
 			width := h.edges[i+1] - h.edges[i]
 			if width > 0 {
 				h.counts[i] = c / (total * width)
@@ -291,13 +314,22 @@ func (h *Hist2D) Draw(r render.Renderer, ctx *DrawContext) {
 
 	edgeColor := h.EdgeColor
 	edgeColor.A *= alpha
+	if edgeColor.A == 0 && h.HistType != HistTypeBar {
+		edgeColor = fillColor
+	}
+
+	if h.HistType == HistTypeStep || h.HistType == HistTypeStepFilled {
+		h.drawStepHistogram(r, ctx, fillColor, edgeColor)
+		return
+	}
 
 	for i, count := range h.counts {
 		left := h.edges[i]
 		right := h.edges[i+1]
+		baseline := h.baselineAt(i)
 
-		px0 := ctx.DataToPixel.Apply(geom.Pt{X: left, Y: 0})
-		px1 := ctx.DataToPixel.Apply(geom.Pt{X: right, Y: count})
+		px0 := ctx.DataToPixel.Apply(geom.Pt{X: left, Y: baseline})
+		px1 := ctx.DataToPixel.Apply(geom.Pt{X: right, Y: baseline + count})
 		rect, ok := rectFromPoints(px0, px1)
 		if !ok {
 			continue
@@ -336,16 +368,31 @@ func (h *Hist2D) Bounds(*DrawContext) geom.Rect {
 		return geom.Rect{}
 	}
 
-	maxCount := h.counts[0]
-	for _, c := range h.counts[1:] {
-		if c > maxCount {
-			maxCount = c
+	minY := h.baselineAt(0)
+	maxY := minY + h.counts[0]
+	if maxY < minY {
+		minY, maxY = maxY, minY
+	}
+	for i, c := range h.counts {
+		baseline := h.baselineAt(i)
+		top := baseline + c
+		if baseline < minY {
+			minY = baseline
+		}
+		if baseline > maxY {
+			maxY = baseline
+		}
+		if top < minY {
+			minY = top
+		}
+		if top > maxY {
+			maxY = top
 		}
 	}
 
 	return geom.Rect{
-		Min: geom.Pt{X: h.edges[0], Y: 0},
-		Max: geom.Pt{X: h.edges[len(h.edges)-1], Y: maxCount},
+		Min: geom.Pt{X: h.edges[0], Y: minY},
+		Max: geom.Pt{X: h.edges[len(h.edges)-1], Y: maxY},
 	}
 }
 
@@ -354,4 +401,70 @@ func (h *Hist2D) Bounds(*DrawContext) geom.Rect {
 func (h *Hist2D) BinCounts() (edges, counts []float64) {
 	h.compute()
 	return h.edges, h.counts
+}
+
+func (h *Hist2D) baselineAt(i int) float64 {
+	if i >= 0 && i < len(h.Baselines) {
+		return h.Baselines[i]
+	}
+	return 0
+}
+
+func (h *Hist2D) drawStepHistogram(r render.Renderer, ctx *DrawContext, fillColor, edgeColor render.Color) {
+	n := len(h.counts)
+	if n == 0 {
+		return
+	}
+
+	path := h.stepHistogramPath(ctx)
+	if len(path.C) == 0 {
+		return
+	}
+
+	paint := render.Paint{}
+	if h.HistType == HistTypeStepFilled && fillColor.A > 0 {
+		paint.Fill = fillColor
+	}
+	if h.EdgeWidth > 0 && edgeColor.A > 0 {
+		paint.Stroke = edgeColor
+		paint.LineWidth = h.EdgeWidth
+		paint.LineJoin = render.JoinMiter
+		paint.LineCap = render.CapButt
+	}
+	if paint.Fill.A == 0 && paint.Stroke.A == 0 {
+		return
+	}
+	r.Path(path, &paint)
+}
+
+func (h *Hist2D) stepHistogramPath(ctx *DrawContext) geom.Path {
+	n := len(h.counts)
+	if n == 0 || len(h.edges) < n+1 {
+		return geom.Path{}
+	}
+
+	path := geom.Path{}
+	firstBase := h.baselineAt(0)
+	path.MoveTo(ctx.DataToPixel.Apply(geom.Pt{X: h.edges[0], Y: firstBase}))
+	path.LineTo(ctx.DataToPixel.Apply(geom.Pt{X: h.edges[0], Y: firstBase + h.counts[0]}))
+	for i := 0; i < n; i++ {
+		top := h.baselineAt(i) + h.counts[i]
+		path.LineTo(ctx.DataToPixel.Apply(geom.Pt{X: h.edges[i+1], Y: top}))
+		if i+1 < n {
+			nextTop := h.baselineAt(i+1) + h.counts[i+1]
+			path.LineTo(ctx.DataToPixel.Apply(geom.Pt{X: h.edges[i+1], Y: nextTop}))
+		}
+	}
+	if h.HistType != HistTypeStepFilled {
+		path.LineTo(ctx.DataToPixel.Apply(geom.Pt{X: h.edges[n], Y: h.baselineAt(n - 1)}))
+		return path
+	}
+
+	for i := n - 1; i >= 0; i-- {
+		base := h.baselineAt(i)
+		path.LineTo(ctx.DataToPixel.Apply(geom.Pt{X: h.edges[i+1], Y: base}))
+		path.LineTo(ctx.DataToPixel.Apply(geom.Pt{X: h.edges[i], Y: base}))
+	}
+	path.Close()
+	return path
 }

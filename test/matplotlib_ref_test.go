@@ -167,6 +167,7 @@ func TestMpl_TransformCoordinates(t *testing.T) {
 func TestMpl_PatchShowcase(t *testing.T)  { runMplTest(t, "patch_showcase", renderPatchShowcase) }
 func TestMpl_MeshContourTri(t *testing.T) { runMplTest(t, "mesh_contour_tri", renderMeshContourTri) }
 func TestMpl_PlotVariants(t *testing.T)   { runMplTest(t, "plot_variants", renderPlotVariants) }
+func TestMpl_StatVariants(t *testing.T)   { runMplTest(t, "stat_variants", renderStatVariants) }
 func TestMpl_StemPlot(t *testing.T)       { runMplTest(t, "stem_plot", renderStemPlot) }
 func TestMpl_UnitsOverview(t *testing.T)  { runMplTest(t, "units_overview", renderUnitsOverview) }
 func TestMpl_VectorFields(t *testing.T)   { runMplTest(t, "vector_fields", renderVectorFields) }

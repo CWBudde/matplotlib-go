@@ -238,10 +238,10 @@ core.SavePNG(fig, r, "output.png")
 
 ### 3.6 Derived Statistical and Area Variants
 
-- [ ] `stackplot`
-- [ ] `ecdf`
-- [ ] Histogram presentation variants (cumulative, multi-hist, histtype variants)
-- [ ] Example and Matplotlib-reference coverage for each newly added convenience plot
+- [x] `stackplot`
+- [x] `ecdf`
+- [x] Histogram presentation variants (cumulative, multi-hist, histtype variants)
+- [x] Example and Matplotlib-reference coverage for each newly added convenience plot
 
 **Exit Criteria:**
 
