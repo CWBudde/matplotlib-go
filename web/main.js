@@ -13,6 +13,7 @@ const DEFAULT_HEIGHT = 540;
 let api;
 let runtimeExited = false;
 let runtimeExitMessage = buildRuntimeExitMessage();
+let currentDemoID = "";
 
 async function init() {
   const canvas = document.getElementById("plotCanvas");
@@ -45,6 +46,9 @@ async function init() {
     document
       .getElementById("renderBtn")
       .addEventListener("click", () => mountSelectedDemo());
+    document
+      .getElementById("downloadBtn")
+      .addEventListener("click", () => downloadCurrentPlot());
     document
       .getElementById("demoSelector")
       .addEventListener("change", () => mountSelectedDemo());
@@ -125,22 +129,64 @@ function mountSelectedDemo() {
 
   const selector = document.getElementById("demoSelector");
   const demoID = selector.value || api.defaultDemoID();
+  const size = plotSize();
 
   updateStatus(`Rendering ${demoID}…`);
+  setDownloadEnabled(false);
 
-  const result = api.mountDemo("plotCanvas", demoID, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+  const startedAt = performance.now();
+  const result = api.mountDemo("plotCanvas", demoID, size.width, size.height);
   if (result.error) {
     updateStatus(result.error);
     return;
   }
+  const elapsedMs = performance.now() - startedAt;
 
+  currentDemoID = result.id;
   document.getElementById("demoTitle").textContent = result.title;
   document.getElementById("demoDescription").textContent = result.description;
-  updateStatus(`Rendered ${result.id}`);
+  setDownloadEnabled(true);
+  updateStatus(
+    `Rendered ${result.id} in ${elapsedMs.toFixed(1)} ms at ${result.width}×${result.height}`,
+  );
+}
+
+function plotSize() {
+  const canvas = document.getElementById("plotCanvas");
+  const width = Math.max(1, Math.round(canvas.clientWidth || DEFAULT_WIDTH));
+  const height = Math.max(1, Math.round(canvas.clientHeight || DEFAULT_HEIGHT));
+  return { width, height };
+}
+
+function downloadCurrentPlot() {
+  const canvas = document.getElementById("plotCanvas");
+  if (!canvas || !currentDemoID) {
+    return;
+  }
+
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      updateStatus("Failed to prepare PNG download");
+      return;
+    }
+
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `matplotlib-go-${currentDemoID}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, "image/png");
 }
 
 function updateStatus(message) {
   document.getElementById("statusMsg").textContent = message;
+}
+
+function setDownloadEnabled(enabled) {
+  document.getElementById("downloadBtn").disabled = !enabled;
 }
 
 init();

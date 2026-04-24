@@ -5,6 +5,7 @@ package wasm
 import (
 	"errors"
 	"fmt"
+	"math"
 	"syscall/js"
 
 	"matplotlib-go/backends/gobasic"
@@ -123,33 +124,40 @@ func (c *figureCanvas) Draw() error {
 	if c.closed {
 		return errors.New("canvas/wasm: canvas is closed")
 	}
-	width, height := c.currentSize()
-	if width <= 0 || height <= 0 {
+	cssWidth, cssHeight := c.currentSize()
+	if cssWidth <= 0 || cssHeight <= 0 {
 		return errors.New("canvas/wasm: invalid canvas size")
 	}
 
-	c.element.Set("width", width)
-	c.element.Set("height", height)
-	c.figure.SizePx.X = float64(width)
-	c.figure.SizePx.Y = float64(height)
+	pixelRatio := devicePixelRatio()
+	backingWidth := int(math.Round(float64(cssWidth) * pixelRatio))
+	backingHeight := int(math.Round(float64(cssHeight) * pixelRatio))
+	if backingWidth <= 0 || backingHeight <= 0 {
+		return errors.New("canvas/wasm: invalid backing size")
+	}
 
-	renderer := gobasic.New(width, height, c.figure.RC.FigureBackground())
+	c.element.Set("width", backingWidth)
+	c.element.Set("height", backingHeight)
+	c.figure.SizePx.X = float64(cssWidth)
+	c.figure.SizePx.Y = float64(cssHeight)
+
+	renderer := gobasic.New(backingWidth, backingHeight, c.figure.RC.FigureBackground())
 	if renderer == nil {
 		return errors.New("canvas/wasm: failed to create GoBasic renderer")
 	}
-	core.DrawFigure(c.figure, renderer)
+	core.DrawFigure(c.figure, newScaledRenderer(renderer, pixelRatio))
 
 	img := renderer.GetImage()
 	pixels := js.Global().Get("Uint8ClampedArray").New(len(img.Pix))
 	js.CopyBytesToJS(pixels, img.Pix)
-	imageData := js.Global().Get("ImageData").New(pixels, width, height)
+	imageData := js.Global().Get("ImageData").New(pixels, backingWidth, backingHeight)
 	c.context.Call("putImageData", imageData, 0, 0)
 
 	return c.dispatcher.Emit(plotcanvas.Event{
 		Type:   plotcanvas.EventDraw,
 		Figure: c.figure,
-		Width:  width,
-		Height: height,
+		Width:  cssWidth,
+		Height: cssHeight,
 	})
 }
 
@@ -321,19 +329,21 @@ func (c *figureCanvas) focus() {
 
 func elementPosition(element, event js.Value) geom.Pt {
 	rect := element.Call("getBoundingClientRect")
-	width := float64(element.Get("width").Int())
-	height := float64(element.Get("height").Int())
-	rectWidth := rect.Get("width").Float()
-	rectHeight := rect.Get("height").Float()
-	if rectWidth <= 0 {
-		rectWidth = 1
-	}
-	if rectHeight <= 0 {
-		rectHeight = 1
-	}
-	x := (event.Get("clientX").Float() - rect.Get("left").Float()) * width / rectWidth
-	y := (event.Get("clientY").Float() - rect.Get("top").Float()) * height / rectHeight
+	x := event.Get("clientX").Float() - rect.Get("left").Float()
+	y := event.Get("clientY").Float() - rect.Get("top").Float()
 	return geom.Pt{X: x, Y: y}
+}
+
+func devicePixelRatio() float64 {
+	ratio := js.Global().Get("devicePixelRatio")
+	if ratio.Type() != js.TypeNumber {
+		return 1
+	}
+	value := ratio.Float()
+	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 1
+	}
+	return value
 }
 
 func mouseButton(button int) plotcanvas.MouseButton {

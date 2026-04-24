@@ -470,6 +470,23 @@ func TestRenderUsesDefaultDimensions(t *testing.T) {
 	}
 }
 
+func BenchmarkRender(b *testing.B) {
+	for _, descriptor := range Catalog() {
+		b.Run(descriptor.ID, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				img, _, err := Render(descriptor.ID, DefaultWidth, DefaultHeight)
+				if err != nil {
+					b.Fatalf("Render(%q) error = %v", descriptor.ID, err)
+				}
+				if img.Bounds().Dx() != DefaultWidth || img.Bounds().Dy() != DefaultHeight {
+					b.Fatalf("Render(%q) bounds = %v, want %dx%d", descriptor.ID, img.Bounds(), DefaultWidth, DefaultHeight)
+				}
+			}
+		})
+	}
+}
+
 func TestDefaultAxesRect(t *testing.T) {
 	got := defaultAxesRect()
 	if got.Min.X != 0.10 || got.Min.Y != 0.12 || got.Max.X != 0.96 || got.Max.Y != 0.90 {
