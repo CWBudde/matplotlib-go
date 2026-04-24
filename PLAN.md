@@ -172,7 +172,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Categorical axes instead of today's "categories as float positions" workaround
 - [x] Units/converter support similar to Matplotlib's `units` machinery
 - [x] Example coverage for dates, units, and category plots
-- [ ] Golden/parity coverage for dates, units, and category plots
+- [x] Golden/parity coverage for dates, units, and category plots
 
 **Exit Criteria:**
 

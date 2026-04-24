@@ -56,6 +56,9 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "plot_variants", render: renderPlotVariants, minPSNR: 35.0, maxMeanAbs: 6.5},
 	{name: "stem_plot", render: renderStemPlot},
 	{name: "units_overview", render: renderUnitsOverview, minPSNR: 43.5},
+	{name: "units_dates", render: renderUnitsDates, minPSNR: 45.0, maxMeanAbs: 1.5},
+	{name: "units_categories", render: renderUnitsCategories, minPSNR: 41.0, maxMeanAbs: 3.2},
+	{name: "units_custom_converter", render: renderUnitsCustomConverter, minPSNR: 40.0, maxMeanAbs: 3.5},
 	{name: "vector_fields", render: renderVectorFields, minPSNR: 41.5, maxMeanAbs: 2.8},
 	{name: "polar_axes", render: renderPolarAxes, minPSNR: 32.0, maxMeanAbs: 9.0},
 }

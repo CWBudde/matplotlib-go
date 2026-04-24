@@ -25,6 +25,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
 import matplotlib.tri as mtri
@@ -964,6 +965,99 @@ def units_overview(out_dir):
     save(fig, out_dir, "units_overview")
 
 
+def units_dates(out_dir):
+    fig = make_fig_px(720, 380)
+    ax = fig.add_axes(go_rect(0.10, 0.18, 0.94, 0.88))
+    ax.set_title("Date Units")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Requests")
+    ax.grid(True, axis="y", color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    ax.set_axisbelow(True)
+
+    dates = [
+        dt.datetime(2024, 2, 1),
+        dt.datetime(2024, 2, 5),
+        dt.datetime(2024, 2, 9),
+        dt.datetime(2024, 2, 14),
+        dt.datetime(2024, 2, 20),
+    ]
+    lower = [6, 7, 5, 8, 7]
+    upper = [10, 15, 13, 18, 16]
+    ax.fill_between(dates, lower, upper, color=(0.85, 0.91, 0.96), linewidth=0)
+    ax.plot(
+        dates,
+        [8, 12, 9, 15, 13],
+        color=(0.12, 0.47, 0.71),
+        linewidth=lw(2.0),
+    )
+    ax.xaxis.set_major_locator(mdates.DayLocator(bymonthday=[5, 12, 19]))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
+    ax.margins(x=0.06, y=0.06)
+
+    save(fig, out_dir, "units_dates")
+
+
+def units_categories(out_dir):
+    fig = make_fig_px(760, 360)
+    left = fig.add_axes(go_rect(0.08, 0.20, 0.47, 0.86))
+    left.set_title("Categorical X")
+    left.set_ylabel("Count")
+    left.grid(True, axis="y", color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    left.set_axisbelow(True)
+    left.bar(
+        ["draft", "review", "ship", "watch"],
+        [3, 8, 6, 4],
+        color=(1.0, 0.50, 0.05),
+        edgecolor=(0.60, 0.30, 0.03),
+        linewidth=lw(1.0),
+        width=0.8,
+    )
+    left.margins(x=0.10, y=0.10)
+
+    right = fig.add_axes(go_rect(0.58, 0.20, 0.94, 0.86))
+    right.set_title("Categorical Y")
+    right.set_xlabel("Hours")
+    right.grid(True, axis="x", color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    right.set_axisbelow(True)
+    right.barh(
+        ["north", "south", "east"],
+        [4, 7, 5],
+        color=(0.17, 0.63, 0.17),
+        edgecolor=(0.09, 0.36, 0.09),
+        linewidth=lw(1.0),
+        height=0.8,
+    )
+    right.margins(x=0.10, y=0.10)
+
+    save(fig, out_dir, "units_categories")
+
+
+def units_custom_converter(out_dir):
+    fig = make_fig_px(680, 380)
+    ax = fig.add_axes(go_rect(0.10, 0.18, 0.94, 0.88))
+    ax.set_title("Custom Distance Units")
+    ax.set_xlabel("Distance")
+    ax.set_ylabel("Pace")
+    ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    ax.set_axisbelow(True)
+
+    distances = [5, 10, 21.1, 30, 42.2]
+    pace = [6.4, 5.9, 5.3, 5.1, 5.4]
+    ax.plot(distances, pace, color=(0.55, 0.34, 0.29), linewidth=lw(1.4))
+    ax.scatter(
+        distances,
+        pace,
+        s=ss(8),
+        c=[(0.17, 0.63, 0.17, 0.92)],
+        edgecolors=[(0.09, 0.36, 0.09, 1.0)],
+        linewidths=lw(1.0),
+    )
+    ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda x, _: f"{x:.0f} km"))
+    ax.margins(x=0.08, y=0.08)
+
+    save(fig, out_dir, "units_custom_converter")
+
+
 def patch_showcase(out_dir):
     fig = make_fig_px(930, 340)
 
@@ -1310,6 +1404,9 @@ ALL_PLOTS = [
     plot_variants,
     stem_plot,
     units_overview,
+    units_dates,
+    units_categories,
+    units_custom_converter,
     vector_fields,
     polar_axes,
 ]

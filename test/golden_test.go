@@ -182,6 +182,21 @@ func TestUnitsOverview_Golden(t *testing.T) {
 	runGoldenTest(t, "units_overview", renderUnitsOverview)
 }
 
+func TestUnitsDates_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "units_dates", renderUnitsDates)
+}
+
+func TestUnitsCategories_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "units_categories", renderUnitsCategories)
+}
+
+func TestUnitsCustomConverter_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "units_custom_converter", renderUnitsCustomConverter)
+}
+
 func TestPatchShowcase_Golden(t *testing.T) {
 	requireOptionalVisualTests(t)
 	runGoldenTest(t, "patch_showcase", renderPatchShowcase)
@@ -1697,6 +1712,133 @@ func renderUnitsOverview() image.Image {
 	unitAx.AutoScale(0.08)
 
 	r, err := agg.New(1200, 420, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderUnitsDates() image.Image {
+	fig := core.NewFigure(720, 380)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.18}, Max: geom.Pt{X: 0.94, Y: 0.88}})
+	ax.SetTitle("Date Units")
+	ax.SetXLabel("Date")
+	ax.SetYLabel("Requests")
+	ax.AddYGrid()
+
+	dates := []time.Time{
+		time.Date(2024, time.February, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, time.February, 5, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, time.February, 9, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, time.February, 14, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, time.February, 20, 0, 0, 0, 0, time.UTC),
+	}
+	lower := []float64{6, 7, 5, 8, 7}
+	upper := []float64{10, 15, 13, 18, 16}
+	_, err := ax.FillBetweenUnits(dates, lower, upper, core.FillOptions{
+		Color: &render.Color{R: 0.75, G: 0.86, B: 0.93, A: 1},
+	})
+	if err != nil {
+		panic(err)
+	}
+	_, err = ax.PlotUnits(dates, []float64{8, 12, 9, 15, 13}, core.PlotOptions{
+		Color:     &render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1},
+		LineWidth: floatPtr(2.0),
+	})
+	if err != nil {
+		panic(err)
+	}
+	ax.AutoScale(0.06)
+
+	r, err := agg.New(720, 380, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderUnitsCategories() image.Image {
+	fig := core.NewFigure(760, 360)
+	left := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.08, Y: 0.20}, Max: geom.Pt{X: 0.47, Y: 0.86}})
+	left.SetTitle("Categorical X")
+	left.SetYLabel("Count")
+	left.AddYGrid()
+	_, err := left.BarUnits(
+		[]string{"draft", "review", "ship", "watch"},
+		[]float64{3, 8, 6, 4},
+		core.BarOptions{
+			Color:     &render.Color{R: 1.0, G: 0.50, B: 0.05, A: 1},
+			EdgeColor: &render.Color{R: 0.60, G: 0.30, B: 0.03, A: 1},
+			EdgeWidth: floatPtr(1.0),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	left.AutoScale(0.10)
+
+	right := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.58, Y: 0.20}, Max: geom.Pt{X: 0.94, Y: 0.86}})
+	right.SetTitle("Categorical Y")
+	right.SetXLabel("Hours")
+	right.AddXGrid()
+	orientation := core.BarHorizontal
+	_, err = right.BarUnits(
+		[]string{"north", "south", "east"},
+		[]float64{4, 7, 5},
+		core.BarOptions{
+			Orientation: &orientation,
+			Color:       &render.Color{R: 0.17, G: 0.63, B: 0.17, A: 1},
+			EdgeColor:   &render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1},
+			EdgeWidth:   floatPtr(1.0),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	right.AutoScale(0.10)
+
+	r, err := agg.New(760, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderUnitsCustomConverter() image.Image {
+	registerTestDistanceUnits()
+
+	fig := core.NewFigure(680, 380)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.18}, Max: geom.Pt{X: 0.94, Y: 0.88}})
+	ax.SetTitle("Custom Distance Units")
+	ax.SetXLabel("Distance")
+	ax.SetYLabel("Pace")
+	ax.AddXGrid()
+	ax.AddYGrid()
+
+	distances := []testDistanceKM{5, 10, 21.1, 30, 42.2}
+	pace := []float64{6.4, 5.9, 5.3, 5.1, 5.4}
+	_, err := ax.PlotUnits(distances, pace, core.PlotOptions{
+		Color:     &render.Color{R: 0.55, G: 0.34, B: 0.29, A: 1},
+		LineWidth: floatPtr(1.4),
+	})
+	if err != nil {
+		panic(err)
+	}
+	_, err = ax.ScatterUnits(distances, pace, core.ScatterOptions{
+		Color:     &render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.92},
+		EdgeColor: &render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1},
+		EdgeWidth: floatPtr(1.0),
+		Size:      floatPtr(8.0),
+	})
+	if err != nil {
+		panic(err)
+	}
+	ax.AutoScale(0.08)
+
+	r, err := agg.New(680, 380, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}
