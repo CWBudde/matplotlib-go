@@ -9,7 +9,28 @@ import (
 
 func TestCatalogStable(t *testing.T) {
 	got := Catalog()
-	wantIDs := []string{"lines", "scatter", "bars", "fills", "histogram", "errorbars", "heatmap", "patches", "polar", "subplots"}
+	wantIDs := []string{
+		"lines",
+		"scatter",
+		"bars",
+		"fills",
+		"variants",
+		"axes",
+		"histogram",
+		"statistics",
+		"errorbars",
+		"units",
+		"heatmap",
+		"matrix",
+		"mesh",
+		"vectors",
+		"specialty",
+		"patches",
+		"annotations",
+		"composition",
+		"polar",
+		"subplots",
+	}
 	if len(got) != len(wantIDs) {
 		t.Fatalf("Catalog() len = %d, want %d", len(got), len(wantIDs))
 	}

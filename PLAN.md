@@ -426,7 +426,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Stateful `pyplot` wrappers for the Phase 6.5 artists/builders (`Stem`, `Eventplot`, `Hexbin`, `Pie`, `Violinplot`, `Table`, `Sankey`)
 - [x] Focused unit coverage for the new Phase 6.5 artist families and the Sankey builder
 - [x] Combined specialty example: `examples/specialty/main.go`
-- [ ] Golden and Matplotlib-reference parity fixtures for the new specialty artists
+- [x] Golden and Matplotlib-reference parity fixtures for the new specialty artists
 
 ### 6.6 Derived Image and Signal Helpers
 
@@ -438,8 +438,8 @@ core.SavePNG(fig, r, "output.png")
 
 **Exit Criteria:**
 
-- [ ] The port covers more than the "basic chart" subset and includes the artist families Matplotlib uses for mesh, contour, collection, and specialty plots
-- [ ] New plot families are backed by reusable artist infrastructure instead of one-off helpers
+- [x] The port covers more than the "basic chart" subset and includes the artist families Matplotlib uses for mesh, contour, collection, and specialty plots
+- [x] New plot families are backed by reusable artist infrastructure instead of one-off helpers
 
 ---
 
