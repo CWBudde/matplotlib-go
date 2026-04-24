@@ -170,13 +170,76 @@ func drawFigureArtists(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 	}
 
 	ctx := newFigureDrawContext(fig, figureRect)
+	stackOffsets := initialFigureArtistStackOffsets(fig, r, ctx)
 	for _, art := range fig.Artists {
-		art.Draw(r, ctx)
-	}
-	for _, art := range fig.Artists {
-		if overlay, ok := art.(OverlayArtist); ok {
-			overlay.DrawOverlay(r, ctx)
+		artCtx := *ctx
+		if loc, ok := figureArtistLocation(art); ok {
+			offset := stackOffsets[loc]
+			artCtx.Clip = insetFigureArtistClip(ctx.Clip, loc, offset)
+			if box, hasBox := figureArtistBoxRect(art, r, &artCtx); hasBox {
+				stackOffsets[loc] = offset + box.H() + pointsToPixels(ctx.RC, 4)
+			}
 		}
+		art.Draw(r, &artCtx)
+		if overlay, ok := art.(OverlayArtist); ok {
+			overlay.DrawOverlay(r, &artCtx)
+		}
+	}
+}
+
+func initialFigureArtistStackOffsets(fig *Figure, r render.Renderer, ctx *DrawContext) map[LegendLocation]float64 {
+	offsets := map[LegendLocation]float64{}
+	if fig == nil || ctx == nil {
+		return offsets
+	}
+	pad := pointsToPixels(ctx.RC, 4)
+	if fig.SupTitle != "" {
+		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleFontSize(ctx), ctx.RC.FontKey)
+		offset := layout.Height + pad
+		offsets[LegendUpperLeft] = offset
+		offsets[LegendUpperRight] = offset
+	}
+	if fig.SupXLabel != "" {
+		layout := measureSingleLineTextLayout(r, fig.SupXLabel, axisLabelFontSize(ctx), ctx.RC.FontKey)
+		offset := layout.Height + pad
+		offsets[LegendLowerLeft] = offset
+		offsets[LegendLowerRight] = offset
+	}
+	return offsets
+}
+
+func insetFigureArtistClip(clip geom.Rect, location LegendLocation, offset float64) geom.Rect {
+	if offset <= 0 {
+		return clip
+	}
+	switch location {
+	case LegendLowerLeft, LegendLowerRight:
+		clip.Max.Y -= offset
+	default:
+		clip.Min.Y += offset
+	}
+	return clip
+}
+
+func figureArtistLocation(art Artist) (LegendLocation, bool) {
+	switch a := art.(type) {
+	case *Legend:
+		return a.Location, true
+	case *AnchoredTextBox:
+		return a.Location, true
+	default:
+		return LegendUpperRight, false
+	}
+}
+
+func figureArtistBoxRect(art Artist, r render.Renderer, ctx *DrawContext) (geom.Rect, bool) {
+	switch a := art.(type) {
+	case *Legend:
+		return a.boxRect(r, ctx)
+	case *AnchoredTextBox:
+		return a.boxRect(r, ctx)
+	default:
+		return geom.Rect{}, false
 	}
 }
 
@@ -229,8 +292,10 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 	}
 
 	if fig.SupYLabel != "" {
+		layout := measureSingleLineTextLayout(r, fig.SupYLabel, labelSize, fig.RC.FontKey)
+		leftPad := pointsToPixels(fig.RC, 4)
 		anchor := geom.Pt{
-			X: figureRect.Min.X + pointsToPixels(fig.RC, 4),
+			X: figureRect.Min.X + leftPad + layout.Height,
 			Y: centerY,
 		}
 		switch ren := r.(type) {
@@ -239,7 +304,6 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 		case render.VerticalTextDrawer:
 			drawDisplayTextVertical(ren, fig.SupYLabel, anchor, labelSize, labelColor)
 		default:
-			layout := measureSingleLineTextLayout(r, fig.SupYLabel, labelSize, fig.RC.FontKey)
 			drawDisplayText(
 				textRen,
 				fig.SupYLabel,

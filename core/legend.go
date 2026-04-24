@@ -231,6 +231,49 @@ func (l *Legend) Bounds(*DrawContext) geom.Rect {
 	return geom.Rect{}
 }
 
+func (l *Legend) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) {
+	if l == nil || r == nil || ctx == nil {
+		return geom.Rect{}, false
+	}
+
+	entries := l.entries
+	if len(entries) == 0 {
+		entries = l.collectEntries()
+	}
+	if len(entries) == 0 {
+		return geom.Rect{}, false
+	}
+
+	fontSize := l.FontSize
+	if fontSize <= 0 {
+		fontSize = ctx.RC.LegendSize()
+	}
+	if fontSize < 8 {
+		fontSize = 8
+	}
+
+	maxLabelWidth := 0.0
+	contentHeight := 0.0
+	for _, entry := range entries {
+		metrics := r.MeasureText(entry.Label, fontSize, ctx.RC.FontKey)
+		if metrics.W > maxLabelWidth {
+			maxLabelWidth = metrics.W
+		}
+		rowHeight := math.Max(metrics.H, fontSize)
+		if rowHeight < 12 {
+			rowHeight = 12
+		}
+		contentHeight += rowHeight
+	}
+	if len(entries) > 1 {
+		contentHeight += l.RowGap * float64(len(entries)-1)
+	}
+
+	boxWidth := l.Padding*2 + l.SampleWidth + l.SampleTextGap + maxLabelWidth
+	boxHeight := l.Padding*2 + contentHeight
+	return l.legendBoxRect(ctx.Clip, boxWidth, boxHeight), true
+}
+
 func (l *Legend) collectEntries() []legendEntry {
 	if l == nil {
 		return nil

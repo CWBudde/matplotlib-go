@@ -75,11 +75,14 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 			Y: parent.RectFraction.Max.Y,
 		},
 	}
-	if rect.Max.X > 1 || rect.Min.X >= rect.Max.X {
+	if rect.Min.X >= rect.Max.X {
 		return nil
 	}
 
 	ax := f.AddAxes(rect)
+	ax.colorbarParent = parent
+	ax.colorbarWidth = cfg.Width
+	ax.colorbarPadding = cfg.Padding
 	ax.ShowFrame = false
 	ax.SetXLim(0, 1)
 	ax.SetYLim(vmin, vmax)

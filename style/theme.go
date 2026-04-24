@@ -3,6 +3,7 @@ package style
 import (
 	"sort"
 	"strings"
+	"sync"
 
 	"matplotlib-go/color"
 	"matplotlib-go/render"
@@ -112,6 +113,8 @@ var themeRegistry = map[string]Theme{
 	ThemePublication.Name:    ThemePublication,
 }
 
+var themeRegistryMu sync.RWMutex
+
 // NewTheme creates a named theme from the default RC plus overrides.
 func NewTheme(name string, opts ...Option) Theme {
 	normalized := normalizeThemeName(name)
@@ -132,11 +135,15 @@ func RegisterTheme(theme Theme) {
 	}
 	theme.Name = normalized
 	theme.RC = Apply(theme.RC)
+	themeRegistryMu.Lock()
+	defer themeRegistryMu.Unlock()
 	themeRegistry[normalized] = theme
 }
 
 // GetTheme returns a named theme and whether it was found.
 func GetTheme(name string) (Theme, bool) {
+	themeRegistryMu.RLock()
+	defer themeRegistryMu.RUnlock()
 	theme, ok := themeRegistry[normalizeThemeName(name)]
 	if !ok {
 		return Theme{}, false
@@ -155,6 +162,8 @@ func MustTheme(name string) Theme {
 
 // AvailableThemes returns the registered theme names in stable order.
 func AvailableThemes() []string {
+	themeRegistryMu.RLock()
+	defer themeRegistryMu.RUnlock()
 	names := make([]string, 0, len(themeRegistry))
 	for name := range themeRegistry {
 		names = append(names, name)

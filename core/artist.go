@@ -343,6 +343,10 @@ type Axes struct {
 	yUnits *axisUnitsState
 
 	subplotSpec *SubplotSpec
+
+	colorbarParent  *Axes
+	colorbarWidth   float64
+	colorbarPadding float64
 }
 
 // TickParams controls axis tick visibility and styling.
@@ -1387,6 +1391,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 	defer r.End()
 
 	prepareFigureLayout(fig, r, vp)
+	syncColorbarAxes(fig)
 	alignment := computeFigureTextAlignment(fig, r, vp)
 
 	for _, ax := range fig.Children {

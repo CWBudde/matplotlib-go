@@ -114,11 +114,13 @@ func prepareFigureLayout(fig *Figure, r render.Renderer, vp geom.Rect) {
 
 	for iter := 0; iter < 2; iter++ {
 		syncAxesToSubplotSpecs(fig, state)
+		syncColorbarAxes(fig)
 		for _, root := range managedRootGrids(fig) {
 			resolveMeasuredGridLayout(fig, r, vp, root, gridAxes, children, state)
 		}
 	}
 	syncAxesToSubplotSpecs(fig, state)
+	syncColorbarAxes(fig)
 }
 
 func resolveMeasuredGridLayout(fig *Figure, r render.Renderer, vp geom.Rect, grid *GridSpec, gridAxes map[*GridSpec][]*Axes, children map[*GridSpec][]*GridSpec, state map[*GridSpec]GridSpecOptions) {
@@ -166,7 +168,7 @@ func measuredGridOptions(fig *Figure, r render.Renderer, vp geom.Rect, grid *Gri
 
 	outerPad := layoutPadPx(fig, fig.layoutEngine)
 	innerPad := outerPad
-	global := figureLabelMarginsPx(fig, r, vp, fig.layoutEngine)
+	global := figureLayoutMarginsPx(fig, r, vp, fig.layoutEngine)
 	if !gridCoversWholeFigure(grid) {
 		global = figureMargin{}
 	}
@@ -301,9 +303,88 @@ func figureLabelMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine L
 	}
 	if fig.SupYLabel != "" {
 		layout := measureSingleLineTextLayout(r, fig.SupYLabel, axisLabelFontSize(ctx), fig.RC.FontKey)
-		margins.left += layout.Height + pad
+		margins.left += layout.Height + 2*pad
 	}
 	return margins
+}
+
+func figureLayoutMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {
+	margins := figureLabelMarginsPx(fig, r, vp, engine)
+	margins = addFigureMargins(margins, figureOverlayMarginsPx(fig, r, vp, engine))
+	margins = addFigureMargins(margins, figureColorbarMarginsPx(fig, r, vp, engine))
+	return margins
+}
+
+func addFigureMargins(a, b figureMargin) figureMargin {
+	return figureMargin{
+		left:   a.left + b.left,
+		right:  a.right + b.right,
+		top:    a.top + b.top,
+		bottom: a.bottom + b.bottom,
+	}
+}
+
+func figureOverlayMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {
+	if fig == nil || len(fig.Artists) == 0 {
+		return figureMargin{}
+	}
+	pad := layoutPadPx(fig, engine)
+	margin := figureMargin{}
+	ctx := newFigureDrawContext(fig, vp)
+	stackedHeight := map[LegendLocation]float64{}
+
+	for _, art := range fig.Artists {
+		var (
+			box geom.Rect
+			ok  bool
+		)
+		switch a := art.(type) {
+		case *Legend:
+			box, ok = a.boxRect(r, ctx)
+		case *AnchoredTextBox:
+			box, ok = a.boxRect(r, ctx)
+		}
+		if !ok {
+			continue
+		}
+		loc, _ := figureArtistLocation(art)
+		width := box.W() + pad
+		height := box.H() + pad
+		stackedHeight[loc] += height
+		switch loc {
+		case LegendUpperLeft:
+			margin.left = math.Max(margin.left, width)
+		case LegendLowerLeft:
+			margin.left = math.Max(margin.left, width)
+		case LegendLowerRight:
+			margin.right = math.Max(margin.right, width)
+		default:
+			margin.right = math.Max(margin.right, width)
+		}
+	}
+
+	margin.top = math.Max(stackedHeight[LegendUpperLeft], stackedHeight[LegendUpperRight])
+	margin.bottom = math.Max(stackedHeight[LegendLowerLeft], stackedHeight[LegendLowerRight])
+	return margin
+}
+
+func figureColorbarMarginsPx(fig *Figure, _ render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {
+	if fig == nil {
+		return figureMargin{}
+	}
+	pad := layoutPadPx(fig, engine)
+	margin := figureMargin{}
+	for _, ax := range fig.Children {
+		if ax == nil || ax.colorbarParent == nil {
+			continue
+		}
+		width := (ax.colorbarWidth + ax.colorbarPadding) * vp.W()
+		if width <= 0 {
+			continue
+		}
+		margin.right = math.Max(margin.right, width+pad+pointsToPixels(fig.RC, 36))
+	}
+	return margin
 }
 
 func layoutPadPx(fig *Figure, engine LayoutEngine) float64 {
@@ -339,6 +420,36 @@ func syncAxesToSubplotSpecs(fig *Figure, state map[*GridSpec]GridSpecOptions) {
 	for _, ax := range fig.Children {
 		if ax != nil && ax.subplotSpec != nil {
 			ax.RectFraction = ax.subplotSpec.rectWithOptions(state)
+		}
+	}
+}
+
+func syncColorbarAxes(fig *Figure) {
+	if fig == nil {
+		return
+	}
+	for _, ax := range fig.Children {
+		if ax == nil || ax.colorbarParent == nil {
+			continue
+		}
+		parent := ax.colorbarParent
+		padding := ax.colorbarPadding
+		if padding <= 0 {
+			padding = 0.02
+		}
+		width := ax.colorbarWidth
+		if width <= 0 {
+			width = 0.035
+		}
+		ax.RectFraction = geom.Rect{
+			Min: geom.Pt{
+				X: parent.RectFraction.Max.X + padding,
+				Y: parent.RectFraction.Min.Y,
+			},
+			Max: geom.Pt{
+				X: parent.RectFraction.Max.X + padding + width,
+				Y: parent.RectFraction.Max.Y,
+			},
 		}
 	}
 }

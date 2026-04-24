@@ -32,6 +32,13 @@ func TestDrawFigure_RendersFigureLevelLabels(t *testing.T) {
 	if !containsString(r.rotatedText, "value") {
 		t.Fatalf("missing supylabel draw: %v", r.rotatedText)
 	}
+	anchor, ok := r.rotatedAnchor("value")
+	if !ok {
+		t.Fatalf("missing supylabel anchor: %v", r.rotatedText)
+	}
+	if anchor.X <= 10 {
+		t.Fatalf("supylabel anchor too close to figure edge: %+v", anchor)
+	}
 }
 
 func TestFigureLegendCollectsAcrossAxes(t *testing.T) {
@@ -242,6 +249,65 @@ func TestDrawFigure_ConstrainedLayoutRespondsToNeighboringDecorations(t *testing
 	largeGap := large.Children[1].RectFraction.Min.X - large.Children[0].RectFraction.Max.X
 	if largeGap <= smallGap {
 		t.Fatalf("expected larger constrained-layout gap for larger labels, got %v <= %v", largeGap, smallGap)
+	}
+}
+
+func TestConstrainedLayoutKeepsNestedYAxisTickDensityReadable(t *testing.T) {
+	fig := NewFigure(960, 640)
+	fig.ConstrainedLayout()
+
+	outer := fig.GridSpec(
+		2,
+		2,
+		WithGridSpecPadding(0.08, 0.96, 0.10, 0.92),
+		WithGridSpecSpacing(0.06, 0.08),
+		WithGridSpecWidthRatios(2, 1),
+	)
+	outer.Span(0, 0, 2, 1).AddAxes()
+	nested := outer.Cell(0, 1).GridSpec(2, 1, WithGridSpecSpacing(0, 0.12))
+	top := nested.Cell(0, 0).AddAxes()
+	top.Plot([]float64{0, 1, 2, 3}, []float64{3.4, 2.6, 2.9, 1.8})
+	top.AutoScale(0.10)
+	bottom := nested.Cell(1, 0).AddAxes(WithSharedX(top))
+	bottom.Plot([]float64{0, 1, 2, 3}, []float64{1.0, 1.6, 1.3, 2.2})
+	bottom.AutoScale(0.10)
+	outer.Cell(1, 1).SubFigure().AddSubplot(1, 1, 1)
+
+	var r figureLayoutRecordingRenderer
+	DrawFigure(fig, &r)
+
+	ctx := newAxesDrawContext(top, fig, fig.DisplayRect(), top.adjustedLayout(fig))
+	yMin, yMax := ctx.DataToPixel.YScale.Domain()
+	ticks := visibleTicks(top.YAxis.Locator.Ticks(yMin, yMax, top.YAxis.majorTickTargetCountForContext(ctx, false)), yMin, yMax)
+	if len(ticks) > 3 {
+		t.Fatalf("nested y-axis tick density too high for small panel: ticks=%v clip=%+v", ticks, ctx.Clip)
+	}
+}
+
+func TestConstrainedLayoutReservesColorbarSpaceAndTracksParent(t *testing.T) {
+	fig := NewFigure(1000, 700)
+	fig.ConstrainedLayout()
+	ax := fig.AddSubplot(1, 1, 1)
+	img := ax.Image([][]float64{{0, 1}, {2, 3}})
+	cb := fig.AddColorbar(ax, img, ColorbarOptions{Label: "Intensity"})
+	if cb == nil {
+		t.Fatal("expected colorbar axes")
+	}
+
+	var r figureLayoutRecordingRenderer
+	DrawFigure(fig, &r)
+
+	if cb.RectFraction.Max.X > 1 {
+		t.Fatalf("colorbar overflowed figure: %+v", cb.RectFraction)
+	}
+	if cb.RectFraction.Min.X <= ax.RectFraction.Max.X {
+		t.Fatalf("colorbar did not stay to the right of parent: parent=%+v colorbar=%+v", ax.RectFraction, cb.RectFraction)
+	}
+	if got, want := cb.RectFraction.Min.X-ax.RectFraction.Max.X, cb.colorbarPadding; !floatApprox(got, want, 1e-9) {
+		t.Fatalf("colorbar did not track parent padding: got %v want %v", got, want)
+	}
+	if ax.RectFraction.Max.X >= 0.90 {
+		t.Fatalf("constrained layout did not reserve right margin for colorbar: parent=%+v colorbar=%+v", ax.RectFraction, cb.RectFraction)
 	}
 }
 

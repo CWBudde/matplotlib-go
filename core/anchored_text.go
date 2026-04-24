@@ -189,6 +189,37 @@ func (a *AnchoredTextBox) Bounds(*DrawContext) geom.Rect { return geom.Rect{} }
 // Z returns the anchored text box z-order.
 func (a *AnchoredTextBox) Z() float64 { return a.z }
 
+func (a *AnchoredTextBox) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) {
+	if a == nil || r == nil || ctx == nil {
+		return geom.Rect{}, false
+	}
+
+	lines := strings.Split(normalizeDisplayText(a.Content), "\n")
+	if len(lines) == 0 {
+		return geom.Rect{}, false
+	}
+
+	fontSize := resolvedFontSize(a.FontSize, ctx)
+	maxWidth := 0.0
+	contentHeight := 0.0
+	for _, line := range lines {
+		layout := measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
+		if layout.Width > maxWidth {
+			maxWidth = layout.Width
+		}
+		lineHeight := layout.Height
+		if lineHeight < fontSize {
+			lineHeight = fontSize
+		}
+		contentHeight += lineHeight
+	}
+	if len(lines) > 1 {
+		contentHeight += a.RowGap * float64(len(lines)-1)
+	}
+
+	return anchoredBoxRect(ctx.Clip, maxWidth+a.Padding*2, contentHeight+a.Padding*2, a.Location, a.Inset), true
+}
+
 func anchoredBoxRect(clip geom.Rect, width, height float64, location LegendLocation, inset float64) geom.Rect {
 	var minX, minY float64
 	switch location {

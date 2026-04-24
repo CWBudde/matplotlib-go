@@ -7,16 +7,13 @@ import (
 	"matplotlib-go/backends"
 	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
 
 func main() {
 	fig := core.NewFigure(1000, 700)
-	ax := fig.AddAxes(geom.Rect{
-		Min: geom.Pt{X: 0.10, Y: 0.12},
-		Max: geom.Pt{X: 0.78, Y: 0.88},
-	})
+	fig.ConstrainedLayout()
+	ax := fig.AddSubplot(1, 1, 1)
 
 	const (
 		rows = 80

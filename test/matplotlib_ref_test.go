@@ -164,6 +164,18 @@ func TestMpl_AxesControlSurface(t *testing.T) {
 func TestMpl_TransformCoordinates(t *testing.T) {
 	runMplTest(t, "transform_coordinates", renderTransformCoordinates)
 }
+func TestMpl_GridSpecComposition(t *testing.T) {
+	runMplTest(t, "gridspec_composition", renderGridSpecComposition)
+}
+func TestMpl_FigureLabelsComposition(t *testing.T) {
+	runMplTest(t, "figure_labels_composition", renderFigureLabelsComposition)
+}
+func TestMpl_ColorbarComposition(t *testing.T) {
+	runMplTest(t, "colorbar_composition", renderColorbarComposition)
+}
+func TestMpl_AnnotationComposition(t *testing.T) {
+	runMplTest(t, "annotation_composition", renderAnnotationComposition)
+}
 func TestMpl_PatchShowcase(t *testing.T)  { runMplTest(t, "patch_showcase", renderPatchShowcase) }
 func TestMpl_MeshContourTri(t *testing.T) { runMplTest(t, "mesh_contour_tri", renderMeshContourTri) }
 func TestMpl_PlotVariants(t *testing.T)   { runMplTest(t, "plot_variants", renderPlotVariants) }

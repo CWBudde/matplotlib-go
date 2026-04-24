@@ -12,11 +12,12 @@ import (
 
 func main() {
 	fig := core.NewFigure(1100, 720)
+	fig.ConstrainedLayout()
 	fig.SetSuptitle("Shared-Axis Figure Labels")
 	fig.SetSupXLabel("time [s]")
 	fig.SetSupYLabel("amplitude")
 
-	grid := fig.Subplots(2, 2, core.WithSubplotPadding(0.10, 0.92, 0.14, 0.86), core.WithSubplotSpacing(0.10, 0.12))
+	grid := fig.Subplots(2, 2)
 
 	for row := range grid {
 		for col, ax := range grid[row] {

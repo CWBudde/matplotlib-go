@@ -133,14 +133,14 @@ func (a *Axis) DrawTicks(r render.Renderer, ctx *DrawContext) {
 	if a.ShowTicks {
 		// Minor ticks first
 		if a.MinorLocator != nil {
-			minorTicks := visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCount()), domainMin, domainMax)
+			minorTicks := visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax)
 			if len(minorTicks) > 0 {
 				a.drawMinorTicks(r, ctx, minorTicks, isXAxis)
 			}
 		}
 
 		// Major ticks
-		ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
+		ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax)
 		if len(ticks) > 0 {
 			a.drawTicks(r, ctx, ticks, isXAxis)
 		}
@@ -150,7 +150,7 @@ func (a *Axis) DrawTicks(r render.Renderer, ctx *DrawContext) {
 		if !level.ShowTicks || level.Locator == nil {
 			continue
 		}
-		ticks := visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
+		ticks := visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax)
 		if len(ticks) == 0 {
 			continue
 		}
@@ -360,18 +360,18 @@ func (a *Axis) DrawTickLabels(r render.Renderer, ctx *DrawContext) {
 		isXAxis = false
 	}
 	if a.ShowLabels && a.Locator != nil && a.Formatter != nil {
-		ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
+		ticks := visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax)
 		a.drawTickLabels(r, ctx, ticks, a.Formatter, a.MajorLabelStyle, a.TickSize, isXAxis)
 	}
 	if a.ShowMinorLabels && a.MinorLocator != nil && a.MinorFormatter != nil {
-		ticks := visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCount()), domainMin, domainMax)
+		ticks := visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax)
 		a.drawTickLabels(r, ctx, ticks, a.MinorFormatter, a.MinorLabelStyle, a.minorTickSize(), isXAxis)
 	}
 	for _, level := range a.ExtraTickLevels {
 		if !level.ShowLabels || level.Locator == nil || level.Formatter == nil {
 			continue
 		}
-		ticks := visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax)
+		ticks := visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax)
 		a.drawTickLabels(r, ctx, ticks, level.Formatter, normalizeTickLabelStyle(level.LabelStyle), tickLevelSize(level, a.TickSize), isXAxis)
 	}
 }
@@ -388,6 +388,45 @@ func (a *Axis) minorTickTargetCount() int {
 		return 30
 	}
 	return a.MinorTickCount
+}
+
+func (a *Axis) majorTickTargetCountForContext(ctx *DrawContext, isXAxis bool) int {
+	target := a.majorTickTargetCount()
+	if ctx == nil || target <= 1 {
+		return target
+	}
+
+	length := ctx.Clip.H()
+	minSpacing := 42.0
+	if isXAxis {
+		length = ctx.Clip.W()
+		minSpacing = 72.0
+	}
+	if length <= 0 {
+		return target
+	}
+
+	capacity := int(math.Floor(length / minSpacing))
+	if capacity < 1 {
+		capacity = 1
+	}
+	if capacity < target {
+		return capacity
+	}
+	return target
+}
+
+func (a *Axis) minorTickTargetCountForContext(ctx *DrawContext, isXAxis bool) int {
+	target := a.minorTickTargetCount()
+	major := a.majorTickTargetCountForContext(ctx, isXAxis)
+	limit := major * 5
+	if limit < 1 {
+		limit = 1
+	}
+	if target > limit {
+		return limit
+	}
+	return target
 }
 
 func visibleTicks(ticks []float64, minVal, maxVal float64) []float64 {
@@ -605,7 +644,7 @@ func axisTickLabelBounds(a *Axis, r render.Renderer, ctx *DrawContext) (geom.Rec
 	levels := make([]labelLevel, 0, 2+len(a.ExtraTickLevels))
 	if a.ShowLabels && a.Locator != nil && a.Formatter != nil {
 		levels = append(levels, labelLevel{
-			ticks:     visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax),
+			ticks:     visibleTicks(a.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax),
 			formatter: a.Formatter,
 			style:     a.MajorLabelStyle,
 			tickSize:  a.TickSize,
@@ -613,7 +652,7 @@ func axisTickLabelBounds(a *Axis, r render.Renderer, ctx *DrawContext) (geom.Rec
 	}
 	if a.ShowMinorLabels && a.MinorLocator != nil && a.MinorFormatter != nil {
 		levels = append(levels, labelLevel{
-			ticks:     visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCount()), domainMin, domainMax),
+			ticks:     visibleTicks(a.MinorLocator.Ticks(domainMin, domainMax, a.minorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax),
 			formatter: a.MinorFormatter,
 			style:     a.MinorLabelStyle,
 			tickSize:  a.minorTickSize(),
@@ -624,7 +663,7 @@ func axisTickLabelBounds(a *Axis, r render.Renderer, ctx *DrawContext) (geom.Rec
 			continue
 		}
 		levels = append(levels, labelLevel{
-			ticks:     visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCount()), domainMin, domainMax),
+			ticks:     visibleTicks(level.Locator.Ticks(domainMin, domainMax, a.majorTickTargetCountForContext(ctx, isXAxis)), domainMin, domainMax),
 			formatter: level.Formatter,
 			style:     normalizeTickLabelStyle(level.LabelStyle),
 			tickSize:  tickLevelSize(level, a.TickSize),

@@ -172,6 +172,22 @@ func TestTransformCoordinates_Golden(t *testing.T) {
 	runGoldenTest(t, "transform_coordinates", renderTransformCoordinates)
 }
 
+func TestGridSpecComposition_Golden(t *testing.T) {
+	runGoldenTest(t, "gridspec_composition", renderGridSpecComposition)
+}
+
+func TestFigureLabelsComposition_Golden(t *testing.T) {
+	runGoldenTest(t, "figure_labels_composition", renderFigureLabelsComposition)
+}
+
+func TestColorbarComposition_Golden(t *testing.T) {
+	runGoldenTest(t, "colorbar_composition", renderColorbarComposition)
+}
+
+func TestAnnotationComposition_Golden(t *testing.T) {
+	runGoldenTest(t, "annotation_composition", renderAnnotationComposition)
+}
+
 func TestPlotVariants_Golden(t *testing.T) {
 	requireOptionalVisualTests(t)
 	runGoldenTest(t, "plot_variants", renderPlotVariants)
@@ -1497,6 +1513,177 @@ func renderTransformCoordinates() image.Image {
 	})
 
 	r, err := agg.New(720, 420, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderGridSpecComposition() image.Image {
+	fig := core.NewFigure(960, 640)
+	fig.ConstrainedLayout()
+
+	outer := fig.GridSpec(
+		2,
+		2,
+		core.WithGridSpecPadding(0.08, 0.96, 0.10, 0.92),
+		core.WithGridSpecSpacing(0.06, 0.08),
+		core.WithGridSpecWidthRatios(2, 1),
+	)
+
+	mainAx := outer.Span(0, 0, 2, 1).AddAxes()
+	configureCompositionAxes(mainAx, "Main Span", []float64{0, 1, 2, 3, 4}, []float64{1.2, 2.8, 2.1, 3.6, 3.1}, render.Color{R: 0.15, G: 0.35, B: 0.72, A: 1})
+
+	nested := outer.Cell(0, 1).GridSpec(2, 1, core.WithGridSpecSpacing(0, 0.12))
+	topRight := nested.Cell(0, 0).AddAxes()
+	configureCompositionAxes(topRight, "Nested Top", []float64{0, 1, 2, 3}, []float64{3.4, 2.6, 2.9, 1.8}, render.Color{R: 0.72, G: 0.32, B: 0.18, A: 1})
+
+	bottomRight := nested.Cell(1, 0).AddAxes(core.WithSharedX(topRight))
+	configureCompositionAxes(bottomRight, "Nested Bottom", []float64{0, 1, 2, 3}, []float64{1.0, 1.6, 1.3, 2.2}, render.Color{R: 0.18, G: 0.55, B: 0.34, A: 1})
+
+	sub := outer.Cell(1, 1).SubFigure()
+	inset := sub.AddSubplot(1, 1, 1)
+	configureCompositionAxes(inset, "SubFigure", []float64{0, 1, 2, 3}, []float64{2.0, 2.4, 1.9, 2.7}, render.Color{R: 0.55, G: 0.22, B: 0.50, A: 1})
+
+	r, err := agg.New(960, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func configureCompositionAxes(ax *core.Axes, title string, x, y []float64, c render.Color) {
+	ax.SetTitle(title)
+	ax.SetXLabel("x")
+	ax.SetYLabel("y")
+	width := 2.0
+	ax.Plot(x, y, core.PlotOptions{
+		Color:     &c,
+		LineWidth: &width,
+		Label:     title,
+	})
+	ax.AutoScale(0.10)
+}
+
+func renderFigureLabelsComposition() image.Image {
+	fig := core.NewFigure(1100, 720)
+	fig.ConstrainedLayout()
+	fig.SetSuptitle("Shared-Axis Figure Labels")
+	fig.SetSupXLabel("time [s]")
+	fig.SetSupYLabel("amplitude")
+
+	grid := fig.Subplots(2, 2)
+	for row := range grid {
+		for col, ax := range grid[row] {
+			x := make([]float64, 180)
+			y := make([]float64, 180)
+			for i := range x {
+				xv := 2 * math.Pi * float64(i) / float64(len(x)-1)
+				x[i] = xv
+				y[i] = math.Sin(xv+float64(row)*0.5) * (1 + float64(col)*0.2)
+			}
+			ax.Plot(x, y, core.PlotOptions{Label: fmt.Sprintf("series %d", row*2+col+1)})
+			ax.SetTitle(fmt.Sprintf("Panel %d", row*2+col+1))
+			ax.SetXLabel("local x")
+			ax.SetYLabel("local y")
+			ax.SetXLim(0, 2*math.Pi)
+			ax.SetYLim(-1.6, 1.6)
+			ax.AddXGrid()
+			ax.AddYGrid()
+		}
+	}
+
+	grid[0][0].AddAnchoredText("upper-left\nnote")
+	grid[1][1].AddAnchoredText("lower-right", core.AnchoredTextOptions{Location: core.LegendLowerRight})
+	fig.AddAnchoredText("Figure note", core.AnchoredTextOptions{Location: core.LegendUpperRight})
+	fig.AddLegend()
+
+	r, err := agg.New(1100, 720, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderColorbarComposition() image.Image {
+	fig := core.NewFigure(1000, 700)
+	fig.ConstrainedLayout()
+	ax := fig.AddSubplot(1, 1, 1)
+
+	const (
+		rows = 80
+		cols = 120
+	)
+	data := make([][]float64, rows)
+	for row := range data {
+		data[row] = make([]float64, cols)
+		for col := range data[row] {
+			x := (float64(col)/float64(cols-1))*4 - 2
+			y := (float64(row)/float64(rows-1))*4 - 2
+			radius := math.Hypot(x, y)
+			data[row][col] = math.Sin(3*radius) * math.Exp(-0.6*radius)
+		}
+	}
+
+	cmap := "inferno"
+	img := ax.Image(data, core.ImageOptions{Colormap: &cmap})
+	ax.SetTitle("Heatmap with Colorbar")
+	ax.SetXLabel("x")
+	ax.SetYLabel("y")
+	ax.SetXLim(0, cols)
+	ax.SetYLim(0, rows)
+	ax.AddXGrid()
+	ax.AddYGrid()
+	fig.AddColorbar(ax, img, core.ColorbarOptions{Label: "Intensity"})
+
+	r, err := agg.New(1000, 700, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderAnnotationComposition() image.Image {
+	fig := core.NewFigure(1040, 720)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.10, Y: 0.14},
+		Max: geom.Pt{X: 0.90, Y: 0.88},
+	})
+	ax.SetTitle("Text and Arrow Annotations")
+	ax.SetXLabel("phase")
+	ax.SetYLabel("response")
+	ax.AddXGrid()
+	ax.AddYGrid()
+
+	x := make([]float64, 240)
+	y := make([]float64, 240)
+	for i := range x {
+		xv := 6 * math.Pi * float64(i) / float64(len(x)-1)
+		x[i] = xv
+		y[i] = math.Sin(xv)*math.Exp(-0.015*xv) + 0.2*math.Cos(0.5*xv)
+	}
+	ax.Plot(x, y, core.PlotOptions{Label: "signal"})
+	ax.SetXLim(0, 6*math.Pi)
+	ax.SetYLim(-1.2, 1.2)
+	ax.AddLegend()
+
+	peakX := math.Pi / 2
+	peakY := math.Sin(peakX)*math.Exp(-0.015*peakX) + 0.2*math.Cos(0.5*peakX)
+	ax.Annotate("Peak\n= 0.42", peakX, peakY, core.AnnotationOptions{
+		OffsetX:  48,
+		OffsetY:  -42,
+		FontSize: 12,
+	})
+	ax.Text(0.20, 0.90, "m∫T  φ x =  λ/4", core.TextOptions{
+		Coords:   core.Coords(core.CoordAxes),
+		FontSize: 12,
+	})
+
+	r, err := agg.New(1040, 720, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}

@@ -829,6 +829,154 @@ def transform_coordinates(out_dir):
     save(fig, out_dir, "transform_coordinates")
 
 
+def _composition_configure_axes(ax, title, x, y, color):
+    ax.set_title(title)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.plot(x, y, color=color, linewidth=lw(2.0), label=title)
+    ax.margins(0.10)
+
+
+def gridspec_composition(out_dir):
+    fig = make_fig_px(960, 640)
+    outer = fig.add_gridspec(
+        2,
+        2,
+        left=0.08,
+        right=0.96,
+        bottom=0.10,
+        top=0.92,
+        wspace=0.06,
+        hspace=0.08,
+        width_ratios=[2, 1],
+    )
+
+    main_ax = fig.add_subplot(outer[:, 0])
+    _composition_configure_axes(main_ax, "Main Span", [0, 1, 2, 3, 4], [1.2, 2.8, 2.1, 3.6, 3.1], (0.15, 0.35, 0.72))
+
+    nested = outer[0, 1].subgridspec(2, 1, hspace=0.12)
+    top_right = fig.add_subplot(nested[0, 0])
+    _composition_configure_axes(top_right, "Nested Top", [0, 1, 2, 3], [3.4, 2.6, 2.9, 1.8], (0.72, 0.32, 0.18))
+
+    bottom_right = fig.add_subplot(nested[1, 0], sharex=top_right)
+    _composition_configure_axes(bottom_right, "Nested Bottom", [0, 1, 2, 3], [1.0, 1.6, 1.3, 2.2], (0.18, 0.55, 0.34))
+
+    sub = fig.add_subfigure(outer[1, 1])
+    inset = sub.add_subplot(1, 1, 1)
+    _composition_configure_axes(inset, "SubFigure", [0, 1, 2, 3], [2.0, 2.4, 1.9, 2.7], (0.55, 0.22, 0.50))
+
+    save(fig, out_dir, "gridspec_composition")
+
+
+def figure_labels_composition(out_dir):
+    fig, axs = plt.subplots(2, 2, figsize=(1100 / DPI, 720 / DPI), dpi=DPI, constrained_layout=True)
+    fig.suptitle("Shared-Axis Figure Labels")
+    fig.supxlabel("time [s]")
+    fig.supylabel("amplitude")
+
+    handles = []
+    labels = []
+    for row in range(2):
+        for col in range(2):
+            ax = axs[row, col]
+            x = np.linspace(0, 2 * math.pi, 180)
+            y = np.sin(x + row * 0.5) * (1 + col * 0.2)
+            (line,) = ax.plot(x, y, label=f"series {row * 2 + col + 1}")
+            handles.append(line)
+            labels.append(line.get_label())
+            ax.set_title(f"Panel {row * 2 + col + 1}")
+            ax.set_xlabel("local x")
+            ax.set_ylabel("local y")
+            ax.set_xlim(0, 2 * math.pi)
+            ax.set_ylim(-1.6, 1.6)
+            ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+            ax.set_axisbelow(True)
+
+    axs[0, 0].text(
+        0.02,
+        0.92,
+        "upper-left\nnote",
+        transform=axs[0, 0].transAxes,
+        va="top",
+        bbox=dict(facecolor="white", edgecolor=(0.5, 0.5, 0.5)),
+    )
+    axs[1, 1].text(
+        0.98,
+        0.08,
+        "lower-right",
+        transform=axs[1, 1].transAxes,
+        ha="right",
+        va="bottom",
+        bbox=dict(facecolor="white", edgecolor=(0.5, 0.5, 0.5)),
+    )
+    fig.text(
+        0.985,
+        0.94,
+        "Figure note",
+        ha="right",
+        va="top",
+        bbox=dict(facecolor="white", edgecolor=(0.5, 0.5, 0.5)),
+    )
+    fig.legend(handles, labels, loc="upper right", bbox_to_anchor=(0.99, 0.90))
+
+    save(fig, out_dir, "figure_labels_composition")
+
+
+def colorbar_composition(out_dir):
+    fig, ax = plt.subplots(figsize=(1000 / DPI, 700 / DPI), dpi=DPI, constrained_layout=True)
+    rows, cols = 80, 120
+    data = np.zeros((rows, cols))
+    for row in range(rows):
+        for col in range(cols):
+            x = (col / (cols - 1)) * 4 - 2
+            y = (row / (rows - 1)) * 4 - 2
+            r = math.hypot(x, y)
+            data[row, col] = math.sin(3 * r) * math.exp(-0.6 * r)
+
+    im = ax.imshow(data, cmap="inferno", origin="lower", extent=[0, cols, 0, rows], aspect="auto")
+    ax.set_title("Heatmap with Colorbar")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_xlim(0, cols)
+    ax.set_ylim(0, rows)
+    ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("Intensity")
+
+    save(fig, out_dir, "colorbar_composition")
+
+
+def annotation_composition(out_dir):
+    fig = make_fig_px(1040, 720)
+    ax = fig.add_axes(go_rect(0.10, 0.14, 0.90, 0.88))
+    ax.set_title("Text and Arrow Annotations")
+    ax.set_xlabel("phase")
+    ax.set_ylabel("response")
+    ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
+    ax.set_axisbelow(True)
+
+    x = np.linspace(0, 6 * math.pi, 240)
+    y = np.sin(x) * np.exp(-0.015 * x) + 0.2 * np.cos(0.5 * x)
+    ax.plot(x, y, label="signal")
+    ax.set_xlim(0, 6 * math.pi)
+    ax.set_ylim(-1.2, 1.2)
+    ax.legend(loc="upper right")
+
+    peak_x = math.pi / 2
+    peak_y = math.sin(peak_x) * math.exp(-0.015 * peak_x) + 0.2 * math.cos(0.5 * peak_x)
+    ax.annotate(
+        "Peak\n= 0.42",
+        xy=(peak_x, peak_y),
+        xytext=(48, -42),
+        textcoords="offset pixels",
+        fontsize=12,
+        arrowprops=dict(arrowstyle="->", color="black", lw=lw(1.0)),
+    )
+    ax.text(0.20, 0.90, "m∫T  φ x =  λ/4", transform=ax.transAxes, fontsize=12)
+
+    save(fig, out_dir, "annotation_composition")
+
+
 def plot_variants(out_dir):
     fig = make_fig_px(840, 620)
 
@@ -1494,6 +1642,10 @@ ALL_PLOTS = [
     axes_top_right_inverted,
     axes_control_surface,
     transform_coordinates,
+    gridspec_composition,
+    figure_labels_composition,
+    colorbar_composition,
+    annotation_composition,
     patch_showcase,
     mesh_contour_tri,
     plot_variants,

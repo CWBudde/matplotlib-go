@@ -306,11 +306,24 @@ core.SavePNG(fig, r, "output.png")
 - [x] Various colormap support
 - [x] Example: `examples/colorbar/basic.go`
 
+### 4.8 Phase 4 Visual Parity and Composition Hardening
+
+- [x] Add committed golden and Matplotlib-reference fixtures for Phase 4 composition examples:
+  - nested `GridSpec` / subfigure composition
+  - figure-level labels plus figure legends and anchored text
+  - heatmap colorbar composition
+  - text/arrow annotation composition
+- [x] Fix nested `GridSpec` / constrained-layout small-panel spacing so tick labels do not overlap in `examples/gridspec/main.go` (`Nested Top` currently compresses y tick labels).
+- [x] Make figure-level labels participate in measured margins strongly enough to prevent clipping (`examples/figure_labels/basic.go` currently clips the left `supylabel`).
+- [x] Include figure legends and figure-level anchored boxes in layout collision checks so they avoid the suptitle and plot area by default.
+- [x] Tighten colorbar layout coverage so colorbar axes, ticks, and labels compose without hand-tuned parent axes padding.
+- [x] Define Phase 4 visual acceptance checks: generated examples have no clipped labels, no overlapping tick labels, no legend/title collisions, and pass documented golden/reference tolerances.
+
 **Exit Criteria:**
 
-- [ ] Multi-panel figures work well beyond simple uniform grids
-- [ ] Layout no longer depends on hand-tuned subplot padding for common cases
-- [ ] Figure-level labels, legends, and colorbars compose cleanly
+- [x] Multi-panel figures work well beyond simple uniform grids
+- [x] Layout no longer depends on hand-tuned subplot padding for common cases
+- [x] Figure-level labels, legends, and colorbars compose cleanly
 
 ---
 
@@ -342,7 +355,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Example: `examples/styling/rc/main.go`
 - [x] Much broader `.mplstyle` coverage than the current supported subset
 - [x] Broader `.mplstyle` coverage for typography, tick styling, grid defaults/styles, legend frame controls, and `figure.figsize`
-- [ ] Style-library discovery beyond the built-in named theme registry
+- [x] Style-library discovery beyond the built-in named theme registry
 
 ### 5.4 Backend Runtime, Canvas, and Tooling
 
@@ -364,7 +377,7 @@ core.SavePNG(fig, r, "output.png")
 **Exit Criteria:**
 
 - [ ] Both object-oriented and optional stateful APIs are usable
-- [ ] Configuration is no longer limited to hard-coded theme structs plus a tiny `.mplstyle` subset
+- [x] Configuration is no longer limited to hard-coded theme structs plus a tiny `.mplstyle` subset
 - [x] Output/runtime capabilities are organized around backend canvases rather than ad-hoc helpers
 
 ---
