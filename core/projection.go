@@ -33,6 +33,7 @@ var (
 func init() {
 	mustRegisterProjection("rectilinear", func() Projection { return rectilinearProjection{} })
 	mustRegisterProjection("polar", func() Projection { return newPolarProjection() })
+	mustRegisterProjection("radar", func() Projection { return newRadarProjection() })
 }
 
 // RegisterProjection installs a named axes projection.
@@ -97,7 +98,8 @@ func cloneProjection(proj Projection) Projection {
 }
 
 func isPolarProjection(proj Projection) bool {
-	return proj != nil && normalizeProjectionName(proj.Name()) == "polar"
+	_, ok := polarProjectionFor(proj)
+	return ok
 }
 
 type rectilinearProjection struct{}
@@ -114,25 +116,45 @@ func (rectilinearProjection) DataToAxes(ax *Axes) transform.T {
 }
 
 type polarProjection struct {
+	name             string
 	thetaOffset      float64
 	thetaDirection   float64
 	radialLabelAngle float64
+	radarVariables   int
+	radarLabels      []string
 }
 
 func newPolarProjection() *polarProjection {
 	return &polarProjection{
+		name:             "polar",
 		thetaDirection:   1,
 		radialLabelAngle: defaultPolarRadialLabelAngle,
 	}
 }
 
-func (*polarProjection) Name() string { return "polar" }
+func newRadarProjection() *polarProjection {
+	return &polarProjection{
+		name:             "radar",
+		thetaOffset:      math.Pi / 2,
+		thetaDirection:   -1,
+		radialLabelAngle: math.Pi / 2,
+		radarVariables:   defaultRadarVariables,
+	}
+}
+
+func (p *polarProjection) Name() string {
+	if p == nil || p.name == "" {
+		return "polar"
+	}
+	return p.name
+}
 
 func (p *polarProjection) CloneProjection() Projection {
 	if p == nil {
 		return newPolarProjection()
 	}
 	clone := *p
+	clone.radarLabels = append([]string(nil), p.radarLabels...)
 	return &clone
 }
 
@@ -162,6 +184,10 @@ func (p *polarProjection) ConfigureAxes(ax *Axes) {
 	ax.YAxis.ShowSpine = true
 	ax.YAxis.ShowTicks = true
 	ax.YAxis.ShowLabels = true
+
+	if p.isRadar() {
+		configureRadarThetaAxis(ax, p)
+	}
 }
 
 func (p *polarProjection) DataToAxes(ax *Axes) transform.T {
@@ -185,4 +211,65 @@ func formatPolarThetaLabel(theta float64) string {
 		return fmt.Sprintf("%.0f deg", math.Round(deg))
 	}
 	return fmt.Sprintf("%.1f deg", deg)
+}
+
+const defaultRadarVariables = 5
+
+func (p *polarProjection) isRadar() bool {
+	return p != nil && normalizeProjectionName(p.Name()) == "radar"
+}
+
+func (p *polarProjection) radarVariableCount() int {
+	if p == nil {
+		return defaultRadarVariables
+	}
+	if len(p.radarLabels) >= 3 {
+		return len(p.radarLabels)
+	}
+	if p.radarVariables >= 3 {
+		return p.radarVariables
+	}
+	return defaultRadarVariables
+}
+
+func configureRadarThetaAxis(ax *Axes, p *polarProjection) {
+	if ax == nil || p == nil {
+		return
+	}
+	count := p.radarVariableCount()
+	ax.XAxis.Locator = FixedLocator{TicksList: RadarAngles(count)}
+	ax.XAxis.MinorLocator = nil
+	ax.XAxis.Formatter = radarThetaFormatter(p.radarLabels, count)
+	ax.XAxis.TickSize = 0
+	ax.XAxis.MinorTickSize = 0
+}
+
+func radarThetaFormatter(labels []string, count int) Formatter {
+	copied := append([]string(nil), labels...)
+	if count < 3 {
+		count = len(copied)
+	}
+	if count < 3 {
+		count = defaultRadarVariables
+	}
+	return FuncFormatter(func(theta float64) string {
+		fraction := normalizePolarFraction(theta / (2 * math.Pi))
+		idx := int(math.Round(fraction*float64(count))) % count
+		if idx >= 0 && idx < len(copied) && copied[idx] != "" {
+			return copied[idx]
+		}
+		return fmt.Sprintf("%d", idx+1)
+	})
+}
+
+// RadarAngles returns evenly spaced theta coordinates for a radar projection.
+func RadarAngles(n int) []float64 {
+	if n <= 0 {
+		return nil
+	}
+	angles := make([]float64, n)
+	for i := range angles {
+		angles[i] = 2 * math.Pi * float64(i) / float64(n)
+	}
+	return angles
 }

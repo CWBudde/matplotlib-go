@@ -83,11 +83,37 @@ func polarAxesBackgroundPath(clip geom.Rect) geom.Path {
 	return polarCirclePath(center, radius)
 }
 
+func polarProjectionFramePath(proj Projection, clip geom.Rect) geom.Path {
+	center, radius := polarCenterAndRadius(clip)
+	if sides := radarFrameSidesForProjection(proj); sides >= 3 {
+		return polarPolygonFramePath(proj, center, radius, sides)
+	}
+	return polarCirclePath(center, radius)
+}
+
 func polarCirclePath(center geom.Pt, radius float64) geom.Path {
 	if radius <= 0 {
 		return geom.Path{}
 	}
 	return polarArcPath(center, radius, 0, 2*math.Pi, polarCircleSegments, true)
+}
+
+func polarPolygonFramePath(proj Projection, center geom.Pt, radius float64, sides int) geom.Path {
+	if radius <= 0 || sides < 3 {
+		return geom.Path{}
+	}
+	path := geom.Path{}
+	for i := range sides {
+		angle := polarFrameAngle(proj, i, sides)
+		pt := polarPixelPoint(center, radius, angle)
+		if i == 0 {
+			path.MoveTo(pt)
+		} else {
+			path.LineTo(pt)
+		}
+	}
+	path.Close()
+	return path
 }
 
 func polarArcPath(center geom.Pt, radius, start, end float64, segments int, closePath bool) geom.Path {
@@ -241,6 +267,51 @@ func polarAxesContainsDisplayPoint(clip geom.Rect, p geom.Pt) bool {
 	return math.Hypot(p.X-center.X, p.Y-center.Y) <= radius
 }
 
+func polarProjectionContainsDisplayPoint(proj Projection, clip geom.Rect, p geom.Pt) bool {
+	if sides := radarFrameSidesForProjection(proj); sides >= 3 {
+		path := polarProjectionFramePath(proj, clip)
+		return pointInPolygon(p, path.V)
+	}
+	return polarAxesContainsDisplayPoint(clip, p)
+}
+
+func pointInPolygon(p geom.Pt, polygon []geom.Pt) bool {
+	if len(polygon) < 3 {
+		return false
+	}
+	inside := false
+	j := len(polygon) - 1
+	for i := range polygon {
+		pi := polygon[i]
+		pj := polygon[j]
+		if pointOnSegment(p, pj, pi) {
+			return true
+		}
+		if (pi.Y > p.Y) != (pj.Y > p.Y) {
+			x := (pj.X-pi.X)*(p.Y-pi.Y)/(pj.Y-pi.Y) + pi.X
+			if p.X < x {
+				inside = !inside
+			}
+		}
+		j = i
+	}
+	return inside
+}
+
+func pointOnSegment(p, a, b geom.Pt) bool {
+	const eps = 1e-9
+	cross := (p.Y-a.Y)*(b.X-a.X) - (p.X-a.X)*(b.Y-a.Y)
+	if math.Abs(cross) > eps {
+		return false
+	}
+	dot := (p.X-a.X)*(b.X-a.X) + (p.Y-a.Y)*(b.Y-a.Y)
+	if dot < -eps {
+		return false
+	}
+	lengthSq := (b.X-a.X)*(b.X-a.X) + (b.Y-a.Y)*(b.Y-a.Y)
+	return dot <= lengthSq+eps
+}
+
 func polarTransformAngle(offset, direction, uTheta float64) float64 {
 	if direction == 0 {
 		direction = 1
@@ -281,9 +352,30 @@ func polarProjectionForAxes(ax *Axes) (*polarProjection, bool) {
 	return polarProjectionFor(ax.projection)
 }
 
+func radarProjectionForAxes(ax *Axes) (*polarProjection, bool) {
+	proj, ok := polarProjectionForAxes(ax)
+	return proj, ok && proj.isRadar()
+}
+
 func polarProjectionFor(proj Projection) (*polarProjection, bool) {
 	p, ok := proj.(*polarProjection)
 	return p, ok && p != nil
+}
+
+func radarFrameSidesForProjection(proj Projection) int {
+	p, ok := polarProjectionFor(proj)
+	if !ok || !p.isRadar() {
+		return 0
+	}
+	return p.radarVariableCount()
+}
+
+func polarFrameAngle(proj Projection, i, sides int) float64 {
+	if sides <= 0 {
+		return 0
+	}
+	offset, direction, _ := polarProjectionState(proj)
+	return polarTransformAngle(offset, direction, float64(i)/float64(sides))
 }
 
 func polarProjectionState(proj Projection) (offset, direction, radialLabelAngle float64) {

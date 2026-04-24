@@ -458,6 +458,7 @@ core.SavePNG(fig, r, "output.png")
 Current slice landed:
 
 - Built-in `polar` projection with circular spines, angular/radial grids, and polar tick labels
+- Built-in `radar` projection on the projection registry with polygon frames, polygon radial grids, configurable spoke labels, and `Figure.AddRadarAxes`
 - Projection registry plus `Figure.AddAxesProjection`, `Figure.AddPolarAxes`, and subplot `WithProjection(...)`
 - Polar-specific theta zero-location, theta-direction, radial-label-angle controls, and projection-stage transform access via `DrawContext.TransProjection()`
 

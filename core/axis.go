@@ -706,7 +706,7 @@ func (a *Axis) drawPolarSpine(r render.Renderer, ctx *DrawContext) {
 
 	switch a.Side {
 	case AxisBottom, AxisTop:
-		path := polarCirclePath(center, radius)
+		path := polarProjectionFramePath(ctx.Projection, ctx.Clip)
 		r.Path(path, &paint)
 	case AxisLeft, AxisRight:
 		labelAngle := polarRadialLabelAngleForProjection(ctx.Projection)

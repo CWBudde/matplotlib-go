@@ -31,7 +31,7 @@ func (a *Axes) ContainsDisplayPoint(p geom.Pt) bool {
 		return false
 	}
 	if isPolarProjection(a.projection) {
-		return polarAxesContainsDisplayPoint(rect, p)
+		return polarProjectionContainsDisplayPoint(a.projection, rect, p)
 	}
 	return true
 }

@@ -396,6 +396,24 @@ func (f *Figure) AddPolarAxes(r geom.Rect, opts ...style.Option) *Axes {
 	return ax
 }
 
+// AddRadarAxes appends an Axes configured with the built-in radar projection.
+// Labels, when provided, define the spoke count and angular tick labels.
+func (f *Figure) AddRadarAxes(r geom.Rect, labels []string, opts ...style.Option) (*Axes, error) {
+	if len(labels) > 0 && len(labels) < 3 {
+		return nil, fmt.Errorf("radar axes require at least 3 labels")
+	}
+	ax, err := f.AddAxesProjection(r, "radar", opts...)
+	if err != nil {
+		return nil, err
+	}
+	if len(labels) > 0 {
+		if err := ax.SetRadarLabels(labels); err != nil {
+			return nil, err
+		}
+	}
+	return ax, nil
+}
+
 func (f *Figure) addAxesWithProjection(r geom.Rect, proj Projection, opts ...style.Option) *Axes {
 	var rc *style.RC
 	effective := f.RC
@@ -497,6 +515,38 @@ func (a *Axes) SetRadialLabelPosition(angleDeg float64) error {
 		return fmt.Errorf("radial label position requires polar axes")
 	}
 	proj.radialLabelAngle = normalizePolarAngle(angleDeg * math.Pi / 180)
+	return nil
+}
+
+// SetRadarVariableCount changes the number of equally spaced spokes on a radar
+// projection and resets spoke labels to numeric defaults.
+func (a *Axes) SetRadarVariableCount(n int) error {
+	proj, ok := radarProjectionForAxes(a)
+	if !ok {
+		return fmt.Errorf("radar variable count requires radar axes")
+	}
+	if n < 3 {
+		return fmt.Errorf("radar axes require at least 3 variables")
+	}
+	proj.radarVariables = n
+	proj.radarLabels = nil
+	configureRadarThetaAxis(a, proj)
+	return nil
+}
+
+// SetRadarLabels changes the spoke labels on a radar projection. The label
+// count defines the number of spokes.
+func (a *Axes) SetRadarLabels(labels []string) error {
+	proj, ok := radarProjectionForAxes(a)
+	if !ok {
+		return fmt.Errorf("radar labels require radar axes")
+	}
+	if len(labels) < 3 {
+		return fmt.Errorf("radar axes require at least 3 labels")
+	}
+	proj.radarVariables = len(labels)
+	proj.radarLabels = append([]string(nil), labels...)
+	configureRadarThetaAxis(a, proj)
 	return nil
 }
 
@@ -1407,7 +1457,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		if ctx.RC.AxesBackground != fig.RC.FigureBackground() {
 			backgroundPath := pixelRectPath(px)
 			if isPolarProjection(ctx.Projection) {
-				backgroundPath = polarAxesBackgroundPath(px)
+				backgroundPath = polarProjectionFramePath(ctx.Projection, px)
 			}
 			r.Path(backgroundPath, &render.Paint{
 				Fill: ctx.RC.AxesBackground,
@@ -1418,7 +1468,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		r.Save()
 		r.ClipRect(px)
 		if isPolarProjection(ctx.Projection) {
-			r.ClipPath(polarAxesBackgroundPath(px))
+			r.ClipPath(polarProjectionFramePath(ctx.Projection, px))
 		}
 
 		if !ax.zsorted {

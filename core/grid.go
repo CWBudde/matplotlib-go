@@ -158,6 +158,9 @@ func (g *Grid) drawPolarLines(r render.Renderer, ctx *DrawContext, minor bool, c
 				continue
 			}
 			path := polarCirclePath(center, radius)
+			if sides := radarFrameSidesForProjection(ctx.Projection); sides >= 3 {
+				path = polarPolygonFramePath(ctx.Projection, center, radius, sides)
+			}
 			r.Path(path, &paint)
 		}
 	}
