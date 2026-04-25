@@ -466,14 +466,19 @@ Current slice landed:
 
 ### 7.2 3D Toolkit
 
-- [ ] `Axes3D` and projection math
-- [ ] 3D line, scatter, bar, surface, wireframe, contour, trisurf, voxel, and text artists
-- [ ] 3D examples corresponding to the upstream `mplot3d` and `plot_types/3D` gallery families
+- [x] `Axes3D` and projection math
+- [x] 3D line, scatter, bar, surface, wireframe, contour, trisurf, voxel, and text artists (initial scaffold)
+- [x] 3D examples corresponding to the upstream `mplot3d` and `plot_types/3D` gallery families
+
+Current slice landed:
+
+- `examples/mplot3d/basic.go` for base 3D artist coverage
+- `examples/mplot3d/terrain/main.go` for surface/filled-contour/trisurf workflow
 
 ### 7.3 Axes Composition Helpers
 
 - [x] Inset axes and zoomed-inset helpers
-- [ ] `AxesDivider`, `ImageGrid`, and RGB axes composition
+- [x] `AxesDivider`, `ImageGrid`, and RGB axes composition
 - [ ] Parasite axes / multi-view axes composition helpers
 - [ ] Anchored artists and locator-driven placement helpers
 
@@ -481,6 +486,7 @@ Current slice landed:
 
 - Draw-time `AxesLocator` support with parent-relative `Axes.InsetAxes(...)` and `Axes.ZoomedInset(...)`
 - Inset style/projection/share options and example coverage in `examples/axes/inset`
+- `AxesDivider`, `ImageGrid`, and `RGBAxes` helpers now compose structured grids and channel-axis layout.
 
 ### 7.4 AxisArtist and Floating-Axis Systems
 

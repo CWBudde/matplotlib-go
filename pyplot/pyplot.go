@@ -13,6 +13,7 @@ import (
 	_ "matplotlib-go/backends/all"
 	"matplotlib-go/canvas"
 	"matplotlib-go/core"
+	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 	"matplotlib-go/style"
 )
@@ -97,6 +98,68 @@ func GCA() *core.Axes {
 	return ensureDefaultAxes(fig)
 }
 
+// AddAxes3D appends an Axes3D to the current figure and marks it current.
+func AddAxes3D(r geom.Rect, opts ...style.Option) *core.Axes3D {
+	fig := GCF()
+	ax, err := fig.AddAxes3D(r, opts...)
+	if err != nil {
+		return nil
+	}
+	registry.mu.Lock()
+	registry.current = fig
+	registry.currentAxes[fig] = ax.Axes
+	registry.mu.Unlock()
+	return ax
+}
+
+// AddAxesDivider creates an internal layout helper for structured axes tiling.
+func AddAxesDivider(r geom.Rect, rows, cols int, opts ...core.AxesDividerOption) *core.AxesDivider {
+	return GCF().NewAxesDivider(r, rows, cols, opts...)
+}
+
+// NewImageGrid creates an image-grid composed via an axes divider.
+func NewImageGrid(rows, cols int, r geom.Rect, opts ...core.AxesDividerOption) *core.ImageGrid {
+	fig := GCF()
+	grid := fig.NewImageGrid(rows, cols, r, opts...)
+	if grid == nil || len(grid.Axes) == 0 || len(grid.Axes[0]) == 0 {
+		return grid
+	}
+
+	registry.mu.Lock()
+	registry.current = fig
+	registry.currentAxes[fig] = grid.Axes[0][0]
+	registry.mu.Unlock()
+	return grid
+}
+
+// NewRGBAxes creates three synchronized axes for channel-wise RGB workflows.
+func NewRGBAxes(r geom.Rect, opts ...core.AxesDividerOption) *core.RGBAxes {
+	fig := GCF()
+	axes := fig.NewRGBAxes(r, opts...)
+	if axes == nil {
+		return nil
+	}
+
+	registry.mu.Lock()
+	registry.current = fig
+	registry.currentAxes[fig] = axes.Red
+	registry.mu.Unlock()
+	return axes
+}
+
+// GCA3D returns the current 3D axes wrapper when the current axes uses a 3D
+// projection, or nil otherwise.
+func GCA3D() *core.Axes3D {
+	ax := GCA()
+	if ax == nil {
+		return nil
+	}
+	if name := ax.ProjectionName(); name != "3d" && name != "axes3d" {
+		return nil
+	}
+	return core.NewAxes3D(ax)
+}
+
 // Subplot returns the requested subplot axes in the current figure.
 func Subplot(nRows, nCols, index int) *core.Axes {
 	fig := GCF()
@@ -152,6 +215,87 @@ func Plot(x, y []float64, opts ...core.PlotOptions) *core.Line2D {
 // Scatter delegates to the current axes.
 func Scatter(x, y []float64, opts ...core.ScatterOptions) *core.Scatter2D {
 	return GCA().Scatter(x, y, opts...)
+}
+
+// Plot3D delegates to the current 3D axes.
+func Plot3D(x, y, z []float64, opts ...core.PlotOptions) *core.Line2D {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Plot3D(x, y, z, opts...)
+}
+
+// Scatter3D delegates to the current 3D axes.
+func Scatter3D(x, y, z []float64, opts ...core.ScatterOptions) *core.Scatter2D {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Scatter3D(x, y, z, opts...)
+}
+
+// Wireframe delegates to the current 3D axes.
+func Wireframe(x, y []float64, z [][]float64, opts ...core.PlotOptions) *core.LineCollection {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Wireframe(x, y, z, opts...)
+}
+
+// Surface delegates to the current 3D axes.
+func Surface(x, y []float64, z [][]float64, opts ...core.PlotOptions) *core.LineCollection {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Surface(x, y, z, opts...)
+}
+
+// Voxel delegates to the current 3D axes.
+func Voxel(x, y, z, dx, dy, dz []float64, opts ...core.PlotOptions) *core.LineCollection {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Voxel(x, y, z, dx, dy, dz, opts...)
+}
+
+// Trisurf delegates to the current 3D axes.
+func Trisurf(tri core.Triangulation, z []float64, opts ...core.PlotOptions) *core.LineCollection {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Trisurf(tri, z, opts...)
+}
+
+// Contour3D delegates to the current 3D axes.
+func Contour3D(x, y []float64, z [][]float64, opts ...core.PlotOptions) *core.LineCollection {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Contour(x, y, z, opts...)
+}
+
+// Contourf3D delegates to the current 3D axes.
+func Contourf3D(x, y []float64, z [][]float64, opts ...core.PlotOptions) *core.PolyCollection {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Contourf(x, y, z, opts...)
+}
+
+// Text3D delegates to the current 3D axes.
+func Text3D(x, y, z float64, text string, opts ...core.TextOptions) *core.Text {
+	ax := GCA3D()
+	if ax == nil {
+		return nil
+	}
+	return ax.Text3D(x, y, z, text, opts...)
 }
 
 // Bar delegates to the current axes.

@@ -421,6 +421,15 @@ func (f *Figure) AddSkewXAxes(r geom.Rect, opts ...style.Option) (*Axes, error) 
 	return f.AddAxesProjection(r, "skewx", opts...)
 }
 
+// AddAxes3D appends an Axes configured with the built-in 3D projection.
+func (f *Figure) AddAxes3D(r geom.Rect, opts ...style.Option) (*Axes3D, error) {
+	ax, err := f.AddAxesProjection(r, "3d", opts...)
+	if err != nil {
+		return nil, err
+	}
+	return NewAxes3D(ax), nil
+}
+
 func (f *Figure) addAxesWithProjection(r geom.Rect, proj Projection, opts ...style.Option) *Axes {
 	var rc *style.RC
 	effective := f.RC

@@ -200,6 +200,51 @@ func TestPhase66HelpersDelegateToCurrentAxes(t *testing.T) {
 	}
 }
 
+func TestPhase67HelpersDelegateToCurrent3DAxes(t *testing.T) {
+	resetForTests()
+
+	ax := AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.14},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if ax == nil {
+		t.Fatal("AddAxes3D() returned nil")
+	}
+
+	if line := Plot3D([]float64{0, 1}, []float64{0, 1}, []float64{0, 1}); line == nil {
+		t.Fatal("Plot3D() returned nil")
+	}
+	if scatter := Scatter3D([]float64{0, 1}, []float64{0, 1}, []float64{1, 2}); scatter == nil {
+		t.Fatal("Scatter3D() returned nil")
+	}
+	if wire := Wireframe([]float64{0, 1}, []float64{0, 1}, [][]float64{{0, 1}, {1, 2}}); wire == nil {
+		t.Fatal("Wireframe() returned nil")
+	}
+	if surf := Surface([]float64{0, 1}, []float64{0, 1}, [][]float64{{0, 1}, {1, 2}}); surf == nil {
+		t.Fatal("Surface() returned nil")
+	}
+	if voxel := Voxel([]float64{0, 1}, []float64{0, 1}, []float64{0, 1}, []float64{1, 1}, []float64{1, 1}, []float64{1, 1}); voxel == nil {
+		t.Fatal("Voxel() returned nil")
+	}
+	tri := core.Triangulation{
+		X:         []float64{0, 1, 1, 0},
+		Y:         []float64{0, 0, 1, 1},
+		Triangles: [][3]int{{0, 1, 2}, {0, 2, 3}},
+	}
+	if tris := Trisurf(tri, []float64{0, 1, 2, 3}); tris == nil {
+		t.Fatal("Trisurf() returned nil")
+	}
+	if contour := Contour3D([]float64{0, 1}, []float64{0, 1}, [][]float64{{0, 1}, {1, 2}}); contour == nil {
+		t.Fatal("Contour3D() returned nil")
+	}
+	if contourf := Contourf3D([]float64{0, 1}, []float64{0, 1}, [][]float64{{0, 1}, {1, 2}}); contourf == nil {
+		t.Fatal("Contourf3D() returned nil")
+	}
+	if text := Text3D(0.2, 0.5, 0.9, "pt"); text == nil {
+		t.Fatal("Text3D() returned nil")
+	}
+}
+
 func TestSavefigWritesPNGAndSVG(t *testing.T) {
 	resetForTests()
 	t.Setenv("MATPLOTLIB_BACKEND", "gobasic")
