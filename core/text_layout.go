@@ -21,17 +21,15 @@ type singleLineTextLayout struct {
 }
 
 func measureSingleLineTextLayout(r render.Renderer, text string, size float64, fontKey string) singleLineTextLayout {
-	if expr, ok := fullMathExpression(text); ok {
-		if layout, ok := LayoutMathText(r, expr, size, fontKey); ok {
-			return singleLineTextLayout{
-				TextLineLayout: render.TextLineLayout{
-					Width:   layout.Width,
-					Ascent:  layout.Ascent,
-					Descent: layout.Descent,
-					Height:  layout.Height,
-				},
-				MathLayout: &layout,
-			}
+	if layout, ok := layoutDisplayText(r, text, size, fontKey); ok {
+		return singleLineTextLayout{
+			TextLineLayout: render.TextLineLayout{
+				Width:   layout.Width,
+				Ascent:  layout.Ascent,
+				Descent: layout.Descent,
+				Height:  layout.Height,
+			},
+			MathLayout: &layout,
 		}
 	}
 

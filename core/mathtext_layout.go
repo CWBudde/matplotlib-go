@@ -13,6 +13,7 @@ type MathTextLayoutRun struct {
 	Text     string
 	Offset   geom.Pt
 	FontSize float64
+	FontKey  string
 }
 
 // MathTextLayoutRule is a filled rule, such as a fraction bar or root vinculum.
@@ -39,12 +40,18 @@ const (
 	mathLayoutScript
 	mathLayoutFrac
 	mathLayoutSqrt
+	mathLayoutSpace
+	mathLayoutStyled
+	mathLayoutFence
+	mathLayoutMatrix
 )
 
 type mathLayoutNode struct {
 	kind     mathLayoutKind
 	text     string
+	widthEm  float64
 	children []mathLayoutNode
+	segments []mathLayoutNode
 	base     *mathLayoutNode
 	super    *mathLayoutNode
 	sub      *mathLayoutNode
@@ -52,6 +59,14 @@ type mathLayoutNode struct {
 	den      *mathLayoutNode
 	radicand *mathLayoutNode
 	index    *mathLayoutNode
+	child    *mathLayoutNode
+	left     string
+	middles  []string
+	right    string
+	rows     [][]mathLayoutNode
+	families []string
+	style    render.FontStyle
+	weight   int
 }
 
 type mathLayoutParser struct {
@@ -168,10 +183,16 @@ func (p *mathLayoutParser) parseCommandNode() mathLayoutNode {
 	if !unicode.IsLetter(r) {
 		p.pos++
 		switch r {
-		case ',', ';', ':', ' ':
-			return mathLayoutNode{kind: mathLayoutText, text: " "}
+		case ',':
+			return mathLayoutNode{kind: mathLayoutSpace, widthEm: 0.166}
+		case ':':
+			return mathLayoutNode{kind: mathLayoutSpace, widthEm: 0.222}
+		case ';':
+			return mathLayoutNode{kind: mathLayoutSpace, widthEm: 0.278}
+		case ' ':
+			return mathLayoutNode{kind: mathLayoutSpace, widthEm: 0.333}
 		case '!':
-			return mathLayoutNode{kind: mathLayoutText}
+			return mathLayoutNode{kind: mathLayoutSpace, widthEm: -0.166}
 		default:
 			return mathLayoutNode{kind: mathLayoutText, text: string(r)}
 		}
@@ -186,14 +207,30 @@ func (p *mathLayoutParser) parseCommandNode() mathLayoutNode {
 	if mapped, ok := mathTextCommandMap[name]; ok {
 		return mathLayoutNode{kind: mathLayoutText, text: mapped}
 	}
+	if spacing, ok := mathTextSpacingCommands[name]; ok {
+		return mathLayoutNode{kind: mathLayoutSpace, widthEm: delimiterSpacingWidth(spacing)}
+	}
+	if delim, ok := mathTextDelimiterCommands[name]; ok {
+		return mathLayoutNode{kind: mathLayoutText, text: delim}
+	}
 	if op, ok := mathTextOperatorMap[name]; ok {
 		return mathLayoutNode{kind: mathLayoutText, text: op}
 	}
 	if _, ok := mathTextPassthroughCommands[name]; ok {
-		return p.parseArgumentNode()
+		return p.parseStyledArgumentNode(name)
 	}
 	if mark, ok := mathTextAccentMarks[name]; ok {
 		return mathLayoutNode{kind: mathLayoutText, text: applyMathAccent(nodePlainText(p.parseArgumentNode()), mark)}
+	}
+	if name == "begin" {
+		return p.parseEnvironmentNode()
+	}
+	if name == "left" {
+		return p.parseFenceNode()
+	}
+	if _, ok := mathTextEmptyCommands[name]; ok {
+		p.skipSpace()
+		return mathLayoutNode{kind: mathLayoutText}
 	}
 
 	switch name {
@@ -213,11 +250,336 @@ func (p *mathLayoutParser) parseCommandNode() mathLayoutNode {
 		}
 		radicand := p.parseArgumentNode()
 		return mathLayoutNode{kind: mathLayoutSqrt, radicand: &radicand, index: index}
-	case "left", "right":
-		return mathLayoutNode{kind: mathLayoutText}
 	default:
 		return mathLayoutNode{kind: mathLayoutText, text: `\` + name}
 	}
+}
+
+func (p *mathLayoutParser) parseEnvironmentNode() mathLayoutNode {
+	name := p.parseBraceText()
+	left, right, ok := matrixEnvironmentDelimiters(name)
+	if !ok {
+		return mathLayoutNode{kind: mathLayoutText}
+	}
+	if name == "array" && p.pos < len(p.input) && p.input[p.pos] == '{' {
+		_ = p.parseBraceText()
+	}
+	rows := p.parseMatrixRows(name)
+	return mathLayoutNode{kind: mathLayoutMatrix, rows: rows, left: left, right: right}
+}
+
+func (p *mathLayoutParser) parseStyledArgumentNode(name string) mathLayoutNode {
+	arg := p.parseArgumentNode()
+	node := mathLayoutNode{kind: mathLayoutStyled, child: &arg, style: render.FontStyleNormal, weight: 400}
+	switch name {
+	case "mathsf":
+		node.families = []string{"DejaVu Sans", "sans-serif"}
+	case "mathtt":
+		node.families = []string{"DejaVu Sans Mono", "monospace"}
+	case "mathrm", "text":
+		node.families = []string{"DejaVu Serif", "serif"}
+	case "mathit":
+		node.style = render.FontStyleItalic
+	case "mathbf":
+		node.weight = 700
+	case "operatorname":
+		// Preserve current face selection but normalize posture/weight.
+	default:
+		return arg
+	}
+	return node
+}
+
+func (p *mathLayoutParser) parseFenceNode() mathLayoutNode {
+	left := p.parseDelimiterToken()
+	segments := []mathLayoutNode{p.parseUntilFenceBoundary()}
+	middles := []string{}
+	for p.consumeNamedCommand("middle") {
+		middles = append(middles, p.parseDelimiterToken())
+		segments = append(segments, p.parseUntilFenceBoundary())
+	}
+	right := ""
+	if p.consumeNamedCommand("right") {
+		right = p.parseDelimiterToken()
+	}
+	node := mathLayoutNode{kind: mathLayoutFence, left: left, middles: middles, right: right, segments: segments}
+	if len(segments) == 1 {
+		node.child = &segments[0]
+	}
+	return node
+}
+
+func (p *mathLayoutParser) parseMatrixRows(envName string) [][]mathLayoutNode {
+	rows := [][]mathLayoutNode{}
+	for {
+		if p.startsEnvironmentEnd(envName) {
+			p.consumeEnvironmentEnd(envName)
+			break
+		}
+		row := []mathLayoutNode{}
+		for {
+			cell := p.parseMatrixCell(envName)
+			row = append(row, cell)
+			if p.startsEnvironmentEnd(envName) {
+				p.consumeEnvironmentEnd(envName)
+				rows = append(rows, row)
+				return rows
+			}
+			if p.consumeMatrixRowSeparator() {
+				rows = append(rows, row)
+				break
+			}
+			if p.pos < len(p.input) && p.input[p.pos] == '&' {
+				p.pos++
+				continue
+			}
+			rows = append(rows, row)
+			return rows
+		}
+	}
+	return rows
+}
+
+func (p *mathLayoutParser) parseMatrixCell(envName string) mathLayoutNode {
+	var children []mathLayoutNode
+	appendText := func(text string) {
+		if text == "" {
+			return
+		}
+		n := len(children)
+		if n > 0 && children[n-1].kind == mathLayoutText {
+			children[n-1].text += text
+			return
+		}
+		children = append(children, mathLayoutNode{kind: mathLayoutText, text: text})
+	}
+
+	for p.pos < len(p.input) {
+		if p.startsEnvironmentEnd(envName) || p.pos < len(p.input) && p.input[p.pos] == '&' || p.startsMatrixRowSeparator() {
+			break
+		}
+		r := p.input[p.pos]
+		switch r {
+		case '{':
+			p.pos++
+			children = append(children, p.parseUntil('}').children...)
+			if p.pos < len(p.input) && p.input[p.pos] == '}' {
+				p.pos++
+			}
+		case '^', '_':
+			p.pos++
+			children = attachMathScript(children, r, p.parseArgumentNode())
+		case '\\':
+			node := p.parseCommandNode()
+			if node.kind == mathLayoutText {
+				appendText(node.text)
+			} else if !node.isEmpty() {
+				children = append(children, node)
+			}
+		case '~':
+			children = append(children, mathLayoutNode{kind: mathLayoutSpace, widthEm: 0.333})
+			p.pos++
+		default:
+			appendText(string(r))
+			p.pos++
+		}
+	}
+
+	return mathLayoutNode{kind: mathLayoutList, children: children}
+}
+
+func (p *mathLayoutParser) parseUntilFenceBoundary() mathLayoutNode {
+	var children []mathLayoutNode
+	appendText := func(text string) {
+		if text == "" {
+			return
+		}
+		n := len(children)
+		if n > 0 && children[n-1].kind == mathLayoutText {
+			children[n-1].text += text
+			return
+		}
+		children = append(children, mathLayoutNode{kind: mathLayoutText, text: text})
+	}
+
+	for p.pos < len(p.input) {
+		if p.startsNamedCommand("middle") || p.startsNamedCommand("right") {
+			break
+		}
+		r := p.input[p.pos]
+		switch r {
+		case '{':
+			p.pos++
+			children = append(children, p.parseUntil('}').children...)
+			if p.pos < len(p.input) && p.input[p.pos] == '}' {
+				p.pos++
+			}
+		case '^', '_':
+			p.pos++
+			children = attachMathScript(children, r, p.parseArgumentNode())
+		case '\\':
+			node := p.parseCommandNode()
+			if node.kind == mathLayoutText {
+				appendText(node.text)
+			} else if !node.isEmpty() {
+				children = append(children, node)
+			}
+		case '~':
+			children = append(children, mathLayoutNode{kind: mathLayoutSpace, widthEm: 0.333})
+			p.pos++
+		default:
+			appendText(string(r))
+			p.pos++
+		}
+	}
+	return mathLayoutNode{kind: mathLayoutList, children: children}
+}
+
+func (p *mathLayoutParser) parseDelimiterToken() string {
+	p.skipSpace()
+	if p.pos >= len(p.input) {
+		return ""
+	}
+	if p.input[p.pos] == '.' {
+		p.pos++
+		return ""
+	}
+	if p.input[p.pos] == '\\' {
+		p.pos++
+		if p.pos >= len(p.input) {
+			return ""
+		}
+		r := p.input[p.pos]
+		if !unicode.IsLetter(r) {
+			p.pos++
+			switch r {
+			case '{', '}':
+				return string(r)
+			case '|':
+				return "|"
+			default:
+				return string(r)
+			}
+		}
+		start := p.pos
+		for p.pos < len(p.input) && unicode.IsLetter(p.input[p.pos]) {
+			p.pos++
+		}
+		name := string(p.input[start:p.pos])
+		if delim, ok := mathTextDelimiterCommands[name]; ok {
+			return delim
+		}
+		if mapped, ok := mathTextCommandMap[name]; ok {
+			return mapped
+		}
+		return ""
+	}
+	r := p.input[p.pos]
+	p.pos++
+	return string(r)
+}
+
+func (p *mathLayoutParser) parseBraceText() string {
+	p.skipSpace()
+	if p.pos >= len(p.input) || p.input[p.pos] != '{' {
+		return ""
+	}
+	p.pos++
+	start := p.pos
+	depth := 1
+	for p.pos < len(p.input) {
+		switch p.input[p.pos] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				text := string(p.input[start:p.pos])
+				p.pos++
+				return text
+			}
+		}
+		p.pos++
+	}
+	return string(p.input[start:])
+}
+
+func (p *mathLayoutParser) startsNamedCommand(name string) bool {
+	if p.pos >= len(p.input)-len(name) || p.input[p.pos] != '\\' {
+		return false
+	}
+	i := p.pos + 1
+	for _, want := range name {
+		if i >= len(p.input) || p.input[i] != want {
+			return false
+		}
+		i++
+	}
+	return i >= len(p.input) || !unicode.IsLetter(p.input[i])
+}
+
+func (p *mathLayoutParser) consumeNamedCommand(name string) bool {
+	if !p.startsNamedCommand(name) {
+		return false
+	}
+	p.pos += 1 + len([]rune(name))
+	return true
+}
+
+func (p *mathLayoutParser) startsEnvironmentEnd(name string) bool {
+	save := p.pos
+	if !p.consumeNamedCommand("end") {
+		p.pos = save
+		return false
+	}
+	text := p.parseBraceText()
+	p.pos = save
+	return text == name
+}
+
+func (p *mathLayoutParser) consumeEnvironmentEnd(name string) bool {
+	save := p.pos
+	if !p.consumeNamedCommand("end") {
+		p.pos = save
+		return false
+	}
+	if p.parseBraceText() != name {
+		p.pos = save
+		return false
+	}
+	return true
+}
+
+func (p *mathLayoutParser) startsMatrixRowSeparator() bool {
+	if p.pos+1 >= len(p.input) || p.input[p.pos] != '\\' {
+		return false
+	}
+	if p.input[p.pos+1] == '\\' {
+		return true
+	}
+	if !unicode.IsLetter(p.input[p.pos+1]) {
+		return false
+	}
+	i := p.pos + 1
+	for i < len(p.input) && unicode.IsLetter(p.input[i]) {
+		i++
+	}
+	return string(p.input[p.pos+1:i]) == "cr"
+}
+
+func (p *mathLayoutParser) consumeMatrixRowSeparator() bool {
+	if !p.startsMatrixRowSeparator() {
+		return false
+	}
+	if p.input[p.pos+1] == '\\' {
+		p.pos += 2
+	} else {
+		p.pos++
+		for p.pos < len(p.input) && unicode.IsLetter(p.input[p.pos]) {
+			p.pos++
+		}
+	}
+	return true
 }
 
 func (p *mathLayoutParser) skipSpace() {
@@ -271,6 +633,43 @@ func nodePlainText(n mathLayoutNode) string {
 		return formatMathFraction(nodePlainText(pointerNode(n.num)), nodePlainText(pointerNode(n.den)))
 	case mathLayoutSqrt:
 		return "√" + groupMathAtom(nodePlainText(pointerNode(n.radicand)))
+	case mathLayoutStyled:
+		return nodePlainText(pointerNode(n.child))
+	case mathLayoutFence:
+		var out strings.Builder
+		if n.left != "" {
+			out.WriteString(n.left)
+		}
+		for i, segment := range fenceSegments(n) {
+			if i > 0 && i-1 < len(n.middles) {
+				out.WriteString(n.middles[i-1])
+			}
+			out.WriteString(nodePlainText(segment))
+		}
+		if n.right != "" {
+			out.WriteString(n.right)
+		}
+		return out.String()
+	case mathLayoutMatrix:
+		var out strings.Builder
+		if n.left != "" {
+			out.WriteString(n.left)
+		}
+		for i, row := range n.rows {
+			if i > 0 {
+				out.WriteString("; ")
+			}
+			for j, cell := range row {
+				if j > 0 {
+					out.WriteByte(' ')
+				}
+				out.WriteString(nodePlainText(cell))
+			}
+		}
+		if n.right != "" {
+			out.WriteString(n.right)
+		}
+		return out.String()
 	default:
 		return ""
 	}
@@ -281,6 +680,16 @@ func pointerNode(n *mathLayoutNode) mathLayoutNode {
 		return mathLayoutNode{kind: mathLayoutText}
 	}
 	return *n
+}
+
+func fenceSegments(n mathLayoutNode) []mathLayoutNode {
+	if len(n.segments) > 0 {
+		return n.segments
+	}
+	if n.child != nil {
+		return []mathLayoutNode{*n.child}
+	}
+	return nil
 }
 
 type mathLayoutBox struct {
@@ -303,6 +712,14 @@ func layoutMathNode(r render.Renderer, n mathLayoutNode, size float64, fontKey s
 		return layoutMathFrac(r, pointerNode(n.num), pointerNode(n.den), size, fontKey)
 	case mathLayoutSqrt:
 		return layoutMathSqrt(r, pointerNode(n.radicand), n.index, size, fontKey)
+	case mathLayoutSpace:
+		return mathLayoutBox{Width: size * n.widthEm}
+	case mathLayoutStyled:
+		return layoutMathStyled(r, n, size, fontKey)
+	case mathLayoutFence:
+		return layoutMathFence(r, n, size, fontKey)
+	case mathLayoutMatrix:
+		return layoutMathMatrix(r, n, size, fontKey)
 	default:
 		return mathLayoutBox{}
 	}
@@ -321,11 +738,186 @@ func layoutMathTextRun(r render.Renderer, text string, size float64, fontKey str
 		metrics.Descent = size * 0.2
 	}
 	return mathLayoutBox{
-		runs:    []MathTextLayoutRun{{Text: text, FontSize: size}},
+		runs:    []MathTextLayoutRun{{Text: text, FontSize: size, FontKey: fontKey}},
 		Width:   metrics.W,
 		Ascent:  metrics.Ascent,
 		Descent: metrics.Descent,
 	}
+}
+
+func layoutMathStyled(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+	childFontKey := resolveMathFontKey(fontKey, n)
+	return layoutMathNode(r, pointerNode(n.child), size, childFontKey)
+}
+
+func layoutMathFence(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+	segments := fenceSegments(n)
+	if len(segments) == 0 {
+		return mathLayoutBox{}
+	}
+
+	bodyBoxes := make([]mathLayoutBox, len(segments))
+	bodyWidth := 0.0
+	bodyAscent := 0.0
+	bodyDescent := 0.0
+	for i, segment := range segments {
+		bodyBoxes[i] = layoutMathNode(r, segment, size, fontKey)
+		bodyWidth += bodyBoxes[i].Width
+		if bodyBoxes[i].Ascent > bodyAscent {
+			bodyAscent = bodyBoxes[i].Ascent
+		}
+		if bodyBoxes[i].Descent > bodyDescent {
+			bodyDescent = bodyBoxes[i].Descent
+		}
+	}
+
+	delimiterSize := maxFloat64(size, (bodyAscent+bodyDescent)*0.9)
+	left := layoutMathTextRun(r, n.left, delimiterSize, fontKey)
+	middles := make([]mathLayoutBox, len(n.middles))
+	for i, middle := range n.middles {
+		middles[i] = layoutMathTextRun(r, middle, delimiterSize, fontKey)
+		bodyWidth += middles[i].Width
+	}
+	right := layoutMathTextRun(r, n.right, delimiterSize, fontKey)
+
+	var out mathLayoutBox
+	x := 0.0
+	out.appendTranslated(left, x, 0)
+	x += left.Width
+	for i, body := range bodyBoxes {
+		out.appendTranslated(body, x, 0)
+		x += body.Width
+		if i < len(middles) {
+			out.appendTranslated(middles[i], x, 0)
+			x += middles[i].Width
+		}
+	}
+	out.appendTranslated(right, x, 0)
+	x += right.Width
+	out.Width = x
+	out.Ascent = maxFloat64(maxFloat64(left.Ascent, bodyAscent), right.Ascent)
+	out.Descent = maxFloat64(maxFloat64(left.Descent, bodyDescent), right.Descent)
+	for _, middle := range middles {
+		out.Ascent = maxFloat64(out.Ascent, middle.Ascent)
+		out.Descent = maxFloat64(out.Descent, middle.Descent)
+	}
+	return out
+}
+
+func layoutMathMatrix(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+	if len(n.rows) == 0 {
+		return mathLayoutBox{}
+	}
+
+	cellBoxes := make([][]mathLayoutBox, len(n.rows))
+	numCols := 0
+	for i, row := range n.rows {
+		cellBoxes[i] = make([]mathLayoutBox, len(row))
+		if len(row) > numCols {
+			numCols = len(row)
+		}
+		for j, cell := range row {
+			cellBoxes[i][j] = layoutMathNode(r, cell, size, fontKey)
+		}
+	}
+	if numCols == 0 {
+		return mathLayoutBox{}
+	}
+
+	colWidths := make([]float64, numCols)
+	rowAscents := make([]float64, len(n.rows))
+	rowDescents := make([]float64, len(n.rows))
+	for i, row := range cellBoxes {
+		for j, cell := range row {
+			if cell.Width > colWidths[j] {
+				colWidths[j] = cell.Width
+			}
+			if cell.Ascent > rowAscents[i] {
+				rowAscents[i] = cell.Ascent
+			}
+			if cell.Descent > rowDescents[i] {
+				rowDescents[i] = cell.Descent
+			}
+		}
+		if rowAscents[i] == 0 && rowDescents[i] == 0 {
+			rowAscents[i] = size * 0.5
+			rowDescents[i] = size * 0.3
+		}
+	}
+
+	colGap := size * 0.6
+	rowGap := size * 0.4
+	bodyWidth := 0.0
+	for i, width := range colWidths {
+		bodyWidth += width
+		if i > 0 {
+			bodyWidth += colGap
+		}
+	}
+	bodyHeight := 0.0
+	for i := range n.rows {
+		bodyHeight += rowAscents[i] + rowDescents[i]
+		if i > 0 {
+			bodyHeight += rowGap
+		}
+	}
+
+	delimiterSize := maxFloat64(size, bodyHeight*0.9)
+	left := layoutMathTextRun(r, n.left, delimiterSize, fontKey)
+	right := layoutMathTextRun(r, n.right, delimiterSize, fontKey)
+	leftGap := 0.0
+	rightGap := 0.0
+	if left.Width > 0 {
+		leftGap = size * 0.18
+	}
+	if right.Width > 0 {
+		rightGap = size * 0.18
+	}
+
+	var out mathLayoutBox
+	x := 0.0
+	out.appendTranslated(left, x, 0)
+	x += left.Width
+	if left.Width > 0 {
+		x += leftGap
+	}
+
+	top := -bodyHeight / 2
+	for i, row := range cellBoxes {
+		baselineY := top + rowAscents[i]
+		cellX := x
+		for j := 0; j < numCols; j++ {
+			var cell mathLayoutBox
+			if j < len(row) {
+				cell = row[j]
+			}
+			cellOffsetX := cellX + (colWidths[j]-cell.Width)/2
+			out.appendTranslated(cell, cellOffsetX, baselineY)
+			cellX += colWidths[j] + colGap
+		}
+		top += rowAscents[i] + rowDescents[i] + rowGap
+	}
+	x += bodyWidth
+	if right.Width > 0 {
+		x += rightGap
+	}
+	out.appendTranslated(right, x, 0)
+	out.Width = left.Width + leftGap + bodyWidth + rightGap + right.Width
+	out.Ascent = bodyHeight / 2
+	out.Descent = bodyHeight / 2
+	if left.Ascent > out.Ascent {
+		out.Ascent = left.Ascent
+	}
+	if right.Ascent > out.Ascent {
+		out.Ascent = right.Ascent
+	}
+	if left.Descent > out.Descent {
+		out.Descent = left.Descent
+	}
+	if right.Descent > out.Descent {
+		out.Descent = right.Descent
+	}
+	return out
 }
 
 func layoutMathList(r render.Renderer, children []mathLayoutNode, size float64, fontKey string) mathLayoutBox {
@@ -347,6 +939,10 @@ func layoutMathList(r render.Renderer, children []mathLayoutNode, size float64, 
 }
 
 func layoutMathScript(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+	if isMathLimitOperator(pointerNode(n.base)) {
+		return layoutMathLimits(r, n, size, fontKey)
+	}
+
 	base := layoutMathNode(r, pointerNode(n.base), size, fontKey)
 	scriptSize := size * 0.7
 	x := base.Width
@@ -375,6 +971,78 @@ func layoutMathScript(r render.Renderer, n mathLayoutNode, size float64, fontKey
 	}
 	out.Width = base.Width + scriptWidth
 	return out
+}
+
+func layoutMathLimits(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+	baseSize := size
+	if baseText := nodePlainText(pointerNode(n.base)); isMathLargeGlyph(baseText) {
+		baseSize *= 1.2
+	}
+	base := layoutMathNode(r, pointerNode(n.base), baseSize, fontKey)
+	scriptSize := size * 0.7
+
+	var super, sub mathLayoutBox
+	if n.super != nil {
+		super = layoutMathNode(r, *n.super, scriptSize, fontKey)
+	}
+	if n.sub != nil {
+		sub = layoutMathNode(r, *n.sub, scriptSize, fontKey)
+	}
+
+	width := base.Width
+	if super.Width > width {
+		width = super.Width
+	}
+	if sub.Width > width {
+		width = sub.Width
+	}
+
+	baseX := (width - base.Width) / 2
+	superX := (width - super.Width) / 2
+	subX := (width - sub.Width) / 2
+	gap := size * 0.14
+
+	var out mathLayoutBox
+	out.Width = width
+	out.appendTranslated(base, baseX, 0)
+	out.Ascent = base.Ascent
+	out.Descent = base.Descent
+
+	if n.super != nil {
+		y := -(base.Ascent + gap + super.Descent)
+		out.appendTranslated(super, superX, y)
+		out.Ascent = maxFloat64(out.Ascent, -y+super.Ascent)
+		out.Descent = maxFloat64(out.Descent, y+super.Descent)
+	}
+	if n.sub != nil {
+		y := base.Descent + gap + sub.Ascent
+		out.appendTranslated(sub, subX, y)
+		out.Ascent = maxFloat64(out.Ascent, -y+sub.Ascent)
+		out.Descent = maxFloat64(out.Descent, y+sub.Descent)
+	}
+	return out
+}
+
+func isMathLimitOperator(n mathLayoutNode) bool {
+	return n.kind == mathLayoutText && isMathLimitText(n.text)
+}
+
+func isMathLargeGlyph(text string) bool {
+	switch text {
+	case "∑", "∏":
+		return true
+	default:
+		return false
+	}
+}
+
+func isMathLimitText(text string) bool {
+	switch text {
+	case "∑", "∏", "lim", "lim inf", "lim sup", "max", "min", "sup", "inf":
+		return true
+	default:
+		return false
+	}
 }
 
 func layoutMathFrac(r render.Renderer, num, den mathLayoutNode, size float64, fontKey string) mathLayoutBox {
@@ -456,4 +1124,58 @@ func maxFloat64(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+func delimiterSpacingWidth(spacing string) float64 {
+	switch spacing {
+	case "  ":
+		return 1.0
+	case "    ":
+		return 2.0
+	default:
+		return 0.333
+	}
+}
+
+func resolveMathFontKey(base string, n mathLayoutNode) string {
+	props := render.ParseFontProperties(base)
+	if len(n.families) > 0 {
+		props.File = ""
+		props.Families = append([]string(nil), n.families...)
+	}
+	if n.style != "" {
+		props.Style = n.style
+	}
+	if n.weight > 0 {
+		props.Weight = n.weight
+	}
+	if face, ok := render.DefaultFontManager().FindFont(props); ok && face.Path != "" {
+		return face.Path
+	}
+	if len(props.Families) > 0 {
+		return strings.Join(props.Families, ", ")
+	}
+	if props.File != "" {
+		return props.File
+	}
+	return base
+}
+
+func matrixEnvironmentDelimiters(name string) (left, right string, ok bool) {
+	switch name {
+	case "matrix", "array":
+		return "", "", true
+	case "pmatrix":
+		return "(", ")", true
+	case "bmatrix":
+		return "[", "]", true
+	case "Bmatrix":
+		return "{", "}", true
+	case "vmatrix":
+		return "|", "|", true
+	case "Vmatrix":
+		return "‖", "‖", true
+	default:
+		return "", "", false
+	}
 }

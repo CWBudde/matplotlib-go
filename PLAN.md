@@ -523,28 +523,41 @@ Current slice landed:
 
 ### 8.3 MathText and TeX
 
-- [ ] MathText parser/layout and renderer integration
-  Landed so far:
-  - Inline MathText fallback normalization now covers `$...$` segments, common Greek/symbol commands, common operator-name commands, `\frac`, `\sqrt`, grouped super/subscripts, and simple accents.
-  - A lightweight MathText parser/layout model now produces baseline-shifted text runs plus explicit fraction/root rules for scripts, stacked fractions, square roots with optional indices, common operator names, and simple accents.
-  - Full-expression `$...$` MathText now uses the structured layout on the standard horizontal text path for text artists, annotations, legends, axis labels, and figure labels.
-  - Full-expression rotated MathText now falls back to path-based rendering when text-path support is available, covering rotated labels such as rotated tick labels and other rotated text callsites that use the shared helper path.
-  Still ahead:
-  - Mixed plain-text-plus-math strings still use normalization fallback rather than true mixed inline MathText layout.
-  - Vertical full-expression MathText is still not using a structured layout/path path.
-  - The grammar is still a narrow subset: no matrices/arrays, delimiters that stretch to content, stacked sums/products/integrals with limits, font-style switches with real layout consequences, or wider TeX-style spacing/control semantics.
-  - There is still no dedicated caching/performance pass for parsed/layout MathText expressions.
-- [ ] LaTeX / `usetex` integration
-  Landed so far:
-  - `text.usetex` is recognized in rcParams, mplstyle parsing, runtime defaults, and push/pop context handling.
-  Still ahead:
-  - No external TeX pipeline exists yet.
-  - Need command/toolchain invocation, artifact caching, error surfacing, font/package coordination, and raster/vector import back into the renderer pipeline.
-  - Need clear backend behavior for TeX output across raster and vector backends, plus integration tests.
-- [ ] Complex text shaping beyond the current basic glyph flow
-  Still ahead:
-  - Proper shaping for scripts that need OpenType layout, ligatures, bidi handling, combining-mark placement, and script-aware glyph selection.
-  - A backend-independent shaping layer or library integration, plus measurement/path parity with shaped output.
+#### 8.3.1 MathText parser/layout and renderer integration
+
+- [x] Inline MathText fallback normalization for `$...$` segments and common commands
+- [x] Lightweight MathText parser/layout model for scripts, fractions, roots, operator names, and simple accents
+- [x] Full-expression horizontal MathText rendering in text artists, annotations, legends, axis labels, and figure labels
+- [x] Full-expression rotated MathText rendering through text paths when backend text-path support is available
+- [x] True mixed inline layout for strings that combine plain text and MathText in one line
+- [x] Vertical full-expression MathText rendering through structured layout/path output
+- [ ] Broader MathText grammar
+  - [x] Limits on large operators such as `\sum`, `\prod`, and `\lim`
+  - [x] Basic spacing commands such as `\,`, `\:`, `\;`, `\quad`, and `\qquad`
+  - [x] Font/style switches with layout consequences for `\mathrm`, `\mathsf`, `\mathtt`, `\mathit`, and `\mathbf`
+  - [x] Basic fenced delimiters via `\left...\right` with size-aware delimiter rendering
+  - [x] Matrices/arrays
+  - [ ] More complete stretchy delimiter behavior beyond the current basic `\left...\right` handling
+    - [x] `\middle` and omitted `.` delimiters within `\left...\right`
+  - [ ] Richer TeX spacing/control semantics beyond the current small command subset
+- [ ] Caching/performance pass for parsed and laid-out MathText expressions
+
+#### 8.3.2 LaTeX / `usetex` integration
+
+- [x] `text.usetex` rcParam support in style defaults, mplstyle parsing, and runtime context handling
+- [ ] External TeX command pipeline
+- [ ] Artifact caching and reproducible invalidation for TeX output
+- [ ] Error reporting and fallback behavior when TeX toolchain execution fails
+- [ ] Font/package coordination between TeX output and renderer expectations
+- [ ] Raster/vector import of TeX output back into the renderer pipeline
+- [ ] Backend-specific integration behavior and tests across raster and vector backends
+
+#### 8.3.3 Complex text shaping beyond the current basic glyph flow
+
+- [ ] OpenType shaping for scripts that need glyph substitution and positioning
+- [ ] Ligatures, bidi handling, combining-mark placement, and script-aware glyph selection
+- [ ] Backend-independent shaping layer or shaping-library integration
+- [ ] Measurement and text-path parity for shaped output
 
 ### 8.4 Performance Optimization
 

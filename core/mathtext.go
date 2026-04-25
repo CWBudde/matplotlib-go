@@ -188,6 +188,41 @@ var mathTextPassthroughCommands = map[string]struct{}{
 	"operatorname": {},
 }
 
+var mathTextEmptyCommands = map[string]struct{}{
+	"left":              {},
+	"middle":            {},
+	"right":             {},
+	"limits":            {},
+	"nolimits":          {},
+	"displaystyle":      {},
+	"textstyle":         {},
+	"scriptstyle":       {},
+	"scriptscriptstyle": {},
+}
+
+var mathTextSpacingCommands = map[string]string{
+	",":     " ",
+	":":     " ",
+	";":     " ",
+	"quad":  "  ",
+	"qquad": "    ",
+}
+
+var mathTextDelimiterCommands = map[string]string{
+	"langle": "⟨",
+	"rangle": "⟩",
+	"lbrace": "{",
+	"rbrace": "}",
+	"lvert":  "|",
+	"rvert":  "|",
+	"lVert":  "‖",
+	"rVert":  "‖",
+	"lfloor": "⌊",
+	"rfloor": "⌋",
+	"lceil":  "⌈",
+	"rceil":  "⌉",
+}
+
 var superscriptRunes = map[rune]string{
 	'0': "⁰",
 	'1': "¹",
@@ -276,6 +311,11 @@ type mathTextParser struct {
 	pos   int
 }
 
+type displayTextSegment struct {
+	text   string
+	isMath bool
+}
+
 func normalizeDisplayText(text string) string {
 	if text == "" {
 		return ""
@@ -333,6 +373,53 @@ func normalizeMathText(text string) string {
 	return parser.parseUntil(0)
 }
 
+func splitDisplayTextSegments(text string) ([]displayTextSegment, bool, bool) {
+	if text == "" {
+		return nil, false, true
+	}
+
+	runes := []rune(text)
+	segments := []displayTextSegment{}
+	var segment strings.Builder
+	inMath := false
+	hasMath := false
+
+	flush := func() {
+		if segment.Len() == 0 {
+			return
+		}
+		segments = append(segments, displayTextSegment{
+			text:   segment.String(),
+			isMath: inMath,
+		})
+		segment.Reset()
+	}
+
+	for i := 0; i < len(runes); i++ {
+		if runes[i] == '\\' && i+1 < len(runes) && runes[i+1] == '$' {
+			segment.WriteRune('$')
+			i++
+			continue
+		}
+		if runes[i] == '$' {
+			flush()
+			inMath = !inMath
+			if inMath {
+				hasMath = true
+			}
+			continue
+		}
+		segment.WriteRune(runes[i])
+	}
+
+	if inMath {
+		return nil, false, false
+	}
+
+	flush()
+	return segments, hasMath, true
+}
+
 func fullMathExpression(text string) (string, bool) {
 	trimmed := strings.TrimSpace(text)
 	runes := []rune(trimmed)
@@ -356,12 +443,10 @@ func displayTextIsEmpty(text string) bool {
 }
 
 func drawDisplayText(textRen render.TextDrawer, text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) {
-	if expr, ok := fullMathExpression(text); ok {
-		if ren, ok := textRen.(render.Renderer); ok {
-			if layout, ok := LayoutMathText(ren, expr, size, fontKey); ok {
-				drawMathTextLayout(ren, textRen, layout, origin, textColor, fontKey)
-				return
-			}
+	if ren, ok := textRen.(render.Renderer); ok {
+		if layout, ok := layoutDisplayText(ren, text, size, fontKey); ok {
+			drawMathTextLayout(ren, textRen, layout, origin, textColor, fontKey)
+			return
 		}
 	}
 	display := normalizeDisplayText(text)
@@ -391,6 +476,15 @@ func drawDisplayTextRotated(textRen render.RotatedTextDrawer, text string, ancho
 }
 
 func drawDisplayTextVertical(textRen render.VerticalTextDrawer, text string, center geom.Pt, size float64, textColor render.Color, fontKey string) {
+	if expr, ok := fullMathExpression(text); ok {
+		if ren, ok := textRen.(render.Renderer); ok {
+			if layout, ok := LayoutMathText(ren, expr, size, fontKey); ok {
+				if drawMathTextLayoutVertical(ren, layout, center, textColor, fontKey) {
+					return
+				}
+			}
+		}
+	}
 	display := normalizeDisplayText(text)
 	if display == "" {
 		return
@@ -417,7 +511,8 @@ func drawMathTextLayout(r render.Renderer, textRen render.TextDrawer, layout Mat
 		r.Path(pixelRectPath(rect), &render.Paint{Fill: textColor})
 	}
 	for _, run := range layout.Runs {
-		primeTextFont(textRen, run.Text, run.FontSize, fontKey)
+		runFontKey := resolveRunFontKey(run, fontKey)
+		primeTextFont(textRen, run.Text, run.FontSize, runFontKey)
 		textRen.DrawText(run.Text, geom.Pt{X: origin.X + run.Offset.X, Y: origin.Y + run.Offset.Y}, run.FontSize, textColor)
 	}
 }
@@ -430,6 +525,22 @@ func drawMathTextLayoutRotated(r render.Renderer, layout MathTextLayout, anchor 
 		X: anchor.X - layout.Width/2,
 		Y: anchor.Y - layout.Descent,
 	}
+	return drawMathTextLayoutPathTransformed(r, layout, origin, anchor, angle, textColor, fontKey)
+}
+
+func drawMathTextLayoutVertical(r render.Renderer, layout MathTextLayout, center geom.Pt, textColor render.Color, fontKey string) bool {
+	origin := alignedSingleLineOrigin(center, singleLineTextLayout{
+		TextLineLayout: render.TextLineLayout{
+			Width:   layout.Width,
+			Ascent:  layout.Ascent,
+			Descent: layout.Descent,
+			Height:  layout.Height,
+		},
+	}, TextAlignCenter, textLayoutVAlignCenter)
+	return drawMathTextLayoutPathTransformed(r, layout, origin, center, math.Pi/2, textColor, fontKey)
+}
+
+func drawMathTextLayoutPathTransformed(r render.Renderer, layout MathTextLayout, origin geom.Pt, pivot geom.Pt, angle float64, textColor render.Color, fontKey string) bool {
 	paths, ok := mathTextLayoutPaths(r, layout, origin, fontKey)
 	if !ok {
 		return false
@@ -443,9 +554,9 @@ func drawMathTextLayoutRotated(r render.Renderer, layout MathTextLayout, anchor 
 
 	cos := math.Cos(angle)
 	sin := math.Sin(angle)
-	affine := translateAffine(anchor).
+	affine := translateAffine(pivot).
 		Mul(geom.Affine{A: cos, B: sin, C: -sin, D: cos}).
-		Mul(translateAffine(geom.Pt{X: -anchor.X, Y: -anchor.Y}))
+		Mul(translateAffine(geom.Pt{X: -pivot.X, Y: -pivot.Y}))
 	for _, path := range paths {
 		r.Path(applyAffinePath(path, affine), &render.Paint{Fill: textColor})
 	}
@@ -462,7 +573,8 @@ func mathTextLayoutPaths(r render.Renderer, layout MathTextLayout, origin geom.P
 		paths = append(paths, pixelRectPath(rect))
 	}
 	for _, run := range layout.Runs {
-		runPath, ok := mathTextRunPath(r, run.Text, geom.Pt{X: origin.X + run.Offset.X, Y: origin.Y + run.Offset.Y}, run.FontSize, fontKey)
+		runFontKey := resolveRunFontKey(run, fontKey)
+		runPath, ok := mathTextRunPath(r, run.Text, geom.Pt{X: origin.X + run.Offset.X, Y: origin.Y + run.Offset.Y}, run.FontSize, runFontKey)
 		if !ok {
 			return nil, false
 		}
@@ -478,6 +590,65 @@ func mathTextRunPath(r render.Renderer, text string, origin geom.Pt, size float6
 		}
 	}
 	return render.TextPath(text, origin, size, fontKey)
+}
+
+func resolveRunFontKey(run MathTextLayoutRun, fallback string) string {
+	if strings.TrimSpace(run.FontKey) != "" {
+		return run.FontKey
+	}
+	return fallback
+}
+
+func layoutDisplayText(r render.Renderer, text string, size float64, fontKey string) (MathTextLayout, bool) {
+	if expr, ok := fullMathExpression(text); ok {
+		return LayoutMathText(r, expr, size, fontKey)
+	}
+
+	segments, hasMath, ok := splitDisplayTextSegments(text)
+	if !ok || !hasMath {
+		return MathTextLayout{}, false
+	}
+
+	var out mathLayoutBox
+	x := 0.0
+	for _, segment := range segments {
+		var child mathLayoutBox
+		if segment.isMath {
+			layout, ok := LayoutMathText(r, segment.text, size, fontKey)
+			if !ok {
+				return MathTextLayout{}, false
+			}
+			child = mathLayoutBox{
+				runs:    append([]MathTextLayoutRun(nil), layout.Runs...),
+				rules:   append([]MathTextLayoutRule(nil), layout.Rules...),
+				Width:   layout.Width,
+				Ascent:  layout.Ascent,
+				Descent: layout.Descent,
+			}
+		} else {
+			child = layoutMathTextRun(r, displayTextCommandReplacer.Replace(segment.text), size, fontKey)
+		}
+		if child.Width <= 0 && len(child.runs) == 0 && len(child.rules) == 0 {
+			continue
+		}
+		out.appendTranslated(child, x, 0)
+		x += child.Width
+		out.Ascent = maxFloat64(out.Ascent, child.Ascent)
+		out.Descent = maxFloat64(out.Descent, child.Descent)
+	}
+
+	if x <= 0 && len(out.runs) == 0 && len(out.rules) == 0 {
+		return MathTextLayout{}, false
+	}
+
+	return MathTextLayout{
+		Runs:    out.runs,
+		Rules:   out.rules,
+		Width:   x,
+		Ascent:  out.Ascent,
+		Descent: out.Descent,
+		Height:  out.Ascent + out.Descent,
+	}, true
 }
 
 func (p *mathTextParser) parseUntil(stop rune) string {
@@ -570,6 +741,12 @@ func (p *mathTextParser) parseCommand() string {
 	if mapped, ok := mathTextCommandMap[name]; ok {
 		return mapped
 	}
+	if spacing, ok := mathTextSpacingCommands[name]; ok {
+		return spacing
+	}
+	if delim, ok := mathTextDelimiterCommands[name]; ok {
+		return delim
+	}
 	if op, ok := mathTextOperatorMap[name]; ok {
 		return op
 	}
@@ -578,6 +755,13 @@ func (p *mathTextParser) parseCommand() string {
 	}
 	if mark, ok := mathTextAccentMarks[name]; ok {
 		return applyMathAccent(p.parseArgument(), mark)
+	}
+	if name == "begin" {
+		return p.parseEnvironment()
+	}
+	if _, ok := mathTextEmptyCommands[name]; ok {
+		p.skipSpaces()
+		return ""
 	}
 
 	switch name {
@@ -600,10 +784,207 @@ func (p *mathTextParser) parseCommand() string {
 			return "√[" + index + "]" + groupMathAtom(arg)
 		}
 		return "√" + groupMathAtom(arg)
-	case "left", "right":
-		return ""
 	default:
 		return `\` + name
+	}
+}
+
+func (p *mathTextParser) parseEnvironment() string {
+	name := p.parseBraceText()
+	left, right, ok := matrixEnvironmentDelimiters(name)
+	if !ok {
+		return ""
+	}
+	if name == "array" && p.pos < len(p.input) && p.input[p.pos] == '{' {
+		_ = p.parseBraceText()
+	}
+
+	rows := p.parseMatrixRows(name)
+	var out strings.Builder
+	if left != "" {
+		out.WriteString(left)
+	}
+	for i, row := range rows {
+		if i > 0 {
+			out.WriteString("; ")
+		}
+		out.WriteString(strings.Join(row, " "))
+	}
+	if right != "" {
+		out.WriteString(right)
+	}
+	return out.String()
+}
+
+func (p *mathTextParser) parseMatrixRows(envName string) [][]string {
+	rows := [][]string{}
+	for {
+		if p.startsEnvironmentEnd(envName) {
+			p.consumeEnvironmentEnd(envName)
+			break
+		}
+		row := []string{}
+		for {
+			cell := strings.TrimSpace(p.parseMatrixCell(envName))
+			row = append(row, cell)
+			if p.startsEnvironmentEnd(envName) {
+				p.consumeEnvironmentEnd(envName)
+				rows = append(rows, row)
+				return rows
+			}
+			if p.consumeMatrixRowSeparator() {
+				rows = append(rows, row)
+				break
+			}
+			if p.pos < len(p.input) && p.input[p.pos] == '&' {
+				p.pos++
+				continue
+			}
+			rows = append(rows, row)
+			return rows
+		}
+	}
+	return rows
+}
+
+func (p *mathTextParser) parseMatrixCell(envName string) string {
+	var out strings.Builder
+	for p.pos < len(p.input) {
+		if p.startsEnvironmentEnd(envName) || p.pos < len(p.input) && p.input[p.pos] == '&' || p.startsMatrixRowSeparator() {
+			break
+		}
+		switch p.input[p.pos] {
+		case '{':
+			p.pos++
+			out.WriteString(p.parseUntil('}'))
+			if p.pos < len(p.input) && p.input[p.pos] == '}' {
+				p.pos++
+			}
+		case '^':
+			p.pos++
+			out.WriteString(convertMathScript(p.parseArgument(), superscriptRunes, "^"))
+		case '_':
+			p.pos++
+			out.WriteString(convertMathScript(p.parseArgument(), subscriptRunes, "_"))
+		case '\\':
+			out.WriteString(p.parseCommand())
+		case '~':
+			out.WriteRune(' ')
+			p.pos++
+		default:
+			out.WriteRune(p.input[p.pos])
+			p.pos++
+		}
+	}
+	return out.String()
+}
+
+func (p *mathTextParser) parseBraceText() string {
+	p.skipSpace()
+	if p.pos >= len(p.input) || p.input[p.pos] != '{' {
+		return ""
+	}
+	p.pos++
+	start := p.pos
+	depth := 1
+	for p.pos < len(p.input) {
+		switch p.input[p.pos] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				text := string(p.input[start:p.pos])
+				p.pos++
+				return text
+			}
+		}
+		p.pos++
+	}
+	return string(p.input[start:])
+}
+
+func (p *mathTextParser) startsNamedCommand(name string) bool {
+	if p.pos >= len(p.input)-len(name) || p.input[p.pos] != '\\' {
+		return false
+	}
+	i := p.pos + 1
+	for _, want := range name {
+		if i >= len(p.input) || p.input[i] != want {
+			return false
+		}
+		i++
+	}
+	return i >= len(p.input) || !unicode.IsLetter(p.input[i])
+}
+
+func (p *mathTextParser) consumeNamedCommand(name string) bool {
+	if !p.startsNamedCommand(name) {
+		return false
+	}
+	p.pos += 1 + len([]rune(name))
+	return true
+}
+
+func (p *mathTextParser) startsEnvironmentEnd(name string) bool {
+	save := p.pos
+	if !p.consumeNamedCommand("end") {
+		p.pos = save
+		return false
+	}
+	text := p.parseBraceText()
+	p.pos = save
+	return text == name
+}
+
+func (p *mathTextParser) consumeEnvironmentEnd(name string) bool {
+	save := p.pos
+	if !p.consumeNamedCommand("end") {
+		p.pos = save
+		return false
+	}
+	if p.parseBraceText() != name {
+		p.pos = save
+		return false
+	}
+	return true
+}
+
+func (p *mathTextParser) startsMatrixRowSeparator() bool {
+	if p.pos+1 >= len(p.input) || p.input[p.pos] != '\\' {
+		return false
+	}
+	if p.input[p.pos+1] == '\\' {
+		return true
+	}
+	if !unicode.IsLetter(p.input[p.pos+1]) {
+		return false
+	}
+	i := p.pos + 1
+	for i < len(p.input) && unicode.IsLetter(p.input[i]) {
+		i++
+	}
+	return string(p.input[p.pos+1:i]) == "cr"
+}
+
+func (p *mathTextParser) consumeMatrixRowSeparator() bool {
+	if !p.startsMatrixRowSeparator() {
+		return false
+	}
+	if p.input[p.pos+1] == '\\' {
+		p.pos += 2
+	} else {
+		p.pos++
+		for p.pos < len(p.input) && unicode.IsLetter(p.input[p.pos]) {
+			p.pos++
+		}
+	}
+	return true
+}
+
+func (p *mathTextParser) skipSpaces() {
+	for p.pos < len(p.input) && unicode.IsSpace(p.input[p.pos]) {
+		p.pos++
 	}
 }
 
