@@ -1151,8 +1151,8 @@ func (t *Table) Draw(r render.Renderer, ctx *DrawContext) {
 				LineCap:   render.CapButt,
 			})
 
-			text := normalizeDisplayText(cell.Text)
-			if text == "" {
+			text := cell.Text
+			if displayTextIsEmpty(text) {
 				continue
 			}
 			anchor := transformedPoint(ctx, t.Coords, geom.Pt{
@@ -1164,7 +1164,7 @@ func (t *Table) Draw(r render.Renderer, ctx *DrawContext) {
 			if cell.IsHeader {
 				color = t.HeaderTextColor
 			}
-			drawDisplayText(textRen, text, alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignCenter), t.FontSize, color)
+			drawDisplayText(textRen, text, alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignCenter), t.FontSize, color, ctx.RC.FontKey)
 		}
 	}
 }

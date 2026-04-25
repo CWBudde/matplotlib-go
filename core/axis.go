@@ -508,11 +508,11 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		}
 
 		if style.Rotation != 0 && rotRen != nil {
-			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout), fontSize, style.Rotation*math.Pi/180.0, a.Color)
+			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout), fontSize, style.Rotation*math.Pi/180.0, a.Color, ctx.RC.FontKey)
 			continue
 		}
 
-		drawDisplayText(textRen, label, labelPos, fontSize, a.Color)
+		drawDisplayText(textRen, label, labelPos, fontSize, a.Color, ctx.RC.FontKey)
 	}
 }
 
@@ -832,7 +832,7 @@ func (a *Axis) drawPolarThetaTickLabels(textRen render.TextDrawer, r render.Rend
 		angle := polarAngleForTheta(ctx.Projection, ctx.DataToPixel.XScale, tick)
 		anchor := polarPixelPoint(center, radius+labelPadPx, angle)
 		hAlign, vAlign := polarTickLabelAlignments(angle)
-		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color)
+		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, ctx.RC.FontKey)
 	}
 }
 
@@ -855,7 +855,7 @@ func (a *Axis) drawPolarRadialTickLabels(textRen render.TextDrawer, r render.Ren
 		radius := outerRadius * ctx.DataToPixel.YScale.Fwd(tick)
 		anchor := polarPixelPoint(center, radius+labelPadPx, labelAngle)
 		hAlign, vAlign := polarTickLabelAlignments(labelAngle)
-		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color)
+		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, ctx.RC.FontKey)
 	}
 }
 

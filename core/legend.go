@@ -163,14 +163,14 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 
 	maxLabelWidth := 0.0
 	rowHeights := make([]float64, len(entries))
-	labelMetrics := make([]render.TextMetrics, len(entries))
+	labelLayouts := make([]singleLineTextLayout, len(entries))
 	for i, entry := range entries {
-		metrics := r.MeasureText(entry.Label, fontSize, ctx.RC.FontKey)
-		labelMetrics[i] = metrics
-		if metrics.W > maxLabelWidth {
-			maxLabelWidth = metrics.W
+		layout := measureSingleLineTextLayout(r, entry.Label, fontSize, ctx.RC.FontKey)
+		labelLayouts[i] = layout
+		if layout.Width > maxLabelWidth {
+			maxLabelWidth = layout.Width
 		}
-		rowHeight := math.Max(metrics.H, fontSize)
+		rowHeight := math.Max(layout.Height, fontSize)
 		if rowHeight < 12 {
 			rowHeight = 12
 		}
@@ -201,20 +201,25 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 	for i, entry := range entries {
 		rowHeight := rowHeights[i]
 		centerY := y + rowHeight/2
-		labelMetric := labelMetrics[i]
+		labelLayout := labelLayouts[i]
 
 		l.drawSample(r, entry, geom.Rect{
 			Min: geom.Pt{X: box.Min.X + l.Padding, Y: centerY - rowHeight/2},
 			Max: geom.Pt{X: box.Min.X + l.Padding + l.SampleWidth, Y: centerY + rowHeight/2},
 		})
 
-		baselineY := centerY - labelMetric.H/2 + labelMetric.Ascent
 		drawDisplayText(
 			textRen,
 			entry.Label,
-			geom.Pt{X: box.Min.X + l.Padding + l.SampleWidth + l.SampleTextGap, Y: baselineY},
+			alignedSingleLineOrigin(
+				geom.Pt{X: box.Min.X + l.Padding + l.SampleWidth + l.SampleTextGap, Y: centerY},
+				labelLayout,
+				TextAlignLeft,
+				textLayoutVAlignCenter,
+			),
 			fontSize,
 			l.TextColor,
+			ctx.RC.FontKey,
 		)
 
 		y += rowHeight + l.RowGap
@@ -255,11 +260,11 @@ func (l *Legend) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) 
 	maxLabelWidth := 0.0
 	contentHeight := 0.0
 	for _, entry := range entries {
-		metrics := r.MeasureText(entry.Label, fontSize, ctx.RC.FontKey)
-		if metrics.W > maxLabelWidth {
-			maxLabelWidth = metrics.W
+		layout := measureSingleLineTextLayout(r, entry.Label, fontSize, ctx.RC.FontKey)
+		if layout.Width > maxLabelWidth {
+			maxLabelWidth = layout.Width
 		}
-		rowHeight := math.Max(metrics.H, fontSize)
+		rowHeight := math.Max(layout.Height, fontSize)
 		if rowHeight < 12 {
 			rowHeight = 12
 		}

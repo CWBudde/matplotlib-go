@@ -273,6 +273,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignTop),
 			titleSize,
 			titleColor,
+			fig.RC.FontKey,
 		)
 	}
 
@@ -288,6 +289,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignBottom),
 			labelSize,
 			labelColor,
+			fig.RC.FontKey,
 		)
 	}
 
@@ -300,9 +302,9 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 		}
 		switch ren := r.(type) {
 		case render.RotatedTextDrawer:
-			drawDisplayTextRotated(ren, fig.SupYLabel, anchor, labelSize, math.Pi/2, labelColor)
+			drawDisplayTextRotated(ren, fig.SupYLabel, anchor, labelSize, math.Pi/2, labelColor, fig.RC.FontKey)
 		case render.VerticalTextDrawer:
-			drawDisplayTextVertical(ren, fig.SupYLabel, anchor, labelSize, labelColor)
+			drawDisplayTextVertical(ren, fig.SupYLabel, anchor, labelSize, labelColor, fig.RC.FontKey)
 		default:
 			drawDisplayText(
 				textRen,
@@ -310,6 +312,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 				alignedSingleLineOrigin(anchor, layout, TextAlignLeft, textLayoutVAlignCenter),
 				labelSize,
 				labelColor,
+				fig.RC.FontKey,
 			)
 		}
 	}

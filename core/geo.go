@@ -228,7 +228,7 @@ func (a *Axis) drawGeoTickLabels(r render.Renderer, ctx *DrawContext) {
 		if !ok {
 			continue
 		}
-		drawDisplayText(textRen, label, origin, fontSize, a.Color)
+		drawDisplayText(textRen, label, origin, fontSize, a.Color, ctx.RC.FontKey)
 	}
 }
 

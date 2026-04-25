@@ -332,28 +332,84 @@ func normalizeMathText(text string) string {
 	return parser.parseUntil(0)
 }
 
-func drawDisplayText(textRen render.TextDrawer, text string, origin geom.Pt, size float64, textColor render.Color) {
+func fullMathExpression(text string) (string, bool) {
+	trimmed := strings.TrimSpace(text)
+	runes := []rune(trimmed)
+	if len(runes) < 2 || runes[0] != '$' || runes[len(runes)-1] != '$' {
+		return "", false
+	}
+	for i := 1; i < len(runes)-1; i++ {
+		if runes[i] == '$' && runes[i-1] != '\\' {
+			return "", false
+		}
+	}
+	expr := strings.TrimSpace(string(runes[1 : len(runes)-1]))
+	if expr == "" {
+		return "", false
+	}
+	return expr, true
+}
+
+func displayTextIsEmpty(text string) bool {
+	return normalizeDisplayText(text) == ""
+}
+
+func drawDisplayText(textRen render.TextDrawer, text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) {
+	if expr, ok := fullMathExpression(text); ok {
+		if ren, ok := textRen.(render.Renderer); ok {
+			if layout, ok := LayoutMathText(ren, expr, size, fontKey); ok {
+				drawMathTextLayout(ren, textRen, layout, origin, textColor, fontKey)
+				return
+			}
+		}
+	}
 	display := normalizeDisplayText(text)
 	if display == "" {
 		return
 	}
+	primeTextFont(textRen, display, size, fontKey)
 	textRen.DrawText(display, origin, size, textColor)
 }
 
-func drawDisplayTextRotated(textRen render.RotatedTextDrawer, text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
+func drawDisplayTextRotated(textRen render.RotatedTextDrawer, text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) {
 	display := normalizeDisplayText(text)
 	if display == "" {
 		return
 	}
+	primeTextFont(textRen, display, size, fontKey)
 	textRen.DrawTextRotated(display, anchor, size, angle, textColor)
 }
 
-func drawDisplayTextVertical(textRen render.VerticalTextDrawer, text string, center geom.Pt, size float64, textColor render.Color) {
+func drawDisplayTextVertical(textRen render.VerticalTextDrawer, text string, center geom.Pt, size float64, textColor render.Color, fontKey string) {
 	display := normalizeDisplayText(text)
 	if display == "" {
 		return
 	}
+	primeTextFont(textRen, display, size, fontKey)
 	textRen.DrawTextVertical(display, center, size, textColor)
+}
+
+func primeTextFont(textRen render.TextDrawer, sample string, size float64, fontKey string) {
+	if fontKey == "" {
+		return
+	}
+	if ren, ok := textRen.(render.Renderer); ok {
+		_ = ren.MeasureText(sample, size, fontKey)
+	}
+}
+
+func drawMathTextLayout(r render.Renderer, textRen render.TextDrawer, layout MathTextLayout, origin geom.Pt, textColor render.Color, fontKey string) {
+	for _, rule := range layout.Rules {
+		rect := geom.Rect{
+			Min: geom.Pt{X: origin.X + rule.Rect.Min.X, Y: origin.Y + rule.Rect.Min.Y},
+			Max: geom.Pt{X: origin.X + rule.Rect.Max.X, Y: origin.Y + rule.Rect.Max.Y},
+		}
+		r.Path(pixelRectPath(rect), &render.Paint{Fill: textColor})
+	}
+	for _, run := range layout.Runs {
+		primeTextFont(textRen, run.Text, run.FontSize, fontKey)
+		textRen.DrawText(run.Text, geom.Pt{X: origin.X + run.Offset.X, Y: origin.Y + run.Offset.Y}, run.FontSize, textColor)
+	}
 }
 
 func (p *mathTextParser) parseUntil(stop rune) string {

@@ -525,7 +525,7 @@ Current slice landed:
 
 - [ ] MathText parser/layout
   Basic milestone complete: inline MathText fallback normalization now covers `$...$` segments, common symbol commands, `\frac`, `\sqrt`, and grouped super/subscripts across the existing text backends.
-  Current slice landed: a lightweight MathText parser/layout model now produces baseline-shifted runs plus fraction/root rules for scripts, stacked fractions, square roots with indices, common operator names, and simple accents.
+  Current slice landed: a lightweight MathText parser/layout model now produces baseline-shifted runs plus fraction/root rules for scripts, stacked fractions, square roots with indices, common operator names, and simple accents, and the standard horizontal text draw path now uses that structured layout for full `$...$` expressions in text artists, annotations, legends, axis labels, and figure labels.
 - [ ] LaTeX / `usetex` integration
   Current slice landed: `text.usetex` is now a recognized rcParam and runtime default, but there is no external TeX rendering pipeline yet.
 - [ ] Complex text shaping beyond the current basic glyph flow

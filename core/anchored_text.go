@@ -122,7 +122,7 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	lines := strings.Split(normalizeDisplayText(a.Content), "\n")
+	lines := strings.Split(a.Content, "\n")
 	if len(lines) == 0 {
 		return
 	}
@@ -178,6 +178,7 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 			alignedSingleLineOrigin(anchor, layout, TextAlignLeft, textLayoutVAlignTop),
 			fontSize,
 			resolvedTextColor(a.TextColor, ctx),
+			ctx.RC.FontKey,
 		)
 		y += lineHeights[i] + a.RowGap
 	}
@@ -194,7 +195,7 @@ func (a *AnchoredTextBox) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rec
 		return geom.Rect{}, false
 	}
 
-	lines := strings.Split(normalizeDisplayText(a.Content), "\n")
+	lines := strings.Split(a.Content, "\n")
 	if len(lines) == 0 {
 		return geom.Rect{}, false
 	}

@@ -163,16 +163,15 @@ func (t *Text) Draw(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	content := normalizeDisplayText(t.Content)
-	if content == "" {
+	if displayTextIsEmpty(t.Content) {
 		return
 	}
 
 	fontSize := resolvedFontSize(t.FontSize, ctx)
 	anchor := transformedPoint(ctx, t.Coords, t.Position, t.OffsetX, t.OffsetY)
-	layout := measureSingleLineTextLayout(r, content, fontSize, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, t.Content, fontSize, ctx.RC.FontKey)
 	origin := alignedSingleLineOrigin(anchor, layout, t.HAlign, layoutVerticalAlign(t.VAlign, false))
-	textRen.DrawText(content, origin, fontSize, resolvedTextColor(t.Color, ctx))
+	drawDisplayText(textRen, t.Content, origin, fontSize, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey)
 }
 
 // Bounds returns an empty rect so labels do not affect autoscaling.
@@ -195,15 +194,14 @@ func (a *Annotation) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	content := normalizeDisplayText(a.Content)
-	if content == "" {
+	if displayTextIsEmpty(a.Content) {
 		return
 	}
 
 	fontSize := resolvedFontSize(a.FontSize, ctx)
 	target := transformedPoint(ctx, a.Coords, a.Point, 0, 0)
 	anchor := transformedPoint(ctx, a.Coords, a.Point, a.OffsetX, a.OffsetY)
-	layout := measureSingleLineTextLayout(r, content, fontSize, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, a.Content, fontSize, ctx.RC.FontKey)
 	origin := alignedSingleLineOrigin(anchor, layout, a.HAlign, layoutVerticalAlign(a.VAlign, false))
 	box, ok := textInkRect(origin, layout)
 	if !ok {
@@ -233,7 +231,7 @@ func (a *Annotation) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 		})
 	}
 
-	textRen.DrawText(content, origin, fontSize, resolvedTextColor(a.Color, ctx))
+	drawDisplayText(textRen, a.Content, origin, fontSize, resolvedTextColor(a.Color, ctx), ctx.RC.FontKey)
 }
 
 // Bounds returns an empty rect so annotations do not affect autoscaling.

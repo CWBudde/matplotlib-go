@@ -1027,7 +1027,7 @@ func (k *QuiverKey) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	})
 
 	textRen, ok := r.(render.TextDrawer)
-	if !ok || normalizeDisplayText(k.Label) == "" {
+	if !ok || displayTextIsEmpty(k.Label) {
 		return
 	}
 	labelPos := geom.Pt{X: anchor.X, Y: anchor.Y}
@@ -1043,9 +1043,9 @@ func (k *QuiverKey) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	}
 
 	fontSize := resolvedFontSize(k.FontSize, ctx)
-	layout := measureSingleLineTextLayout(r, normalizeDisplayText(k.Label), fontSize, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, k.Label, fontSize, ctx.RC.FontKey)
 	origin := alignedSingleLineOrigin(labelPos, layout, quiverKeyHAlign(k.LabelPos), quiverKeyVAlign(k.LabelPos))
-	textRen.DrawText(normalizeDisplayText(k.Label), origin, fontSize, resolvedTextColor(k.LabelColor, ctx))
+	drawDisplayText(textRen, k.Label, origin, fontSize, resolvedTextColor(k.LabelColor, ctx), ctx.RC.FontKey)
 }
 
 func (k *QuiverKey) displayVector(ctx *DrawContext, state vectorRenderState) geom.Pt {

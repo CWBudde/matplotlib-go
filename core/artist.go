@@ -1602,6 +1602,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 			alignedSingleLineOrigin(titleAnchorPoint(ax, r, ctx, px, alignment), layout, TextAlignCenter, textLayoutVAlignBaseline),
 			titleSize,
 			titleColor,
+			ctx.RC.FontKey,
 		)
 	}
 
@@ -1618,6 +1619,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 			alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign),
 			labelSize,
 			labelColor,
+			ctx.RC.FontKey,
 		)
 	}
 
@@ -1631,7 +1633,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 		}
 		switch ren := r.(type) {
 		case render.RotatedTextDrawer:
-			drawDisplayTextRotated(ren, ax.YLabel, anchor, labelSize, angle, labelColor)
+			drawDisplayTextRotated(ren, ax.YLabel, anchor, labelSize, angle, labelColor, ctx.RC.FontKey)
 		case render.VerticalTextDrawer:
 			if angle < 0 {
 				layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey)
@@ -1641,9 +1643,10 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 					alignedSingleLineOrigin(geom.Pt{X: anchor.X, Y: px.Min.Y + px.H()/2}, layout, TextAlignCenter, textLayoutVAlignCenter),
 					labelSize,
 					labelColor,
+					ctx.RC.FontKey,
 				)
 			} else {
-				drawDisplayTextVertical(ren, ax.YLabel, geom.Pt{X: anchor.X, Y: anchor.Y}, labelSize, labelColor)
+				drawDisplayTextVertical(ren, ax.YLabel, geom.Pt{X: anchor.X, Y: anchor.Y}, labelSize, labelColor, ctx.RC.FontKey)
 			}
 		default:
 			layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey)
@@ -1653,6 +1656,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 				alignedSingleLineOrigin(geom.Pt{X: anchor.X, Y: px.Min.Y + px.H()/2}, layout, TextAlignCenter, textLayoutVAlignCenter),
 				labelSize,
 				labelColor,
+				ctx.RC.FontKey,
 			)
 		}
 	}

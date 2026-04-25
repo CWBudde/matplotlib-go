@@ -15,11 +15,30 @@ const (
 	textLayoutVAlignCenterBaseline
 )
 
-type singleLineTextLayout = render.TextLineLayout
+type singleLineTextLayout struct {
+	render.TextLineLayout
+	MathLayout *MathTextLayout
+}
 
 func measureSingleLineTextLayout(r render.Renderer, text string, size float64, fontKey string) singleLineTextLayout {
+	if expr, ok := fullMathExpression(text); ok {
+		if layout, ok := LayoutMathText(r, expr, size, fontKey); ok {
+			return singleLineTextLayout{
+				TextLineLayout: render.TextLineLayout{
+					Width:   layout.Width,
+					Ascent:  layout.Ascent,
+					Descent: layout.Descent,
+					Height:  layout.Height,
+				},
+				MathLayout: &layout,
+			}
+		}
+	}
+
 	display := normalizeDisplayText(text)
-	return render.MeasureTextLineLayout(r, display, size, fontKey)
+	return singleLineTextLayout{
+		TextLineLayout: render.MeasureTextLineLayout(r, display, size, fontKey),
+	}
 }
 
 func textBaselineOffset(layout singleLineTextLayout, align textLayoutVerticalAlign) float64 {

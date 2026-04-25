@@ -157,6 +157,40 @@ func TestAxesTextDrawsNormalizedContent(t *testing.T) {
 	}
 }
 
+func TestAxesTextDrawsFullMathLayoutRuns(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.XAxis.ShowSpine = false
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowSpine = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
+	ax.ShowFrame = false
+
+	ax.Text(0.5, 0.5, `$\\frac{1}{2}$`, TextOptions{
+		HAlign:   TextAlignCenter,
+		VAlign:   TextVAlignMiddle,
+		FontSize: 12,
+	})
+
+	var r textRecordingRenderer
+	DrawFigure(fig, &r)
+
+	if containsTextString(r.texts, "1⁄2") {
+		t.Fatalf("full math expression fell back to normalized text draw: %v", r.texts)
+	}
+	if !containsTextString(r.texts, "1") || !containsTextString(r.texts, "2") {
+		t.Fatalf("expected structured math runs for fraction, got %v", r.texts)
+	}
+	if r.pathCount == 0 {
+		t.Fatalf("expected fraction rule path, got %d paths", r.pathCount)
+	}
+}
+
 func TestAnnotationDrawOverlayRendersArrowAndText(t *testing.T) {
 	fig := NewFigure(800, 600)
 	ax := fig.AddAxes(geom.Rect{
@@ -250,7 +284,7 @@ func TestAxesTextSupportsAxesAndBlendedCoordinates(t *testing.T) {
 	}
 }
 
-func TestAxesLabelsDrawNormalizedMathText(t *testing.T) {
+func TestAxesLabelsDrawMathTextAccordingToExpressionScope(t *testing.T) {
 	fig := NewFigure(800, 600)
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.1, Y: 0.1},
@@ -263,8 +297,11 @@ func TestAxesLabelsDrawNormalizedMathText(t *testing.T) {
 	var r textRecordingRenderer
 	DrawFigure(fig, &r)
 
-	if !containsTextString(r.texts, "α²") {
-		t.Fatalf("missing normalized title draw: %v", r.texts)
+	if containsTextString(r.texts, "α²") {
+		t.Fatalf("full math title unexpectedly collapsed to normalized text: %v", r.texts)
+	}
+	if !containsTextString(r.texts, "α") || !containsTextString(r.texts, "2") {
+		t.Fatalf("missing structured title math runs: %v", r.texts)
 	}
 	if !containsTextString(r.texts, "phase θ") {
 		t.Fatalf("missing normalized xlabel draw: %v", r.texts)
