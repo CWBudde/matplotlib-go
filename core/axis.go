@@ -68,6 +68,11 @@ type Axis struct {
 	MinorFormatter  Formatter    // optional minor tick label formatter
 	Color           render.Color // axis line and tick color
 	LineWidth       float64      // width of axis line and ticks
+	LineCap         render.LineCap
+	LineJoin        render.LineJoin
+	TickLineCap     render.LineCap
+	TickLineJoin    render.LineJoin
+	Dashes          []float64
 	TickSize        float64      // length of major tick marks (in pixels)
 	MinorTickSize   float64      // length of minor tick marks (in pixels); 0 uses TickSize*0.6
 	MajorTickCount  int          // target major tick count for automatic locators
@@ -93,6 +98,10 @@ func NewXAxis() *Axis {
 		Formatter:       ScalarFormatter{Prec: 3},
 		Color:           render.Color{R: 0, G: 0, B: 0, A: 1}, // black
 		LineWidth:       defaultAxisLineWidth,
+		LineCap:         render.CapSquare,
+		LineJoin:        render.JoinMiter,
+		TickLineCap:     render.CapButt,
+		TickLineJoin:    render.JoinMiter,
 		TickSize:        5.0,
 		MajorTickCount:  6,
 		MinorTickCount:  30,
@@ -114,6 +123,10 @@ func NewYAxis() *Axis {
 		Formatter:       ScalarFormatter{Prec: 3},
 		Color:           render.Color{R: 0, G: 0, B: 0, A: 1}, // black
 		LineWidth:       defaultAxisLineWidth,
+		LineCap:         render.CapSquare,
+		LineJoin:        render.JoinMiter,
+		TickLineCap:     render.CapButt,
+		TickLineJoin:    render.JoinMiter,
 		TickSize:        5.0,
 		MajorTickCount:  6,
 		MinorTickCount:  30,
@@ -135,12 +148,9 @@ func (a *Axis) Draw(r render.Renderer, ctx *DrawContext) {
 	}
 	if framePath, ok := projectionFramePath(ctx.Projection, ctx.Clip); ok {
 		if a.ShowSpine && (a.Side == AxisBottom || a.Side == AxisTop) {
-			r.Path(framePath, &render.Paint{
-				LineWidth: a.LineWidth,
-				Stroke:    a.Color,
-				LineCap:   render.CapButt,
-				LineJoin:  render.JoinMiter,
-			})
+			paint := axisStrokePaint(a, false)
+			paint.LineCap = render.CapButt
+			r.Path(framePath, &paint)
 		}
 		return
 	}
@@ -208,8 +218,9 @@ func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext) {
 	paint := render.Paint{
 		LineWidth: lw,
 		Stroke:    a.Color,
-		LineCap:   render.CapSquare,
-		LineJoin:  render.JoinMiter,
+		LineCap:   a.LineCap,
+		LineJoin:  a.LineJoin,
+		Dashes:    styleCloneDashes(a.Dashes),
 	}
 	path := geom.Path{
 		C: []geom.Cmd{geom.MoveTo, geom.LineTo},
@@ -289,8 +300,9 @@ func (a *Axis) drawSingleTick(r render.Renderer, ctx *DrawContext, tickValue, ti
 	paint := render.Paint{
 		LineWidth: a.LineWidth,
 		Stroke:    a.Color,
-		LineCap:   render.CapButt,
-		LineJoin:  render.JoinMiter,
+		LineCap:   a.TickLineCap,
+		LineJoin:  a.TickLineJoin,
+		Dashes:    styleCloneDashes(a.Dashes),
 	}
 	r.Path(path, &paint)
 }
@@ -307,8 +319,9 @@ func DrawFrame(r render.Renderer, ctx *DrawContext, ref *Axis, drawTop, drawRigh
 	paint := render.Paint{
 		LineWidth: ref.LineWidth,
 		Stroke:    ref.Color,
-		LineCap:   render.CapSquare,
-		LineJoin:  render.JoinMiter,
+		LineCap:   ref.LineCap,
+		LineJoin:  ref.LineJoin,
+		Dashes:    styleCloneDashes(ref.Dashes),
 	}
 	drawLine := func(p1, p2 geom.Pt) {
 		path := geom.Path{
@@ -699,6 +712,18 @@ func (a *Axis) SetTickDirection(direction string) error {
 	return nil
 }
 
+// SetLineStyle configures cap/join/dash styling for the axis spine and ticks.
+func (a *Axis) SetLineStyle(cap render.LineCap, join render.LineJoin, dashes ...float64) {
+	if a == nil {
+		return
+	}
+	a.LineCap = cap
+	a.LineJoin = join
+	a.TickLineCap = cap
+	a.TickLineJoin = join
+	a.Dashes = styleCloneDashes(dashes)
+}
+
 // SetSpinePositionData places the axis spine at a data coordinate instead of the plot boundary.
 func (a *Axis) SetSpinePositionData(value float64) {
 	if a == nil {
@@ -840,7 +865,7 @@ func (a *Axis) drawPolarSpine(r render.Renderer, ctx *DrawContext) {
 	}
 
 	center, radius := polarCenterAndRadius(ctx.Clip)
-	paint := polarTickPaint(a.Color, a.LineWidth, nil)
+	paint := axisStrokePaint(a, false)
 
 	switch a.Side {
 	case AxisBottom, AxisTop:
@@ -875,7 +900,7 @@ func (a *Axis) drawPolarThetaTicks(r render.Renderer, ctx *DrawContext, ticks []
 		return
 	}
 	center, radius := polarCenterAndRadius(ctx.Clip)
-	paint := polarTickPaint(a.Color, a.LineWidth, nil)
+	paint := axisStrokePaint(a, true)
 
 	for _, tick := range ticks {
 		angle := polarAngleForTheta(ctx.Projection, ctx.DataToPixel.XScale, tick)
@@ -891,7 +916,7 @@ func (a *Axis) drawPolarRadialTicks(r render.Renderer, ctx *DrawContext, ticks [
 		return
 	}
 	center, outerRadius := polarCenterAndRadius(ctx.Clip)
-	paint := polarTickPaint(a.Color, a.LineWidth, nil)
+	paint := axisStrokePaint(a, true)
 	labelAngle := polarRadialLabelAngleForProjection(ctx.Projection)
 
 	for _, tick := range ticks {
@@ -931,6 +956,25 @@ func (a *Axis) drawPolarTickLabels(r render.Renderer, ctx *DrawContext) {
 		if a.ShowMinorLabels {
 			a.drawPolarRadialTickLabels(textRen, r, ctx, polarRadialTicks(a, ctx.DataToPixel.YScale, true), a.MinorFormatter, a.MinorLabelStyle, a.minorTickSize())
 		}
+	}
+}
+
+func axisStrokePaint(a *Axis, forTicks bool) render.Paint {
+	if a == nil {
+		return render.Paint{}
+	}
+	cap := a.LineCap
+	join := a.LineJoin
+	if forTicks {
+		cap = a.TickLineCap
+		join = a.TickLineJoin
+	}
+	return render.Paint{
+		LineWidth: a.LineWidth,
+		Stroke:    a.Color,
+		LineCap:   cap,
+		LineJoin:  join,
+		Dashes:    styleCloneDashes(a.Dashes),
 	}
 }
 

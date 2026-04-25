@@ -494,14 +494,16 @@ Current slice landed:
 
 - [x] Alternate axisartist-style axis subsystem
 - [x] Floating axes
-- [ ] Curvelinear grids and grid helpers
-- [ ] Axis line styles and tick-direction control beyond standard Cartesian spines
+- [x] Curvelinear grids and grid helpers
+- [x] Axis line styles and tick-direction control beyond standard Cartesian spines
 
 Current slice landed:
 
 - `AxisArtist` and `Axes.ExtraAxes` provide host-linked auxiliary axes that render through the normal figure draw path.
 - `Axes.FloatingXAxis(...)` and `Axes.FloatingYAxis(...)` create data-positioned floating axes on rectilinear plots.
-- Axis spines now support data-position overrides, and axes support explicit tick direction (`out`, `in`, `inout`) even though the broader line-style surface is still incomplete.
+- Axis spines now support data-position overrides, and axes support explicit tick direction (`out`, `in`, `inout`) across standard and auxiliary axes.
+- Projection grids now sample constant-coordinate paths for non-separable projection transforms, and curvilinear grids inherit axis locators by default so `skewx`/future projection helpers get the right grid geometry without bespoke grid artists.
+- Axis stroke styling now exposes cap/join/dash control through `Axis.SetLineStyle(...)` and `Axes.SetAxisLineStyle(...)`, and `TickParams` now carries tick-direction control through the normal axes API.
 
 ### 7.5 Gallery Parity and Showcase Coverage
 

@@ -140,7 +140,7 @@ func TestDrawAxesLabels_YLabelUsesTickBoundsAndLabelPad(t *testing.T) {
 		t.Fatalf("unexpected rotated text draws: %v", r.rotatedText)
 	}
 
-	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(ax.YAxis.Side, ctx), Y: 4})
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(ax.YAxis, ctx), Y: 4})
 	tickLabelMinX := tickPos.X - tickLabelPadPx(ax.YAxis, ctx) - (1 + 5.0) + 1
 	want := geom.Pt{
 		X: math.Min(spinePixelX(AxisLeft, px), tickLabelMinX) - axisLabelPadPx(ctx),

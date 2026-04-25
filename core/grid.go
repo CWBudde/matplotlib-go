@@ -4,6 +4,7 @@ import (
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 	"matplotlib-go/style"
+	"matplotlib-go/transform"
 )
 
 // Grid renders grid lines at tick positions.
@@ -50,6 +51,10 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 	}
 	if isGeoProjection(ctx.Projection) {
 		g.drawGeo(r, ctx)
+		return
+	}
+	if projectionGridUsesSampling(ctx) {
+		g.drawCurvelinear(r, ctx)
 		return
 	}
 
@@ -136,7 +141,7 @@ func (g *Grid) drawGeo(r render.Renderer, ctx *DrawContext) {
 		}
 		paint := polarTickPaint(minorColor, minorWidth, g.MinorDashes)
 		for _, tick := range visibleTicks(minorLoc.Ticks(domainMin, domainMax, 20), domainMin, domainMax) {
-			drawGeoGridLine(r, ctx, g.Axis, tick, paint)
+			drawSampledGridLine(r, ctx, g.Axis, tick, geoGridSegments, paint)
 		}
 	}
 
@@ -152,7 +157,48 @@ func (g *Grid) drawGeo(r render.Renderer, ctx *DrawContext) {
 		}
 		paint := polarTickPaint(majorColor, g.LineWidth, g.Dashes)
 		for _, tick := range visibleTicks(loc.Ticks(domainMin, domainMax, 8), domainMin, domainMax) {
-			drawGeoGridLine(r, ctx, g.Axis, tick, paint)
+			drawSampledGridLine(r, ctx, g.Axis, tick, geoGridSegments, paint)
+		}
+	}
+}
+
+func (g *Grid) drawCurvelinear(r render.Renderer, ctx *DrawContext) {
+	var domainMin, domainMax float64
+	switch g.Axis {
+	case AxisBottom, AxisTop:
+		domainMin, domainMax = ctx.DataToPixel.XScale.Domain()
+	case AxisLeft, AxisRight:
+		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
+	}
+
+	axis := g.axisForContext(ctx)
+	majorColor := g.Color
+	if g.Alpha > 0 && g.Alpha <= 1 {
+		majorColor.A = g.Alpha
+	}
+
+	if g.Minor {
+		minorLoc := g.curvelinearLocator(axis, true)
+		minorColor := g.MinorColor
+		if minorColor == (render.Color{}) {
+			minorColor = majorColor
+			minorColor.A = majorColor.A * 0.4
+		}
+		minorWidth := g.MinorLineWidth
+		if minorWidth <= 0 {
+			minorWidth = g.LineWidth * 0.5
+		}
+		paint := polarTickPaint(minorColor, minorWidth, g.MinorDashes)
+		for _, tick := range visibleTicks(minorLoc.Ticks(domainMin, domainMax, g.curvelinearTargetTickCount(axis, true)), domainMin, domainMax) {
+			drawSampledGridLine(r, ctx, g.Axis, tick, geoGridSegments, paint)
+		}
+	}
+
+	if g.Major {
+		loc := g.curvelinearLocator(axis, false)
+		paint := polarTickPaint(majorColor, g.LineWidth, g.Dashes)
+		for _, tick := range visibleTicks(loc.Ticks(domainMin, domainMax, g.curvelinearTargetTickCount(axis, false)), domainMin, domainMax) {
+			drawSampledGridLine(r, ctx, g.Axis, tick, geoGridSegments, paint)
 		}
 	}
 }
@@ -263,6 +309,70 @@ func polarTargetTickCount(axis *Axis, minor bool) int {
 	return axis.majorTickTargetCount()
 }
 
+func projectionGridUsesSampling(ctx *DrawContext) bool {
+	if ctx == nil || ctx.Projection == nil || isPolarProjection(ctx.Projection) || isGeoProjection(ctx.Projection) {
+		return false
+	}
+	if _, ok := ctx.TransProjection().(transform.Separable); ok {
+		return false
+	}
+	return true
+}
+
+func (g *Grid) axisForContext(ctx *DrawContext) *Axis {
+	if g == nil || ctx == nil || ctx.Axes == nil {
+		return nil
+	}
+	switch g.Axis {
+	case AxisTop:
+		if axis := ctx.Axes.effectiveTopAxis(); axis != nil {
+			return axis
+		}
+		return ctx.Axes.effectiveXAxis()
+	case AxisRight:
+		if axis := ctx.Axes.effectiveRightAxis(); axis != nil {
+			return axis
+		}
+		return ctx.Axes.effectiveYAxis()
+	case AxisLeft:
+		return ctx.Axes.effectiveYAxis()
+	default:
+		return ctx.Axes.effectiveXAxis()
+	}
+}
+
+func (g *Grid) curvelinearLocator(axis *Axis, minor bool) Locator {
+	if minor {
+		if g.MinorLocator != nil {
+			return g.MinorLocator
+		}
+		if axis != nil && axis.MinorLocator != nil {
+			return axis.MinorLocator
+		}
+		return MinorLinearLocator{N: 5}
+	}
+	if g.Locator != nil {
+		return g.Locator
+	}
+	if axis != nil && axis.Locator != nil {
+		return axis.Locator
+	}
+	return LinearLocator{}
+}
+
+func (g *Grid) curvelinearTargetTickCount(axis *Axis, minor bool) int {
+	if axis == nil {
+		if minor {
+			return 30
+		}
+		return 8
+	}
+	if minor {
+		return axis.minorTickTargetCount()
+	}
+	return axis.majorTickTargetCount()
+}
+
 // drawLine draws a single grid line.
 func (g *Grid) drawLine(r render.Renderer, ctx *DrawContext, tickValue float64, isXAxis bool, color render.Color, width float64, dashes []float64) {
 	var p1, p2 geom.Pt
@@ -289,6 +399,33 @@ func (g *Grid) drawLine(r render.Renderer, ctx *DrawContext, tickValue float64, 
 		LineCap:   render.CapButt,
 		LineJoin:  render.JoinMiter,
 		Dashes:    dashes,
+	}
+	r.Path(path, &paint)
+}
+
+func drawSampledGridLine(r render.Renderer, ctx *DrawContext, axis AxisSide, tick float64, segments int, paint render.Paint) {
+	if ctx == nil || segments <= 0 {
+		return
+	}
+	xMin, xMax := ctx.DataToPixel.XScale.Domain()
+	yMin, yMax := ctx.DataToPixel.YScale.Domain()
+	path := geom.Path{}
+
+	for i := 0; i <= segments; i++ {
+		t := float64(i) / float64(segments)
+		var data geom.Pt
+		switch axis {
+		case AxisBottom, AxisTop:
+			data = geom.Pt{X: tick, Y: yMin + (yMax-yMin)*t}
+		default:
+			data = geom.Pt{X: xMin + (xMax-xMin)*t, Y: tick}
+		}
+		pt := ctx.DataToPixel.Apply(data)
+		if i == 0 {
+			path.MoveTo(pt)
+		} else {
+			path.LineTo(pt)
+		}
 	}
 	r.Path(path, &paint)
 }

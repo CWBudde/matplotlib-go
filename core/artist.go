@@ -358,6 +358,7 @@ type TickParams struct {
 	Color         *render.Color
 	Length        *float64
 	Width         *float64
+	Direction     *string
 	ShowTicks     *bool
 	ShowLabels    *bool
 	LabelRotation *float64
@@ -1123,6 +1124,11 @@ func (a *Axes) TickParams(params TickParams) error {
 		if params.ShowTicks != nil {
 			axis.ShowTicks = *params.ShowTicks
 		}
+		if params.Direction != nil {
+			if err := axis.SetTickDirection(*params.Direction); err != nil {
+				return err
+			}
+		}
 		if params.ShowLabels != nil {
 			switch which {
 			case "major":
@@ -1154,6 +1160,20 @@ func (a *Axes) TickParams(params TickParams) error {
 			applyTickLabelParams(&axis.MajorLabelStyle, params)
 			applyTickLabelParams(&axis.MinorLabelStyle, params)
 		}
+	}
+	return nil
+}
+
+// SetAxisLineStyle applies cap/join/dash styling to the selected axes.
+func (a *Axes) SetAxisLineStyle(spec string, cap render.LineCap, join render.LineJoin, dashes ...float64) error {
+	if err := validateAxisSpec(spec); err != nil {
+		return err
+	}
+	for _, axis := range a.axesForSpec(spec) {
+		if axis == nil {
+			continue
+		}
+		axis.SetLineStyle(cap, join, dashes...)
 	}
 	return nil
 }

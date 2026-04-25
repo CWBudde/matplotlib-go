@@ -100,3 +100,27 @@ func TestSkewXProjectionRejectsAngleOnOtherAxes(t *testing.T) {
 		t.Fatal("expected SetSkewXAngle on rectilinear axes to fail")
 	}
 }
+
+func TestSkewXGridUsesSampledProjectionPathsAndAxisLocators(t *testing.T) {
+	fig := NewFigure(480, 360)
+	ax, err := fig.AddSkewXAxes(unitRect())
+	if err != nil {
+		t.Fatalf("AddSkewXAxes: %v", err)
+	}
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+
+	grid := NewGrid(AxisLeft)
+	grid.Minor = false
+
+	r := &recordingRenderer{}
+	grid.Draw(r, ctx)
+
+	if got := len(r.pathCalls); got != 7 {
+		t.Fatalf("expected 7 major pressure grid paths from axis locator fallback, got %d", got)
+	}
+	for i, call := range r.pathCalls {
+		if got := len(call.path.V); got != geoGridSegments+1 {
+			t.Fatalf("grid path %d vertex count = %d, want %d", i, got, geoGridSegments+1)
+		}
+	}
+}

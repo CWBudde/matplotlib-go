@@ -497,6 +497,91 @@ func TestAxes_TickParamsAppliesLabelStyle(t *testing.T) {
 	}
 }
 
+func TestAxes_TickParamsAppliesDirection(t *testing.T) {
+	axes := &Axes{YAxis: NewYAxis()}
+	direction := "inout"
+
+	if err := axes.TickParams(TickParams{
+		Axis:      "left",
+		Which:     "major",
+		Direction: &direction,
+	}); err != nil {
+		t.Fatalf("TickParams(direction): %v", err)
+	}
+
+	if axes.YAxis.TickDirection != TickDirectionInOut {
+		t.Fatalf("tick direction = %v, want %v", axes.YAxis.TickDirection, TickDirectionInOut)
+	}
+}
+
+func TestAxes_SetAxisLineStyleAppliesToSelectedAxes(t *testing.T) {
+	axes := &Axes{XAxis: NewXAxis(), XAxisTop: NewXAxis(), YAxis: NewYAxis()}
+
+	if err := axes.SetAxisLineStyle("x", render.CapRound, render.JoinBevel, 3, 2); err != nil {
+		t.Fatalf("SetAxisLineStyle(x): %v", err)
+	}
+
+	if axes.XAxis.LineCap != render.CapRound || axes.XAxis.LineJoin != render.JoinBevel {
+		t.Fatalf("bottom axis style = cap %v join %v", axes.XAxis.LineCap, axes.XAxis.LineJoin)
+	}
+	if axes.XAxisTop.LineCap != render.CapRound || axes.XAxisTop.LineJoin != render.JoinBevel {
+		t.Fatalf("top axis style = cap %v join %v", axes.XAxisTop.LineCap, axes.XAxisTop.LineJoin)
+	}
+	if len(axes.XAxis.Dashes) != 2 || axes.XAxis.Dashes[0] != 3 || axes.XAxis.Dashes[1] != 2 {
+		t.Fatalf("bottom axis dashes = %v", axes.XAxis.Dashes)
+	}
+	if axes.YAxis.LineCap != render.CapSquare {
+		t.Fatalf("y axis should be unchanged, got cap %v", axes.YAxis.LineCap)
+	}
+}
+
+func TestAxisSetLineStyleAffectsSpineAndTickPaint(t *testing.T) {
+	axis := NewXAxis()
+	axis.Locator = staticLocator{2}
+	axis.Formatter = nil
+	axis.SetLineStyle(render.CapRound, render.JoinBevel, 4, 1)
+
+	ctx := createTestDrawContext()
+	r := &recordingRenderer{}
+
+	axis.Draw(r, ctx)
+	axis.DrawTicks(r, ctx)
+
+	if len(r.pathCalls) != 2 {
+		t.Fatalf("expected spine and tick path calls, got %d", len(r.pathCalls))
+	}
+	if r.pathCalls[0].paint.LineCap != render.CapRound || r.pathCalls[0].paint.LineJoin != render.JoinBevel {
+		t.Fatalf("spine paint = %+v", r.pathCalls[0].paint)
+	}
+	if len(r.pathCalls[0].paint.Dashes) != 2 {
+		t.Fatalf("spine dashes = %v", r.pathCalls[0].paint.Dashes)
+	}
+	if r.pathCalls[1].paint.LineCap != render.CapRound || r.pathCalls[1].paint.LineJoin != render.JoinBevel {
+		t.Fatalf("tick paint = %+v", r.pathCalls[1].paint)
+	}
+}
+
+func TestPolarAxisUsesConfiguredLineStyle(t *testing.T) {
+	fig := NewFigure(400, 400)
+	ax := fig.AddPolarAxes(unitRect())
+	ax.XAxis.SetLineStyle(render.CapRound, render.JoinBevel, 5, 2)
+
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	r := &recordingRenderer{}
+
+	ax.XAxis.Draw(r, ctx)
+
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("expected one polar spine path, got %d", len(r.pathCalls))
+	}
+	if r.pathCalls[0].paint.LineCap != render.CapRound || r.pathCalls[0].paint.LineJoin != render.JoinBevel {
+		t.Fatalf("polar spine paint = %+v", r.pathCalls[0].paint)
+	}
+	if len(r.pathCalls[0].paint.Dashes) != 2 || r.pathCalls[0].paint.Dashes[0] != 5 || r.pathCalls[0].paint.Dashes[1] != 2 {
+		t.Fatalf("polar spine dashes = %v", r.pathCalls[0].paint.Dashes)
+	}
+}
+
 func TestAxes_TickLabelPositionHelpers(t *testing.T) {
 	axes := &Axes{XAxis: NewXAxis(), YAxis: NewYAxis()}
 
@@ -830,7 +915,7 @@ func TestTickLabelPositionUsesBoundsForBottomXAxis(t *testing.T) {
 		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
 	}
 
-	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis.Side, ctx)})
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis, ctx)})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
 		X: tickPos.X - (1 + 5.0/2.0),
@@ -869,7 +954,7 @@ func TestTickLabelPositionUsesBoundsForLeftYAxis(t *testing.T) {
 		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
 	}
 
-	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(axis.Side, ctx), Y: 4})
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(axis, ctx), Y: 4})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
 		X: tickPos.X - labelPad - (1 + 5.0),
@@ -908,7 +993,7 @@ func TestTickLabelPositionUsesFontHeightMetricsForBottomXAxis(t *testing.T) {
 		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
 	}
 
-	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis.Side, ctx)})
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis, ctx)})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
 		X: tickPos.X - (1 + 5.0/2.0),
@@ -948,7 +1033,7 @@ func TestTickLabelPositionUsesBottomAlignmentForTopXAxis(t *testing.T) {
 		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
 	}
 
-	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis.Side, ctx)})
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis, ctx)})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
 		X: tickPos.X - (1 + 5.0/2.0),
@@ -988,7 +1073,7 @@ func TestTickLabelPositionUsesCenterBaselineForRightYAxis(t *testing.T) {
 		t.Fatalf("expected one tick label draw, got %d", len(r.origins))
 	}
 
-	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(axis.Side, ctx), Y: 4})
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(axis, ctx), Y: 4})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
 		X: tickPos.X + labelPad - 1,
@@ -1029,7 +1114,7 @@ func TestAxis_DrawTickLabels_UsesRotatedDrawerWhenRequested(t *testing.T) {
 		t.Fatalf("expected one rotated tick label draw, got %d", len(r.rotatedAnchors))
 	}
 
-	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis.Side, ctx)})
+	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis, ctx)})
 	labelPad := tickLabelPadPx(axis, ctx)
 	origin := geom.Pt{
 		X: tickPos.X - (1 + 5.0/2.0),
