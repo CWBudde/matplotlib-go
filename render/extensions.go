@@ -33,6 +33,11 @@ type TextFontMetricer interface {
 	MeasureFontHeights(size float64, fontKey string) (FontHeightMetrics, bool)
 }
 
+// TextPather is implemented by renderers that can convert text to vector paths.
+type TextPather interface {
+	TextPath(text string, origin geom.Pt, size float64, fontKey string) (geom.Path, bool)
+}
+
 // VerticalTextDrawer is implemented by renderers that support vertical text.
 type VerticalTextDrawer interface {
 	TextDrawer

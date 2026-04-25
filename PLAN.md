@@ -518,8 +518,8 @@ Current slice landed:
 - [x] Real font discovery/cache and `FontProperties`-style selection instead of a fixed fallback story
 - [x] Shared single-line text layout metrics helper used by core layout
 - [x] TTF/OTF loading across raster text backends
-- [ ] SVG font embedding and broader backend font-file parity
-- [ ] Better fallback/substitution and text-path support
+- [x] SVG font embedding and broader backend font-file parity
+- [x] Better fallback/substitution and text-path support
 
 ### 8.3 MathText and TeX
 

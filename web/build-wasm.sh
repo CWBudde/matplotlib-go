@@ -18,7 +18,7 @@ if [[ -z $GO_WASM_EXEC ]]; then
 fi
 
 cp "$GO_WASM_EXEC" "$WEB_DIR/wasm_exec.js"
-GOOS=js GOARCH=wasm go build -o "$WEB_DIR/main.wasm" "$ROOT_DIR/cmd/wasm"
+GOOS=js GOARCH=wasm go build -tags freetype -o "$WEB_DIR/main.wasm" "$ROOT_DIR/cmd/wasm"
 
 echo "Built $WEB_DIR/main.wasm"
 echo "Copied $WEB_DIR/wasm_exec.js"

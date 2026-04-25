@@ -73,6 +73,7 @@ var _ render.RotatedTextDrawer = (*Renderer)(nil)
 var _ render.VerticalTextDrawer = (*Renderer)(nil)
 var _ render.TextBounder = (*Renderer)(nil)
 var _ render.TextFontMetricer = (*Renderer)(nil)
+var _ render.TextPather = (*Renderer)(nil)
 var _ render.ImageTransformer = (*Renderer)(nil)
 var _ render.PNGExporter = (*Renderer)(nil)
 
@@ -467,6 +468,21 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 		Descent: metrics.descent,
 		LineGap: metrics.lineGap,
 	}, true
+}
+
+// TextPath converts text to a vector path using the renderer's resolved font.
+func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey string) (geom.Path, bool) {
+	if text == "" || size <= 0 {
+		return geom.Path{}, false
+	}
+	if fontKey == "" {
+		fontKey = r.lastFontKey
+	}
+	font := r.configureTextFont(size, fontKey)
+	if font.fontPath == "" {
+		return geom.Path{}, false
+	}
+	return render.TextPath(text, origin, size, font.fontPath)
 }
 
 // DrawText renders text at the given position with the specified size and color.

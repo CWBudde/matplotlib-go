@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,13 @@ type clipDef struct {
 	rect geom.Rect
 }
 
+type fontFaceDef struct {
+	family string
+	data   string
+	mime   string
+	format string
+}
+
 // Renderer implements render.Renderer using SVG path/text recording.
 type Renderer struct {
 	width      int
@@ -51,6 +59,9 @@ type Renderer struct {
 	clipDefs  map[string]string
 	clipOrder []clipDef
 
+	fontFaces     map[string]fontFaceDef
+	fontFaceOrder []fontFaceDef
+
 	lastFontKey string
 }
 
@@ -59,6 +70,7 @@ var _ render.DPIAware = (*Renderer)(nil)
 var _ render.TextDrawer = (*Renderer)(nil)
 var _ render.RotatedTextDrawer = (*Renderer)(nil)
 var _ render.VerticalTextDrawer = (*Renderer)(nil)
+var _ render.TextPather = (*Renderer)(nil)
 var _ render.SVGExporter = (*Renderer)(nil)
 
 // New creates a new SVG renderer with the specified dimensions and background color.
@@ -73,6 +85,7 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		background: bg,
 		resolution: 72,
 		clipDefs:   map[string]string{},
+		fontFaces:  map[string]fontFaceDef{},
 	}, nil
 }
 
@@ -89,6 +102,8 @@ func (r *Renderer) Begin(viewport geom.Rect) error {
 	r.clipRect = nil
 	r.clipDefs = map[string]string{}
 	r.clipOrder = nil
+	r.fontFaces = map[string]fontFaceDef{}
+	r.fontFaceOrder = nil
 	r.lastFontKey = ""
 	return nil
 }
@@ -384,6 +399,14 @@ func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, t
 	}
 }
 
+// TextPath converts text to a vector path using the shared font manager.
+func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey string) (geom.Path, bool) {
+	if fontKey == "" {
+		fontKey = r.lastFontKey
+	}
+	return render.TextPath(text, origin, size, fontKey)
+}
+
 // SetResolution sets raster-free text metric scale basis.
 func (r *Renderer) SetResolution(dpi uint) {
 	if dpi > 0 {
@@ -417,8 +440,23 @@ func (r *Renderer) renderSVG() string {
 		r.width,
 		r.height))
 
-	if len(r.clipOrder) > 0 {
+	if len(r.clipOrder) > 0 || len(r.fontFaceOrder) > 0 {
 		b.WriteString("  <defs>\n")
+		if len(r.fontFaceOrder) > 0 {
+			b.WriteString("    <style type=\"text/css\"><![CDATA[\n")
+			for _, face := range r.fontFaceOrder {
+				b.WriteString("      @font-face { font-family: \"")
+				b.WriteString(face.family)
+				b.WriteString("\"; src: url(\"data:")
+				b.WriteString(face.mime)
+				b.WriteString(";base64,")
+				b.WriteString(face.data)
+				b.WriteString("\") format(\"")
+				b.WriteString(face.format)
+				b.WriteString("\"); }\n")
+			}
+			b.WriteString("    ]]></style>\n")
+		}
 		for _, clip := range r.clipOrder {
 			w := clip.rect.W()
 			h := clip.rect.H()
@@ -482,7 +520,7 @@ func (r *Renderer) renderTextNode(text string, x, y, size float64, textColor ren
 	writeFloatAttr(&content, "x", x)
 	writeFloatAttr(&content, "y", y)
 	writeFloatAttr(&content, "font-size", size)
-	writeAttr(&content, "font-family", fontFamily(r.lastFontKey))
+	writeAttr(&content, "font-family", r.svgFontFamily(r.lastFontKey))
 	writeAttr(&content, "fill", colorToHex(textColor))
 	alpha := clamp01(textColor.A)
 	if alpha < 1 {
@@ -754,6 +792,66 @@ func clampFloat(v float64) float64 {
 
 func fontFamily(key string) string {
 	return render.CSSFontFamily(key)
+}
+
+func (r *Renderer) svgFontFamily(key string) string {
+	if family := r.registerFontFace(key); family != "" {
+		return family
+	}
+	return fontFamily(key)
+}
+
+func (r *Renderer) registerFontFace(key string) string {
+	path := strings.TrimSpace(key)
+	if path == "" || !isFontFile(path) {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	if r.fontFaces == nil {
+		r.fontFaces = map[string]fontFaceDef{}
+	}
+	if face, ok := r.fontFaces[path]; ok {
+		return face.family
+	}
+	face := fontFaceDef{
+		family: "mplgo-font-" + strconv.Itoa(len(r.fontFaces)+1),
+		data:   base64.StdEncoding.EncodeToString(data),
+		mime:   fontMIME(path),
+		format: fontFormat(path),
+	}
+	r.fontFaces[path] = face
+	r.fontFaceOrder = append(r.fontFaceOrder, face)
+	return face.family
+}
+
+func isFontFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".ttf", ".otf", ".ttc", ".dfont":
+		return true
+	default:
+		return false
+	}
+}
+
+func fontMIME(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".otf":
+		return "font/otf"
+	default:
+		return "font/ttf"
+	}
+}
+
+func fontFormat(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".otf":
+		return "opentype"
+	default:
+		return "truetype"
+	}
 }
 
 func escapeText(text string) string {

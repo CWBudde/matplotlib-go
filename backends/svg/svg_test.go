@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"codeberg.org/go-fonts/dejavu/dejavusans"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
@@ -471,6 +472,29 @@ func TestFontFamilyVariants(t *testing.T) {
 		if got := fontFamily(key); got != want {
 			t.Fatalf("unexpected font family for %q: want %q, got %q", key, want, got)
 		}
+	}
+}
+
+func TestDrawTextEmbedsDirectFontFile(t *testing.T) {
+	dir := t.TempDir()
+	fontPath := filepath.Join(dir, "DejaVuSans.ttf")
+	if err := os.WriteFile(fontPath, dejavusans.TTF, 0o644); err != nil {
+		t.Fatalf("write test font: %v", err)
+	}
+
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.MeasureText("embedded", 12, fontPath)
+		r.DrawText("embedded", geom.Pt{X: 20, Y: 30}, 12, render.Color{A: 1})
+	})
+
+	if !strings.Contains(content, "@font-face") {
+		t.Fatalf("expected embedded @font-face, got %q", content)
+	}
+	if !strings.Contains(content, "data:font/ttf;base64,") {
+		t.Fatalf("expected embedded font data URI, got %q", content)
+	}
+	if !strings.Contains(content, `font-family="mplgo-font-1"`) {
+		t.Fatalf("expected text node to use embedded font family, got %q", content)
 	}
 }
 

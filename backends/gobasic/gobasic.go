@@ -64,6 +64,7 @@ type Renderer struct {
 }
 
 var _ render.Renderer = (*Renderer)(nil)
+var _ render.TextPather = (*Renderer)(nil)
 
 // New creates a new GoBasic renderer with the specified dimensions and background color.
 func New(w, h int, bg render.Color) *Renderer {
@@ -379,6 +380,14 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 	r.lastFontKey = fontKey
 
 	return measureText(text, size, fontKey)
+}
+
+// TextPath converts text to a vector path using the shared font manager.
+func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey string) (geom.Path, bool) {
+	if fontKey == "" {
+		fontKey = r.lastFontKey
+	}
+	return render.TextPath(text, origin, size, fontKey)
 }
 
 // GetImage returns the underlying image.RGBA for PNG export.
