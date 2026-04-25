@@ -1,7 +1,9 @@
 package core
 
 import (
+	"fmt"
 	"math"
+	"strings"
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -40,6 +42,23 @@ type TickLevel struct {
 	LabelStyle TickLabelStyle
 }
 
+// TickDirection controls whether ticks point outward, inward, or straddle the spine.
+type TickDirection uint8
+
+const (
+	TickDirectionOut TickDirection = iota
+	TickDirectionIn
+	TickDirectionInOut
+)
+
+// AxisSpinePositionMode controls where the axis spine is drawn.
+type AxisSpinePositionMode uint8
+
+const (
+	AxisSpinePositionBoundary AxisSpinePositionMode = iota
+	AxisSpinePositionData
+)
+
 // Axis renders axis spines, ticks, and labels for a single dimension.
 type Axis struct {
 	Side            AxisSide     // which side of the plot
@@ -53,6 +72,9 @@ type Axis struct {
 	MinorTickSize   float64      // length of minor tick marks (in pixels); 0 uses TickSize*0.6
 	MajorTickCount  int          // target major tick count for automatic locators
 	MinorTickCount  int          // target minor tick count for automatic locators
+	TickDirection   TickDirection
+	SpinePositionMode AxisSpinePositionMode
+	SpinePosition   float64
 	ShowSpine       bool         // whether to draw the axis line
 	ShowTicks       bool         // whether to draw major/minor tick marks
 	ShowLabels      bool         // whether to draw major tick labels
@@ -74,6 +96,8 @@ func NewXAxis() *Axis {
 		TickSize:        5.0,
 		MajorTickCount:  6,
 		MinorTickCount:  30,
+		TickDirection:   TickDirectionOut,
+		SpinePositionMode: AxisSpinePositionBoundary,
 		ShowSpine:       true,
 		ShowTicks:       true,
 		ShowLabels:      true,
@@ -93,6 +117,8 @@ func NewYAxis() *Axis {
 		TickSize:        5.0,
 		MajorTickCount:  6,
 		MinorTickCount:  30,
+		TickDirection:   TickDirectionOut,
+		SpinePositionMode: AxisSpinePositionBoundary,
 		ShowSpine:       true,
 		ShowTicks:       true,
 		ShowLabels:      true,
@@ -177,7 +203,7 @@ func (a *Axis) DrawTicks(r render.Renderer, ctx *DrawContext) {
 func (a *Axis) drawSpine(r render.Renderer, ctx *DrawContext) {
 	px := ctx.Clip
 	lw := a.LineWidth
-	p1, p2 := spinePixelEndpoints(a.Side, px)
+	p1, p2 := axisSpinePixelEndpoints(a, ctx, px)
 
 	paint := render.Paint{
 		LineWidth: lw,
@@ -237,37 +263,19 @@ func (a *Axis) drawSingleTick(r render.Renderer, ctx *DrawContext, tickValue, ti
 	var p1, p2 geom.Pt
 
 	if isXAxis {
-		spineY := getSpinePosition(a.Side, ctx)
+		spineY := getSpinePosition(a, ctx)
 		spinePixel := ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: spineY})
 		spinePixel.X = math.Round(spinePixel.X) + 0.5
 		spinePixel.Y = math.Round(spinePixel.Y) + 0.5
 
-		switch a.Side {
-		case AxisBottom:
-			// Bottom spine: ticks point downward (positive Y in pixel space = outward)
-			p1 = spinePixel
-			p2 = geom.Pt{X: spinePixel.X, Y: spinePixel.Y + tickSize}
-		case AxisTop:
-			// Top spine: ticks point upward (negative Y = outward)
-			p1 = spinePixel
-			p2 = geom.Pt{X: spinePixel.X, Y: spinePixel.Y - tickSize}
-		}
+		p1, p2 = axisTickSegment(a, spinePixel, tickSize, true)
 	} else {
-		spineX := getSpinePosition(a.Side, ctx)
+		spineX := getSpinePosition(a, ctx)
 		spinePixel := ctx.DataToPixel.Apply(geom.Pt{X: spineX, Y: tickValue})
 		spinePixel.X = math.Round(spinePixel.X) + 0.5
 		spinePixel.Y = math.Round(spinePixel.Y) + 0.5
 
-		switch a.Side {
-		case AxisLeft:
-			// Left spine: ticks point leftward (negative X = outward)
-			p1 = spinePixel
-			p2 = geom.Pt{X: spinePixel.X - tickSize, Y: spinePixel.Y}
-		case AxisRight:
-			// Right spine: ticks point rightward (positive X = outward)
-			p1 = spinePixel
-			p2 = geom.Pt{X: spinePixel.X + tickSize, Y: spinePixel.Y}
-		}
+		p1, p2 = axisTickSegment(a, spinePixel, tickSize, false)
 	}
 
 	// Create tick path
@@ -321,19 +329,25 @@ func DrawFrame(r render.Renderer, ctx *DrawContext, ref *Axis, drawTop, drawRigh
 }
 
 // getSpinePosition returns the data coordinate where the spine should be drawn.
-func getSpinePosition(side AxisSide, ctx *DrawContext) float64 {
-	switch side {
+func getSpinePosition(axis *Axis, ctx *DrawContext) float64 {
+	if axis == nil || ctx == nil {
+		return 0
+	}
+	if axis.SpinePositionMode == AxisSpinePositionData {
+		return axis.SpinePosition
+	}
+	switch axis.Side {
 	case AxisBottom, AxisTop:
 		// For x-axis, spine is at y coordinate
 		yMin, yMax := ctx.DataToPixel.YScale.Domain()
-		if side == AxisBottom {
+		if axis.Side == AxisBottom {
 			return yMin // bottom of plot
 		}
 		return yMax // top of plot
 	case AxisLeft, AxisRight:
 		// For y-axis, spine is at x coordinate
 		xMin, xMax := ctx.DataToPixel.XScale.Domain()
-		if side == AxisLeft {
+		if axis.Side == AxisLeft {
 			return xMin // left of plot
 		}
 		return xMax // right of plot
@@ -553,7 +567,7 @@ func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, layout single
 	style = normalizeTickLabelStyle(style)
 
 	if isXAxis {
-		spineY := getSpinePosition(a.Side, ctx)
+		spineY := getSpinePosition(a, ctx)
 		tickPos := ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: spineY})
 		hAlign, vAlign := resolvedTickLabelLayoutAlignments(a.Side, style, true)
 
@@ -575,7 +589,7 @@ func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, layout single
 		}
 	}
 
-	spineX := getSpinePosition(a.Side, ctx)
+	spineX := getSpinePosition(a, ctx)
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: spineX, Y: tickValue})
 	hAlign, vAlign := resolvedTickLabelLayoutAlignments(a.Side, style, false)
 
@@ -595,6 +609,112 @@ func tickLabelOrigin(a *Axis, ctx *DrawContext, tickValue float64, layout single
 	default:
 		return geom.Pt{}, false
 	}
+}
+
+func axisSpinePixelEndpoints(axis *Axis, ctx *DrawContext, px geom.Rect) (geom.Pt, geom.Pt) {
+	if axis == nil {
+		return geom.Pt{}, geom.Pt{}
+	}
+	if ctx == nil || axis.SpinePositionMode == AxisSpinePositionBoundary {
+		return spinePixelEndpoints(axis.Side, px)
+	}
+
+	switch axis.Side {
+	case AxisBottom, AxisTop:
+		xMin, xMax := ctx.DataToPixel.XScale.Domain()
+		y := getSpinePosition(axis, ctx)
+		p1 := ctx.DataToPixel.Apply(geom.Pt{X: xMin, Y: y})
+		p2 := ctx.DataToPixel.Apply(geom.Pt{X: xMax, Y: y})
+		p1.X = math.Round(p1.X) + 0.5
+		p2.X = math.Round(p2.X) + 0.5
+		p1.Y = math.Round(p1.Y) + 0.5
+		p2.Y = math.Round(p2.Y) + 0.5
+		return p1, p2
+	case AxisLeft, AxisRight:
+		yMin, yMax := ctx.DataToPixel.YScale.Domain()
+		x := getSpinePosition(axis, ctx)
+		p1 := ctx.DataToPixel.Apply(geom.Pt{X: x, Y: yMin})
+		p2 := ctx.DataToPixel.Apply(geom.Pt{X: x, Y: yMax})
+		p1.X = math.Round(p1.X) + 0.5
+		p2.X = math.Round(p2.X) + 0.5
+		p1.Y = math.Round(p1.Y) + 0.5
+		p2.Y = math.Round(p2.Y) + 0.5
+		return p1, p2
+	default:
+		return geom.Pt{}, geom.Pt{}
+	}
+}
+
+func axisTickSegment(axis *Axis, spine geom.Pt, tickSize float64, isXAxis bool) (geom.Pt, geom.Pt) {
+	if axis == nil {
+		return spine, spine
+	}
+
+	outward := tickSize
+	if (axis.Side == AxisTop) || (axis.Side == AxisLeft) {
+		outward = -tickSize
+	}
+
+	var inward float64
+	if outward < 0 {
+		inward = tickSize
+	} else {
+		inward = -tickSize
+	}
+
+	switch axis.TickDirection {
+	case TickDirectionIn:
+		if isXAxis {
+			return spine, geom.Pt{X: spine.X, Y: spine.Y + inward}
+		}
+		return spine, geom.Pt{X: spine.X + inward, Y: spine.Y}
+	case TickDirectionInOut:
+		if isXAxis {
+			return geom.Pt{X: spine.X, Y: spine.Y - outward/2}, geom.Pt{X: spine.X, Y: spine.Y + outward/2}
+		}
+		return geom.Pt{X: spine.X - outward/2, Y: spine.Y}, geom.Pt{X: spine.X + outward/2, Y: spine.Y}
+	default:
+		if isXAxis {
+			return spine, geom.Pt{X: spine.X, Y: spine.Y + outward}
+		}
+		return spine, geom.Pt{X: spine.X + outward, Y: spine.Y}
+	}
+}
+
+// SetTickDirection configures whether ticks point outward, inward, or in both directions.
+func (a *Axis) SetTickDirection(direction string) error {
+	if a == nil {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(direction)) {
+	case "", "out", "outward":
+		a.TickDirection = TickDirectionOut
+	case "in", "inward":
+		a.TickDirection = TickDirectionIn
+	case "inout", "both":
+		a.TickDirection = TickDirectionInOut
+	default:
+		return fmt.Errorf("unsupported tick direction %q", direction)
+	}
+	return nil
+}
+
+// SetSpinePositionData places the axis spine at a data coordinate instead of the plot boundary.
+func (a *Axis) SetSpinePositionData(value float64) {
+	if a == nil {
+		return
+	}
+	a.SpinePositionMode = AxisSpinePositionData
+	a.SpinePosition = value
+}
+
+// ResetSpinePosition restores the axis spine to its default plot boundary.
+func (a *Axis) ResetSpinePosition() {
+	if a == nil {
+		return
+	}
+	a.SpinePositionMode = AxisSpinePositionBoundary
+	a.SpinePosition = 0
 }
 
 func measureTextBounds(r render.Renderer, text string, size float64, fontKey string) (render.TextBounds, bool) {

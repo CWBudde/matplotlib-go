@@ -11,6 +11,7 @@ import (
 // AnchoredTextOptions configures an anchored annotation box.
 type AnchoredTextOptions struct {
 	Location        LegendLocation
+	Locator         AnchoredBoxLocator
 	Padding         float64
 	Inset           float64
 	RowGap          float64
@@ -27,6 +28,7 @@ type AnchoredTextBox struct {
 	Content string
 
 	Location        LegendLocation
+	Locator         AnchoredBoxLocator
 	Padding         float64
 	Inset           float64
 	RowGap          float64
@@ -99,6 +101,7 @@ func newAnchoredTextBox(text string, rc style.RC, opts ...AnchoredTextOptions) *
 	return &AnchoredTextBox{
 		Content:         text,
 		Location:        cfg.Location,
+		Locator:         cfg.Locator,
 		Padding:         cfg.Padding,
 		Inset:           cfg.Inset,
 		RowGap:          cfg.RowGap,
@@ -152,7 +155,7 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 		contentHeight += a.RowGap * float64(len(lineHeights)-1)
 	}
 
-	box := anchoredBoxRect(ctx.Clip, maxWidth+a.Padding*2, contentHeight+a.Padding*2, a.Location, a.Inset)
+	box := resolveAnchoredBoxRect(a.Locator, ctx.Clip, maxWidth+a.Padding*2, contentHeight+a.Padding*2, a.Location, a.Inset)
 	r.Path(pixelRectPath(box), &render.Paint{
 		Fill:      a.BackgroundColor,
 		Stroke:    a.BorderColor,
@@ -190,6 +193,14 @@ func (a *AnchoredTextBox) Bounds(*DrawContext) geom.Rect { return geom.Rect{} }
 // Z returns the anchored text box z-order.
 func (a *AnchoredTextBox) Z() float64 { return a.z }
 
+// SetLocator overrides the anchored-box placement strategy for this text box.
+func (a *AnchoredTextBox) SetLocator(locator AnchoredBoxLocator) {
+	if a == nil {
+		return
+	}
+	a.Locator = locator
+}
+
 func (a *AnchoredTextBox) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) {
 	if a == nil || r == nil || ctx == nil {
 		return geom.Rect{}, false
@@ -218,7 +229,7 @@ func (a *AnchoredTextBox) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rec
 		contentHeight += a.RowGap * float64(len(lines)-1)
 	}
 
-	return anchoredBoxRect(ctx.Clip, maxWidth+a.Padding*2, contentHeight+a.Padding*2, a.Location, a.Inset), true
+	return resolveAnchoredBoxRect(a.Locator, ctx.Clip, maxWidth+a.Padding*2, contentHeight+a.Padding*2, a.Location, a.Inset), true
 }
 
 func anchoredBoxRect(clip geom.Rect, width, height float64, location LegendLocation, inset float64) geom.Rect {

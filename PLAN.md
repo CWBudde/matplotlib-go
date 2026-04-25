@@ -479,21 +479,29 @@ Current slice landed:
 
 - [x] Inset axes and zoomed-inset helpers
 - [x] `AxesDivider`, `ImageGrid`, and RGB axes composition
-- [ ] Parasite axes / multi-view axes composition helpers
-- [ ] Anchored artists and locator-driven placement helpers
+- [x] Parasite axes / multi-view axes composition helpers
+- [x] Anchored artists and locator-driven placement helpers
 
 Current slice landed:
 
 - Draw-time `AxesLocator` support with parent-relative `Axes.InsetAxes(...)` and `Axes.ZoomedInset(...)`
 - Inset style/projection/share options and example coverage in `examples/axes/inset`
 - `AxesDivider`, `ImageGrid`, and `RGBAxes` helpers now compose structured grids and channel-axis layout.
+- `ParasiteAxes` adds overlay host-linked axes with optional shared x/y scale-root wiring for multi-view workflows in `core` and pyplot-facing helpers.
+- Shared `AnchoredBoxLocator` helpers now drive placement for `AnchoredTextBox` and `Legend`, including normalized relative placement and corner-offset locator helpers.
 
 ### 7.4 AxisArtist and Floating-Axis Systems
 
-- [ ] Alternate axisartist-style axis subsystem
-- [ ] Floating axes
+- [x] Alternate axisartist-style axis subsystem
+- [x] Floating axes
 - [ ] Curvelinear grids and grid helpers
 - [ ] Axis line styles and tick-direction control beyond standard Cartesian spines
+
+Current slice landed:
+
+- `AxisArtist` and `Axes.ExtraAxes` provide host-linked auxiliary axes that render through the normal figure draw path.
+- `Axes.FloatingXAxis(...)` and `Axes.FloatingYAxis(...)` create data-positioned floating axes on rectilinear plots.
+- Axis spines now support data-position overrides, and axes support explicit tick direction (`out`, `in`, `inout`) even though the broader line-style surface is still incomplete.
 
 ### 7.5 Gallery Parity and Showcase Coverage
 

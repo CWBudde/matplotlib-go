@@ -147,6 +147,31 @@ func NewRGBAxes(r geom.Rect, opts ...core.AxesDividerOption) *core.RGBAxes {
 	return axes
 }
 
+// ParasiteAxes creates a multi-view overlay axes over the current axes viewport.
+func ParasiteAxes(opts ...core.ParasiteAxesOption) *core.ParasiteAxes {
+	ax := GCA()
+	parasite := ax.ParasiteAxes(opts...)
+	if parasite == nil {
+		return nil
+	}
+
+	registry.mu.Lock()
+	registry.current = ax.figure
+	registry.currentAxes[ax.figure] = parasite.Axes
+	registry.mu.Unlock()
+	return parasite
+}
+
+// FloatingXAxis creates an auxiliary x-axis at the requested y data coordinate.
+func FloatingXAxis(y float64) *core.AxisArtist {
+	return GCA().FloatingXAxis(y)
+}
+
+// FloatingYAxis creates an auxiliary y-axis at the requested x data coordinate.
+func FloatingYAxis(x float64) *core.AxisArtist {
+	return GCA().FloatingYAxis(x)
+}
+
 // GCA3D returns the current 3D axes wrapper when the current axes uses a 3D
 // projection, or nil otherwise.
 func GCA3D() *core.Axes3D {

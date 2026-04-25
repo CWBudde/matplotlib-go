@@ -245,6 +245,30 @@ func TestPhase67HelpersDelegateToCurrent3DAxes(t *testing.T) {
 	}
 }
 
+func TestParasiteAxesWrapperCreatesOverlayAxesAndSetsCurrent(t *testing.T) {
+	resetForTests()
+
+	fig := GCF()
+	host := GCA()
+	if fig == nil || host == nil {
+		t.Fatal("initial figure/axes not available")
+	}
+
+	parasite := ParasiteAxes()
+	if parasite == nil || parasite.Axes == nil {
+		t.Fatal("ParasiteAxes() returned nil")
+	}
+	if got := GCA(); got != parasite.Axes {
+		t.Fatalf("GCA() = %p, want %p", got, parasite.Axes)
+	}
+	if got := len(fig.Children); got != 2 {
+		t.Fatalf("len(fig.Children) = %d, want 2", got)
+	}
+	if parasite.Host != host {
+		t.Fatalf("parasite host = %p, want %p", parasite.Host, host)
+	}
+}
+
 func TestSavefigWritesPNGAndSVG(t *testing.T) {
 	resetForTests()
 	t.Setenv("MATPLOTLIB_BACKEND", "gobasic")

@@ -62,6 +62,7 @@ type Legend struct {
 	entries []legendEntry
 
 	Location        LegendLocation
+	Locator         AnchoredBoxLocator
 	Padding         float64
 	Inset           float64
 	RowGap          float64
@@ -85,6 +86,7 @@ func NewLegend(ax *Axes) *Legend {
 	return &Legend{
 		Axes:            ax,
 		Location:        LegendUpperRight,
+		Locator:         nil,
 		Padding:         10,
 		Inset:           10,
 		RowGap:          6,
@@ -109,6 +111,7 @@ func NewFigureLegend(fig *Figure) *Legend {
 	return &Legend{
 		Figure:          fig,
 		Location:        LegendUpperRight,
+		Locator:         nil,
 		Padding:         10,
 		Inset:           10,
 		RowGap:          6,
@@ -236,6 +239,14 @@ func (l *Legend) Bounds(*DrawContext) geom.Rect {
 	return geom.Rect{}
 }
 
+// SetLocator overrides the anchored-box placement strategy for this legend.
+func (l *Legend) SetLocator(locator AnchoredBoxLocator) {
+	if l == nil {
+		return
+	}
+	l.Locator = locator
+}
+
 func (l *Legend) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) {
 	if l == nil || r == nil || ctx == nil {
 		return geom.Rect{}, false
@@ -320,27 +331,7 @@ func collectLegendEntries(artists []Artist) []legendEntry {
 }
 
 func (l *Legend) legendBoxRect(clip geom.Rect, width, height float64) geom.Rect {
-	var minX, minY float64
-
-	switch l.Location {
-	case LegendUpperLeft:
-		minX = clip.Min.X + l.Inset
-		minY = clip.Min.Y + l.Inset
-	case LegendLowerRight:
-		minX = clip.Max.X - l.Inset - width
-		minY = clip.Max.Y - l.Inset - height
-	case LegendLowerLeft:
-		minX = clip.Min.X + l.Inset
-		minY = clip.Max.Y - l.Inset - height
-	default:
-		minX = clip.Max.X - l.Inset - width
-		minY = clip.Min.Y + l.Inset
-	}
-
-	return geom.Rect{
-		Min: geom.Pt{X: minX, Y: minY},
-		Max: geom.Pt{X: minX + width, Y: minY + height},
-	}
+	return resolveAnchoredBoxRect(l.Locator, clip, width, height, l.Location, l.Inset)
 }
 
 func (l *Legend) drawSample(r render.Renderer, entry legendEntry, sample geom.Rect) {

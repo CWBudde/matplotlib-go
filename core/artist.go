@@ -319,6 +319,7 @@ type Axes struct {
 	YAxis      *Axis // left y-axis
 	XAxisTop   *Axis // optional top x-axis
 	YAxisRight *Axis // optional right y-axis
+	ExtraAxes  []*Axis
 	ShowFrame  bool  // draw top and right border lines when no explicit top/right axis exists
 
 	// Text labels
@@ -1543,6 +1544,11 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		if rightAxis != nil {
 			rightAxis.Draw(r, ctx)
 		}
+		for _, extraAxis := range ax.ExtraAxes {
+			if extraAxis != nil {
+				extraAxis.Draw(r, ctx)
+			}
+		}
 		if ax.ShowFrame {
 			ref := xAxis
 			if ref == nil {
@@ -1573,6 +1579,12 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		if rightAxis != nil {
 			rightAxis.DrawTicks(r, ctx)
 			rightAxis.DrawTickLabels(r, ctx)
+		}
+		for _, extraAxis := range ax.ExtraAxes {
+			if extraAxis != nil {
+				extraAxis.DrawTicks(r, ctx)
+				extraAxis.DrawTickLabels(r, ctx)
+			}
 		}
 		drawAxesLabels(ax, r, ctx, px, alignment)
 	}
