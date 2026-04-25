@@ -16,6 +16,7 @@ font.family: "DejaVu Sans"
 lines.linewidth: 2.0
 lines.color: C1
 text.color: "#333333"
+text.usetex: true
 axes.facecolor: E5E5E5
 axes.edgecolor: white
 axes.linewidth: 1.0
@@ -41,8 +42,8 @@ patch.facecolor: 348ABD
 	if theme.Name != "ggplot" {
 		t.Fatalf("theme name = %q, want ggplot", theme.Name)
 	}
-	if len(report.Applied) != 19 {
-		t.Fatalf("applied count = %d, want 19", len(report.Applied))
+	if len(report.Applied) != 20 {
+		t.Fatalf("applied count = %d, want 20", len(report.Applied))
 	}
 	if len(report.Unsupported) != 1 || report.Unsupported[0].Key != "patch.facecolor" {
 		t.Fatalf("unexpected unsupported report: %+v", report.Unsupported)
@@ -77,6 +78,9 @@ patch.facecolor: 348ABD
 	}
 	if got := theme.RC.DefaultTextColor(); !almostEqual(got.R, 0x33/255.0) || !almostEqual(got.G, 0x33/255.0) || !almostEqual(got.B, 0x33/255.0) {
 		t.Fatalf("text color = %+v", got)
+	}
+	if !theme.RC.UseTeX {
+		t.Fatal("expected UseTeX to be enabled from mplstyle")
 	}
 	if got := theme.RC.DefaultAxesLabelColor(); !almostEqual(got.R, 0x55/255.0) || !almostEqual(got.G, 0x55/255.0) || !almostEqual(got.B, 0x55/255.0) {
 		t.Fatalf("axes label color = %+v", got)

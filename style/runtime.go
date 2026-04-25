@@ -213,6 +213,7 @@ func paramsFromRC(rc RC) Params {
 	params["lines.color"] = formatMPLColor(rc.DefaultLineColor())
 	params["lines.linewidth"] = formatMPLPoints(rc.LineWidth, rc.DPI)
 	params["text.color"] = formatMPLColor(rc.DefaultTextColor())
+	params["text.usetex"] = formatMPLBool(rc.UseTeX)
 	params["xtick.color"] = formatMPLColor(rc.XTickColor)
 	params["xtick.labelcolor"] = formatMPLColor(rc.XTickColor)
 	params["xtick.labelsize"] = formatMPLFloat(rc.TickLabelSize("x"))

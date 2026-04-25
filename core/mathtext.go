@@ -60,8 +60,10 @@ var mathTextCommandMap = map[string]string{
 	"gamma":          "γ",
 	"delta":          "δ",
 	"epsilon":        "ε",
+	"varepsilon":     "ϵ",
 	"eta":            "η",
 	"theta":          "θ",
+	"vartheta":       "ϑ",
 	"lambda":         "λ",
 	"mu":             "μ",
 	"nu":             "ν",
@@ -70,6 +72,7 @@ var mathTextCommandMap = map[string]string{
 	"sigma":          "σ",
 	"tau":            "τ",
 	"phi":            "φ",
+	"varphi":         "φ",
 	"chi":            "χ",
 	"psi":            "ψ",
 	"omega":          "ω",
@@ -86,16 +89,25 @@ var mathTextCommandMap = map[string]string{
 	"mp":             "∓",
 	"times":          "×",
 	"cdot":           "·",
+	"div":            "÷",
+	"ast":            "∗",
+	"circ":           "∘",
+	"bullet":         "•",
 	"deg":            "°",
 	"le":             "≤",
+	"leq":            "≤",
 	"ge":             "≥",
+	"geq":            "≥",
+	"ne":             "≠",
 	"neq":            "≠",
 	"approx":         "≈",
 	"equiv":          "≡",
 	"propto":         "∝",
+	"sim":            "∼",
 	"infty":          "∞",
 	"partial":        "∂",
 	"nabla":          "∇",
+	"ell":            "ℓ",
 	"sum":            "∑",
 	"prod":           "∏",
 	"int":            "∫",
@@ -110,11 +122,59 @@ var mathTextCommandMap = map[string]string{
 	"supseteq":       "⊇",
 	"cup":            "∪",
 	"cap":            "∩",
+	"land":           "∧",
+	"lor":            "∨",
+	"oplus":          "⊕",
+	"otimes":         "⊗",
 	"to":             "→",
 	"rightarrow":     "→",
 	"leftarrow":      "←",
 	"leftrightarrow": "↔",
 	"ldots":          "…",
+}
+
+var mathTextOperatorMap = map[string]string{
+	"arccos": "arccos",
+	"arcsin": "arcsin",
+	"arctan": "arctan",
+	"arg":    "arg",
+	"cos":    "cos",
+	"cosh":   "cosh",
+	"cot":    "cot",
+	"coth":   "coth",
+	"csc":    "csc",
+	"deg":    "deg",
+	"det":    "det",
+	"dim":    "dim",
+	"exp":    "exp",
+	"gcd":    "gcd",
+	"hom":    "hom",
+	"inf":    "inf",
+	"ker":    "ker",
+	"lg":     "lg",
+	"lim":    "lim",
+	"liminf": "lim inf",
+	"limsup": "lim sup",
+	"ln":     "ln",
+	"log":    "log",
+	"max":    "max",
+	"min":    "min",
+	"Pr":     "Pr",
+	"sec":    "sec",
+	"sin":    "sin",
+	"sinh":   "sinh",
+	"sup":    "sup",
+	"tan":    "tan",
+	"tanh":   "tanh",
+}
+
+var mathTextAccentMarks = map[string]rune{
+	"bar":      '\u0305',
+	"overline": '\u0305',
+	"hat":      '\u0302',
+	"tilde":    '\u0303',
+	"vec":      '\u20d7',
+	"dot":      '\u0307',
 }
 
 var mathTextPassthroughCommands = map[string]struct{}{
@@ -386,8 +446,14 @@ func (p *mathTextParser) parseCommand() string {
 	if mapped, ok := mathTextCommandMap[name]; ok {
 		return mapped
 	}
+	if op, ok := mathTextOperatorMap[name]; ok {
+		return op
+	}
 	if _, ok := mathTextPassthroughCommands[name]; ok {
 		return p.parseArgument()
+	}
+	if mark, ok := mathTextAccentMarks[name]; ok {
+		return applyMathAccent(p.parseArgument(), mark)
 	}
 
 	switch name {
@@ -415,6 +481,21 @@ func (p *mathTextParser) parseCommand() string {
 	default:
 		return `\` + name
 	}
+}
+
+func applyMathAccent(text string, mark rune) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	var out strings.Builder
+	for _, r := range text {
+		out.WriteRune(r)
+		if !unicode.IsSpace(r) {
+			out.WriteRune(mark)
+		}
+	}
+	return out.String()
 }
 
 func (p *mathTextParser) skipSpace() {

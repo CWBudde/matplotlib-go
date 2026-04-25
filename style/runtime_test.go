@@ -43,7 +43,7 @@ func TestPushContextRestoresPreviousDefaults(t *testing.T) {
 		t.Fatalf("UpdateParams() error = %v", err)
 	}
 
-	restore, report, err := PushContext(Params{"figure.dpi": "220", "text.color": "red"})
+	restore, report, err := PushContext(Params{"figure.dpi": "220", "text.color": "red", "text.usetex": "true"})
 	if err != nil {
 		t.Fatalf("PushContext() error = %v", err)
 	}
@@ -53,10 +53,16 @@ func TestPushContextRestoresPreviousDefaults(t *testing.T) {
 	if got := CurrentDefaults().DPI; got != 220 {
 		t.Fatalf("context DPI = %v, want 220", got)
 	}
+	if !CurrentDefaults().UseTeX {
+		t.Fatal("context UseTeX = false, want true")
+	}
 
 	restore()
 	if got := CurrentDefaults().DPI; got != 110 {
 		t.Fatalf("restored DPI = %v, want 110", got)
+	}
+	if CurrentDefaults().UseTeX {
+		t.Fatal("restored UseTeX = true, want false")
 	}
 }
 

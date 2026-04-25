@@ -39,11 +39,80 @@ func TestNormalizeDisplayText_HandlesGroupedScripts(t *testing.T) {
 	}
 }
 
+func TestNormalizeDisplayText_HandlesAccentsAndOperators(t *testing.T) {
+	got := normalizeDisplayText(`$\\hat{x} + \\sin(\\theta) \\leq \\overline{AB}$`)
+	want := "x̂ + sin(θ) ≤ A̅B̅"
+	if got != want {
+		t.Fatalf("unexpected accent/operator normalization: got %q want %q", got, want)
+	}
+}
+
 func TestNormalizeDisplayText_PreservesUnmatchedDollar(t *testing.T) {
 	got := normalizeDisplayText(`cost is $5`)
 	want := "cost is $5"
 	if got != want {
 		t.Fatalf("unexpected unmatched dollar normalization: got %q want %q", got, want)
+	}
+}
+
+func TestLayoutMathTextScripts(t *testing.T) {
+	var r textRecordingRenderer
+	layout, ok := LayoutMathText(&r, `x_i^2`, 20, "DejaVu Sans")
+	if !ok {
+		t.Fatal("LayoutMathText returned !ok")
+	}
+	if layout.Width <= 0 || layout.Ascent <= 0 || layout.Descent <= 0 || layout.Height != layout.Ascent+layout.Descent {
+		t.Fatalf("invalid layout metrics: %+v", layout)
+	}
+	if len(layout.Rules) != 0 {
+		t.Fatalf("unexpected rules in script-only layout: %+v", layout.Rules)
+	}
+	if !containsMathRun(layout.Runs, "x", 20) || !containsMathRun(layout.Runs, "i", 14) || !containsMathRun(layout.Runs, "2", 14) {
+		t.Fatalf("missing expected script runs: %+v", layout.Runs)
+	}
+
+	var subY, superY float64
+	for _, run := range layout.Runs {
+		switch run.Text {
+		case "i":
+			subY = run.Offset.Y
+		case "2":
+			superY = run.Offset.Y
+		}
+	}
+	if subY <= 0 || superY >= 0 {
+		t.Fatalf("script baselines not shifted as expected: sub=%v super=%v runs=%+v", subY, superY, layout.Runs)
+	}
+}
+
+func TestLayoutMathTextFractionAddsRule(t *testing.T) {
+	var r textRecordingRenderer
+	layout, ok := LayoutMathText(&r, `\\frac{1}{2}`, 20, "DejaVu Sans")
+	if !ok {
+		t.Fatal("LayoutMathText returned !ok")
+	}
+	if len(layout.Rules) != 1 {
+		t.Fatalf("expected one fraction rule, got %+v", layout.Rules)
+	}
+	if layout.Rules[0].Rect.Max.X <= layout.Rules[0].Rect.Min.X {
+		t.Fatalf("unexpected fraction rule rect: %+v", layout.Rules[0].Rect)
+	}
+}
+
+func TestLayoutMathTextSqrtHasVinculum(t *testing.T) {
+	var r textRecordingRenderer
+	layout, ok := LayoutMathText(&r, `\\sqrt[3]{x + 1}`, 18, "")
+	if !ok {
+		t.Fatal("LayoutMathText returned !ok")
+	}
+	if len(layout.Rules) != 1 {
+		t.Fatalf("expected sqrt rule, got %+v", layout.Rules)
+	}
+	if !containsMathRun(layout.Runs, "√", 18) || !containsMathRun(layout.Runs, "3", 9.9) {
+		t.Fatalf("missing sqrt/index runs: %+v", layout.Runs)
+	}
+	if layout.Rules[0].Rect.Min.X <= 0 || layout.Rules[0].Rect.Max.X <= layout.Rules[0].Rect.Min.X {
+		t.Fatalf("unexpected sqrt rule rect: %+v", layout.Rules[0].Rect)
 	}
 }
 
@@ -212,4 +281,21 @@ func containsTextString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func containsMathRun(runs []MathTextLayoutRun, text string, size float64) bool {
+	for _, run := range runs {
+		if run.Text == text && almostEqualFloat(run.FontSize, size) {
+			return true
+		}
+	}
+	return false
+}
+
+func almostEqualFloat(a, b float64) bool {
+	diff := a - b
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff < 1e-9
 }

@@ -21,6 +21,7 @@ type RC struct {
 	TickCountY   int
 	FigureWidth  float64
 	FigureHeight float64
+	UseTeX       bool
 
 	AxesBackground     render.Color
 	AxesEdgeColor      render.Color
@@ -64,6 +65,7 @@ var Default = RC{
 	TickCountY:         5,
 	FigureWidth:        6.4,
 	FigureHeight:       4.8,
+	UseTeX:             false,
 	AxesBackground:     render.Color{R: 1, G: 1, B: 1, A: 1},
 	AxesEdgeColor:      render.Color{R: 0, G: 0, B: 0, A: 1},
 	AxesTitleColor:     render.Color{R: 0, G: 0, B: 0, A: 1},

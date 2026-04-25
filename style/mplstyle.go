@@ -62,6 +62,7 @@ var supportedMPLStyleKeys = []string{
 	"lines.color",
 	"lines.linewidth",
 	"text.color",
+	"text.usetex",
 	"xtick.color",
 	"xtick.labelcolor",
 	"xtick.labelsize",
@@ -82,6 +83,8 @@ type mplStyleState struct {
 	figureSizeSet   bool
 	textColorValue  string
 	textColorSet    bool
+	textUseTeX      bool
+	textUseTeXSet   bool
 	lineColorValue  string
 	lineColorSet    bool
 
@@ -281,6 +284,13 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		}
 		state.textColorValue = normalizeMPLValue(value)
 		state.textColorSet = true
+	case "text.usetex":
+		parsed, err := parseMPLBool(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.textUseTeX = parsed
+		state.textUseTeXSet = true
 	case "lines.color":
 		if err := validateMPLColorValue(value, state.rc, false); err != nil {
 			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
@@ -524,6 +534,9 @@ func finalizeMPLStyleState(state *mplStyleState) {
 				state.rc.LegendTextColor = parsed
 			}
 		}
+	}
+	if state.textUseTeXSet {
+		state.rc.UseTeX = state.textUseTeX
 	}
 	if state.lineColorSet {
 		if parsed, err := parseMPLColor(state.lineColorValue, state.rc); err == nil {
