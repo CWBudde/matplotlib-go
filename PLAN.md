@@ -531,6 +531,7 @@ Current slice landed:
 - [x] Full-expression rotated MathText rendering through text paths when backend text-path support is available
 - [x] True mixed inline layout for strings that combine plain text and MathText in one line
 - [x] Vertical full-expression MathText rendering through structured layout/path output
+- [x] Renderer-neutral internal MathText engine boundary extracted to `internal/mathtext`; `core` now only adapts it to renderer/font APIs
 - [ ] Broader MathText grammar
   - [x] Limits on large operators such as `\sum`, `\prod`, and `\lim`
   - [x] Basic spacing commands such as `\,`, `\:`, `\;`, `\quad`, and `\qquad`
@@ -539,8 +540,12 @@ Current slice landed:
   - [x] Matrices/arrays
   - [ ] More complete stretchy delimiter behavior beyond the current basic `\left...\right` handling
     - [x] `\middle` and omitted `.` delimiters within `\left...\right`
+    - [x] Extensible rule-based rendering for vertical bar and bracket-style delimiters
   - [ ] Richer TeX spacing/control semantics beyond the current small command subset
-- [ ] Caching/performance pass for parsed and laid-out MathText expressions
+    - [x] Named spacing commands and explicit `\hspace{...}` / `\kern{...}` dimensions
+- [x] Caching/performance pass for parsed and laid-out MathText expressions
+  - [x] Shared parse cache plus opt-in layout cache keyed by renderer measurement context
+- [ ] Promote `internal/mathtext` to a focused standalone module/repo once the grammar/cache API stabilizes
 
 #### 8.3.2 LaTeX / `usetex` integration
 

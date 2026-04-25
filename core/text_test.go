@@ -209,27 +209,32 @@ func TestLayoutMathTextSupportsMiddleDelimiters(t *testing.T) {
 		t.Fatal("LayoutMathText returned !ok")
 	}
 
-	var leftSize, middleSize, rightSize float64
-	var leftX, middleX, rightX float64
+	var leftSize, rightSize float64
+	var leftX, rightX float64
 	for _, run := range layout.Runs {
 		switch run.Text {
 		case "⟨":
 			leftSize = run.FontSize
 			leftX = run.Offset.X
-		case "|":
-			middleSize = run.FontSize
-			middleX = run.Offset.X
 		case "⟩":
 			rightSize = run.FontSize
 			rightX = run.Offset.X
 		}
 	}
 
-	if leftSize <= 20 || middleSize <= 20 || rightSize <= 20 {
-		t.Fatalf("expected stretched fence delimiters larger than base size: left=%v middle=%v right=%v runs=%+v", leftSize, middleSize, rightSize, layout.Runs)
+	middleX := -1.0
+	for _, rule := range layout.Rules {
+		if rule.Rect.H() > 20 && rule.Rect.W() < 5 {
+			middleX = rule.Rect.Min.X
+			break
+		}
+	}
+
+	if leftSize <= 20 || rightSize <= 20 || middleX < 0 {
+		t.Fatalf("expected stretched fence delimiters: left=%v middleX=%v right=%v runs=%+v rules=%+v", leftSize, middleX, rightSize, layout.Runs, layout.Rules)
 	}
 	if leftX >= middleX || middleX >= rightX {
-		t.Fatalf("expected middle delimiter to be between outer delimiters: left=%v middle=%v right=%v runs=%+v", leftX, middleX, rightX, layout.Runs)
+		t.Fatalf("expected middle delimiter to be between outer delimiters: left=%v middle=%v right=%v runs=%+v rules=%+v", leftX, middleX, rightX, layout.Runs, layout.Rules)
 	}
 }
 
@@ -246,17 +251,21 @@ func TestLayoutMathTextSupportsOmittedFenceDelimiters(t *testing.T) {
 		}
 	}
 
-	var sawX, sawBar bool
+	sawX := false
 	for _, run := range layout.Runs {
-		switch strings.TrimSpace(run.Text) {
-		case "x":
+		if strings.TrimSpace(run.Text) == "x" {
 			sawX = true
-		case "|":
+		}
+	}
+	sawBar := false
+	for _, rule := range layout.Rules {
+		if rule.Rect.H() > 20 && rule.Rect.W() < 5 {
 			sawBar = true
+			break
 		}
 	}
 	if !sawX || !sawBar {
-		t.Fatalf("missing expected fence runs: %+v", layout.Runs)
+		t.Fatalf("missing expected fence output: runs=%+v rules=%+v", layout.Runs, layout.Rules)
 	}
 }
 

@@ -1,12 +1,48 @@
-package core
+package mathtext
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 
 	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
 )
+
+// Metrics is the renderer-neutral text measurement subset needed for MathText
+// layout.
+type Metrics struct{ W, H, Ascent, Descent float64 }
+
+// Measurer measures text for one font key and size.
+type Measurer interface {
+	MeasureText(text string, size float64, fontKey string) Metrics
+}
+
+// FontStyle describes the font posture requested by MathText style commands.
+type FontStyle string
+
+const (
+	FontStyleNormal FontStyle = "normal"
+	FontStyleItalic FontStyle = "italic"
+)
+
+// FontRequest describes a MathText font override relative to the current font.
+type FontRequest struct {
+	Families []string
+	Style    FontStyle
+	Weight   int
+}
+
+// FontResolver resolves MathText font requests into renderer font keys.
+type FontResolver interface {
+	ResolveMathFontKey(base string, request FontRequest) string
+}
+
+// Options configures MathText layout.
+type Options struct {
+	FontResolver   FontResolver
+	Cache          *Cache
+	MeasurementKey string
+}
 
 // MathTextLayoutRun is one text draw in a laid-out MathText expression.
 type MathTextLayoutRun struct {
@@ -65,7 +101,7 @@ type mathLayoutNode struct {
 	right    string
 	rows     [][]mathLayoutNode
 	families []string
-	style    render.FontStyle
+	style    FontStyle
 	weight   int
 }
 
@@ -78,25 +114,126 @@ type mathLayoutParser struct {
 // dollar delimiters. It supports the same fallback command set as displayed
 // text normalization plus baseline-shifted scripts, stacked fractions, and
 // square-root vincula.
-func LayoutMathText(r render.Renderer, expr string, size float64, fontKey string) (MathTextLayout, bool) {
-	if r == nil || strings.TrimSpace(expr) == "" || size <= 0 {
+func LayoutMathText(m Measurer, expr string, size float64, fontKey string, opts Options) (MathTextLayout, bool) {
+	if m == nil || strings.TrimSpace(expr) == "" || size <= 0 {
 		return MathTextLayout{}, false
 	}
 	expr = strings.ReplaceAll(expr, `\\`, `\`)
-	parser := mathLayoutParser{input: []rune(expr)}
-	node := parser.parseUntil(0)
-	box := layoutMathNode(r, node, size, fontKey)
+	cacheKey, useLayoutCache := opts.layoutCacheKey("math", expr, size, fontKey)
+	if useLayoutCache {
+		if layout, ok := opts.Cache.layout(cacheKey); ok {
+			return layout, true
+		}
+	}
+	node := parseMathLayoutNode(expr, opts.Cache)
+	box := layoutMathNode(m, node, size, fontKey, opts)
 	if box.Width <= 0 && len(box.runs) == 0 && len(box.rules) == 0 {
 		return MathTextLayout{}, false
 	}
-	return MathTextLayout{
+	layout := MathTextLayout{
 		Runs:    box.runs,
 		Rules:   box.rules,
 		Width:   box.Width,
 		Ascent:  box.Ascent,
 		Descent: box.Descent,
 		Height:  box.Ascent + box.Descent,
+	}
+	if useLayoutCache {
+		opts.Cache.storeLayout(cacheKey, layout)
+	}
+	return cloneLayout(layout), true
+}
+
+// LayoutDisplay lays out display text with either a single full $...$
+// expression or mixed plain text and inline $...$ MathText segments.
+func LayoutDisplay(m Measurer, text string, size float64, fontKey string, opts Options) (MathTextLayout, bool) {
+	if expr, ok := FullExpression(text); ok {
+		return LayoutMathText(m, expr, size, fontKey, opts)
+	}
+
+	cacheKey, useLayoutCache := opts.layoutCacheKey("display", text, size, fontKey)
+	if useLayoutCache {
+		if layout, ok := opts.Cache.layout(cacheKey); ok {
+			return layout, true
+		}
+	}
+
+	segments, hasMath, ok := SplitDisplaySegments(text)
+	if !ok || !hasMath {
+		return MathTextLayout{}, false
+	}
+
+	var out mathLayoutBox
+	x := 0.0
+	for _, segment := range segments {
+		var child mathLayoutBox
+		if segment.IsMath {
+			layout, ok := LayoutMathText(m, segment.Text, size, fontKey, opts)
+			if !ok {
+				return MathTextLayout{}, false
+			}
+			child = mathLayoutBox{
+				runs:    append([]MathTextLayoutRun(nil), layout.Runs...),
+				rules:   append([]MathTextLayoutRule(nil), layout.Rules...),
+				Width:   layout.Width,
+				Ascent:  layout.Ascent,
+				Descent: layout.Descent,
+			}
+		} else {
+			child = layoutMathTextRun(m, displayTextCommandReplacer.Replace(segment.Text), size, fontKey)
+		}
+		if child.Width <= 0 && len(child.runs) == 0 && len(child.rules) == 0 {
+			continue
+		}
+		out.appendTranslated(child, x, 0)
+		x += child.Width
+		out.Ascent = maxFloat64(out.Ascent, child.Ascent)
+		out.Descent = maxFloat64(out.Descent, child.Descent)
+	}
+
+	if x <= 0 && len(out.runs) == 0 && len(out.rules) == 0 {
+		return MathTextLayout{}, false
+	}
+
+	layout := MathTextLayout{
+		Runs:    out.runs,
+		Rules:   out.rules,
+		Width:   x,
+		Ascent:  out.Ascent,
+		Descent: out.Descent,
+		Height:  out.Ascent + out.Descent,
+	}
+	if useLayoutCache {
+		opts.Cache.storeLayout(cacheKey, layout)
+	}
+	return cloneLayout(layout), true
+}
+
+func (o Options) layoutCacheKey(kind, text string, size float64, fontKey string) (layoutCacheKey, bool) {
+	if o.Cache == nil || strings.TrimSpace(o.MeasurementKey) == "" {
+		return layoutCacheKey{}, false
+	}
+	return layoutCacheKey{
+		kind:           kind,
+		text:           text,
+		size:           size,
+		fontKey:        fontKey,
+		measurementKey: o.MeasurementKey,
 	}, true
+}
+
+func parseMathLayoutNode(expr string, cache *Cache) mathLayoutNode {
+	if cache != nil {
+		if node, ok := cache.parsedNode(expr); ok {
+			return node
+		}
+	}
+	parser := mathLayoutParser{input: []rune(expr)}
+	node := parser.parseUntil(0)
+	if cache != nil {
+		cache.storeParsedNode(expr, node)
+	}
+	return node
 }
 
 func (p *mathLayoutParser) parseUntil(stop rune) mathLayoutNode {
@@ -207,8 +344,8 @@ func (p *mathLayoutParser) parseCommandNode() mathLayoutNode {
 	if mapped, ok := mathTextCommandMap[name]; ok {
 		return mathLayoutNode{kind: mathLayoutText, text: mapped}
 	}
-	if spacing, ok := mathTextSpacingCommands[name]; ok {
-		return mathLayoutNode{kind: mathLayoutSpace, widthEm: delimiterSpacingWidth(spacing)}
+	if width, ok := mathTextSpacingCommandWidths[name]; ok {
+		return mathLayoutNode{kind: mathLayoutSpace, widthEm: width}
 	}
 	if delim, ok := mathTextDelimiterCommands[name]; ok {
 		return mathLayoutNode{kind: mathLayoutText, text: delim}
@@ -238,6 +375,8 @@ func (p *mathLayoutParser) parseCommandNode() mathLayoutNode {
 		num := p.parseArgumentNode()
 		den := p.parseArgumentNode()
 		return mathLayoutNode{kind: mathLayoutFrac, num: &num, den: &den}
+	case "hspace", "kern":
+		return mathLayoutNode{kind: mathLayoutSpace, widthEm: parseMathSpaceDimension(p.parseBraceText())}
 	case "sqrt":
 		var index *mathLayoutNode
 		if p.pos < len(p.input) && p.input[p.pos] == '[' {
@@ -270,7 +409,7 @@ func (p *mathLayoutParser) parseEnvironmentNode() mathLayoutNode {
 
 func (p *mathLayoutParser) parseStyledArgumentNode(name string) mathLayoutNode {
 	arg := p.parseArgumentNode()
-	node := mathLayoutNode{kind: mathLayoutStyled, child: &arg, style: render.FontStyleNormal, weight: 400}
+	node := mathLayoutNode{kind: mathLayoutStyled, child: &arg, style: FontStyleNormal, weight: 400}
 	switch name {
 	case "mathsf":
 		node.families = []string{"DejaVu Sans", "sans-serif"}
@@ -279,7 +418,7 @@ func (p *mathLayoutParser) parseStyledArgumentNode(name string) mathLayoutNode {
 	case "mathrm", "text":
 		node.families = []string{"DejaVu Serif", "serif"}
 	case "mathit":
-		node.style = render.FontStyleItalic
+		node.style = FontStyleItalic
 	case "mathbf":
 		node.weight = 700
 	case "operatorname":
@@ -700,32 +839,32 @@ type mathLayoutBox struct {
 	Descent float64
 }
 
-func layoutMathNode(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+func layoutMathNode(r Measurer, n mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
 	switch n.kind {
 	case mathLayoutText:
 		return layoutMathTextRun(r, n.text, size, fontKey)
 	case mathLayoutList:
-		return layoutMathList(r, n.children, size, fontKey)
+		return layoutMathList(r, n.children, size, fontKey, opts)
 	case mathLayoutScript:
-		return layoutMathScript(r, n, size, fontKey)
+		return layoutMathScript(r, n, size, fontKey, opts)
 	case mathLayoutFrac:
-		return layoutMathFrac(r, pointerNode(n.num), pointerNode(n.den), size, fontKey)
+		return layoutMathFrac(r, pointerNode(n.num), pointerNode(n.den), size, fontKey, opts)
 	case mathLayoutSqrt:
-		return layoutMathSqrt(r, pointerNode(n.radicand), n.index, size, fontKey)
+		return layoutMathSqrt(r, pointerNode(n.radicand), n.index, size, fontKey, opts)
 	case mathLayoutSpace:
 		return mathLayoutBox{Width: size * n.widthEm}
 	case mathLayoutStyled:
-		return layoutMathStyled(r, n, size, fontKey)
+		return layoutMathStyled(r, n, size, fontKey, opts)
 	case mathLayoutFence:
-		return layoutMathFence(r, n, size, fontKey)
+		return layoutMathFence(r, n, size, fontKey, opts)
 	case mathLayoutMatrix:
-		return layoutMathMatrix(r, n, size, fontKey)
+		return layoutMathMatrix(r, n, size, fontKey, opts)
 	default:
 		return mathLayoutBox{}
 	}
 }
 
-func layoutMathTextRun(r render.Renderer, text string, size float64, fontKey string) mathLayoutBox {
+func layoutMathTextRun(r Measurer, text string, size float64, fontKey string) mathLayoutBox {
 	if text == "" {
 		return mathLayoutBox{}
 	}
@@ -745,24 +884,22 @@ func layoutMathTextRun(r render.Renderer, text string, size float64, fontKey str
 	}
 }
 
-func layoutMathStyled(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
-	childFontKey := resolveMathFontKey(fontKey, n)
-	return layoutMathNode(r, pointerNode(n.child), size, childFontKey)
+func layoutMathStyled(r Measurer, n mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
+	childFontKey := resolveMathFontKey(fontKey, n, opts)
+	return layoutMathNode(r, pointerNode(n.child), size, childFontKey, opts)
 }
 
-func layoutMathFence(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+func layoutMathFence(r Measurer, n mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
 	segments := fenceSegments(n)
 	if len(segments) == 0 {
 		return mathLayoutBox{}
 	}
 
 	bodyBoxes := make([]mathLayoutBox, len(segments))
-	bodyWidth := 0.0
 	bodyAscent := 0.0
 	bodyDescent := 0.0
 	for i, segment := range segments {
-		bodyBoxes[i] = layoutMathNode(r, segment, size, fontKey)
-		bodyWidth += bodyBoxes[i].Width
+		bodyBoxes[i] = layoutMathNode(r, segment, size, fontKey, opts)
 		if bodyBoxes[i].Ascent > bodyAscent {
 			bodyAscent = bodyBoxes[i].Ascent
 		}
@@ -771,14 +908,12 @@ func layoutMathFence(r render.Renderer, n mathLayoutNode, size float64, fontKey 
 		}
 	}
 
-	delimiterSize := maxFloat64(size, (bodyAscent+bodyDescent)*0.9)
-	left := layoutMathTextRun(r, n.left, delimiterSize, fontKey)
+	left := layoutMathDelimiter(r, n.left, bodyAscent, bodyDescent, size, fontKey)
 	middles := make([]mathLayoutBox, len(n.middles))
 	for i, middle := range n.middles {
-		middles[i] = layoutMathTextRun(r, middle, delimiterSize, fontKey)
-		bodyWidth += middles[i].Width
+		middles[i] = layoutMathDelimiter(r, middle, bodyAscent, bodyDescent, size, fontKey)
 	}
-	right := layoutMathTextRun(r, n.right, delimiterSize, fontKey)
+	right := layoutMathDelimiter(r, n.right, bodyAscent, bodyDescent, size, fontKey)
 
 	var out mathLayoutBox
 	x := 0.0
@@ -804,7 +939,115 @@ func layoutMathFence(r render.Renderer, n mathLayoutNode, size float64, fontKey 
 	return out
 }
 
-func layoutMathMatrix(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+func layoutMathDelimiter(r Measurer, delim string, targetAscent, targetDescent, size float64, fontKey string) mathLayoutBox {
+	if delim == "" {
+		return mathLayoutBox{}
+	}
+	if targetAscent <= 0 && targetDescent <= 0 {
+		targetAscent = size * 0.8
+		targetDescent = size * 0.2
+	}
+	switch delim {
+	case "|", "‖":
+		return layoutMathVerticalRuleDelimiter(delim, targetAscent, targetDescent, size)
+	case "[", "]", "⌊", "⌋", "⌈", "⌉":
+		return layoutMathBracketDelimiter(delim, targetAscent, targetDescent, size)
+	default:
+		delimiterSize := maxFloat64(size, (targetAscent+targetDescent)*0.9)
+		return centerMathDelimiterBox(layoutMathTextRun(r, delim, delimiterSize, fontKey), targetAscent, targetDescent)
+	}
+}
+
+func centerMathDelimiterBox(box mathLayoutBox, targetAscent, targetDescent float64) mathLayoutBox {
+	if box.Width <= 0 && len(box.runs) == 0 && len(box.rules) == 0 {
+		return mathLayoutBox{}
+	}
+	targetCenter := (targetDescent - targetAscent) / 2
+	boxCenter := (box.Descent - box.Ascent) / 2
+	dy := targetCenter - boxCenter
+	var out mathLayoutBox
+	out.appendTranslated(box, 0, dy)
+	out.Width = box.Width
+	out.Ascent = maxFloat64(targetAscent, -dy+box.Ascent)
+	out.Descent = maxFloat64(targetDescent, dy+box.Descent)
+	return out
+}
+
+func layoutMathVerticalRuleDelimiter(delim string, targetAscent, targetDescent, size float64) mathLayoutBox {
+	thickness := maxFloat64(size*0.045, 0.75)
+	pad := size * 0.10
+	top := -targetAscent - pad
+	bottom := targetDescent + pad
+	width := maxFloat64(size*0.18, thickness*2)
+	centers := []float64{width / 2}
+	if delim == "‖" {
+		width = maxFloat64(size*0.30, thickness*4)
+		gap := maxFloat64(thickness*1.4, size*0.06)
+		centers = []float64{width/2 - gap/2, width/2 + gap/2}
+	}
+	rules := make([]MathTextLayoutRule, 0, len(centers))
+	for _, center := range centers {
+		rules = append(rules, MathTextLayoutRule{
+			Rect: geom.Rect{
+				Min: geom.Pt{X: center - thickness/2, Y: top},
+				Max: geom.Pt{X: center + thickness/2, Y: bottom},
+			},
+		})
+	}
+	return mathLayoutBox{
+		rules:   rules,
+		Width:   width,
+		Ascent:  -top,
+		Descent: bottom,
+	}
+}
+
+func layoutMathBracketDelimiter(delim string, targetAscent, targetDescent, size float64) mathLayoutBox {
+	thickness := maxFloat64(size*0.045, 0.75)
+	pad := size * 0.10
+	top := -targetAscent - pad
+	bottom := targetDescent + pad
+	width := maxFloat64(size*0.28, thickness*4)
+	left := delim == "[" || delim == "⌊" || delim == "⌈"
+	topCap := delim == "[" || delim == "]" || delim == "⌈" || delim == "⌉"
+	bottomCap := delim == "[" || delim == "]" || delim == "⌊" || delim == "⌋"
+	x0 := 0.0
+	x1 := thickness
+	if !left {
+		x0 = width - thickness
+		x1 = width
+	}
+	rules := []MathTextLayoutRule{{
+		Rect: geom.Rect{
+			Min: geom.Pt{X: x0, Y: top},
+			Max: geom.Pt{X: x1, Y: bottom},
+		},
+	}}
+	if topCap {
+		rules = append(rules, MathTextLayoutRule{
+			Rect: geom.Rect{
+				Min: geom.Pt{X: 0, Y: top},
+				Max: geom.Pt{X: width, Y: top + thickness},
+			},
+		})
+	}
+	if bottomCap {
+		rules = append(rules, MathTextLayoutRule{
+			Rect: geom.Rect{
+				Min: geom.Pt{X: 0, Y: bottom - thickness},
+				Max: geom.Pt{X: width, Y: bottom},
+			},
+		})
+	}
+	return mathLayoutBox{
+		rules:   rules,
+		Width:   width,
+		Ascent:  -top,
+		Descent: bottom,
+	}
+}
+
+func layoutMathMatrix(r Measurer, n mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
 	if len(n.rows) == 0 {
 		return mathLayoutBox{}
 	}
@@ -817,7 +1060,7 @@ func layoutMathMatrix(r render.Renderer, n mathLayoutNode, size float64, fontKey
 			numCols = len(row)
 		}
 		for j, cell := range row {
-			cellBoxes[i][j] = layoutMathNode(r, cell, size, fontKey)
+			cellBoxes[i][j] = layoutMathNode(r, cell, size, fontKey, opts)
 		}
 	}
 	if numCols == 0 {
@@ -920,11 +1163,11 @@ func layoutMathMatrix(r render.Renderer, n mathLayoutNode, size float64, fontKey
 	return out
 }
 
-func layoutMathList(r render.Renderer, children []mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+func layoutMathList(r Measurer, children []mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
 	var out mathLayoutBox
 	x := 0.0
 	for _, child := range children {
-		box := layoutMathNode(r, child, size, fontKey)
+		box := layoutMathNode(r, child, size, fontKey, opts)
 		out.appendTranslated(box, x, 0)
 		x += box.Width
 		if box.Ascent > out.Ascent {
@@ -938,12 +1181,12 @@ func layoutMathList(r render.Renderer, children []mathLayoutNode, size float64, 
 	return out
 }
 
-func layoutMathScript(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+func layoutMathScript(r Measurer, n mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
 	if isMathLimitOperator(pointerNode(n.base)) {
-		return layoutMathLimits(r, n, size, fontKey)
+		return layoutMathLimits(r, n, size, fontKey, opts)
 	}
 
-	base := layoutMathNode(r, pointerNode(n.base), size, fontKey)
+	base := layoutMathNode(r, pointerNode(n.base), size, fontKey, opts)
 	scriptSize := size * 0.7
 	x := base.Width
 	var out mathLayoutBox
@@ -954,7 +1197,7 @@ func layoutMathScript(r render.Renderer, n mathLayoutNode, size float64, fontKey
 
 	scriptWidth := 0.0
 	if n.super != nil {
-		super := layoutMathNode(r, *n.super, scriptSize, fontKey)
+		super := layoutMathNode(r, *n.super, scriptSize, fontKey, opts)
 		y := -maxFloat64(base.Ascent*0.55, scriptSize*0.35)
 		out.appendTranslated(super, x, y)
 		scriptWidth = maxFloat64(scriptWidth, super.Width)
@@ -962,7 +1205,7 @@ func layoutMathScript(r render.Renderer, n mathLayoutNode, size float64, fontKey
 		out.Descent = maxFloat64(out.Descent, y+super.Descent)
 	}
 	if n.sub != nil {
-		sub := layoutMathNode(r, *n.sub, scriptSize, fontKey)
+		sub := layoutMathNode(r, *n.sub, scriptSize, fontKey, opts)
 		y := maxFloat64(base.Descent*0.70, scriptSize*0.25)
 		out.appendTranslated(sub, x, y)
 		scriptWidth = maxFloat64(scriptWidth, sub.Width)
@@ -973,20 +1216,20 @@ func layoutMathScript(r render.Renderer, n mathLayoutNode, size float64, fontKey
 	return out
 }
 
-func layoutMathLimits(r render.Renderer, n mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+func layoutMathLimits(r Measurer, n mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
 	baseSize := size
 	if baseText := nodePlainText(pointerNode(n.base)); isMathLargeGlyph(baseText) {
 		baseSize *= 1.2
 	}
-	base := layoutMathNode(r, pointerNode(n.base), baseSize, fontKey)
+	base := layoutMathNode(r, pointerNode(n.base), baseSize, fontKey, opts)
 	scriptSize := size * 0.7
 
 	var super, sub mathLayoutBox
 	if n.super != nil {
-		super = layoutMathNode(r, *n.super, scriptSize, fontKey)
+		super = layoutMathNode(r, *n.super, scriptSize, fontKey, opts)
 	}
 	if n.sub != nil {
-		sub = layoutMathNode(r, *n.sub, scriptSize, fontKey)
+		sub = layoutMathNode(r, *n.sub, scriptSize, fontKey, opts)
 	}
 
 	width := base.Width
@@ -1045,10 +1288,10 @@ func isMathLimitText(text string) bool {
 	}
 }
 
-func layoutMathFrac(r render.Renderer, num, den mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+func layoutMathFrac(r Measurer, num, den mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
 	childSize := size * 0.75
-	numBox := layoutMathNode(r, num, childSize, fontKey)
-	denBox := layoutMathNode(r, den, childSize, fontKey)
+	numBox := layoutMathNode(r, num, childSize, fontKey, opts)
+	denBox := layoutMathNode(r, den, childSize, fontKey, opts)
 	padding := size * 0.18
 	gap := size * 0.14
 	ruleThickness := maxFloat64(size*0.045, 0.5)
@@ -1074,9 +1317,9 @@ func layoutMathFrac(r render.Renderer, num, den mathLayoutNode, size float64, fo
 	return out
 }
 
-func layoutMathSqrt(r render.Renderer, radicand mathLayoutNode, index *mathLayoutNode, size float64, fontKey string) mathLayoutBox {
+func layoutMathSqrt(r Measurer, radicand mathLayoutNode, index *mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
 	root := layoutMathTextRun(r, "√", size, fontKey)
-	radicandBox := layoutMathNode(r, radicand, size, fontKey)
+	radicandBox := layoutMathNode(r, radicand, size, fontKey, opts)
 	padding := size * 0.08
 	ruleThickness := maxFloat64(size*0.04, 0.5)
 	ruleY := -radicandBox.Ascent - padding
@@ -1095,7 +1338,7 @@ func layoutMathSqrt(r render.Renderer, radicand mathLayoutNode, index *mathLayou
 	})
 
 	if index != nil {
-		indexBox := layoutMathNode(r, *index, size*0.55, fontKey)
+		indexBox := layoutMathNode(r, *index, size*0.55, fontKey, opts)
 		x := -indexBox.Width * 0.65
 		y := -root.Ascent * 0.55
 		out.appendTranslated(indexBox, x, y)
@@ -1126,37 +1369,70 @@ func maxFloat64(a, b float64) float64 {
 	return b
 }
 
-func delimiterSpacingWidth(spacing string) float64 {
-	switch spacing {
-	case "  ":
-		return 1.0
-	case "    ":
-		return 2.0
+var mathTextSpacingCommandWidths = map[string]float64{
+	",":             0.166,
+	":":             0.222,
+	";":             0.278,
+	"thinspace":     0.166,
+	"medspace":      0.222,
+	"thickspace":    0.278,
+	"negthinspace":  -0.166,
+	"negmedspace":   -0.222,
+	"negthickspace": -0.278,
+	"enspace":       0.5,
+	"enskip":        0.5,
+	"quad":          1.0,
+	"qquad":         2.0,
+}
+
+func parseMathSpaceDimension(text string) float64 {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0
+	}
+	i := 0
+	for i < len(text) {
+		c := text[i]
+		if c != '+' && c != '-' && c != '.' && (c < '0' || c > '9') {
+			break
+		}
+		i++
+	}
+	if i == 0 || text[:i] == "+" || text[:i] == "-" || text[:i] == "." {
+		return 0
+	}
+	value, err := strconv.ParseFloat(text[:i], 64)
+	if err != nil {
+		return 0
+	}
+	unit := strings.TrimSpace(text[i:])
+	switch unit {
+	case "", "em":
+		return value
+	case "ex":
+		return value * 0.5
+	case "mu":
+		return value / 18
+	case "pt":
+		return value / 10
 	default:
-		return 0.333
+		return value
 	}
 }
 
-func resolveMathFontKey(base string, n mathLayoutNode) string {
-	props := render.ParseFontProperties(base)
-	if len(n.families) > 0 {
-		props.File = ""
-		props.Families = append([]string(nil), n.families...)
+func resolveMathFontKey(base string, n mathLayoutNode, opts Options) string {
+	request := FontRequest{
+		Families: append([]string(nil), n.families...),
+		Style:    n.style,
+		Weight:   n.weight,
 	}
-	if n.style != "" {
-		props.Style = n.style
+	if opts.FontResolver != nil {
+		if resolved := strings.TrimSpace(opts.FontResolver.ResolveMathFontKey(base, request)); resolved != "" {
+			return resolved
+		}
 	}
-	if n.weight > 0 {
-		props.Weight = n.weight
-	}
-	if face, ok := render.DefaultFontManager().FindFont(props); ok && face.Path != "" {
-		return face.Path
-	}
-	if len(props.Families) > 0 {
-		return strings.Join(props.Families, ", ")
-	}
-	if props.File != "" {
-		return props.File
+	if len(request.Families) > 0 {
+		return strings.Join(request.Families, ", ")
 	}
 	return base
 }
