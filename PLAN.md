@@ -523,12 +523,28 @@ Current slice landed:
 
 ### 8.3 MathText and TeX
 
-- [ ] MathText parser/layout
-  Basic milestone complete: inline MathText fallback normalization now covers `$...$` segments, common symbol commands, `\frac`, `\sqrt`, and grouped super/subscripts across the existing text backends.
-  Current slice landed: a lightweight MathText parser/layout model now produces baseline-shifted runs plus fraction/root rules for scripts, stacked fractions, square roots with indices, common operator names, and simple accents, and the standard horizontal text draw path now uses that structured layout for full `$...$` expressions in text artists, annotations, legends, axis labels, and figure labels.
+- [ ] MathText parser/layout and renderer integration
+  Landed so far:
+  - Inline MathText fallback normalization now covers `$...$` segments, common Greek/symbol commands, common operator-name commands, `\frac`, `\sqrt`, grouped super/subscripts, and simple accents.
+  - A lightweight MathText parser/layout model now produces baseline-shifted text runs plus explicit fraction/root rules for scripts, stacked fractions, square roots with optional indices, common operator names, and simple accents.
+  - Full-expression `$...$` MathText now uses the structured layout on the standard horizontal text path for text artists, annotations, legends, axis labels, and figure labels.
+  - Full-expression rotated MathText now falls back to path-based rendering when text-path support is available, covering rotated labels such as rotated tick labels and other rotated text callsites that use the shared helper path.
+  Still ahead:
+  - Mixed plain-text-plus-math strings still use normalization fallback rather than true mixed inline MathText layout.
+  - Vertical full-expression MathText is still not using a structured layout/path path.
+  - The grammar is still a narrow subset: no matrices/arrays, delimiters that stretch to content, stacked sums/products/integrals with limits, font-style switches with real layout consequences, or wider TeX-style spacing/control semantics.
+  - There is still no dedicated caching/performance pass for parsed/layout MathText expressions.
 - [ ] LaTeX / `usetex` integration
-  Current slice landed: `text.usetex` is now a recognized rcParam and runtime default, but there is no external TeX rendering pipeline yet.
+  Landed so far:
+  - `text.usetex` is recognized in rcParams, mplstyle parsing, runtime defaults, and push/pop context handling.
+  Still ahead:
+  - No external TeX pipeline exists yet.
+  - Need command/toolchain invocation, artifact caching, error surfacing, font/package coordination, and raster/vector import back into the renderer pipeline.
+  - Need clear backend behavior for TeX output across raster and vector backends, plus integration tests.
 - [ ] Complex text shaping beyond the current basic glyph flow
+  Still ahead:
+  - Proper shaping for scripts that need OpenType layout, ligatures, bidi handling, combining-mark placement, and script-aware glyph selection.
+  - A backend-independent shaping layer or library integration, plus measurement/path parity with shaped output.
 
 ### 8.4 Performance Optimization
 

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -372,6 +373,15 @@ func drawDisplayText(textRen render.TextDrawer, text string, origin geom.Pt, siz
 }
 
 func drawDisplayTextRotated(textRen render.RotatedTextDrawer, text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) {
+	if expr, ok := fullMathExpression(text); ok {
+		if ren, ok := textRen.(render.Renderer); ok {
+			if layout, ok := LayoutMathText(ren, expr, size, fontKey); ok {
+				if drawMathTextLayoutRotated(ren, layout, anchor, angle, textColor, fontKey) {
+					return
+				}
+			}
+		}
+	}
 	display := normalizeDisplayText(text)
 	if display == "" {
 		return
@@ -410,6 +420,64 @@ func drawMathTextLayout(r render.Renderer, textRen render.TextDrawer, layout Mat
 		primeTextFont(textRen, run.Text, run.FontSize, fontKey)
 		textRen.DrawText(run.Text, geom.Pt{X: origin.X + run.Offset.X, Y: origin.Y + run.Offset.Y}, run.FontSize, textColor)
 	}
+}
+
+func drawMathTextLayoutRotated(r render.Renderer, layout MathTextLayout, anchor geom.Pt, angle float64, textColor render.Color, fontKey string) bool {
+	if math.IsNaN(angle) || math.IsInf(angle, 0) {
+		return false
+	}
+	origin := geom.Pt{
+		X: anchor.X - layout.Width/2,
+		Y: anchor.Y - layout.Descent,
+	}
+	paths, ok := mathTextLayoutPaths(r, layout, origin, fontKey)
+	if !ok {
+		return false
+	}
+	if angle == 0 {
+		for _, path := range paths {
+			r.Path(path, &render.Paint{Fill: textColor})
+		}
+		return true
+	}
+
+	cos := math.Cos(angle)
+	sin := math.Sin(angle)
+	affine := translateAffine(anchor).
+		Mul(geom.Affine{A: cos, B: sin, C: -sin, D: cos}).
+		Mul(translateAffine(geom.Pt{X: -anchor.X, Y: -anchor.Y}))
+	for _, path := range paths {
+		r.Path(applyAffinePath(path, affine), &render.Paint{Fill: textColor})
+	}
+	return true
+}
+
+func mathTextLayoutPaths(r render.Renderer, layout MathTextLayout, origin geom.Pt, fontKey string) ([]geom.Path, bool) {
+	paths := make([]geom.Path, 0, len(layout.Rules)+len(layout.Runs))
+	for _, rule := range layout.Rules {
+		rect := geom.Rect{
+			Min: geom.Pt{X: origin.X + rule.Rect.Min.X, Y: origin.Y + rule.Rect.Min.Y},
+			Max: geom.Pt{X: origin.X + rule.Rect.Max.X, Y: origin.Y + rule.Rect.Max.Y},
+		}
+		paths = append(paths, pixelRectPath(rect))
+	}
+	for _, run := range layout.Runs {
+		runPath, ok := mathTextRunPath(r, run.Text, geom.Pt{X: origin.X + run.Offset.X, Y: origin.Y + run.Offset.Y}, run.FontSize, fontKey)
+		if !ok {
+			return nil, false
+		}
+		paths = append(paths, runPath)
+	}
+	return paths, true
+}
+
+func mathTextRunPath(r render.Renderer, text string, origin geom.Pt, size float64, fontKey string) (geom.Path, bool) {
+	if pather, ok := r.(render.TextPather); ok {
+		if path, ok := pather.TextPath(text, origin, size, fontKey); ok {
+			return path, true
+		}
+	}
+	return render.TextPath(text, origin, size, fontKey)
 }
 
 func (p *mathTextParser) parseUntil(stop rune) string {

@@ -748,10 +748,12 @@ type axisLabelRecordingRenderer struct {
 	origins        []geom.Pt
 	rotatedText    []string
 	rotatedAnchors []geom.Pt
+	textPathCalls  []string
 	bounds         map[string]render.TextBounds
 	useBounds      bool
 	fontHeights    render.FontHeightMetrics
 	useFontHeights bool
+	pathCount      int
 }
 
 func (r *axisLabelRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
@@ -776,6 +778,18 @@ func (r *axisLabelRecordingRenderer) MeasureFontHeights(_ float64, _ string) (re
 		return render.FontHeightMetrics{}, false
 	}
 	return r.fontHeights, true
+}
+
+func (r *axisLabelRecordingRenderer) Path(_ geom.Path, _ *render.Paint) {
+	r.pathCount++
+}
+
+func (r *axisLabelRecordingRenderer) TextPath(text string, origin geom.Pt, _ float64, _ string) (geom.Path, bool) {
+	r.textPathCalls = append(r.textPathCalls, text)
+	return patchRectPath(geom.Rect{
+		Min: geom.Pt{X: origin.X, Y: origin.Y - 4},
+		Max: geom.Pt{X: origin.X + 4, Y: origin.Y},
+	}), true
 }
 
 func (r *axisLabelRecordingRenderer) DrawText(text string, origin geom.Pt, _ float64, _ render.Color) {
@@ -1024,6 +1038,38 @@ func TestAxis_DrawTickLabels_UsesRotatedDrawerWhenRequested(t *testing.T) {
 	want := geom.Pt{X: origin.X + 1 + 5.0/2.0, Y: origin.Y - 8 + 10}
 	if r.rotatedAnchors[0] != want {
 		t.Fatalf("rotated tick label anchor = %+v, want %+v", r.rotatedAnchors[0], want)
+	}
+}
+
+func TestAxis_DrawTickLabels_RendersFullMathAsPathsWhenRotated(t *testing.T) {
+	axis := NewXAxis()
+	axis.Locator = staticLocator{2}
+	axis.Formatter = FixedFormatter{Labels: []string{`$\\frac{1}{2}$`}}
+	axis.MajorLabelStyle = TickLabelStyle{Rotation: 45, AutoAlign: true}
+
+	var r axisLabelRecordingRenderer
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if err := r.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	axis.DrawTickLabels(&r, ctx)
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if len(r.texts) != 0 {
+		t.Fatalf("expected rotated math tick labels to bypass DrawText, got %v", r.texts)
+	}
+	if len(r.rotatedText) != 0 {
+		t.Fatalf("expected rotated math tick labels to bypass DrawTextRotated, got %v", r.rotatedText)
+	}
+	if !containsString(r.textPathCalls, "1") || !containsString(r.textPathCalls, "2") {
+		t.Fatalf("expected fraction runs to resolve through TextPath, got %v", r.textPathCalls)
+	}
+	if r.pathCount < 3 {
+		t.Fatalf("expected fraction rule plus glyph paths, got %d paths", r.pathCount)
 	}
 }
 
