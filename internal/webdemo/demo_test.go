@@ -29,6 +29,7 @@ func TestCatalogStable(t *testing.T) {
 		"annotations",
 		"composition",
 		"polar",
+		"phase7",
 		"subplots",
 	}
 	if len(got) != len(wantIDs) {
@@ -357,6 +358,29 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			},
 		},
 		{
+			id:          "phase7",
+			width:       320,
+			height:      180,
+			wantAxes:    3,
+			wantTitle:   "Mollweide Projection",
+			wantXLabel:  "longitude",
+			wantYLabel:  "latitude",
+			wantArtists: 3,
+			wantSizePx:  [2]float64{320, 180},
+			checkArtists: func(t *testing.T, ax *core.Axes) {
+				t.Helper()
+				if got := ax.ProjectionName(); got != "mollweide" {
+					t.Fatalf("projection name = %q, want mollweide", got)
+				}
+				if got := countArtists[*core.Grid](ax.Artists); got != 2 {
+					t.Fatalf("grid artist count = %d, want %d", got, 2)
+				}
+				if got := countArtists[*core.Line2D](ax.Artists); got != 1 {
+					t.Fatalf("line artist count = %d, want %d", got, 1)
+				}
+			},
+		},
+		{
 			id:          "subplots",
 			width:       320,
 			height:      180,
@@ -447,6 +471,37 @@ func TestBuildUsesDefaultDimensions(t *testing.T) {
 	}
 	if got, want := fig.SizePx.Y, float64(DefaultHeight); got != want {
 		t.Fatalf("fig.SizePx.Y = %v, want %v", got, want)
+	}
+}
+
+func TestPhase7DemoIncludesInsetAxes(t *testing.T) {
+	fig, descriptor, err := Build("phase7", 320, 180)
+	if err != nil {
+		t.Fatalf("Build(phase7) error = %v", err)
+	}
+	if descriptor.ID != "phase7" {
+		t.Fatalf("descriptor.ID = %q, want phase7", descriptor.ID)
+	}
+	if len(fig.Children) != 3 {
+		t.Fatalf("len(fig.Children) = %d, want 3", len(fig.Children))
+	}
+
+	mainAx := fig.Children[1]
+	inset := fig.Children[2]
+	if mainAx.Title != "Zoomed Inset" {
+		t.Fatalf("main title = %q, want Zoomed Inset", mainAx.Title)
+	}
+	if inset.Title != "detail" {
+		t.Fatalf("inset title = %q, want detail", inset.Title)
+	}
+	if inset.AxesLocator() == nil {
+		t.Fatal("inset axes should have a draw-time locator")
+	}
+	if got := countArtists[*core.InsetIndicator](mainAx.Artists); got != 1 {
+		t.Fatalf("inset indicator count = %d, want 1", got)
+	}
+	if got := countArtists[*core.Line2D](inset.Artists); got != 1 {
+		t.Fatalf("inset line count = %d, want 1", got)
 	}
 }
 

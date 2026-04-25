@@ -415,6 +415,12 @@ func (f *Figure) AddRadarAxes(r geom.Rect, labels []string, opts ...style.Option
 	return ax, nil
 }
 
+// AddSkewXAxes appends an Axes configured with the built-in skewx projection,
+// commonly used as the basis for Skew-T style meteorological plots.
+func (f *Figure) AddSkewXAxes(r geom.Rect, opts ...style.Option) (*Axes, error) {
+	return f.AddAxesProjection(r, "skewx", opts...)
+}
+
 func (f *Figure) addAxesWithProjection(r geom.Rect, proj Projection, opts ...style.Option) *Axes {
 	var rc *style.RC
 	effective := f.RC
@@ -548,6 +554,23 @@ func (a *Axes) SetRadarLabels(labels []string) error {
 	proj.radarVariables = len(labels)
 	proj.radarLabels = append([]string(nil), labels...)
 	configureRadarThetaAxis(a, proj)
+	return nil
+}
+
+// SetSkewXAngle changes the skew angle used by skewx projection axes.
+func (a *Axes) SetSkewXAngle(angleDeg float64) error {
+	proj, ok := skewXProjectionForAxes(a)
+	if !ok {
+		return fmt.Errorf("skewx angle requires skewx axes")
+	}
+	if math.IsNaN(angleDeg) || math.IsInf(angleDeg, 0) {
+		return fmt.Errorf("skewx angle must be finite")
+	}
+	cos := math.Cos(angleDeg * math.Pi / 180)
+	if math.Abs(cos) < 1e-6 {
+		return fmt.Errorf("skewx angle %g is too close to vertical", angleDeg)
+	}
+	proj.angleDeg = angleDeg
 	return nil
 }
 

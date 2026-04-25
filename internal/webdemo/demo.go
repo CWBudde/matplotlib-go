@@ -124,6 +124,11 @@ var descriptors = []Descriptor{
 		Description: "A filled polar curve with custom radial and angular grid styling.",
 	},
 	{
+		ID:          "phase7",
+		Title:       "Projections and Insets",
+		Description: "Phase 7 features: Mollweide geo projection plus a zoomed inset axes.",
+	},
+	{
 		ID:          "subplots",
 		Title:       "Small Multiples",
 		Description: "A compact 2×2 subplot layout showing shared limits and styling.",
@@ -189,6 +194,8 @@ func Build(id string, width, height int) (*core.Figure, Descriptor, error) {
 			fig = buildCompositionDemo(width, height)
 		case "polar":
 			fig = buildPolarDemo(width, height)
+		case "phase7":
+			fig = buildPhase7Demo(width, height)
 		case "subplots":
 			fig = buildSubplotsDemo(width, height)
 		default:
@@ -646,6 +653,69 @@ func buildPolarDemo(width, height int) *core.Figure {
 		Label:     "r(theta)",
 	})
 	ax.AddLegend()
+	return fig
+}
+
+func buildPhase7Demo(width, height int) *core.Figure {
+	fig := core.NewFigure(width, height)
+
+	geoAx, err := fig.AddAxesProjection(geom.Rect{
+		Min: geom.Pt{X: 0.06, Y: 0.16},
+		Max: geom.Pt{X: 0.48, Y: 0.84},
+	}, "mollweide")
+	if err == nil {
+		geoAx.SetTitle("Mollweide Projection")
+		geoAx.SetXLabel("longitude")
+		geoAx.SetYLabel("latitude")
+		gridColor := render.Color{R: 0.78, G: 0.80, B: 0.84, A: 1}
+		lonGrid := geoAx.AddGrid(core.AxisBottom)
+		lonGrid.Color = gridColor
+		lonGrid.LineWidth = 0.8
+		latGrid := geoAx.AddGrid(core.AxisLeft)
+		latGrid.Color = gridColor
+		latGrid.LineWidth = 0.8
+
+		lon := linspace(-math.Pi, math.Pi, 241)
+		lat := make([]float64, len(lon))
+		for i, v := range lon {
+			lat[i] = 0.35 * math.Sin(3*v)
+		}
+		lineColor := render.Color{R: 0.14, G: 0.34, B: 0.70, A: 1}
+		geoAx.Plot(lon, lat, core.PlotOptions{Color: &lineColor, LineWidth: floatPtr(2.0)})
+	}
+
+	mainAx := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.57, Y: 0.16},
+		Max: geom.Pt{X: 0.96, Y: 0.84},
+	})
+	mainAx.SetTitle("Zoomed Inset")
+	mainAx.SetXLabel("x")
+	mainAx.SetYLabel("response")
+	mainAx.SetXLim(0, 10)
+	mainAx.SetYLim(-1.2, 1.2)
+	mainAx.AddXGrid()
+	mainAx.AddYGrid()
+
+	x := linspace(0, 10, 320)
+	y := make([]float64, len(x))
+	for i, v := range x {
+		y[i] = math.Sin(v) * (0.75 + 0.20*math.Cos(2*v))
+	}
+	lineColor := render.Color{R: 0.12, G: 0.36, B: 0.72, A: 1}
+	mainAx.Plot(x, y, core.PlotOptions{Color: &lineColor, LineWidth: floatPtr(2.0)})
+
+	inset, _ := mainAx.ZoomedInset(
+		geom.Rect{Min: geom.Pt{X: 0.52, Y: 0.52}, Max: geom.Pt{X: 0.95, Y: 0.92}},
+		[2]float64{2, 4},
+		[2]float64{-0.2, 1.05},
+	)
+	if inset != nil {
+		inset.SetTitle("detail")
+		inset.Plot(x, y, core.PlotOptions{Color: &lineColor, LineWidth: floatPtr(1.6)})
+		inset.AddXGrid()
+		inset.AddYGrid()
+	}
+
 	return fig
 }
 

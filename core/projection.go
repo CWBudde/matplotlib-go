@@ -36,6 +36,7 @@ func init() {
 	mustRegisterProjection("polar", func() Projection { return newPolarProjection() })
 	mustRegisterProjection("radar", func() Projection { return newRadarProjection() })
 	mustRegisterProjection("mollweide", func() Projection { return newMollweideProjection() })
+	mustRegisterProjection("skewx", func() Projection { return newSkewXProjection() })
 }
 
 // RegisterProjection installs a named axes projection.

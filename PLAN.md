@@ -453,12 +453,13 @@ core.SavePNG(fig, r, "output.png")
 - [x] Geographic / geo projections (initial built-in `mollweide` projection)
 - [x] Projection registry and `projection=`-style axes creation
 - [x] Projection-specific ticks, labels, and transforms
-- [ ] Specialty projections built on top of the registry (`radar`, `skew-T`, other curvilinear examples)
+- [x] Specialty projections built on top of the registry (`radar`, `skew-T`, other curvilinear examples)
 
 Current slice landed:
 
 - Built-in `polar` projection with circular spines, angular/radial grids, and polar tick labels
 - Built-in `radar` projection on the projection registry with polygon frames, polygon radial grids, configurable spoke labels, and `Figure.AddRadarAxes`
+- Built-in `skewx` projection for Skew-T style meteorological plots with pressure-axis defaults, top x-axis support, configurable skew angle, and `Figure.AddSkewXAxes`
 - Projection registry plus `Figure.AddAxesProjection`, `Figure.AddPolarAxes`, and subplot `WithProjection(...)`
 - Polar-specific theta zero-location, theta-direction, radial-label-angle controls, and projection-stage transform access via `DrawContext.TransProjection()`
 - Built-in `mollweide` projection with oval frame/clipping, longitude/latitude degree ticks, sampled graticule lines, inverse pixel-to-data support, and Matplotlib reference coverage
@@ -514,8 +515,10 @@ Current slice landed:
 
 ### 8.2 Font Manager and Text Layout
 
-- [ ] Real font discovery/cache and `FontProperties`-style selection instead of a fixed fallback story
-- [ ] TTF/OTF loading across backends
+- [x] Real font discovery/cache and `FontProperties`-style selection instead of a fixed fallback story
+- [x] Shared single-line text layout metrics helper used by core layout
+- [x] TTF/OTF loading across raster text backends
+- [ ] SVG font embedding and broader backend font-file parity
 - [ ] Better fallback/substitution and text-path support
 
 ### 8.3 MathText and TeX

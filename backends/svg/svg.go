@@ -753,21 +753,7 @@ func clampFloat(v float64) float64 {
 }
 
 func fontFamily(key string) string {
-	key = strings.ToLower(strings.TrimSpace(key))
-	key = strings.ReplaceAll(key, " ", "")
-	key = strings.ReplaceAll(key, "_", "")
-	key = strings.ReplaceAll(key, "-", "")
-
-	switch {
-	case strings.Contains(key, "sansserif"):
-		return "DejaVu Sans, Arial, sans-serif"
-	case strings.Contains(key, "serif"):
-		return "DejaVu Serif, serif"
-	case strings.Contains(key, "mono") || strings.Contains(key, "monospace"):
-		return "DejaVu Sans Mono, monospace"
-	default:
-		return "DejaVu Sans, Arial, sans-serif"
-	}
+	return render.CSSFontFamily(key)
 }
 
 func escapeText(text string) string {

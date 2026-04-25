@@ -5,6 +5,7 @@ package gobasic
 import (
 	"errors"
 	"image"
+	"os"
 	"strings"
 	"sync"
 
@@ -80,6 +81,10 @@ func openTypeFace(fontKey string, size float64) (font.Face, error) {
 
 func parseOpentypeFont(fontKey string) (*opentype.Font, error) {
 	key := resolveFontFamily(fontKey)
+	path := discoveredFontPath(fontKey, key)
+	if path != "" {
+		key = "file:" + path
+	}
 	freetypeFontCacheMu.RLock()
 	if cached, ok := freetypeFontCache[key]; ok {
 		freetypeFontCacheMu.RUnlock()
@@ -88,6 +93,13 @@ func parseOpentypeFont(fontKey string) (*opentype.Font, error) {
 	freetypeFontCacheMu.RUnlock()
 
 	fontTTF := fontSourceForFamily(key)
+	if path != "" {
+		var err error
+		fontTTF, err = os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if len(fontTTF) == 0 {
 		return nil, errors.New("unsupported font family")
 	}
@@ -101,6 +113,27 @@ func parseOpentypeFont(fontKey string) (*opentype.Font, error) {
 	freetypeFontCache[key] = parsed
 	freetypeFontCacheMu.Unlock()
 	return parsed, nil
+}
+
+func discoveredFontPath(fontKey, resolvedFamily string) string {
+	if usesEmbeddedFont(fontKey, resolvedFamily) {
+		return ""
+	}
+	return render.DefaultFontManager().FindFontPath(fontKey)
+}
+
+func usesEmbeddedFont(fontKey, resolvedFamily string) bool {
+	normalized := normalizeFontFamily(fontKey)
+	return normalized == "" ||
+		normalized == "default" ||
+		normalized == resolvedFamily ||
+		normalized == "dejavusans" ||
+		normalized == "dejavuserif" ||
+		normalized == "dejavusansmono" ||
+		normalized == "sansserif" ||
+		normalized == "serif" ||
+		normalized == "mono" ||
+		normalized == "monospace"
 }
 
 func resolveFontFamily(fontKey string) string {
