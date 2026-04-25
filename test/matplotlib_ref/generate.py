@@ -1755,6 +1755,23 @@ def polar_axes(out_dir):
     save(fig, out_dir, "polar_axes")
 
 
+def geo_mollweide_axes(out_dir):
+    fig = make_fig_px(720, 420)
+    ax = fig.add_axes(go_rect(0.10, 0.14, 0.92, 0.86), projection="mollweide")
+    ax.set_title("Mollweide Projection")
+    ax.set_xlabel("longitude")
+    ax.set_ylabel("latitude")
+
+    ax.xaxis.grid(True, color=(0.78, 0.80, 0.84, 1.0), linewidth=lw(0.8))
+    ax.yaxis.grid(True, color=(0.78, 0.80, 0.84, 1.0), linewidth=lw(0.8))
+
+    lon = np.linspace(-math.pi, math.pi, 361)
+    lat = 0.35 * np.sin(3.0 * lon)
+    ax.plot(lon, lat, color=(0.14, 0.34, 0.70, 1.0), linewidth=lw(2.0))
+
+    save(fig, out_dir, "geo_mollweide_axes")
+
+
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 ALL_PLOTS = [
@@ -1788,6 +1805,7 @@ ALL_PLOTS = [
     units_custom_converter,
     vector_fields,
     polar_axes,
+    geo_mollweide_axes,
 ]
 
 

@@ -450,7 +450,7 @@ core.SavePNG(fig, r, "output.png")
 ### 7.1 Non-Cartesian Projections
 
 - [x] Polar axes
-- [ ] Geographic / geo projections
+- [x] Geographic / geo projections (initial built-in `mollweide` projection)
 - [x] Projection registry and `projection=`-style axes creation
 - [x] Projection-specific ticks, labels, and transforms
 - [ ] Specialty projections built on top of the registry (`radar`, `skew-T`, other curvilinear examples)
@@ -461,6 +461,7 @@ Current slice landed:
 - Built-in `radar` projection on the projection registry with polygon frames, polygon radial grids, configurable spoke labels, and `Figure.AddRadarAxes`
 - Projection registry plus `Figure.AddAxesProjection`, `Figure.AddPolarAxes`, and subplot `WithProjection(...)`
 - Polar-specific theta zero-location, theta-direction, radial-label-angle controls, and projection-stage transform access via `DrawContext.TransProjection()`
+- Built-in `mollweide` projection with oval frame/clipping, longitude/latitude degree ticks, sampled graticule lines, inverse pixel-to-data support, and Matplotlib reference coverage
 
 ### 7.2 3D Toolkit
 

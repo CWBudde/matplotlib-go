@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"matplotlib-go/internal/geom"
 	"matplotlib-go/transform"
 )
 
@@ -34,6 +35,7 @@ func init() {
 	mustRegisterProjection("rectilinear", func() Projection { return rectilinearProjection{} })
 	mustRegisterProjection("polar", func() Projection { return newPolarProjection() })
 	mustRegisterProjection("radar", func() Projection { return newRadarProjection() })
+	mustRegisterProjection("mollweide", func() Projection { return newMollweideProjection() })
 }
 
 // RegisterProjection installs a named axes projection.
@@ -100,6 +102,31 @@ func cloneProjection(proj Projection) Projection {
 func isPolarProjection(proj Projection) bool {
 	_, ok := polarProjectionFor(proj)
 	return ok
+}
+
+type projectionFrameProvider interface {
+	FramePath(clip geom.Rect) geom.Path
+	ContainsDisplayPoint(clip geom.Rect, p geom.Pt) bool
+}
+
+func projectionFramePath(proj Projection, clip geom.Rect) (geom.Path, bool) {
+	if provider, ok := proj.(projectionFrameProvider); ok {
+		return provider.FramePath(clip), true
+	}
+	if isPolarProjection(proj) {
+		return polarProjectionFramePath(proj, clip), true
+	}
+	return geom.Path{}, false
+}
+
+func projectionContainsDisplayPoint(proj Projection, clip geom.Rect, p geom.Pt) bool {
+	if provider, ok := proj.(projectionFrameProvider); ok {
+		return provider.ContainsDisplayPoint(clip, p)
+	}
+	if isPolarProjection(proj) {
+		return polarProjectionContainsDisplayPoint(proj, clip, p)
+	}
+	return clip.Contains(p)
 }
 
 type rectilinearProjection struct{}

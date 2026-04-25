@@ -48,6 +48,10 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 		g.drawPolar(r, ctx)
 		return
 	}
+	if isGeoProjection(ctx.Projection) {
+		g.drawGeo(r, ctx)
+		return
+	}
 
 	var domainMin, domainMax float64
 	var isXAxis bool
@@ -98,6 +102,57 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 
 		for _, v := range ticks {
 			g.drawLine(r, ctx, v, isXAxis, majorColor, g.LineWidth, g.Dashes)
+		}
+	}
+}
+
+func (g *Grid) drawGeo(r render.Renderer, ctx *DrawContext) {
+	var domainMin, domainMax float64
+	switch g.Axis {
+	case AxisBottom, AxisTop:
+		domainMin, domainMax = ctx.DataToPixel.XScale.Domain()
+	case AxisLeft, AxisRight:
+		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
+	}
+
+	majorColor := g.Color
+	if g.Alpha > 0 && g.Alpha <= 1 {
+		majorColor.A = g.Alpha
+	}
+
+	if g.Minor {
+		minorLoc := g.MinorLocator
+		if minorLoc == nil {
+			minorLoc = MinorLinearLocator{N: 2}
+		}
+		minorColor := g.MinorColor
+		if minorColor == (render.Color{}) {
+			minorColor = majorColor
+			minorColor.A = majorColor.A * 0.4
+		}
+		minorWidth := g.MinorLineWidth
+		if minorWidth <= 0 {
+			minorWidth = g.LineWidth * 0.5
+		}
+		paint := polarTickPaint(minorColor, minorWidth, g.MinorDashes)
+		for _, tick := range visibleTicks(minorLoc.Ticks(domainMin, domainMax, 20), domainMin, domainMax) {
+			drawGeoGridLine(r, ctx, g.Axis, tick, paint)
+		}
+	}
+
+	if g.Major {
+		loc := g.Locator
+		if loc == nil {
+			switch g.Axis {
+			case AxisBottom, AxisTop:
+				loc = ctx.Axes.effectiveXAxis().Locator
+			default:
+				loc = ctx.Axes.effectiveYAxis().Locator
+			}
+		}
+		paint := polarTickPaint(majorColor, g.LineWidth, g.Dashes)
+		for _, tick := range visibleTicks(loc.Ticks(domainMin, domainMax, 8), domainMin, domainMax) {
+			drawGeoGridLine(r, ctx, g.Axis, tick, paint)
 		}
 	}
 }

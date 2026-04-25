@@ -107,6 +107,17 @@ func (a *Axis) Draw(r render.Renderer, ctx *DrawContext) {
 		a.drawPolarSpine(r, ctx)
 		return
 	}
+	if framePath, ok := projectionFramePath(ctx.Projection, ctx.Clip); ok {
+		if a.ShowSpine && (a.Side == AxisBottom || a.Side == AxisTop) {
+			r.Path(framePath, &render.Paint{
+				LineWidth: a.LineWidth,
+				Stroke:    a.Color,
+				LineCap:   render.CapButt,
+				LineJoin:  render.JoinMiter,
+			})
+		}
+		return
+	}
 	if a.ShowSpine {
 		a.drawSpine(r, ctx)
 	}
@@ -344,6 +355,10 @@ func (a *Axis) Bounds(*DrawContext) geom.Rect {
 func (a *Axis) DrawTickLabels(r render.Renderer, ctx *DrawContext) {
 	if isPolarProjection(ctx.Projection) {
 		a.drawPolarTickLabels(r, ctx)
+		return
+	}
+	if isGeoProjection(ctx.Projection) {
+		a.drawGeoTickLabels(r, ctx)
 		return
 	}
 	if !a.ShowLabels && !a.ShowMinorLabels && len(a.ExtraTickLevels) == 0 {
@@ -611,6 +626,9 @@ func axisTickLabelBounds(a *Axis, r render.Renderer, ctx *DrawContext) (geom.Rec
 	}
 	if isPolarProjection(ctx.Projection) {
 		return a.polarTickLabelBounds(r, ctx)
+	}
+	if isGeoProjection(ctx.Projection) {
+		return a.geoTickLabelBounds(r, ctx)
 	}
 
 	var (

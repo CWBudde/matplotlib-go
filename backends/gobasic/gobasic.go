@@ -75,8 +75,13 @@ func New(w, h int, bg render.Color) *Renderer {
 
 	// Fill the entire image with background color
 	for y := 0; y < h; y++ {
+		row := dst.PixOffset(0, y)
 		for x := 0; x < w; x++ {
-			dst.Set(x, y, bgColor)
+			i := row + x*4
+			dst.Pix[i] = bgColor.R
+			dst.Pix[i+1] = bgColor.G
+			dst.Pix[i+2] = bgColor.B
+			dst.Pix[i+3] = bgColor.A
 		}
 	}
 
@@ -190,8 +195,34 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 
 // fillPath fills a path with the given color.
 func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
-	// Reset and rebuild path for filling
-	r.rasterizer.Reset(r.dst.Bounds().Dx(), r.dst.Bounds().Dy())
+	var clipBounds image.Rectangle
+	var target *image.RGBA
+	var offsetX, offsetY float64
+	if r.clipRect == nil {
+		clipBounds = r.dst.Bounds()
+		target = r.dst
+	} else {
+		pathBounds, ok := pathPixelBounds(p)
+		if !ok {
+			return
+		}
+		clipBounds = image.Rect(
+			int(math.Floor(r.clipRect.Min.X)),
+			int(math.Floor(r.clipRect.Min.Y)),
+			int(math.Ceil(r.clipRect.Max.X)),
+			int(math.Ceil(r.clipRect.Max.Y)),
+		).Intersect(r.dst.Bounds())
+		clipBounds = clipBounds.Intersect(pathBounds)
+		if clipBounds.Empty() {
+			return
+		}
+		target = image.NewRGBA(image.Rect(0, 0, clipBounds.Dx(), clipBounds.Dy()))
+		offsetX = float64(clipBounds.Min.X)
+		offsetY = float64(clipBounds.Min.Y)
+	}
+
+	// Reset and rebuild path for filling.
+	r.rasterizer.Reset(target.Bounds().Dx(), target.Bounds().Dy())
 
 	vi := 0 // vertex index
 
@@ -200,27 +231,27 @@ func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 		case geom.MoveTo:
 			pt := p.V[vi]
 			// Apply explicit rounding to ensure consistent float32 conversion
-			r.rasterizer.MoveTo(float32(math.Round(pt.X*1e6)/1e6), float32(math.Round(pt.Y*1e6)/1e6))
+			r.rasterizer.MoveTo(float32(math.Round((pt.X-offsetX)*1e6)/1e6), float32(math.Round((pt.Y-offsetY)*1e6)/1e6))
 			vi++
 		case geom.LineTo:
 			pt := p.V[vi]
-			r.rasterizer.LineTo(float32(math.Round(pt.X*1e6)/1e6), float32(math.Round(pt.Y*1e6)/1e6))
+			r.rasterizer.LineTo(float32(math.Round((pt.X-offsetX)*1e6)/1e6), float32(math.Round((pt.Y-offsetY)*1e6)/1e6))
 			vi++
 		case geom.QuadTo:
 			ctrl := p.V[vi]
 			to := p.V[vi+1]
 			r.rasterizer.QuadTo(
-				float32(math.Round(ctrl.X*1e6)/1e6), float32(math.Round(ctrl.Y*1e6)/1e6),
-				float32(math.Round(to.X*1e6)/1e6), float32(math.Round(to.Y*1e6)/1e6))
+				float32(math.Round((ctrl.X-offsetX)*1e6)/1e6), float32(math.Round((ctrl.Y-offsetY)*1e6)/1e6),
+				float32(math.Round((to.X-offsetX)*1e6)/1e6), float32(math.Round((to.Y-offsetY)*1e6)/1e6))
 			vi += 2
 		case geom.CubicTo:
 			c1 := p.V[vi]
 			c2 := p.V[vi+1]
 			to := p.V[vi+2]
 			r.rasterizer.CubeTo(
-				float32(math.Round(c1.X*1e6)/1e6), float32(math.Round(c1.Y*1e6)/1e6),
-				float32(math.Round(c2.X*1e6)/1e6), float32(math.Round(c2.Y*1e6)/1e6),
-				float32(math.Round(to.X*1e6)/1e6), float32(math.Round(to.Y*1e6)/1e6))
+				float32(math.Round((c1.X-offsetX)*1e6)/1e6), float32(math.Round((c1.Y-offsetY)*1e6)/1e6),
+				float32(math.Round((c2.X-offsetX)*1e6)/1e6), float32(math.Round((c2.Y-offsetY)*1e6)/1e6),
+				float32(math.Round((to.X-offsetX)*1e6)/1e6), float32(math.Round((to.Y-offsetY)*1e6)/1e6))
 			vi += 3
 		case geom.ClosePath:
 			r.rasterizer.ClosePath()
@@ -232,38 +263,56 @@ func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 	c := color.RGBA{R: red, G: green, B: blue, A: alpha}
 
 	if r.clipRect == nil {
-		r.rasterizer.Draw(r.dst, r.dst.Bounds(), image.NewUniform(c), image.Point{})
+		r.rasterizer.Draw(target, target.Bounds(), image.NewUniform(c), image.Point{})
 		return
 	}
 
-	clipBounds := image.Rect(
-		int(math.Floor(r.clipRect.Min.X)),
-		int(math.Floor(r.clipRect.Min.Y)),
-		int(math.Ceil(r.clipRect.Max.X)),
-		int(math.Ceil(r.clipRect.Max.Y)),
-	).Intersect(r.dst.Bounds())
-	if clipBounds.Empty() {
-		return
-	}
-
-	// Drawing into a temporary surface and compositing the clipped region keeps
-	// clipped paths correct for any clip origin. The direct bounds-based draw
-	// path can drop clipped output outside the first clip region.
-	tmp := image.NewRGBA(r.dst.Bounds())
-	r.rasterizer.Draw(tmp, tmp.Bounds(), image.NewUniform(c), image.Point{})
+	// Rasterizing into a zero-origin temporary surface and translating path
+	// coordinates keeps clipped paths correct for any clip origin. Drawing
+	// directly into non-zero clip bounds can drop output outside the first clip.
+	r.rasterizer.Draw(target, target.Bounds(), image.NewUniform(c), image.Point{})
 	for y := clipBounds.Min.Y; y < clipBounds.Max.Y; y++ {
-		rowOffset := tmp.PixOffset(clipBounds.Min.X, y)
 		for x := clipBounds.Min.X; x < clipBounds.Max.X; x++ {
-			srcOffset := rowOffset + (x-clipBounds.Min.X)*4
+			srcOffset := target.PixOffset(x-clipBounds.Min.X, y-clipBounds.Min.Y)
 			src := color.RGBA{
-				R: tmp.Pix[srcOffset],
-				G: tmp.Pix[srcOffset+1],
-				B: tmp.Pix[srcOffset+2],
-				A: tmp.Pix[srcOffset+3],
+				R: target.Pix[srcOffset],
+				G: target.Pix[srcOffset+1],
+				B: target.Pix[srcOffset+2],
+				A: target.Pix[srcOffset+3],
 			}
 			r.blendPixel(x, y, src)
 		}
 	}
+}
+
+func pathPixelBounds(p geom.Path) (image.Rectangle, bool) {
+	if len(p.V) == 0 {
+		return image.Rectangle{}, false
+	}
+
+	minX, maxX := p.V[0].X, p.V[0].X
+	minY, maxY := p.V[0].Y, p.V[0].Y
+	for _, pt := range p.V[1:] {
+		if pt.X < minX {
+			minX = pt.X
+		}
+		if pt.X > maxX {
+			maxX = pt.X
+		}
+		if pt.Y < minY {
+			minY = pt.Y
+		}
+		if pt.Y > maxY {
+			maxY = pt.Y
+		}
+	}
+
+	return image.Rect(
+		int(math.Floor(minX))-1,
+		int(math.Floor(minY))-1,
+		int(math.Ceil(maxX))+1,
+		int(math.Ceil(maxY))+1,
+	), true
 }
 
 // drawStroke handles stroke drawing for paths using proper stroke geometry.

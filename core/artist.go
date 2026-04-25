@@ -1456,8 +1456,8 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 
 		if ctx.RC.AxesBackground != fig.RC.FigureBackground() {
 			backgroundPath := pixelRectPath(px)
-			if isPolarProjection(ctx.Projection) {
-				backgroundPath = polarProjectionFramePath(ctx.Projection, px)
+			if framePath, ok := projectionFramePath(ctx.Projection, px); ok {
+				backgroundPath = framePath
 			}
 			r.Path(backgroundPath, &render.Paint{
 				Fill: ctx.RC.AxesBackground,
@@ -1467,8 +1467,8 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		// Draw only clipped content (data and grids) while the axes clip is active.
 		r.Save()
 		r.ClipRect(px)
-		if isPolarProjection(ctx.Projection) {
-			r.ClipPath(polarProjectionFramePath(ctx.Projection, px))
+		if framePath, ok := projectionFramePath(ctx.Projection, px); ok {
+			r.ClipPath(framePath)
 		}
 
 		if !ax.zsorted {

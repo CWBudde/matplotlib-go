@@ -30,10 +30,7 @@ func (a *Axes) ContainsDisplayPoint(p geom.Pt) bool {
 	if !rect.Contains(p) {
 		return false
 	}
-	if isPolarProjection(a.projection) {
-		return polarProjectionContainsDisplayPoint(a.projection, rect, p)
-	}
-	return true
+	return projectionContainsDisplayPoint(a.projection, rect, p)
 }
 
 // PixelToData resolves a figure-pixel point into this axes' data coordinates.
