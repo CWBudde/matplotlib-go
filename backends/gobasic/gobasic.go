@@ -196,11 +196,11 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 // fillPath fills a path with the given color.
 func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 	var clipBounds image.Rectangle
-	var target *image.RGBA
+	var rasterBounds image.Rectangle
 	var offsetX, offsetY float64
 	if r.clipRect == nil {
 		clipBounds = r.dst.Bounds()
-		target = r.dst
+		rasterBounds = clipBounds
 	} else {
 		pathBounds, ok := pathPixelBounds(p)
 		if !ok {
@@ -216,13 +216,13 @@ func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 		if clipBounds.Empty() {
 			return
 		}
-		target = image.NewRGBA(image.Rect(0, 0, clipBounds.Dx(), clipBounds.Dy()))
+		rasterBounds = image.Rect(0, 0, clipBounds.Dx(), clipBounds.Dy())
 		offsetX = float64(clipBounds.Min.X)
 		offsetY = float64(clipBounds.Min.Y)
 	}
 
 	// Reset and rebuild path for filling.
-	r.rasterizer.Reset(target.Bounds().Dx(), target.Bounds().Dy())
+	r.rasterizer.Reset(rasterBounds.Dx(), rasterBounds.Dy())
 
 	vi := 0 // vertex index
 
@@ -263,26 +263,13 @@ func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 	c := color.RGBA{R: red, G: green, B: blue, A: alpha}
 
 	if r.clipRect == nil {
-		r.rasterizer.Draw(target, target.Bounds(), image.NewUniform(c), image.Point{})
+		r.rasterizer.Draw(r.dst, rasterBounds, image.NewUniform(c), image.Point{})
 		return
 	}
 
-	// Rasterizing into a zero-origin temporary surface and translating path
-	// coordinates keeps clipped paths correct for any clip origin. Drawing
-	// directly into non-zero clip bounds can drop output outside the first clip.
-	r.rasterizer.Draw(target, target.Bounds(), image.NewUniform(c), image.Point{})
-	for y := clipBounds.Min.Y; y < clipBounds.Max.Y; y++ {
-		for x := clipBounds.Min.X; x < clipBounds.Max.X; x++ {
-			srcOffset := target.PixOffset(x-clipBounds.Min.X, y-clipBounds.Min.Y)
-			src := color.RGBA{
-				R: target.Pix[srcOffset],
-				G: target.Pix[srcOffset+1],
-				B: target.Pix[srcOffset+2],
-				A: target.Pix[srcOffset+3],
-			}
-			r.blendPixel(x, y, src)
-		}
-	}
+	// Use a zero-origin mask for the clipped path, then draw that mask directly
+	// into the matching destination rectangle.
+	r.rasterizer.Draw(r.dst, clipBounds, image.NewUniform(c), image.Point{})
 }
 
 func pathPixelBounds(p geom.Path) (image.Rectangle, bool) {

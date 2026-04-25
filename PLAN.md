@@ -471,10 +471,15 @@ Current slice landed:
 
 ### 7.3 Axes Composition Helpers
 
-- [ ] Inset axes and zoomed-inset helpers
+- [x] Inset axes and zoomed-inset helpers
 - [ ] `AxesDivider`, `ImageGrid`, and RGB axes composition
 - [ ] Parasite axes / multi-view axes composition helpers
 - [ ] Anchored artists and locator-driven placement helpers
+
+Current slice landed:
+
+- Draw-time `AxesLocator` support with parent-relative `Axes.InsetAxes(...)` and `Axes.ZoomedInset(...)`
+- Inset style/projection/share options and example coverage in `examples/axes/inset`
 
 ### 7.4 AxisArtist and Floating-Axis Systems
 

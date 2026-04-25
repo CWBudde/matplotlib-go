@@ -343,6 +343,7 @@ type Axes struct {
 	yUnits *axisUnitsState
 
 	subplotSpec *SubplotSpec
+	axesLocator AxesLocator
 
 	colorbarParent  *Axes
 	colorbarWidth   float64
@@ -1441,7 +1442,9 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 	defer r.End()
 
 	prepareFigureLayout(fig, r, vp)
+	syncAxesLocators(fig, r)
 	syncColorbarAxes(fig)
+	syncAxesLocators(fig, r)
 	alignment := computeFigureTextAlignment(fig, r, vp)
 
 	for _, ax := range fig.Children {
