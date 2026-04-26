@@ -38,6 +38,9 @@ func TestNewGoldenUpdateCommandIncludesFreetypeTag(t *testing.T) {
 	if !slices.Contains(cmd.Env, "CGO_ENABLED=1") {
 		t.Fatalf("Env missing CGO_ENABLED=1: %v", cmd.Env)
 	}
+	if !slices.Contains(cmd.Env, goldenUpdateOptionalVisualTestsEnv+"=true") {
+		t.Fatalf("Env missing %s=true: %v", goldenUpdateOptionalVisualTestsEnv, cmd.Env)
+	}
 	if !slices.Contains(cmd.Env, "GOCACHE=/tmp/mpl-parity-gocache") {
 		t.Fatalf("Env missing fallback GOCACHE: %v", cmd.Env)
 	}

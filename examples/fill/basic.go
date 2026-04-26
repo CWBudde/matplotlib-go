@@ -23,7 +23,6 @@ func main() {
 	fillColor := render.Color{R: 0.3, G: 0.7, B: 0.9, A: 0.7}
 	edgeColor := render.Color{R: 0.1, G: 0.3, B: 0.5, A: 1.0}
 	edgeWidth := 2.0
-	alpha := 0.7
 	baseline := 0.0
 
 	ax.SetTitle("Fill to Baseline")
@@ -33,7 +32,6 @@ func main() {
 		Color:     &fillColor,
 		EdgeColor: &edgeColor,
 		EdgeWidth: &edgeWidth,
-		Alpha:     &alpha,
 		Baseline:  &baseline,
 	})
 

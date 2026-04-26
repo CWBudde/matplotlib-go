@@ -22,6 +22,7 @@ import (
 )
 
 const goldenUpdateBuildTag = "freetype"
+const goldenUpdateOptionalVisualTestsEnv = "RUN_OPTIONAL_VISUAL_TESTS"
 const rerenderAllButtonPlaceholder = "__RERENDER_ALL_BUTTON__"
 const goldenUpdateRunPatternAll = "^Test.*_Golden$"
 
@@ -259,6 +260,7 @@ func newGoldenUpdateCommand(repoRoot, runPattern string) *exec.Cmd {
 
 	cmd.Env = os.Environ()
 	cmd.Env = setEnv(cmd.Env, "CGO_ENABLED", "1")
+	cmd.Env = setEnv(cmd.Env, goldenUpdateOptionalVisualTestsEnv, "true")
 	if cacheDir, hasCache := os.LookupEnv("GOCACHE"); !hasCache || strings.TrimSpace(cacheDir) == "" {
 		cmd.Env = setEnv(cmd.Env, "GOCACHE", "/tmp/mpl-parity-gocache")
 	}

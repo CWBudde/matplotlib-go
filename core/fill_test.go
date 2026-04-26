@@ -257,6 +257,90 @@ func TestFillToBaseline(t *testing.T) {
 	}
 }
 
+func TestFillPlotPreservesColorAlphaWhenAlphaOmitted(t *testing.T) {
+	fig := NewFigure(320, 240)
+	ax := fig.AddAxes(unitRect())
+
+	fillColor := render.Color{R: 0.36, G: 0.56, B: 0.92, A: 0.2}
+	fill := ax.FillToBaseline(
+		[]float64{0, 1, 2},
+		[]float64{1, 2, 1},
+		FillOptions{Color: &fillColor},
+	)
+	if fill == nil {
+		t.Fatal("expected fill artist")
+	}
+	if fill.Alpha != 0 {
+		t.Fatalf("omitted alpha stored Alpha = %v, want 0 sentinel", fill.Alpha)
+	}
+
+	r := &recordingRenderer{}
+	fill.Draw(r, createTestDrawContext())
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("path calls = %d, want 1", len(r.pathCalls))
+	}
+	if got := r.pathCalls[0].paint.Fill.A; got != fillColor.A {
+		t.Fatalf("drawn fill alpha = %v, want color alpha %v", got, fillColor.A)
+	}
+}
+
+func TestFillPlotExplicitAlphaOverridesColorAlpha(t *testing.T) {
+	fig := NewFigure(320, 240)
+	ax := fig.AddAxes(unitRect())
+
+	fillColor := render.Color{R: 0.3, G: 0.7, B: 0.9, A: 0.7}
+	alpha := 0.4
+	fill := ax.FillBetween(
+		[]float64{0, 1, 2},
+		[]float64{1, 2, 1},
+		[]float64{0, 1, 0},
+		FillOptions{Color: &fillColor, Alpha: &alpha},
+	)
+	if fill == nil {
+		t.Fatal("expected fill artist")
+	}
+	if fill.Alpha != alpha {
+		t.Fatalf("stored Alpha = %v, want %v", fill.Alpha, alpha)
+	}
+
+	r := &recordingRenderer{}
+	fill.Draw(r, createTestDrawContext())
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("path calls = %d, want 1", len(r.pathCalls))
+	}
+	if got := r.pathCalls[0].paint.Fill.A; got != alpha {
+		t.Fatalf("drawn fill alpha = %v, want explicit alpha %v", got, alpha)
+	}
+}
+
+func TestFillBetweenXPreservesColorAlphaWhenAlphaOmitted(t *testing.T) {
+	fig := NewFigure(320, 240)
+	ax := fig.AddAxes(unitRect())
+
+	fillColor := render.Color{R: 0.24, G: 0.68, B: 0.54, A: 0.72}
+	fill := ax.FillBetweenX(
+		[]float64{0, 1, 2},
+		[]float64{1, 2, 1},
+		[]float64{0, 1, 0},
+		FillOptions{Color: &fillColor},
+	)
+	if fill == nil {
+		t.Fatal("expected fill artist")
+	}
+	if fill.Alpha != 0 {
+		t.Fatalf("omitted alpha stored Alpha = %v, want 0 sentinel", fill.Alpha)
+	}
+
+	r := &recordingRenderer{}
+	fill.Draw(r, createTestDrawContext())
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("path calls = %d, want 1", len(r.pathCalls))
+	}
+	if got := r.pathCalls[0].paint.Fill.A; got != fillColor.A {
+		t.Fatalf("drawn fill alpha = %v, want color alpha %v", got, fillColor.A)
+	}
+}
+
 func TestFill2D_EdgeColors(t *testing.T) {
 	// Test with edge colors and width
 	fill := &Fill2D{

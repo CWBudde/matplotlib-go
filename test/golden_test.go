@@ -736,7 +736,6 @@ func renderFillBasic() image.Image {
 		Color:     render.Color{R: 0.3, G: 0.7, B: 0.9, A: 0.7},
 		EdgeColor: render.Color{R: 0.1, G: 0.3, B: 0.5, A: 1.0},
 		EdgeWidth: 2.0,
-		Alpha:     1.0,
 	}
 	ax.Add(fill)
 

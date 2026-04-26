@@ -281,7 +281,7 @@ func (a *Axes) FillBetweenX(y, x1, x2 []float64, opts ...FillOptions) *Fill2D {
 		edgeWidth = *opt.EdgeWidth
 	}
 
-	alpha := 0.6
+	alpha := 0.0
 	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 		alpha = *opt.Alpha
 	}
@@ -341,8 +341,9 @@ func (a *Axes) FillBetweenPlot(x, y1, y2 []float64, opts ...FillOptions) *Fill2D
 		edgeWidth = *opt.EdgeWidth
 	}
 
-	// Get alpha
-	alpha := 0.6 // default for fill areas
+	// Get alpha. When omitted, preserve the color's own alpha, matching
+	// Matplotlib's fill_between behavior.
+	alpha := 0.0
 	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 		alpha = *opt.Alpha
 	}
@@ -656,8 +657,9 @@ func (a *Axes) FillToBaselinePlot(x, y []float64, opts ...FillOptions) *Fill2D {
 		edgeWidth = *opt.EdgeWidth
 	}
 
-	// Get alpha
-	alpha := 0.6 // default for fill areas
+	// Get alpha. When omitted, preserve the color's own alpha, matching
+	// Matplotlib's fill_between behavior.
+	alpha := 0.0
 	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 		alpha = *opt.Alpha
 	}
