@@ -527,6 +527,35 @@ func TestProjectionsDemoIncludesInsetAxes(t *testing.T) {
 	}
 }
 
+func TestCompositionColorbarStaysInsideGridSlot(t *testing.T) {
+	fig, _, err := Build("composition", 960, 540)
+	if err != nil {
+		t.Fatalf("Build(composition) error = %v", err)
+	}
+
+	var heat, colorbar *core.Axes
+	for _, ax := range fig.Children {
+		switch {
+		case ax.Title == "colorbar":
+			heat = ax
+		case ax.YLabel == "intensity":
+			colorbar = ax
+		}
+	}
+	if heat == nil {
+		t.Fatal("did not find composition heatmap axes")
+	}
+	if colorbar == nil {
+		t.Fatal("did not find composition colorbar axes")
+	}
+	if colorbar.RectFraction.Min.X <= heat.RectFraction.Max.X {
+		t.Fatalf("colorbar does not sit to the right of heatmap: heat=%+v colorbar=%+v", heat.RectFraction, colorbar.RectFraction)
+	}
+	if got, want := colorbar.RectFraction.Max.X, 0.92; math.Abs(got-want) > 1e-12 {
+		t.Fatalf("colorbar right edge = %v, want GridSpec slot edge %v", got, want)
+	}
+}
+
 func TestRenderEachDemoProducesImage(t *testing.T) {
 	for _, descriptor := range Catalog() {
 		t.Run(descriptor.ID, func(t *testing.T) {

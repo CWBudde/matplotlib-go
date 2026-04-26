@@ -64,6 +64,14 @@ This roadmap is cross-checked against the local upstream Matplotlib snapshot in 
 
 ---
 
+### 0.8 Missing architectural parity not yet tracked
+
+- [ ] Add an explicit draw-state model closer to Matplotlib’s `GraphicsContext` split (`RendererBase` vs stateful graphics context), including centralized opacity, clip, transform, and path-state ownership.
+- [ ] Add first-class event object types and connection lifecycle matching Matplotlib event classes (`MouseEvent`, `KeyEvent`, `PickEvent`) instead of only generic canvas events.
+- [ ] Add event-loop and redraw queue semantics (`draw_idle`-style scheduling, timer callbacks) for interactive backends and widgets.
+- [ ] Add artist callback and dirty-state lifecycle (`add_callback`/`remove_callback`, stale propagation, and draw scheduling) in `core` to support interactive mutation.
+- [x] Add backend format/router parity (`register_backend` / default format handler behavior) as a single dynamic registry instead of path-extension switch logic.
+
 ## Baseline Status (Stable to Keep Unless Broken)
 
 The following phases have reached "foundational parity enough to continue feature expansion" and should be treated as stable:

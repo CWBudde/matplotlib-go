@@ -13,6 +13,9 @@ func init() {
 		Capabilities: []backends.Capability{
 			backends.AntiAliasing, // Basic AA via vector rasterizer
 		},
+		SaveFormats: map[string]backends.SaveHandler{
+			".png": backends.SavePNG,
+		},
 		Factory: func(config backends.Config) (render.Renderer, error) {
 			return New(config.Width, config.Height, config.Background), nil
 		},

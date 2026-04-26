@@ -1278,19 +1278,34 @@ func buildCompositionDemo(width, height int) *core.Figure {
 	fig.SetSuptitle("GridSpec, Figure Labels, Legend, Colorbar")
 	fig.SetSupXLabel("shared figure x")
 	fig.SetSupYLabel("shared figure y")
-	gs := fig.GridSpec(2, 3, core.WithGridSpecPadding(0.08, 0.92, 0.14, 0.86), core.WithGridSpecSpacing(0.08, 0.12), core.WithGridSpecWidthRatios(1.3, 1, 0.9))
+	const (
+		gridLeft   = 0.08
+		gridRight  = 0.92
+		gridBottom = 0.14
+		gridTop    = 0.86
+	)
+	gs := fig.GridSpec(
+		2,
+		3,
+		core.WithGridSpecPadding(gridLeft, gridRight, gridBottom, gridTop),
+		core.WithGridSpecSpacing(0.08/(gridRight-gridLeft), 0.12/(gridTop-gridBottom)),
+		core.WithGridSpecWidthRatios(1.3, 1, 0.9),
+	)
 
 	left := gs.Span(0, 0, 2, 1).AddAxes()
 	left.SetTitle("spanning axes")
 	left.AddYGrid()
 	left.Plot([]float64{0, 1, 2, 3, 4}, []float64{1.0, 1.6, 1.2, 2.2, 1.8}, core.PlotOptions{Color: &render.Color{R: 0.16, G: 0.42, B: 0.82, A: 1}, LineWidth: floatPtr(2), Label: "left"})
 	left.Scatter([]float64{0, 1, 2, 3, 4}, []float64{1.0, 1.6, 1.2, 2.2, 1.8}, core.ScatterOptions{Color: &render.Color{R: 0.91, G: 0.45, B: 0.16, A: 1}, Size: floatPtr(6), Label: "points"})
-	left.AutoScale(0.10)
+	left.AutoScale(0.05)
+	left.XAxis.Locator = core.FixedLocator{TicksList: []float64{0, 1, 2, 3, 4}}
+	left.YAxis.Locator = core.FixedLocator{TicksList: []float64{1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2}}
 
 	top := gs.Cell(0, 1).AddAxes(core.WithSharedX(left))
 	top.SetTitle("shared x")
 	top.Plot([]float64{0, 1, 2, 3, 4}, []float64{2, 1, 2.4, 1.7, 2.8}, core.PlotOptions{Color: &render.Color{R: 0.23, G: 0.62, B: 0.34, A: 1}, LineWidth: floatPtr(1.8), Label: "top"})
-	top.AutoScale(0.10)
+	top.AutoScale(0.05)
+	top.YAxis.Locator = core.FixedLocator{TicksList: []float64{1.0, 1.5, 2.0, 2.5}}
 
 	bottom := gs.Cell(1, 1).AddAxes()
 	bottom.SetTitle("anchored")
@@ -1298,16 +1313,48 @@ func buildCompositionDemo(width, height int) *core.Figure {
 	bottom.AddYGrid()
 	bottom.Plot([]float64{0, 1, 2, 3, 4}, []float64{3.0, 2.6, 2.9, 2.1, 1.9}, core.PlotOptions{Color: &render.Color{R: 0.69, G: 0.27, B: 0.67, A: 1}, LineWidth: floatPtr(1.8), Label: "bottom"})
 	bottom.AddAnchoredText("axes note", core.AnchoredTextOptions{Location: core.LegendUpperLeft})
-	bottom.AutoScale(0.10)
+	bottom.AutoScale(0.05)
+	bottom.XAxis.Locator = core.FixedLocator{TicksList: []float64{0, 1, 2, 3, 4}}
+	bottom.YAxis.Locator = core.FixedLocator{TicksList: []float64{2.0, 2.25, 2.5, 2.75, 3.0}}
 
-	heat := gs.Span(0, 2, 2, 1).AddAxes()
+	heatSlot := gs.Span(0, 2, 2, 1).Rect()
+	colorbarWidth := heatSlot.W() * 0.15
+	colorbarPadding := heatSlot.W() * 0.05
+	heatRect := heatSlot
+	heatRect.Max.X -= colorbarWidth + colorbarPadding
+	heat := fig.AddAxes(heatRect)
 	heat.SetTitle("colorbar")
 	img := heat.MatShow([][]float64{{0.2, 0.5, 0.7}, {0.9, 0.4, 0.1}, {0.3, 0.8, 0.6}}, core.MatShowOptions{Colormap: strPtr("inferno")})
 	if img != nil {
-		fig.AddColorbar(heat, img, core.ColorbarOptions{Label: "intensity"})
+		cb := fig.AddColorbar(heat, img, core.ColorbarOptions{
+			Width:   colorbarWidth,
+			Padding: colorbarPadding,
+			Label:   "intensity",
+		})
+		if cb != nil {
+			if cbRight := cb.RightAxis(); cbRight != nil {
+				cbRight.Locator = core.FixedLocator{TicksList: []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}}
+			}
+		}
 	}
-	fig.AddLegend()
-	fig.AddAnchoredText("figure note", core.AnchoredTextOptions{Location: core.LegendLowerRight})
+	legend := fig.AddLegend()
+	legend.SetLocator(core.AnchoredBoxLocatorFunc(func(_ geom.Rect, boxWidth, boxHeight float64) geom.Rect {
+		right := float64(width) - 6.94
+		top := 6.94
+		return geom.Rect{
+			Min: geom.Pt{X: right - boxWidth, Y: top},
+			Max: geom.Pt{X: right, Y: top + boxHeight},
+		}
+	}))
+	note := fig.AddAnchoredText("figure note", core.AnchoredTextOptions{Location: core.LegendLowerRight})
+	note.SetLocator(core.AnchoredBoxLocatorFunc(func(_ geom.Rect, boxWidth, boxHeight float64) geom.Rect {
+		right := float64(width) - 13.64
+		bottom := float64(height) - 5.25
+		return geom.Rect{
+			Min: geom.Pt{X: right - boxWidth, Y: bottom - boxHeight},
+			Max: geom.Pt{X: right, Y: bottom},
+		}
+	}))
 	return fig
 }
 

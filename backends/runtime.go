@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -186,24 +185,13 @@ func (c *headlessCanvas) save(path string) error {
 
 	c.mu.Lock()
 	renderer := c.renderer
+	backend := c.backend
 	c.mu.Unlock()
 
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".png":
-		exporter, ok := renderer.(render.PNGExporter)
-		if !ok {
-			return fmt.Errorf("backends: backend %s does not support PNG export", c.backend)
-		}
-		return exporter.SavePNG(path)
-	case ".svg":
-		exporter, ok := renderer.(render.SVGExporter)
-		if !ok {
-			return fmt.Errorf("backends: backend %s does not support SVG export", c.backend)
-		}
-		return exporter.SaveSVG(path)
-	default:
-		return fmt.Errorf("backends: unsupported save extension %q", filepath.Ext(path))
+	if err := DefaultRegistry.SaveViaExtension(backend, renderer, path); err != nil {
+		return fmt.Errorf("backends: cannot save figure: %w", err)
 	}
+	return nil
 }
 
 func (c *headlessCanvas) draw(skipEmit bool) (canvas.Event, error) {

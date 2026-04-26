@@ -20,6 +20,9 @@ func init() {
 			backends.TextShaping,
 			backends.FontHinting,
 		},
+		SaveFormats: map[string]backends.SaveHandler{
+			".png": backends.SavePNG,
+		},
 		Factory: func(config backends.Config) (render.Renderer, error) {
 			return New(config)
 		},

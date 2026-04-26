@@ -3,7 +3,9 @@ package backends
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"matplotlib-go/canvas"
 	"matplotlib-go/render"
@@ -83,10 +85,43 @@ type BackendInfo struct {
 	Name           string
 	Description    string
 	Capabilities   []Capability
+	SaveFormats    map[string]SaveHandler
 	Factory        Factory
 	CanvasFactory  CanvasFactory
 	ManagerFactory ManagerFactory
 	Available      bool // Whether dependencies are available
+}
+
+// SaveHandler writes output in a specific file format using the renderer.
+type SaveHandler func(render.Renderer, string) error
+
+func normalizeSaveFormat(format string) string {
+	ext := strings.ToLower(strings.TrimSpace(format))
+	if ext == "" {
+		return ""
+	}
+	if ext[0] != '.' {
+		ext = "." + ext
+	}
+	return ext
+}
+
+// SavePNG saves using the renderer PNG export interface.
+func SavePNG(renderer render.Renderer, path string) error {
+	exporter, ok := renderer.(render.PNGExporter)
+	if !ok {
+		return fmt.Errorf("backends: renderer does not implement PNG export")
+	}
+	return exporter.SavePNG(path)
+}
+
+// SaveSVG saves using the renderer SVG export interface.
+func SaveSVG(renderer render.Renderer, path string) error {
+	exporter, ok := renderer.(render.SVGExporter)
+	if !ok {
+		return fmt.Errorf("backends: renderer does not implement SVG export")
+	}
+	return exporter.SaveSVG(path)
 }
 
 // Registry manages available rendering backends.
@@ -153,6 +188,42 @@ func (r *Registry) HasCapability(backend Backend, capability Capability) bool {
 		}
 	}
 	return false
+}
+
+// SaveViaExtension dispatches to the backend-specific save handler for extension.
+func (r *Registry) SaveViaExtension(backend Backend, renderer render.Renderer, path string) error {
+	info, ok := r.Get(backend)
+	if !ok {
+		return fmt.Errorf("unknown backend: %s", backend)
+	}
+	return info.saveViaExtension(renderer, path)
+}
+
+func (i *BackendInfo) saveViaExtension(renderer render.Renderer, path string) error {
+	if i == nil {
+		return errors.New("backends: nil backend info")
+	}
+
+	ext := normalizeSaveFormat(filepath.Ext(path))
+	if ext == "" {
+		return fmt.Errorf("backends: unsupported save extension %q", filepath.Ext(path))
+	}
+
+	if i.SaveFormats != nil {
+		if handler, ok := i.SaveFormats[ext]; ok {
+			return handler(renderer, path)
+		}
+		return fmt.Errorf("backends: backend does not support extension %q", ext)
+	}
+
+	switch ext {
+	case ".png":
+		return SavePNG(renderer, path)
+	case ".svg":
+		return SaveSVG(renderer, path)
+	default:
+		return fmt.Errorf("backends: unsupported save extension %q", ext)
+	}
 }
 
 // DefaultRegistry is the global backend registry.

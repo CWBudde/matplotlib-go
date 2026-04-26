@@ -16,6 +16,9 @@ func init() {
 			backends.TextShaping,
 			backends.FontHinting,
 		},
+		SaveFormats: map[string]backends.SaveHandler{
+			".svg": backends.SaveSVG,
+		},
 		Factory: func(config backends.Config) (render.Renderer, error) {
 			return New(config.Width, config.Height, config.Background)
 		},
