@@ -23,6 +23,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default=str(Path.cwd()))
     args = parser.parse_args()
+    # Delegate to the shared reference plot so tick locations, degree labels,
+    # and Mollweide grid styling stay identical to the visual test fixture.
     PLOT(args.output_dir)
 
 

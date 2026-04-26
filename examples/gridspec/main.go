@@ -13,6 +13,8 @@ func main() {
 	fig := core.NewFigure(960, 640)
 	applyMatplotlibGridSpecStyle(fig)
 
+	// Outer GridSpec matches the Python reference: a wide left column and a
+	// narrow right column with one nested grid and one subfigure-like inset.
 	outer := fig.GridSpec(
 		2,
 		2,
@@ -21,10 +23,12 @@ func main() {
 		core.WithGridSpecWidthRatios(2, 1),
 	)
 
+	// Left axes spans both rows, equivalent to outer[:, 0].
 	mainAx := outer.Span(0, 0, 2, 1).AddAxes()
 	configureAxes(mainAx, "Main Span", []float64{0, 1, 2, 3, 4}, []float64{1.2, 2.8, 2.1, 3.6, 3.1}, render.Color{R: 0.15, G: 0.35, B: 0.72, A: 1})
 	configureTicks(mainAx, []float64{0, 1, 2, 3, 4}, []float64{1.0, 1.5, 2.0, 2.5, 3.0, 3.5}, "%.1f")
 
+	// Top-right cell has its own 2x1 nested GridSpec.
 	nested := outer.Cell(0, 1).GridSpec(2, 1, core.WithGridSpecSpacing(0, 0.75/(2+0.75)))
 	topRight := nested.Cell(0, 0).AddAxes()
 	configureAxes(topRight, "Nested Top", []float64{0, 1, 2, 3}, []float64{3.4, 2.6, 2.9, 1.8}, render.Color{R: 0.72, G: 0.32, B: 0.18, A: 1})
@@ -34,6 +38,7 @@ func main() {
 	configureAxes(bottomRight, "Nested Bottom", []float64{0, 1, 2, 3}, []float64{1.0, 1.6, 1.3, 2.2}, render.Color{R: 0.18, G: 0.55, B: 0.34, A: 1})
 	configureTicks(bottomRight, []float64{0, 1, 2, 3}, []float64{1, 2}, "%.0f")
 
+	// The lower-right cell demonstrates SubFigure-style composition.
 	sub := outer.Cell(1, 1).SubFigure()
 	inset := sub.AddSubplot(1, 1, 1)
 	configureAxes(inset, "SubFigure", []float64{0, 1, 2, 3}, []float64{2.0, 2.4, 1.9, 2.7}, render.Color{R: 0.55, G: 0.22, B: 0.50, A: 1})
@@ -50,6 +55,8 @@ func main() {
 }
 
 func applyMatplotlibGridSpecStyle(fig *core.Figure) {
+	// Matplotlib's reference uses 100 DPI and DejaVu Sans; scale point sizes
+	// into renderer pixels for the Go RC values.
 	fig.RC = style.Apply(fig.RC, style.WithFont("DejaVu Sans", 10))
 	fig.RC.TitleFontSize = 12 * fig.RC.DPI / 72
 	fig.RC.AxisLabelFontSize = 10 * fig.RC.DPI / 72
@@ -71,6 +78,7 @@ func configureAxes(ax *core.Axes, title string, x, y []float64, c render.Color) 
 }
 
 func configureTicks(ax *core.Axes, xTicks, yTicks []float64, yFormat string) {
+	// Fixed ticks make the layout deterministic across renderers.
 	ax.XAxis.Locator = core.FixedLocator{TicksList: xTicks}
 	ax.YAxis.Locator = core.FixedLocator{TicksList: yTicks}
 	ax.YAxis.Formatter = core.FormatStrFormatter{Pattern: yFormat}

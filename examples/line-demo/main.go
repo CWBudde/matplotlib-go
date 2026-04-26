@@ -8,24 +8,19 @@ import (
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
-	"matplotlib-go/transform"
 )
 
 func main() {
-	// Create a figure with dimensions 640x360
 	fig := core.NewFigure(640, 360)
-
-	// Add axes that take up most of the figure space
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.1, Y: 0.15},
 		Max: geom.Pt{X: 0.95, Y: 0.9},
 	})
 
-	// Set up coordinate scales
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(0, 1)
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 1)
 
-	// Create a line with some sample data
+	// Same sample path as the Python counterpart.
 	line := &core.Line2D{
 		XY: []geom.Pt{
 			{X: 0, Y: 0},
@@ -38,28 +33,23 @@ func main() {
 		Col: render.Color{R: 0, G: 0, B: 0, A: 1}, // black line
 	}
 
-	// Add the line to the axes
 	ax.Add(line)
 
-	// Create a renderer from the registry with white background
 	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
 		Width:      640,
 		Height:     360,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
-		DPI:        72.0,
+		DPI:        100,
 	}, backends.TextCapabilities)
 	if createErr != nil {
 		fmt.Printf("Error creating renderer: %v\n", createErr)
 		return
 	}
 
-	fmt.Println("Successfully created and drew a figure with a Line2D artist!")
-
-	// Save as PNG using the AGG renderer
 	err := core.SavePNG(fig, r, "output.png")
 	if err != nil {
 		fmt.Printf("PNG save failed: %v\n", err)
 	} else {
-		fmt.Println("Successfully saved output.png!")
+		fmt.Println("saved output.png")
 	}
 }

@@ -22,11 +22,11 @@ const (
 // Scatter2D renders points with configurable markers.
 type Scatter2D struct {
 	XY         []geom.Pt      // data space points
-	Sizes      []float64      // marker sizes (radius in pixels), if nil uses Size
+	Sizes      []float64      // marker areas in points^2, if nil uses Size
 	Colors     []render.Color // marker colors, if nil uses Color
 	EdgeColors []render.Color // edge colors for marker outlines, if nil uses EdgeColor
 	MarkerPath geom.Path      // optional custom marker path in normalized collection space
-	Size       float64        // default marker size (radius in pixels)
+	Size       float64        // default marker area in points^2
 	Color      render.Color   // default marker color
 	EdgeColor  render.Color   // default edge color for marker outlines
 	EdgeWidth  float64        // edge width in pixels (0 means no edge)
@@ -95,7 +95,7 @@ func (s *Scatter2D) toPathCollection(ctx *DrawContext) *PathCollection {
 		if len(s.Sizes) > 0 && i < len(s.Sizes) {
 			size = s.Sizes[i]
 		}
-		sizes[i] = size * stemMarkerScale
+		sizes[i] = scatterAreaScale(size, ctx)
 	}
 
 	faceColor := s.Color
@@ -121,6 +121,17 @@ func (s *Scatter2D) toPathCollection(ctx *DrawContext) *PathCollection {
 		EdgeWidth:     lineWidth,
 		LineOnly:      lineOnly,
 	}
+}
+
+func scatterAreaScale(area float64, ctx *DrawContext) float64 {
+	if area <= 0 || math.IsNaN(area) || math.IsInf(area, 0) {
+		return 0
+	}
+	dpi := 72.0
+	if ctx != nil && ctx.RC.DPI > 0 {
+		dpi = ctx.RC.DPI
+	}
+	return math.Sqrt(area) * dpi / 72.0
 }
 
 // createCirclePath creates a circular marker using a polygon approximation.

@@ -1129,14 +1129,26 @@ func buildMeshDemo(width, height int) *core.Figure {
 
 func buildVectorFieldsDemo(width, height int) *core.Figure {
 	fig := core.NewFigure(width, height)
-	grid := fig.Subplots(2, 2, core.WithSubplotPadding(0.08, 0.97, 0.10, 0.91), core.WithSubplotSpacing(0.10, 0.16))
+	axes := map[string]*core.Axes{
+		"quiver": fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.07, Y: 0.58}, Max: geom.Pt{X: 0.47, Y: 0.92}}),
+		"barbs":  fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.57, Y: 0.58}, Max: geom.Pt{X: 0.97, Y: 0.92}}),
+		"stream": fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.07, Y: 0.10}, Max: geom.Pt{X: 0.47, Y: 0.44}}),
+		"xy":     fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.57, Y: 0.10}, Max: geom.Pt{X: 0.97, Y: 0.44}}),
+	}
+	addVectorGrid := func(ax *core.Axes) {
+		xGrid := ax.AddXGrid()
+		yGrid := ax.AddYGrid()
+		for _, grid := range []*core.Grid{xGrid, yGrid} {
+			grid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
+			grid.LineWidth = 0.5
+		}
+	}
 
-	quiverAx := grid[0][0]
+	quiverAx := axes["quiver"]
 	quiverAx.SetTitle("Quiver + Key")
 	quiverAx.SetXLim(0, 6)
 	quiverAx.SetYLim(0, 5)
-	quiverAx.AddXGrid()
-	quiverAx.AddYGrid()
+	addVectorGrid(quiverAx)
 	var qx, qy, qu, qv []float64
 	for row := 0; row < 4; row++ {
 		for col := 0; col < 5; col++ {
@@ -1151,12 +1163,11 @@ func buildVectorFieldsDemo(width, height int) *core.Figure {
 		quiverAx.QuiverKey(quiver, 0.78, 0.12, 0.5, "0.5", core.QuiverKeyOptions{Coords: core.Coords(core.CoordAxes), LabelPos: "E"})
 	}
 
-	barbAx := grid[0][1]
+	barbAx := axes["barbs"]
 	barbAx.SetTitle("Barbs")
 	barbAx.SetXLim(0, 6)
 	barbAx.SetYLim(0, 5)
-	barbAx.AddXGrid()
-	barbAx.AddYGrid()
+	addVectorGrid(barbAx)
 	var bx, by, bu, bv []float64
 	for row := 0; row < 4; row++ {
 		for col := 0; col < 5; col++ {
@@ -1166,23 +1177,25 @@ func buildVectorFieldsDemo(width, height int) *core.Figure {
 			bu, bv = append(bu, 14+5*math.Sin(y*0.8)), append(bv, 8*math.Cos(x*0.7))
 		}
 	}
-	barbAx.Barbs(bx, by, bu, bv, core.BarbsOptions{BarbColor: &render.Color{R: 0.47, G: 0.23, B: 0.12, A: 1}, FlagColor: &render.Color{R: 0.86, G: 0.52, B: 0.24, A: 1}, Length: floatPtr(16), Units: "dots"})
+	barbLength := 6.0 * (6.0 / 2.0) * fig.RC.DPI / 72.0
+	barbAx.Barbs(bx, by, bu, bv, core.BarbsOptions{BarbColor: &render.Color{R: 0.47, G: 0.23, B: 0.12, A: 1}, FlagColor: &render.Color{R: 0.86, G: 0.52, B: 0.24, A: 1}, Length: &barbLength, LineWidth: floatPtr(1), Units: "dots"})
 
-	streamAx := grid[1][0]
+	streamAx := axes["stream"]
 	streamAx.SetTitle("Streamplot")
 	streamAx.SetXLim(0, 6)
 	streamAx.SetYLim(0, 5)
+	addVectorGrid(streamAx)
 	sx := []float64{0, 1, 2, 3, 4, 5, 6}
 	sy := []float64{0, 1, 2, 3, 4, 5}
 	su, sv := vectorGrid(sx, sy)
-	arrows := 2
 	streamFalse := false
-	streamAx.Streamplot(sx, sy, su, sv, core.StreamplotOptions{StartPoints: []geom.Pt{{X: 0.4, Y: 0.8}, {X: 0.4, Y: 2.2}, {X: 0.4, Y: 3.6}}, BrokenStreamlines: &streamFalse, IntegrationDirection: "forward", ArrowCount: &arrows, Color: &render.Color{R: 0.13, G: 0.53, B: 0.39, A: 1}})
+	streamAx.Streamplot(sx, sy, su, sv, core.StreamplotOptions{StartPoints: []geom.Pt{{X: 0.4, Y: 0.8}, {X: 0.4, Y: 2.2}, {X: 0.4, Y: 3.6}}, BrokenStreamlines: &streamFalse, IntegrationDirection: "forward", ArrowSize: floatPtr(1), LineWidth: floatPtr(1.5), Color: &render.Color{R: 0.13, G: 0.53, B: 0.39, A: 1}})
 
-	xyAx := grid[1][1]
-	xyAx.SetTitle("Quiver Grid XY")
+	xyAx := axes["xy"]
+	xyAx.SetTitle("Quiver XY")
 	xyAx.SetXLim(0, 6)
 	xyAx.SetYLim(0, 5)
+	addVectorGrid(xyAx)
 	xg := []float64{0.8, 1.8, 2.8, 3.8, 4.8}
 	yg := []float64{0.8, 1.8, 2.8, 3.8}
 	ugu := make([][]float64, len(yg))

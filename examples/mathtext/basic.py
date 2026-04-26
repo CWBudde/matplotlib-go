@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from pathlib import Path
 import argparse
 import math
 
@@ -22,6 +21,9 @@ def main():
 
     fig = plt.figure(figsize=(900 / 96, 540 / 96), dpi=96, facecolor="white")
     ax = fig.add_axes([0.10, 0.12, 0.82, 0.76])
+
+    # Damped sinusoid keeps the example simple while exercising math text in
+    # titles, labels, free text, annotations, and anchored text.
     x = np.linspace(0, 4 * math.pi, 200)
     y = np.sin(x) * np.exp(-0.08 * x)
     ax.plot(x, y)

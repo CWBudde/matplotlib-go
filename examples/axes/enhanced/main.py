@@ -16,6 +16,7 @@ def save(fig, path):
 
 
 def enhanced(out):
+    # Three functions share the same x samples so their shapes line up.
     fig = plt.figure(figsize=(10, 8), dpi=100, facecolor=(0.98, 0.98, 0.98))
     ax = fig.add_axes([0.12, 0.12, 0.83, 0.76])
     x = np.linspace(-5, 5, 200)
@@ -30,6 +31,7 @@ def enhanced(out):
 
 
 def logarithmic(out):
+    # Same data as the Go example, shown on log/log axes.
     fig = plt.figure(figsize=(10, 8), dpi=100, facecolor="white")
     ax = fig.add_axes([0.15, 0.12, 0.80, 0.76])
     x = 0.1 * np.power(10000, np.linspace(0, 1, 50))

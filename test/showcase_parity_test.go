@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"image"
 	"math"
 	"testing"
@@ -118,17 +119,36 @@ func renderArraysShowcase() image.Image {
 	heatAx.SetXLabel("column")
 	heatAx.SetYLabel("row")
 	heatMap := "viridis"
-	heatAx.AnnotatedHeatmap(parityAnnotatedData(), core.AnnotatedHeatmapOptions{
-		MatShowOptions: core.MatShowOptions{
-			Colormap:     &heatMap,
-			Aspect:       "equal",
-			IntegerTicks: parityBoolPtr(true),
-		},
-		Format:        "%.2f",
-		FontSize:      10,
-		TextColor:     render.Color{R: 0.12, G: 0.12, B: 0.14, A: 1},
-		TextColorHigh: render.Color{R: 1, G: 1, B: 1, A: 1},
+	heatData := parityAnnotatedData()
+	heatRows, heatCols := len(heatData), len(heatData[0])
+	heatAx.Image(heatData, core.ImageOptions{
+		Colormap: &heatMap,
+		XMin:     parityFloatPtr(-0.5),
+		XMax:     parityFloatPtr(float64(heatCols) - 0.5),
+		YMin:     parityFloatPtr(-0.5),
+		YMax:     parityFloatPtr(float64(heatRows) - 0.5),
+		Origin:   core.ImageOriginUpper,
 	})
+	heatAx.SetXLim(-0.5, float64(heatCols)-0.5)
+	heatAx.SetYLim(float64(heatRows)-0.5, -0.5)
+	_ = heatAx.SetAspect("equal")
+	paritySetMatrixTicks(heatAx, heatRows, heatCols)
+	parityUseMatrixTopAxis(heatAx)
+	heatThreshold := 0.5 * (0.12 + 0.97)
+	for row := range heatRows {
+		for col := range heatCols {
+			textColor := render.Color{R: 0.12, G: 0.12, B: 0.14, A: 1}
+			if heatData[row][col] >= heatThreshold {
+				textColor = render.Color{R: 1, G: 1, B: 1, A: 1}
+			}
+			heatAx.Text(float64(col), float64(row), fmt.Sprintf("%.2f", heatData[row][col]), core.TextOptions{
+				HAlign:   core.TextAlignCenter,
+				VAlign:   core.TextVAlignMiddle,
+				FontSize: 10,
+				Color:    textColor,
+			})
+		}
+	}
 
 	meshAx := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.37, Y: 0.14},
@@ -166,13 +186,24 @@ func renderArraysShowcase() image.Image {
 	spyAx.SetTitle("Spy")
 	spyAx.SetXLabel("column")
 	spyAx.SetYLabel("row")
+	spyData := paritySparsePattern(18, 18)
+	spyX, spyY := paritySparseIndices(spyData, 0.1)
 	spyColor := render.Color{R: 0.16, G: 0.38, B: 0.72, A: 1}
-	spyAx.Spy(paritySparsePattern(18, 18), core.SpyOptions{
-		Precision:  0.1,
-		MarkerSize: 10,
-		Color:      &spyColor,
-		Label:      "spy",
+	spySize := 10.0
+	spyMarker := core.MarkerSquare
+	spyEdgeWidth := 0.0
+	spyAx.Scatter(spyX, spyY, core.ScatterOptions{
+		Size:      &spySize,
+		Color:     &spyColor,
+		Marker:    &spyMarker,
+		EdgeWidth: &spyEdgeWidth,
+		Label:     "spy",
 	})
+	spyAx.SetXLim(-0.5, 17.5)
+	spyAx.SetYLim(17.5, -0.5)
+	_ = spyAx.SetAspect("equal")
+	paritySetMatrixTicks(spyAx, 18, 18)
+	parityUseMatrixTopAxis(spyAx)
 	spyAx.AddAnchoredText("sparse structure view", core.AnchoredTextOptions{
 		Location: core.LegendLowerRight,
 	})
@@ -264,11 +295,11 @@ func renderAxisArtistShowcase() image.Image {
 	})
 	legend := host.AddLegend()
 	legend.SetLocator(core.RelativeAnchoredBoxLocator{
-		X:      0.5,
-		Y:      0,
+		X:       0.5,
+		Y:       0,
 		OffsetY: 10,
-		HAlign: core.BoxAlignCenter,
-		VAlign: core.BoxAlignTop,
+		HAlign:  core.BoxAlignCenter,
+		VAlign:  core.BoxAlignTop,
 	})
 
 	r, err := agg.New(980, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
@@ -477,6 +508,55 @@ func paritySparsePattern(rows, cols int) [][]float64 {
 	return values
 }
 
-func parityBoolPtr(v bool) *bool {
+func parityFloatPtr(v float64) *float64 {
 	return &v
+}
+
+func parityUseMatrixTopAxis(ax *core.Axes) {
+	if ax.XAxis != nil {
+		ax.XAxis.ShowTicks = false
+		ax.XAxis.ShowLabels = false
+	}
+	top := ax.TopAxis()
+	top.ShowSpine = true
+	top.ShowTicks = true
+	top.ShowLabels = true
+	_ = ax.SetXLabelPosition("top")
+}
+
+func paritySetMatrixTicks(ax *core.Axes, rows, cols int) {
+	xTicks := parityArange(cols)
+	yTicks := parityArange(rows)
+	for _, axis := range []*core.Axis{ax.XAxis, ax.XAxisTop} {
+		if axis != nil {
+			axis.Locator = core.FixedLocator{TicksList: xTicks}
+			axis.Formatter = core.ScalarFormatter{Prec: 0}
+		}
+	}
+	if ax.YAxis != nil {
+		ax.YAxis.Locator = core.FixedLocator{TicksList: yTicks}
+		ax.YAxis.Formatter = core.ScalarFormatter{Prec: 0}
+	}
+}
+
+func parityArange(n int) []float64 {
+	values := make([]float64, n)
+	for i := range values {
+		values[i] = float64(i)
+	}
+	return values
+}
+
+func paritySparseIndices(data [][]float64, precision float64) ([]float64, []float64) {
+	xx := []float64{}
+	yy := []float64{}
+	for y, row := range data {
+		for x, value := range row {
+			if value > precision {
+				xx = append(xx, float64(x))
+				yy = append(yy, float64(y))
+			}
+		}
+	}
+	return xx, yy
 }

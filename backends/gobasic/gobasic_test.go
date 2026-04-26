@@ -1,9 +1,9 @@
 package gobasic
 
 import (
-	"math"
 	"image"
 	"image/color"
+	"math"
 	"testing"
 
 	"matplotlib-go/internal/geom"
@@ -249,6 +249,22 @@ func TestMeasureText(t *testing.T) {
 	if metricsLarge.W <= metricsSmall.W || metricsLarge.H <= metricsSmall.H {
 		t.Errorf("Expected larger metrics for larger size, got small: W=%v,H=%v, large: W=%v,H=%v",
 			metricsSmall.W, metricsSmall.H, metricsLarge.W, metricsLarge.H)
+	}
+}
+
+func TestMeasureTextTracksRendererDPI(t *testing.T) {
+	r := New(200, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
+
+	r.SetResolution(72)
+	width72 := r.MeasureText("Basic Bars", 12, "default").W
+	r.SetResolution(144)
+	width144 := r.MeasureText("Basic Bars", 12, "default").W
+
+	if width72 <= 0 || width144 <= 0 {
+		t.Fatalf("expected positive text widths, got 72dpi=%v 144dpi=%v", width72, width144)
+	}
+	if width144 <= width72*1.8 {
+		t.Fatalf("expected text width to scale with DPI, got 72dpi=%v 144dpi=%v", width72, width144)
 	}
 }
 

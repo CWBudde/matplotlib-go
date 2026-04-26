@@ -19,6 +19,7 @@ func main() {
 		rows = 80
 		cols = 120
 	)
+	// Generate the same radial damped wave used by the Python reference.
 	data := make([][]float64, rows)
 	for row := 0; row < rows; row++ {
 		data[row] = make([]float64, cols)
@@ -31,12 +32,20 @@ func main() {
 	}
 
 	cmap := "inferno"
-	img := ax.Image(data, core.ImageOptions{Colormap: &cmap})
+	img := ax.Image(data, core.ImageOptions{
+		Colormap: &cmap,
+		XMin:     ptr(0.0),
+		XMax:     ptr(float64(cols)),
+		YMin:     ptr(0.0),
+		YMax:     ptr(float64(rows)),
+		Origin:   core.ImageOriginLower,
+	})
 	ax.SetTitle("Heatmap with Colorbar")
 	ax.SetXLabel("x")
 	ax.SetYLabel("y")
 	ax.SetXLim(0, cols)
 	ax.SetYLim(0, rows)
+	ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0, 20, 40, 60, 80}}
 	ax.AddXGrid()
 	ax.AddYGrid()
 
@@ -59,4 +68,8 @@ func main() {
 	}
 
 	fmt.Println("saved colorbar_basic.png")
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from pathlib import Path
 import argparse
-import math
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,6 +24,9 @@ def main():
     ax = fig.add_axes([0.12, 0.14, 0.76, 0.74], projection="3d")
     ax.set(title="3D Toolkit Scaffold", xlabel="x", ylabel="y")
     ax.view_init(elev=30, azim=-60)
+
+    # Small shared data set mirrors the Go grid example and touches each
+    # scaffolded 3D artist without making the rendering hard to inspect.
     x = np.array([0, 1])
     y = np.array([0, 1])
     xx, yy = np.meshgrid(x, y)

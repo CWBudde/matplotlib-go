@@ -30,6 +30,8 @@ def arrays_showcase(out_dir):
     img = ax_heat.imshow(annotated, cmap="viridis", aspect="equal", origin="upper")
     ax_heat.set_xticks(np.arange(annotated.shape[1]))
     ax_heat.set_yticks(np.arange(annotated.shape[0]))
+    ax_heat.xaxis.tick_top()
+    ax_heat.xaxis.set_label_position("top")
     threshold = (annotated.min() + annotated.max()) / 2.0
     for row in range(annotated.shape[0]):
         for col in range(annotated.shape[1]):
@@ -80,12 +82,14 @@ def arrays_showcase(out_dir):
     ax_spy.set_xlabel("column")
     ax_spy.set_ylabel("row")
     yy_spy, xx_spy = np.where(spy > 0.1)
-    ax_spy.scatter(xx_spy, yy_spy, s=ss(10), color=(0.16, 0.38, 0.72, 1.0), marker="s", linewidths=0)
+    ax_spy.scatter(xx_spy, yy_spy, s=10, color=(0.16, 0.38, 0.72, 1.0), marker="s", linewidths=0)
     ax_spy.set_xlim(-0.5, 17.5)
     ax_spy.set_ylim(17.5, -0.5)
     ax_spy.set_aspect("equal")
     ax_spy.set_xticks(np.arange(18))
     ax_spy.set_yticks(np.arange(18))
+    ax_spy.xaxis.tick_top()
+    ax_spy.xaxis.set_label_position("top")
     ax_spy.text(
         0.98,
         0.02,

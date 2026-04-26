@@ -12,37 +12,33 @@ import (
 )
 
 func main() {
-	// Create a figure with dimensions 1000x800
+	// Match the Python reference: dense function curves with grid styling.
 	fig := core.NewFigure(1000, 800)
 
-	// Add axes with more space for labels
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.12, Y: 0.12},
 		Max: geom.Pt{X: 0.95, Y: 0.88},
 	})
 
-	// Set up coordinate scales using the new convenience methods
 	ax.SetXLim(-5, 5)
 	ax.SetYLim(-3, 4)
 
-	// Add grid lines (these will be drawn behind the data)
+	// Major grid lines are drawn behind the three curves.
 	xGrid := ax.AddXGrid()
 	yGrid := ax.AddYGrid()
-
-	// Customize grid appearance
 	xGrid.Color = render.Color{R: 0.7, G: 0.7, B: 0.7, A: 1}
 	yGrid.Color = render.Color{R: 0.7, G: 0.7, B: 0.7, A: 1}
 	xGrid.LineWidth = 0.5
 	yGrid.LineWidth = 0.5
 
-	// Generate multiple mathematical functions
+	// Use a shared x vector so each plotted function has matching samples.
 	n := 200
 	x := make([]float64, n)
 	for i := 0; i < n; i++ {
 		x[i] = -5.0 + 10.0*float64(i)/float64(n-1)
 	}
 
-	// Function 1: Sine wave
+	// Function 1: sine wave.
 	y1 := make([]float64, n)
 	for i := 0; i < n; i++ {
 		y1[i] = 2 * math.Sin(x[i])
@@ -58,7 +54,7 @@ func main() {
 	}
 	ax.Add(line1)
 
-	// Function 2: Damped cosine
+	// Function 2: damped cosine, dashed like the Python linestyle tuple.
 	y2 := make([]float64, n)
 	for i := 0; i < n; i++ {
 		y2[i] = math.Exp(-x[i]*x[i]/10) * math.Cos(3*x[i])
@@ -75,7 +71,7 @@ func main() {
 	}
 	ax.Add(line2)
 
-	// Function 3: Polynomial
+	// Function 3: cubic polynomial.
 	y3 := make([]float64, n)
 	for i := 0; i < n; i++ {
 		y3[i] = 0.1*x[i]*x[i]*x[i] - 0.5*x[i] + 1
@@ -91,7 +87,7 @@ func main() {
 	}
 	ax.Add(line3)
 
-	// Add scatter points at critical points
+	// Highlight selected sine samples with per-point sizes and colors.
 	criticalX := []float64{-3, -1, 0, 1, 3}
 	criticalY := make([]float64, len(criticalX))
 	colors := []render.Color{
@@ -117,7 +113,7 @@ func main() {
 	}
 	ax.Add(scatter)
 
-	// Customize axis appearance
+	// Match Python tick_params(length=6, width=1.5, colors="0.2").
 	ax.XAxis.Color = render.Color{R: 0.2, G: 0.2, B: 0.2, A: 1} // dark gray
 	ax.YAxis.Color = render.Color{R: 0.2, G: 0.2, B: 0.2, A: 1}
 	ax.XAxis.LineWidth = 1.5
@@ -125,7 +121,6 @@ func main() {
 	ax.XAxis.TickSize = 6.0
 	ax.YAxis.TickSize = 6.0
 
-	// Create a renderer from the registry with light background
 	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
 		Width:      1000,
 		Height:     800,
@@ -137,29 +132,26 @@ func main() {
 		return
 	}
 
-	// Save as PNG
 	err := core.SavePNG(fig, r, "axes_enhanced.png")
 	if err != nil {
 		fmt.Printf("Error saving PNG: %v\n", err)
 		return
 	}
 
-	// Create a second example with logarithmic scales
+	// Second figure mirrors the Python log/log power-law and exponential view.
 	fig2 := core.NewFigure(1000, 800)
 	ax2 := fig2.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.15, Y: 0.12},
 		Max: geom.Pt{X: 0.95, Y: 0.88},
 	})
 
-	// Set logarithmic scales using convenience methods
 	ax2.SetXLimLog(0.1, 1000, 10)
 	ax2.SetYLimLog(1, 10000, 10)
 
-	// Add grid for log plot
+	// Log grid includes the major ticks available through the axes helpers.
 	ax2.AddXGrid()
 	ax2.AddYGrid()
 
-	// Generate exponential data
 	nExp := 50
 	xExp := make([]float64, nExp)
 	yExp1 := make([]float64, nExp)
@@ -172,7 +164,6 @@ func main() {
 		yExp2[i] = 5 * math.Exp(0.01*xExp[i])  // exponential
 	}
 
-	// Power law line
 	powerLine := &core.Line2D{
 		XY:  make([]geom.Pt, nExp),
 		W:   3.0,
@@ -183,7 +174,6 @@ func main() {
 	}
 	ax2.Add(powerLine)
 
-	// Exponential line
 	expLine := &core.Line2D{
 		XY:     make([]geom.Pt, nExp),
 		W:      3.0,

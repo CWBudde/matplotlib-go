@@ -1,9 +1,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"math"
+	"os"
+	"path/filepath"
 
 	"matplotlib-go/backends"
 	_ "matplotlib-go/backends/all"
@@ -19,13 +22,20 @@ type themedExample struct {
 }
 
 func main() {
+	outputDir := flag.String("output-dir", "examples/styling", "directory for rendered theme examples")
+	flag.Parse()
+	if err := os.MkdirAll(*outputDir, 0o755); err != nil {
+		log.Fatalf("create output directory: %v", err)
+	}
+
 	examples := []themedExample{
-		{name: "default", title: "Default Theme", file: "examples/styling/default_theme.png"},
-		{name: "ggplot", title: "GGPlot Theme", file: "examples/styling/ggplot_theme.png"},
-		{name: "publication", title: "Publication Theme", file: "examples/styling/publication_theme.png"},
+		{name: "default", title: "Default Theme", file: "default_theme.png"},
+		{name: "ggplot", title: "GGPlot Theme", file: "ggplot_theme.png"},
+		{name: "publication", title: "Publication Theme", file: "publication_theme.png"},
 	}
 
 	for _, example := range examples {
+		example.file = filepath.Join(*outputDir, example.file)
 		if err := renderThemeExample(example); err != nil {
 			log.Fatalf("render %s: %v", example.name, err)
 		}
@@ -34,6 +44,7 @@ func main() {
 }
 
 func renderThemeExample(example themedExample) error {
+	// Each image uses the same plot body so only theme defaults differ.
 	theme := style.MustTheme(example.name)
 	fig := core.NewFigure(900, 520, style.WithTheme(theme))
 	ax := fig.AddAxes(geom.Rect{
@@ -58,7 +69,7 @@ func renderThemeExample(example themedExample) error {
 	ax.SetYLim(-1.4, 1.4)
 
 	xGrid := ax.AddXGrid()
-	xGrid.Minor = true
+	xGrid.Minor = true // Mirrors Matplotlib's grid(True, which="both").
 	yGrid := ax.AddYGrid()
 
 	ax.FillBetweenPlot(x, shift(sinWave, envelope), shift(sinWave, negate(envelope)), core.FillOptions{

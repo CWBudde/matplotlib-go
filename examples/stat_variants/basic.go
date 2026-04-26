@@ -6,19 +6,16 @@ import (
 	"matplotlib-go/backends"
 	_ "matplotlib-go/backends/all"
 	"matplotlib-go/core"
+	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )
 
 func main() {
 	fig := core.NewFigure(840, 620)
-	grid := fig.Subplots(
-		2,
-		2,
-		core.WithSubplotPadding(0.08, 0.97, 0.10, 0.93),
-		core.WithSubplotSpacing(0.10, 0.14),
-	)
 
-	stackAx := grid[0][0]
+	// Explicit axes rectangles keep the Go layout aligned with the Python
+	// reference rather than relying on subplot layout heuristics.
+	stackAx := fig.AddAxes(rect(0.08, 0.585, 0.475, 0.93))
 	stackAx.SetTitle("StackPlot")
 	stackAx.SetXLim(0, 5)
 	stackAx.SetYLim(0, 7)
@@ -40,7 +37,7 @@ func main() {
 		},
 	)
 
-	ecdfAx := grid[0][1]
+	ecdfAx := fig.AddAxes(rect(0.575, 0.585, 0.97, 0.93))
 	ecdfAx.SetTitle("ECDF")
 	ecdfAx.SetXLim(0, 8)
 	ecdfAx.SetYLim(0, 1.05)
@@ -54,7 +51,7 @@ func main() {
 		},
 	)
 
-	cumulativeAx := grid[1][0]
+	cumulativeAx := fig.AddAxes(rect(0.08, 0.10, 0.475, 0.445))
 	cumulativeAx.SetTitle("Cumulative Step Hist")
 	cumulativeAx.SetXLim(0, 6)
 	cumulativeAx.SetYLim(0, 1.05)
@@ -72,7 +69,7 @@ func main() {
 		},
 	)
 
-	multiAx := grid[1][1]
+	multiAx := fig.AddAxes(rect(0.575, 0.10, 0.97, 0.445))
 	multiAx.SetTitle("Stacked Multi-Hist")
 	multiAx.SetXLim(0, 6)
 	multiAx.SetYLim(0, 6)
@@ -100,7 +97,7 @@ func main() {
 		Width:      840,
 		Height:     620,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
-		DPI:        96,
+		DPI:        100,
 	}, backends.TextCapabilities)
 	if createErr != nil {
 		fmt.Printf("error creating renderer: %v\n", createErr)
@@ -117,4 +114,11 @@ func main() {
 
 func floatPtr(v float64) *float64 {
 	return &v
+}
+
+func rect(minX, minY, maxX, maxY float64) geom.Rect {
+	return geom.Rect{
+		Min: geom.Pt{X: minX, Y: minY},
+		Max: geom.Pt{X: maxX, Y: maxY},
+	}
 }

@@ -17,9 +17,11 @@ def save(fig, path):
 
 def draw(out, dark=False):
     if dark:
+        # Match pyplot.RCContext in Go: these values should not leak into the first image.
         plt.rcParams.update({"figure.facecolor": "#202733", "text.color": "#f7f3ea", "axes.facecolor": "#273142", "axes.edgecolor": "#d8c7a1", "grid.color": "#607087", "lines.color": "#ffb347"})
         title = "Temporary rc_context override"
     else:
+        # Match runtime pyplot.RC calls in Go.
         plt.rcParams.update({"figure.dpi": 144, "figure.facecolor": "#faf7f0", "axes.facecolor": "#fffdf8", "axes.edgecolor": "#3d342c", "axes.labelcolor": "#2c241d", "grid.color": "#d6cbbd", "grid.linewidth": 0.75})
         title = "Runtime rc defaults"
     fig, ax = plt.subplots(figsize=(6.4, 4.8), dpi=plt.rcParams["figure.dpi"])
@@ -32,7 +34,7 @@ def draw(out, dark=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Matplotlib counterpart for styling/rc/main.go")
-    parser.add_argument("--output-dir", default=".")
+    parser.add_argument("--output-dir", default="examples/styling/rc")
     args = parser.parse_args()
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
     draw(out / "rc_defaults_python.png", dark=False)

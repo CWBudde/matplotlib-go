@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description="Matplotlib counterpart for subplots/basic.go")
     parser.add_argument("--out", default="subplots_basic_python.png")
     args = parser.parse_args()
+    # Four panels share limits; each varies frequency by column and damping by row.
     fig, axs = plt.subplots(2, 2, figsize=(12, 8), dpi=100, sharex=True, sharey=True)
     fig.subplots_adjust(left=0.08, right=0.96, bottom=0.08, top=0.92, wspace=0.08, hspace=0.08)
     x = np.linspace(0, 10, 128)

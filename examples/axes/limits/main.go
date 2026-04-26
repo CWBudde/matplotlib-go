@@ -12,6 +12,8 @@ import (
 )
 
 func main() {
+	// Leave limits unset until both lines are present, then autoscale with a
+	// Matplotlib-style fractional margin.
 	fig := core.NewFigure(800, 500)
 
 	ax := fig.AddAxes(geom.Rect{
@@ -23,7 +25,6 @@ func main() {
 	ax.SetXLabel("x")
 	ax.SetYLabel("y")
 
-	// Plot data without setting manual limits
 	n := 100
 	x := make([]float64, n)
 	y1 := make([]float64, n)
@@ -37,7 +38,7 @@ func main() {
 	ax.Plot(x, y1, core.PlotOptions{Label: "2.5·sin(x)"})
 	ax.Plot(x, y2, core.PlotOptions{Label: "1.5·cos(x)+0.5"})
 
-	// Auto-scale with 5% margin — no need to specify XScale/YScale manually
+	// Auto-scale with 5% margin; no need to specify XScale/YScale manually.
 	ax.AutoScale(0.05)
 
 	ax.AddXGrid()

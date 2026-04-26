@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math"
 
@@ -13,29 +14,18 @@ import (
 )
 
 func main() {
-	// Create a figure with dimensions 800x500
+	output := flag.String("out", "agg_demo.png", "output PNG file")
+	flag.Parse()
+
+	// Match the Python counterpart's 8x5 inch, 100 dpi canvas as pixels.
 	fig := core.NewFigure(800, 500)
 
-	// Add axes with margins for labels
+	// The normalized rectangle mirrors fig.add_axes([0.12, 0.18, 0.83, 0.70]).
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.12, Y: 0.18},
 		Max: geom.Pt{X: 0.95, Y: 0.88},
 	})
 
-	// Set up coordinate scales
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(-1.2, 1.2)
-
-	// Set labels
-	ax.SetTitle("Sine and Cosine Waves")
-	ax.SetXLabel("x (radians)")
-	ax.SetYLabel("y")
-
-	// Add grid lines (behind data)
-	ax.AddXGrid()
-	ax.AddYGrid()
-
-	// Generate sine wave data
 	n := 200
 	x := make([]float64, n)
 	sinY := make([]float64, n)
@@ -46,31 +36,36 @@ func main() {
 		cosY[i] = math.Cos(x[i])
 	}
 
-	// Plot sine (auto color cycle: blue)
+	// Leave colors on the default cycle so Go and Python demonstrate the same behavior.
 	ax.Plot(x, sinY, core.PlotOptions{Label: "sin(x)"})
-
-	// Plot cosine (auto color cycle: orange)
 	ax.Plot(x, cosY, core.PlotOptions{Label: "cos(x)"})
 
-	// Create a renderer from the registry with white background
+	ax.SetTitle("Sine and Cosine Waves")
+	ax.SetXLabel("x (radians)")
+	ax.SetYLabel("y")
+	ax.XScale = transform.NewLinear(0, 10)
+	ax.YScale = transform.NewLinear(-1.2, 1.2)
+	ax.AddXGrid()
+	ax.AddYGrid()
+
+	// Request a text-capable raster backend; the environment can still override it.
 	r, _, err := backends.NewRendererFromEnv(backends.Config{
 		Width:      800,
 		Height:     500,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
-		DPI:        72.0,
+		DPI:        100.0,
 	}, backends.TextCapabilities)
 	if err != nil {
 		fmt.Printf("Error creating renderer: %v\n", err)
 		return
 	}
 
-	// Save as PNG
-	err = core.SavePNG(fig, r, "agg_demo.png")
+	err = core.SavePNG(fig, r, *output)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
 	}
 
-	fmt.Println("Created agg_demo.png — sine/cosine plot with AGG anti-aliased rendering,")
+	fmt.Printf("Created %s - sine/cosine plot with AGG anti-aliased rendering,\n", *output)
 	fmt.Println("axis ticks, grid lines, and labels!")
 }

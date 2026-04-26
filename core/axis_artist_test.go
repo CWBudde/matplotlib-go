@@ -1,6 +1,11 @@
 package core
 
-import "testing"
+import (
+	"math"
+	"testing"
+
+	"matplotlib-go/internal/geom"
+)
 
 func TestAxisSetTickDirectionControlsTickSegment(t *testing.T) {
 	axis := NewXAxis()
@@ -54,7 +59,9 @@ func TestAxisSpinePositionDataMovesXAxisSpine(t *testing.T) {
 		t.Fatalf("expected one spine path, got %d", len(r.pathCalls))
 	}
 	spine := r.pathCalls[0].path.V
-	if !floatApprox(spine[0].Y, 150.5, 1e-9) || !floatApprox(spine[1].Y, 150.5, 1e-9) {
+	wantY := ctx.DataToPixel.Apply(geom.Pt{X: 0, Y: 3}).Y
+	wantY = math.Round(wantY) + 0.5
+	if !floatApprox(spine[0].Y, wantY, 1e-9) || !floatApprox(spine[1].Y, wantY, 1e-9) {
 		t.Fatalf("floating x spine = %+v", spine)
 	}
 }

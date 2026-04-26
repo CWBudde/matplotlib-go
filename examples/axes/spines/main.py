@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description="Matplotlib counterpart for axes/spines/main.go")
     parser.add_argument("--out", default="spines_python.png")
     args = parser.parse_args()
+    # Sine and cosine share the same domain to make ticks/spines easy to compare.
     fig = plt.figure(figsize=(8, 5), dpi=100, facecolor="white")
     ax = fig.add_axes([0.12, 0.15, 0.83, 0.73])
     x = np.linspace(0, 2 * math.pi, 200)

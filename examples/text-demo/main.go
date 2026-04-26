@@ -23,9 +23,10 @@ func main() {
 }
 
 func run() error {
-	// Create a renderer from the registry with white background
 	width, height := 400, 200
-	bgColor := render.Color{R: 1, G: 1, B: 1, A: 1} // white
+	bgColor := render.Color{R: 1, G: 1, B: 1, A: 1}
+
+	// This example bypasses Figure/Axes and exercises the renderer text API directly.
 	renderer, _, createErr := backends.NewRendererFromEnv(backends.Config{
 		Width:      width,
 		Height:     height,
@@ -41,7 +42,6 @@ func run() error {
 		return fmt.Errorf("selected backend does not support direct text drawing")
 	}
 
-	// Begin rendering
 	viewport := geom.Rect{
 		Min: geom.Pt{X: 0, Y: 0},
 		Max: geom.Pt{X: float64(width), Y: float64(height)},
@@ -51,9 +51,9 @@ func run() error {
 	}
 	defer renderer.End()
 
-	// Test text measurement
 	text := "Hello, matplotlib-go!"
 	fontSize := 13.0
+	// MeasureText is printed for renderer diagnostics; the Python image only visualizes text.
 	metrics := renderer.MeasureText(text, fontSize, "default")
 	fmt.Printf("Text metrics for '%s':\n", text)
 	fmt.Printf("  Width: %.2f pixels\n", metrics.W)
@@ -61,10 +61,9 @@ func run() error {
 	fmt.Printf("  Ascent: %.2f pixels\n", metrics.Ascent)
 	fmt.Printf("  Descent: %.2f pixels\n", metrics.Descent)
 
-	// Draw some text
-	textColor := render.Color{R: 0, G: 0, B: 0, A: 1} // black
+	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
 
-	// Draw text at different positions
+	// Positions are pixel coordinates from the top-left, matched to axes-fraction text in Python.
 	textRen.DrawText("matplotlib-go Text Rendering Demo", geom.Pt{X: 20, Y: 30}, 13, textColor)
 	textRen.DrawText("Rendered with DejaVu Sans via AGG", geom.Pt{X: 20, Y: 60}, 13, textColor)
 	textRen.DrawText("Supports basic text positioning", geom.Pt{X: 20, Y: 90}, 13, textColor)

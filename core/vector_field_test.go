@@ -206,6 +206,54 @@ func TestBarbsFindTailsAndFlip(t *testing.T) {
 	}
 }
 
+func TestBarbGlyphPathMatchesMatplotlibDisplayGeometry(t *testing.T) {
+	b := &Barbs{
+		U:          []float64{20, 50, 5},
+		V:          []float64{0, 0, 0},
+		BarbColor:  render.Color{R: 0.3, G: 0.2, B: 0.1, A: 1},
+		FlagColor:  render.Color{R: 0.3, G: 0.2, B: 0.1, A: 1},
+		LineWidth:  1,
+		Alpha:      1,
+		Pivot:      vectorPivotTip,
+		Length:     28,
+		Units:      "dots",
+		Sizes:      defaultBarbSizes(nil),
+		Increments: defaultBarbIncrements(nil),
+		Rounding:   true,
+	}
+
+	full := b.barbGlyphPath(28, 0, false)
+	wantFull := []geom.Pt{
+		{X: 0, Y: 0},
+		{X: -28, Y: 0},
+		{X: -31.5, Y: -11.2},
+		{X: -28, Y: 0},
+		{X: -24.5, Y: 0},
+		{X: -28, Y: -11.2},
+		{X: -24.5, Y: 0},
+	}
+	assertPathVerticesClose(t, full, wantFull)
+
+	flag := b.barbGlyphPath(28, 1, false)
+	wantFlag := []geom.Pt{
+		{X: 0, Y: 0},
+		{X: -28, Y: 0},
+		{X: -24.5, Y: -11.2},
+		{X: -21, Y: 0},
+	}
+	assertPathVerticesClose(t, flag, wantFlag)
+
+	half := b.barbGlyphPath(28, 2, false)
+	wantHalf := []geom.Pt{
+		{X: 0, Y: 0},
+		{X: -28, Y: 0},
+		{X: -22.75, Y: 0},
+		{X: -24.5, Y: -5.6},
+		{X: -22.75, Y: 0},
+	}
+	assertPathVerticesClose(t, half, wantHalf)
+}
+
 func TestAxesStreamplotProducesLinesAndArrows(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{
@@ -240,6 +288,18 @@ func TestAxesStreamplotProducesLinesAndArrows(t *testing.T) {
 	}
 	if len(set.Arrows.Anchors) == 0 {
 		t.Fatal("expected sampled streamline arrows")
+	}
+}
+
+func assertPathVerticesClose(t *testing.T, got geom.Path, want []geom.Pt) {
+	t.Helper()
+	if len(got.V) != len(want) {
+		t.Fatalf("path vertices = %d, want %d: %+v", len(got.V), len(want), got.V)
+	}
+	for i := range want {
+		if math.Abs(got.V[i].X-want[i].X) > 1e-9 || math.Abs(got.V[i].Y-want[i].Y) > 1e-9 {
+			t.Fatalf("vertex %d = %+v, want %+v", i, got.V[i], want[i])
+		}
 	}
 }
 

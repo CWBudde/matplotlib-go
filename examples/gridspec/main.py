@@ -23,6 +23,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default=str(Path.cwd()))
     args = parser.parse_args()
+    # Delegate to the shared reference plot so this example and the generated
+    # comparison fixture use the same nested GridSpec composition.
     PLOT(args.output_dir)
 
 

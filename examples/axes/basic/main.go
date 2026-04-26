@@ -13,20 +13,20 @@ import (
 )
 
 func main() {
-	// Create a figure with dimensions 800x600
+	// Match the Python reference: one linear plot plus one log-scaled plot.
 	fig := core.NewFigure(800, 600)
 
-	// Add axes that take up most of the figure space
 	ax := fig.AddAxes(geom.Rect{
-		Min: geom.Pt{X: 0.15, Y: 0.15}, // Leave more space for axes
+		// Matplotlib's add_axes([0.15, 0.15, 0.80, 0.70]) expressed as
+		// normalized lower-left and upper-right corners.
+		Min: geom.Pt{X: 0.15, Y: 0.15},
 		Max: geom.Pt{X: 0.95, Y: 0.85},
 	})
 
-	// Set up coordinate scales
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(-2, 3)
 
-	// Create some sample data
+	// Sample the same smooth signal used by the Python counterpart.
 	n := 50
 	x := make([]float64, n)
 	y := make([]float64, n)
@@ -36,7 +36,6 @@ func main() {
 		y[i] = math.Sin(t) + 0.5*math.Cos(2*t)
 	}
 
-	// Add a line plot
 	line := &core.Line2D{
 		XY:  make([]geom.Pt, n),
 		W:   2.5,
@@ -47,7 +46,7 @@ func main() {
 	}
 	ax.Add(line)
 
-	// Add some scatter points
+	// Overlay a few exact samples to exercise the scatter path.
 	scatterX := []float64{1, 3, 5, 7, 9}
 	scatterY := make([]float64, len(scatterX))
 	for i, xi := range scatterX {
@@ -65,9 +64,6 @@ func main() {
 	}
 	ax.Add(scatter)
 
-	// The axes should automatically be drawn with default settings
-
-	// Create a renderer from the registry with white background
 	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
 		Width:      800,
 		Height:     600,
@@ -79,29 +75,23 @@ func main() {
 		return
 	}
 
-	// Save as PNG
 	err := core.SavePNG(fig, r, "axes_basic.png")
 	if err != nil {
 		fmt.Printf("Error saving PNG: %v\n", err)
 		return
 	}
 
-	// Create a second example with custom axis settings
+	// Second panel mirrors ax.set_xscale("log") / ax.set_yscale("log").
 	fig2 := core.NewFigure(800, 600)
 	ax2 := fig2.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.15, Y: 0.15},
 		Max: geom.Pt{X: 0.95, Y: 0.85},
 	})
 
-	// Set up scales for logarithmic data
-	ax2.XScale = transform.NewLinear(0.1, 100)
-	ax2.YScale = transform.NewLinear(1, 1000)
+	ax2.SetXLimLog(0.1, 100, 10)
+	ax2.SetYLimLog(1, 1000, 10)
 
-	// Use logarithmic locators
-	ax2.XAxis.Locator = core.LogLocator{Base: 10, Minor: false}
-	ax2.YAxis.Locator = core.LogLocator{Base: 10, Minor: false}
-
-	// Custom axis styling
+	// Keep spine/tick styling in step with Python's tick_params call.
 	ax2.XAxis.Color = render.Color{R: 0.3, G: 0.3, B: 0.3, A: 1} // dark gray
 	ax2.YAxis.Color = render.Color{R: 0.3, G: 0.3, B: 0.3, A: 1}
 	ax2.XAxis.LineWidth = 1.5
@@ -109,7 +99,6 @@ func main() {
 	ax2.XAxis.TickSize = 8.0
 	ax2.YAxis.TickSize = 8.0
 
-	// Generate exponential data
 	nExp := 20
 	xExp := make([]float64, nExp)
 	yExp := make([]float64, nExp)
@@ -119,7 +108,6 @@ func main() {
 		yExp[i] = 1 + math.Exp(5*t)
 	}
 
-	// Add exponential line
 	expLine := &core.Line2D{
 		XY:  make([]geom.Pt, nExp),
 		W:   3.0,
@@ -130,7 +118,6 @@ func main() {
 	}
 	ax2.Add(expLine)
 
-	// Save the logarithmic example
 	r2, _, createErr := backends.NewRendererFromEnv(backends.Config{
 		Width:      800,
 		Height:     600,

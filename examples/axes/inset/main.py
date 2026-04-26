@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description="Matplotlib counterpart for axes/inset/main.go")
     parser.add_argument("--out", default="inset_python.png")
     args = parser.parse_args()
+    # The inset reuses the parent data and narrows the x/y limits for detail.
     fig = plt.figure(figsize=(7.2, 4.2), dpi=100, facecolor="white")
     ax = fig.add_axes([0.10, 0.14, 0.82, 0.72])
     x = np.linspace(0, 10, 400)

@@ -10,7 +10,6 @@ import (
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
-	"matplotlib-go/transform"
 )
 
 func main() {
@@ -34,20 +33,18 @@ func main() {
 		return
 	}
 
-	// Create figure
 	fig := core.NewFigure(*widthFlag, *heightFlag)
-
-	// Add axes
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.1, Y: 0.15},
 		Max: geom.Pt{X: 0.95, Y: 0.9},
 	})
 
-	// Set up coordinate scales
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(0, 1)
+	ax.SetTitle("Basic Line")
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 1)
 
-	// Create a line with sample data
+	// Keep the plotted samples identical to the Python counterpart; only backend
+	// selection and capability reporting are Go-specific.
 	line := &core.Line2D{
 		XY: []geom.Pt{
 			{X: 0, Y: 0},
@@ -60,7 +57,6 @@ func main() {
 		Col: render.Color{R: 0, G: 0, B: 0, A: 1}, // black line
 	}
 
-	// Add line to axes
 	ax.Add(line)
 
 	// Create renderer using the registry helper
@@ -68,7 +64,7 @@ func main() {
 		Width:      *widthFlag,
 		Height:     *heightFlag,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1}, // white
-		DPI:        72.0,
+		DPI:        100,
 	}
 
 	renderer, backend, err := backends.NewRenderer(*backendFlag, config, nil)

@@ -14,6 +14,7 @@ import (
 func main() {
 	fig := core.NewFigure(1080, 720)
 
+	// Static widgets are laid out with the same normalized rectangles as the Python example.
 	plot := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.08, Y: 0.44},
 		Max: geom.Pt{X: 0.94, Y: 0.92},
@@ -41,6 +42,7 @@ func main() {
 	plot.Plot(x, y1, core.PlotOptions{Color: &lineA, LineWidth: &widthA, Label: "signal"})
 	plot.Plot(x, y2, core.PlotOptions{Color: &lineB, LineWidth: &widthB, Label: "modulation"})
 	plot.AddLegend()
+	// AnchoredText stands in for Matplotlib text with a white bbox.
 	plot.AddAnchoredText("static widget showcase\nMatplotlib-style control strip", core.AnchoredTextOptions{
 		Location: core.LegendUpperLeft,
 	})
@@ -50,6 +52,7 @@ func main() {
 		Max: geom.Pt{X: 0.22, Y: 0.38},
 	})
 	pressed := true
+	// The widgets are rendered as static controls; they do not install event callbacks here.
 	buttonAx.Button("Apply", core.ButtonOptions{Pressed: &pressed})
 
 	sliderAx := fig.AddAxes(geom.Rect{

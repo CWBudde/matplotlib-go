@@ -1,8 +1,11 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"math"
+	"os"
+	"path/filepath"
 
 	"matplotlib-go/core"
 	"matplotlib-go/pyplot"
@@ -10,6 +13,13 @@ import (
 )
 
 func main() {
+	outputDir := flag.String("output-dir", "examples/styling/rc", "directory for rendered rc examples")
+	flag.Parse()
+	if err := os.MkdirAll(*outputDir, 0o755); err != nil {
+		log.Fatalf("create output directory: %v", err)
+	}
+
+	// Runtime rc changes apply to subsequently created pyplot figures.
 	pyplot.RCDefaults()
 	if err := pyplot.RC("figure", style.Params{
 		"dpi":       "144",
@@ -45,10 +55,11 @@ func main() {
 	ax.AddYGrid()
 	pyplot.Plot(x, y, core.PlotOptions{Label: "sin(x)"})
 	pyplot.Legend()
-	if err := pyplot.Savefig("examples/styling/rc/rc_defaults.png"); err != nil {
+	if err := pyplot.Savefig(filepath.Join(*outputDir, "rc_defaults.png")); err != nil {
 		log.Fatalf("save rc_defaults.png: %v", err)
 	}
 
+	// RCContext temporarily overrides defaults, matching matplotlib.pyplot.rc_context.
 	restore, err := pyplot.RCContext(style.Params{
 		"figure.facecolor": "#202733",
 		"text.color":       "#f7f3ea",
@@ -71,7 +82,7 @@ func main() {
 	ax.AddYGrid()
 	pyplot.Plot(x, y, core.PlotOptions{Label: "sin(x)"})
 	pyplot.Legend()
-	if err := pyplot.Savefig("examples/styling/rc/rc_context.png"); err != nil {
+	if err := pyplot.Savefig(filepath.Join(*outputDir, "rc_context.png")); err != nil {
 		log.Fatalf("save rc_context.png: %v", err)
 	}
 }

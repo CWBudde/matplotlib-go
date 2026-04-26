@@ -35,6 +35,8 @@ func main() {
 	radiusGrid.Color = render.Color{R: 0.82, G: 0.84, B: 0.88, A: 0.9}
 	radiusGrid.LineWidth = 0.8
 
+	// Five-lobed radius curve shows how ordinary x/y plot data is interpreted
+	// as theta/radius once the axes use the polar projection.
 	n := 720
 	theta := make([]float64, n)
 	radius := make([]float64, n)

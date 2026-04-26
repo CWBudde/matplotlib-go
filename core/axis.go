@@ -61,82 +61,82 @@ const (
 
 // Axis renders axis spines, ticks, and labels for a single dimension.
 type Axis struct {
-	Side            AxisSide     // which side of the plot
-	Locator         Locator      // major tick position calculator
-	MinorLocator    Locator      // minor tick position calculator (nil = no minor ticks)
-	Formatter       Formatter    // major tick label formatter
-	MinorFormatter  Formatter    // optional minor tick label formatter
-	Color           render.Color // axis line and tick color
-	LineWidth       float64      // width of axis line and ticks
-	LineCap         render.LineCap
-	LineJoin        render.LineJoin
-	TickLineCap     render.LineCap
-	TickLineJoin    render.LineJoin
-	Dashes          []float64
-	TickSize        float64      // length of major tick marks (in pixels)
-	MinorTickSize   float64      // length of minor tick marks (in pixels); 0 uses TickSize*0.6
-	MajorTickCount  int          // target major tick count for automatic locators
-	MinorTickCount  int          // target minor tick count for automatic locators
-	TickDirection   TickDirection
+	Side              AxisSide     // which side of the plot
+	Locator           Locator      // major tick position calculator
+	MinorLocator      Locator      // minor tick position calculator (nil = no minor ticks)
+	Formatter         Formatter    // major tick label formatter
+	MinorFormatter    Formatter    // optional minor tick label formatter
+	Color             render.Color // axis line and tick color
+	LineWidth         float64      // width of axis line and ticks
+	LineCap           render.LineCap
+	LineJoin          render.LineJoin
+	TickLineCap       render.LineCap
+	TickLineJoin      render.LineJoin
+	Dashes            []float64
+	TickSize          float64 // length of major tick marks (in pixels)
+	MinorTickSize     float64 // length of minor tick marks (in pixels); 0 uses TickSize*0.6
+	MajorTickCount    int     // target major tick count for automatic locators
+	MinorTickCount    int     // target minor tick count for automatic locators
+	TickDirection     TickDirection
 	SpinePositionMode AxisSpinePositionMode
-	SpinePosition   float64
-	ShowSpine       bool         // whether to draw the axis line
-	ShowTicks       bool         // whether to draw major/minor tick marks
-	ShowLabels      bool         // whether to draw major tick labels
-	ShowMinorLabels bool         // whether to draw minor tick labels
-	MajorLabelStyle TickLabelStyle
-	MinorLabelStyle TickLabelStyle
-	ExtraTickLevels []TickLevel
-	z               float64 // z-order
+	SpinePosition     float64
+	ShowSpine         bool // whether to draw the axis line
+	ShowTicks         bool // whether to draw major/minor tick marks
+	ShowLabels        bool // whether to draw major tick labels
+	ShowMinorLabels   bool // whether to draw minor tick labels
+	MajorLabelStyle   TickLabelStyle
+	MinorLabelStyle   TickLabelStyle
+	ExtraTickLevels   []TickLevel
+	z                 float64 // z-order
 }
 
 // NewXAxis creates an axis for the bottom (x-axis).
 func NewXAxis() *Axis {
 	return &Axis{
-		Side:            AxisBottom,
-		Locator:         LinearLocator{},
-		Formatter:       ScalarFormatter{Prec: 3},
-		Color:           render.Color{R: 0, G: 0, B: 0, A: 1}, // black
-		LineWidth:       defaultAxisLineWidth,
-		LineCap:         render.CapSquare,
-		LineJoin:        render.JoinMiter,
-		TickLineCap:     render.CapButt,
-		TickLineJoin:    render.JoinMiter,
-		TickSize:        5.0,
-		MajorTickCount:  6,
-		MinorTickCount:  30,
-		TickDirection:   TickDirectionOut,
+		Side:              AxisBottom,
+		Locator:           AutoLocator{},
+		Formatter:         ScalarFormatter{Prec: 3},
+		Color:             render.Color{R: 0, G: 0, B: 0, A: 1}, // black
+		LineWidth:         defaultAxisLineWidth,
+		LineCap:           render.CapSquare,
+		LineJoin:          render.JoinMiter,
+		TickLineCap:       render.CapButt,
+		TickLineJoin:      render.JoinMiter,
+		TickSize:          5.0,
+		MajorTickCount:    9,
+		MinorTickCount:    30,
+		TickDirection:     TickDirectionOut,
 		SpinePositionMode: AxisSpinePositionBoundary,
-		ShowSpine:       true,
-		ShowTicks:       true,
-		ShowLabels:      true,
-		MajorLabelStyle: defaultTickLabelStyle(),
-		MinorLabelStyle: defaultTickLabelStyle(),
+		ShowSpine:         true,
+		ShowTicks:         true,
+		ShowLabels:        true,
+		MajorLabelStyle:   defaultTickLabelStyle(),
+		MinorLabelStyle:   defaultTickLabelStyle(),
 	}
 }
 
 // NewYAxis creates an axis for the left (y-axis).
 func NewYAxis() *Axis {
 	return &Axis{
-		Side:            AxisLeft,
-		Locator:         LinearLocator{},
-		Formatter:       ScalarFormatter{Prec: 3},
-		Color:           render.Color{R: 0, G: 0, B: 0, A: 1}, // black
-		LineWidth:       defaultAxisLineWidth,
-		LineCap:         render.CapSquare,
-		LineJoin:        render.JoinMiter,
-		TickLineCap:     render.CapButt,
-		TickLineJoin:    render.JoinMiter,
-		TickSize:        5.0,
-		MajorTickCount:  6,
-		MinorTickCount:  30,
-		TickDirection:   TickDirectionOut,
+		Side:              AxisLeft,
+		Locator:           AutoLocator{},
+		Formatter:         ScalarFormatter{Prec: 3},
+		Color:             render.Color{R: 0, G: 0, B: 0, A: 1}, // black
+		LineWidth:         defaultAxisLineWidth,
+		LineCap:           render.CapSquare,
+		LineJoin:          render.JoinMiter,
+		TickLineCap:       render.CapButt,
+		TickLineJoin:      render.JoinMiter,
+		TickSize:          5.0,
+		MajorTickCount:    9,
+		MinorTickCount:    30,
+		TickDirection:     TickDirectionOut,
 		SpinePositionMode: AxisSpinePositionBoundary,
-		ShowSpine:       true,
-		ShowTicks:       true,
-		ShowLabels:      true,
-		MajorLabelStyle: defaultTickLabelStyle(),
-		MinorLabelStyle: defaultTickLabelStyle(),
+		ShowSpine:         true,
+		ShowTicks:         true,
+		ShowLabels:        true,
+		MajorLabelStyle:   defaultTickLabelStyle(),
+		MinorLabelStyle:   defaultTickLabelStyle(),
 	}
 }
 
@@ -438,17 +438,25 @@ func (a *Axis) majorTickTargetCountForContext(ctx *DrawContext, isXAxis bool) in
 		return target
 	}
 
-	length := ctx.Clip.H()
-	minSpacing := 42.0
-	if isXAxis {
-		length = ctx.Clip.W()
-		minSpacing = 72.0
+	dpi := ctx.RC.DPI
+	if dpi <= 0 {
+		dpi = 100
 	}
-	if length <= 0 {
+	lengthPx := ctx.Clip.H()
+	labelSize := ctx.RC.TickLabelSize("y")
+	labelAspect := 2.0
+	if isXAxis {
+		lengthPx = ctx.Clip.W()
+		labelSize = ctx.RC.TickLabelSize("x")
+		labelAspect = 3.0
+	}
+	lengthPt := lengthPx * 72.0 / dpi
+	minSpacingPt := labelSize * labelAspect
+	if lengthPt <= 0 || minSpacingPt <= 0 {
 		return target
 	}
 
-	capacity := int(math.Floor(length / minSpacing))
+	capacity := int(math.Floor(lengthPt / minSpacingPt))
 	if capacity < 1 {
 		capacity = 1
 	}

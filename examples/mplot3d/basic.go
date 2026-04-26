@@ -26,6 +26,8 @@ func main() {
 	ax.SetYLabel("y")
 	ax.SetView(30, -60)
 
+	// Small shared data set mirrors the Python meshgrid example and touches each
+	// scaffolded 3D artist without making the rendering hard to inspect.
 	x := []float64{0, 1}
 	y := []float64{0, 1}
 	zGrid := [][]float64{

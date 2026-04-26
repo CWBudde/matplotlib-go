@@ -115,6 +115,25 @@ func TestScatter2D_VariableSizesAndColors(t *testing.T) {
 	}
 }
 
+func TestScatter2D_SizeUsesMatplotlibAreaSemantics(t *testing.T) {
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 144
+
+	scatter := &Scatter2D{
+		XY:   []geom.Pt{{X: 0, Y: 0}},
+		Size: 36,
+	}
+	pc := scatter.toPathCollection(ctx)
+	if len(pc.Sizes) != 1 {
+		t.Fatalf("path collection sizes = %v", pc.Sizes)
+	}
+
+	want := 6.0 * 144.0 / 72.0
+	if got := pc.Sizes[0]; got != want {
+		t.Fatalf("scatter scale = %v, want sqrt(area)*dpi/72 = %v", got, want)
+	}
+}
+
 func TestScatter2D_AllMarkerTypes(t *testing.T) {
 	markerTypes := []MarkerType{
 		MarkerCircle, MarkerSquare, MarkerTriangle,

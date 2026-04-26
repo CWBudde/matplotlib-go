@@ -11,6 +11,8 @@ import (
 )
 
 func main() {
+	// Mollweide is a geographic projection, so data is provided in radians just
+	// like Matplotlib's projection="mollweide" axes.
 	fig := core.NewFigure(720, 420)
 	ax, err := fig.AddAxesProjection(geom.Rect{
 		Min: geom.Pt{X: 0.10, Y: 0.14},
@@ -23,6 +25,8 @@ func main() {
 	ax.SetXLabel("longitude")
 	ax.SetYLabel("latitude")
 
+	// Grid/tick defaults come from the projection; this block only matches the
+	// Python reference color and linewidth.
 	gridColor := render.Color{R: 0.78, G: 0.80, B: 0.84, A: 1}
 	lonGrid := ax.AddGrid(core.AxisBottom)
 	lonGrid.Color = gridColor
@@ -31,6 +35,7 @@ func main() {
 	latGrid.Color = gridColor
 	latGrid.LineWidth = 0.8
 
+	// Plot a dense sinusoidal latitude path across the full longitude range.
 	lon, lat := denseGeoPath()
 	lineColor := render.Color{R: 0.14, G: 0.34, B: 0.70, A: 1}
 	lineWidth := 2.0

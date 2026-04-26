@@ -56,7 +56,7 @@ type RC struct {
 var Default = RC{
 	DPI:                100,
 	FontKey:            "DejaVu Sans",
-	FontSize:           12,
+	FontSize:           10,
 	LineWidth:          1.25,
 	TextColor:          [4]float64{0, 0, 0, 1},
 	LineColor:          [4]float64{0, 0, 0, 1},
@@ -74,9 +74,9 @@ var Default = RC{
 	XTickColor:         render.Color{R: 0, G: 0, B: 0, A: 1},
 	YTickColor:         render.Color{R: 0, G: 0, B: 0, A: 1},
 	TitleFontSize:      12,
-	AxisLabelFontSize:  12 * 0.97,
-	XTickLabelFontSize: 12 * 10.0 / 12.0,
-	YTickLabelFontSize: 12 * 10.0 / 12.0,
+	AxisLabelFontSize:  10,
+	XTickLabelFontSize: 10,
+	YTickLabelFontSize: 10,
 	GridColor:          render.Color{R: 0xb0 / 255.0, G: 0xb0 / 255.0, B: 0xb0 / 255.0, A: 1},
 	MinorGridColor:     render.Color{R: 0xb0 / 255.0, G: 0xb0 / 255.0, B: 0xb0 / 255.0, A: 1},
 	GridLineWidth:      0.8 * 100.0 / 72.0,
@@ -87,7 +87,7 @@ var Default = RC{
 	LegendBackground:   render.Color{R: 1, G: 1, B: 1, A: 0.9},
 	LegendBorderColor:  render.Color{R: 0.2, G: 0.2, B: 0.2, A: 0.7},
 	LegendTextColor:    render.Color{R: 0.1, G: 0.1, B: 0.1, A: 1},
-	LegendFontSize:     12 * 0.92,
+	LegendFontSize:     10,
 	LegendFrameAlpha:   0.9,
 	LegendFrameOn:      true,
 	ColorCycle:         color.Tab10,
@@ -119,11 +119,11 @@ func WithDPI(d float64) Option { return func(rc *RC) { rc.DPI = d } }
 func WithFont(key string, size float64) Option {
 	return func(rc *RC) {
 		rc.FontKey, rc.FontSize = key, size
-		rc.TitleFontSize = size
-		rc.AxisLabelFontSize = maxFloat(8, size*0.97)
-		rc.XTickLabelFontSize = maxFloat(8, size*10.0/12.0)
-		rc.YTickLabelFontSize = maxFloat(8, size*10.0/12.0)
-		rc.LegendFontSize = maxFloat(8, size*0.92)
+		rc.TitleFontSize = maxFloat(8, size*1.2)
+		rc.AxisLabelFontSize = maxFloat(8, size)
+		rc.XTickLabelFontSize = maxFloat(8, size)
+		rc.YTickLabelFontSize = maxFloat(8, size)
+		rc.LegendFontSize = maxFloat(8, size)
 	}
 }
 
@@ -254,7 +254,7 @@ func (rc RC) TitleSize() float64 {
 		return rc.TitleFontSize
 	}
 	if rc.FontSize > 0 {
-		return maxFloat(8, rc.FontSize)
+		return maxFloat(8, rc.FontSize*1.2)
 	}
 	return 12
 }
@@ -265,7 +265,7 @@ func (rc RC) AxisLabelSize() float64 {
 		return rc.AxisLabelFontSize
 	}
 	if rc.FontSize > 0 {
-		return maxFloat(8, rc.FontSize*0.97)
+		return maxFloat(8, rc.FontSize)
 	}
 	return 8
 }
@@ -283,7 +283,7 @@ func (rc RC) TickLabelSize(axis string) float64 {
 		}
 	}
 	if rc.FontSize > 0 {
-		return maxFloat(8, rc.FontSize*10.0/12.0)
+		return maxFloat(8, rc.FontSize)
 	}
 	return 8
 }
@@ -294,7 +294,7 @@ func (rc RC) LegendSize() float64 {
 		return rc.LegendFontSize
 	}
 	if rc.FontSize > 0 {
-		return maxFloat(8, rc.FontSize*0.92)
+		return maxFloat(8, rc.FontSize)
 	}
 	return 8
 }

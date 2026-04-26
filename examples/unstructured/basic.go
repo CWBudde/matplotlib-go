@@ -14,6 +14,8 @@ import (
 func main() {
 	fig := core.NewFigure(1320, 520)
 
+	// Shared triangulation mirrors the Python reference exactly so mesh,
+	// pseudocolor, and contour behavior differ only by renderer capability.
 	tri, values := sampleTriangulation()
 
 	meshAx := fig.AddAxes(geom.Rect{
@@ -40,6 +42,8 @@ func main() {
 	cmap := "viridis"
 	edgeColor := render.Color{R: 1, G: 1, B: 1, A: 0.55}
 	edgeWidth := 0.6
+	// Flat tripcolor plus labeled tricontours matches the middle reference
+	// panel and exercises scalar values defined at triangulation vertices.
 	colorAx.TriColor(tri, values, core.TriColorOptions{
 		Colormap:  &cmap,
 		EdgeColor: &edgeColor,
@@ -62,6 +66,8 @@ func main() {
 	})
 	configureUnstructuredAxes(fillAx, "Filled Tricontour")
 	fillMap := "plasma"
+	// The final panel overlays line contours on filled contours to make level
+	// placement visible without a colorbar.
 	fillAx.TriContourf(tri, values, core.ContourOptions{
 		Colormap:   &fillMap,
 		LevelCount: 7,

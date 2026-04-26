@@ -1189,7 +1189,7 @@ func (b *Barbs) asPathCollection(ctx *DrawContext) *PathCollection {
 			C: -math.Sin(angle),
 			D: math.Cos(angle),
 		})
-		fill, edge := b.colorsForIndex(i, nFlags > 0 || empty)
+		fill, edge := b.colorsForIndex(i, nFlags > 0 || (empty && b.FillEmpty))
 		faceColors[i] = fill
 		edgeColors[i] = edge
 
@@ -1264,15 +1264,7 @@ func (b *Barbs) barbGlyphPath(lengthPx float64, i int, empty bool) geom.Path {
 	}
 	if isEmpty {
 		radius := lengthPx * positiveOrDefault(b.Sizes.EmptyBarb, 0.15)
-		path := regularPolygonPath(14, radius)
-		switch normalizeVectorPivot(b.Pivot, vectorPivotTip) {
-		case vectorPivotMiddle:
-			return applyAffinePath(path, translateAffine(geom.Pt{X: -lengthPx * 0.5}))
-		case vectorPivotTail:
-			return path
-		default:
-			return applyAffinePath(path, translateAffine(geom.Pt{X: -lengthPx}))
-		}
+		return regularPolygonPath(14, radius)
 	}
 
 	spacing := lengthPx * positiveOrDefault(b.Sizes.Spacing, 0.125)
@@ -1286,32 +1278,41 @@ func (b *Barbs) barbGlyphPath(lengthPx float64, i int, empty bool) geom.Path {
 
 	path := geom.Path{}
 	path.MoveTo(geom.Pt{})
-	path.LineTo(geom.Pt{X: lengthPx, Y: 0})
+	path.LineTo(geom.Pt{X: -lengthPx, Y: 0})
 
-	cursor := lengthPx - spacing
+	offset := lengthPx
 	for j := 0; j < nFlags; j++ {
-		path.MoveTo(geom.Pt{X: cursor, Y: 0})
-		path.LineTo(geom.Pt{X: cursor - width, Y: dir * height})
-		path.LineTo(geom.Pt{X: cursor - width, Y: 0})
-		path.Close()
-		cursor -= spacing + width*0.6
+		if offset != lengthPx {
+			offset += spacing / 2
+			path.LineTo(geom.Pt{X: -offset, Y: 0})
+		}
+		path.LineTo(geom.Pt{X: -(offset - width/2), Y: dir * height})
+		path.LineTo(geom.Pt{X: -(offset - width), Y: 0})
+		offset -= width + spacing
 	}
 	for j := 0; j < nBarbs; j++ {
-		path.MoveTo(geom.Pt{X: cursor, Y: 0})
-		path.LineTo(geom.Pt{X: cursor - width, Y: dir * height})
-		cursor -= spacing
+		if offset != lengthPx {
+			path.LineTo(geom.Pt{X: -offset, Y: 0})
+		}
+		path.LineTo(geom.Pt{X: -(offset + width/2), Y: dir * height})
+		path.LineTo(geom.Pt{X: -offset, Y: 0})
+		offset -= spacing
 	}
 	if half {
-		path.MoveTo(geom.Pt{X: cursor, Y: 0})
-		path.LineTo(geom.Pt{X: cursor - width*0.5, Y: dir * height * 0.5})
+		if offset == lengthPx {
+			offset -= 1.5 * spacing
+		}
+		path.LineTo(geom.Pt{X: -offset, Y: 0})
+		path.LineTo(geom.Pt{X: -(offset + width/4), Y: dir * height * 0.5})
+		path.LineTo(geom.Pt{X: -offset, Y: 0})
 	}
 
 	shift := 0.0
 	switch normalizeVectorPivot(b.Pivot, vectorPivotTip) {
 	case vectorPivotMiddle:
-		shift = -lengthPx * 0.5
-	case vectorPivotTip:
-		shift = -lengthPx
+		shift = lengthPx * 0.5
+	case vectorPivotTail:
+		shift = lengthPx
 	}
 	if shift != 0 {
 		return applyAffinePath(path, translateAffine(geom.Pt{X: shift}))

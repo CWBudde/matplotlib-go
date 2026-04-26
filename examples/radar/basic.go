@@ -29,6 +29,8 @@ func main() {
 	ax.YAxis.MinorLocator = nil
 	ax.YAxis.Formatter = core.PercentFormatter{Decimals: 0}
 
+	// Split theta and radius grids so their styling matches the Python polar
+	// axes calls, while the radial ticks use percent labels.
 	thetaGrid := ax.AddGrid(core.AxisBottom)
 	thetaGrid.Color = render.Color{R: 0.78, G: 0.80, B: 0.84, A: 1}
 	thetaGrid.LineWidth = 0.8
@@ -37,6 +39,7 @@ func main() {
 	radiusGrid.Color = render.Color{R: 0.80, G: 0.83, B: 0.88, A: 1}
 	radiusGrid.LineWidth = 0.8
 
+	// Radar data is closed explicitly by repeating the first angle/value pair.
 	angles := core.RadarAngles(len(labels))
 	values := []float64{0.72, 0.88, 0.64, 0.79, 0.58}
 	closedAngles := append(append([]float64(nil), angles...), angles[0])

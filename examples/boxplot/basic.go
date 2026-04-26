@@ -12,10 +12,10 @@ import (
 )
 
 func main() {
-	fig := core.NewFigure(800, 500)
+	fig := core.NewFigure(640, 360)
 	ax := fig.AddAxes(geom.Rect{
-		Min: geom.Pt{X: 0.12, Y: 0.12},
-		Max: geom.Pt{X: 0.95, Y: 0.88},
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 
 	ax.XScale = transform.NewLinear(0, 4)
@@ -23,6 +23,7 @@ func main() {
 	ax.SetTitle("Box Plots")
 	ax.SetXLabel("Group")
 	ax.SetYLabel("Value")
+	ax.AddYGrid()
 
 	black := render.Color{R: 0, G: 0, B: 0, A: 1}
 	alpha := 0.75
@@ -55,6 +56,8 @@ func main() {
 		},
 	}
 
+	// Draw each series separately because the Go API styles one boxplot call at
+	// a time; the positions, widths, and colors mirror the Python list inputs.
 	for _, s := range series {
 		pos := s.position
 		ax.BoxPlot(s.data, core.BoxPlotOptions{
@@ -76,20 +79,20 @@ func main() {
 	}
 
 	r, _, err := backends.NewRendererFromEnv(backends.Config{
-		Width:      800,
-		Height:     500,
+		Width:      640,
+		Height:     360,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
-		DPI:        72.0,
+		DPI:        100,
 	}, backends.TextCapabilities)
 	if err != nil {
-		fmt.Printf("Error creating renderer: %v\n", err)
+		fmt.Printf("error creating renderer: %v\n", err)
 		return
 	}
 
 	if err := core.SavePNG(fig, r, "boxplot_basic.png"); err != nil {
-		fmt.Printf("Error saving PNG: %v\n", err)
+		fmt.Printf("error saving PNG: %v\n", err)
 		return
 	}
 
-	fmt.Println("Successfully created boxplot_basic.png")
+	fmt.Println("saved boxplot_basic.png")
 }

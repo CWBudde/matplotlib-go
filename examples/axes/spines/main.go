@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+	// Exercise visible spines with both major and minor ticks enabled.
 	fig := core.NewFigure(800, 500)
 
 	ax := fig.AddAxes(geom.Rect{
@@ -27,15 +28,15 @@ func main() {
 	ax.SetXLabel("x")
 	ax.SetYLabel("y")
 
-	// Enable minor ticks on both axes
+	// Minor locators mirror Matplotlib's minorticks_on() behavior.
 	ax.XAxis.MinorLocator = core.MinorLinearLocator{N: 5}
 	ax.YAxis.MinorLocator = core.MinorLinearLocator{N: 4}
 
-	// Add grid for major ticks
+	// Add grid for major ticks only.
 	ax.AddXGrid()
 	ax.AddYGrid()
 
-	// Generate sine wave
+	// Plot sine and cosine over the same sampled domain.
 	n := 200
 	x := make([]float64, n)
 	sinY := make([]float64, n)

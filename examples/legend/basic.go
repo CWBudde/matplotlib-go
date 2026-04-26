@@ -29,6 +29,7 @@ func main() {
 		cosine[i] = 0.7 * math.Cos(2*xv)
 	}
 
+	// Legend entries are driven by artist labels, matching Matplotlib's legend().
 	ax.Plot(x, sine, core.PlotOptions{Label: "sin(x)"})
 	ax.Plot(x, cosine, core.PlotOptions{
 		Label:  "0.7 cos(2x)",
@@ -48,6 +49,7 @@ func main() {
 	ax.AddXGrid()
 	ax.AddYGrid()
 
+	// Place the legend in the same corner as loc="upper left".
 	legend := ax.AddLegend()
 	legend.Location = core.LegendUpperLeft
 

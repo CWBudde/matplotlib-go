@@ -14,6 +14,8 @@ import (
 func main() {
 	fig := core.NewFigure(980, 640)
 
+	// Host axes match the Python axisartist-style reference. The parasite axes
+	// below shares x but carries its own right-side y scale.
 	host := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.08, Y: 0.14},
 		Max: geom.Pt{X: 0.56, Y: 0.88},
@@ -25,6 +27,8 @@ func main() {
 	host.SetYLim(-1.3, 1.3)
 	host.AddYGrid()
 
+	// Both curves share x samples; the parasite curve uses a separate 0..100
+	// scale to demonstrate twinx/parasite behavior.
 	x := make([]float64, 240)
 	sine := make([]float64, len(x))
 	cosScaled := make([]float64, len(x))
@@ -42,6 +46,7 @@ func main() {
 		Label:     "sin(x)",
 	})
 
+	// Floating axes at zero approximate axisartist's axhline/axvline styling.
 	floatX := host.FloatingXAxis(0)
 	floatX.Axis.Color = render.Color{R: 0.26, G: 0.26, B: 0.30, A: 1}
 	floatX.Axis.SetLineStyle(render.CapRound, render.JoinRound, 5, 3)
@@ -68,6 +73,8 @@ func main() {
 		right.Color = render.Color{R: 0.74, G: 0.28, B: 0.18, A: 1}
 		right.SetLineStyle(render.CapRound, render.JoinRound)
 
+		// Draw the parasite data after hiding the overlay's regular axes so the
+		// dedicated right axis is the only visible secondary scale.
 		overlayColor := render.Color{R: 0.74, G: 0.28, B: 0.18, A: 1}
 		overlayWidth := 1.8
 		overlay.Plot(x, cosScaled, core.PlotOptions{

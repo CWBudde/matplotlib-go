@@ -11,6 +11,8 @@ import (
 )
 
 func main() {
+	// Main axes plus a zoomed inset covering the same data range as Python's
+	// ax.inset_axes([0.58, 0.55, 0.36, 0.38]).
 	fig := core.NewFigure(720, 420)
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.10, Y: 0.14},

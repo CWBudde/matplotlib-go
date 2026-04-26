@@ -194,7 +194,7 @@ func (l MaxNLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 
 func (l MaxNLocator) normalizedSteps() []float64 {
 	if len(l.Steps) == 0 {
-		return []float64{1, 2, 2.5, 5, 10}
+		return []float64{1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10}
 	}
 	out := make([]float64, 0, len(l.Steps))
 	for _, step := range l.Steps {
@@ -217,7 +217,10 @@ type AutoLocator struct {
 func (l AutoLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 	loc := l.MaxNLocator
 	if loc.N <= 0 {
-		loc.N = 6
+		loc.N = targetCount
+	}
+	if loc.N <= 0 {
+		loc.N = 9
 	}
 	if len(loc.Steps) == 0 {
 		loc.Steps = []float64{1, 2, 2.5, 5, 10}

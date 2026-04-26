@@ -16,8 +16,10 @@ def save(fig, path):
 
 
 def first_plot(out):
+    # Direct counterpart to the Go figure: explicit axes rectangle and limits.
     fig = plt.figure(figsize=(8, 6), dpi=100, facecolor="white")
     ax = fig.add_axes([0.15, 0.15, 0.80, 0.70])
+    # Sample a smooth signal, then overlay a handful of exact scatter samples.
     x = np.linspace(0, 10, 50)
     y = np.sin(x) + 0.5 * np.cos(2 * x)
     ax.plot(x, y, color=(0.2, 0.4, 0.8), linewidth=2.5)
@@ -28,6 +30,7 @@ def first_plot(out):
 
 
 def second_plot(out):
+    # Exercise logarithmic axis scales while keeping the data generation simple.
     fig = plt.figure(figsize=(8, 6), dpi=100, facecolor="white")
     ax = fig.add_axes([0.15, 0.15, 0.80, 0.70])
     t = np.linspace(0, 1, 20)

@@ -320,7 +320,7 @@ type Axes struct {
 	XAxisTop   *Axis // optional top x-axis
 	YAxisRight *Axis // optional right y-axis
 	ExtraAxes  []*Axis
-	ShowFrame  bool  // draw top and right border lines when no explicit top/right axis exists
+	ShowFrame  bool // draw top and right border lines when no explicit top/right axis exists
 
 	// Text labels
 	Title  string // title above the plot
@@ -1493,6 +1493,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 	vp := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: fig.SizePx.X, Y: fig.SizePx.Y}}
 	_ = r.Begin(vp)
 	defer r.End()
+	setRendererResolution(r, fig.RC.DPI)
 
 	prepareFigureLayout(fig, r, vp)
 	syncAxesLocators(fig, r)
@@ -1509,6 +1510,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 
 		// Build DrawContext with composed transform
 		ctx := newAxesDrawContext(ax, fig, vp, px)
+		setRendererResolution(r, ctx.RC.DPI)
 
 		if ctx.RC.AxesBackground != fig.RC.FigureBackground() {
 			backgroundPath := pixelRectPath(px)
@@ -1543,7 +1545,6 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 
 		r.Restore()
 
-		setRendererResolution(r, ctx.RC.DPI)
 		for _, art := range ax.Artists {
 			if overlay, ok := art.(OverlayArtist); ok {
 				overlay.DrawOverlay(r, ctx)
@@ -1609,6 +1610,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 		drawAxesLabels(ax, r, ctx, px, alignment)
 	}
 
+	setRendererResolution(r, fig.RC.DPI)
 	drawFigureArtists(fig, r, vp)
 	drawFigureLabels(fig, r, vp)
 }

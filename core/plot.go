@@ -111,8 +111,9 @@ func (a *Axes) Scatter(x, y []float64, opts ...ScatterOptions) *Scatter2D {
 		color = *opt.Color
 	}
 
-	// Get size
-	size := 8.0
+	// Get size. Matplotlib's scatter "s" parameter is marker area in points^2;
+	// the default is lines.markersize^2 with lines.markersize = 6 pt.
+	size := 36.0
 	if opt.Size != nil {
 		size = *opt.Size
 	}

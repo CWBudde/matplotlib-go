@@ -13,6 +13,8 @@ import (
 func main() {
 	fig := core.NewFigure(1200, 800)
 
+	// Build the same 2x2 shared-axis layout as pyplot.subplots(...,
+	// sharex=True, sharey=True) in the Python counterpart.
 	grid := fig.Subplots(
 		2,
 		2,
@@ -28,6 +30,8 @@ func main() {
 			ax.AddXGrid()
 			ax.AddYGrid()
 
+			// Each panel shares x samples but varies frequency by column and
+			// damping by row, matching the Python loop structure.
 			const n = 128
 			x := make([]float64, n)
 			y := make([]float64, n)
@@ -44,7 +48,7 @@ func main() {
 		}
 	}
 
-	// Shared axes are controlled by a single axis; set limits on one axes instance.
+	// Shared axes are controlled by a single axis; set limits on one axes.
 	grid[0][0].SetXLim(0, 10)
 	grid[0][0].SetYLim(-1.2, 1.2)
 

@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description="Matplotlib counterpart for axes/limits/main.go")
     parser.add_argument("--out", default="limits_python.png")
     args = parser.parse_args()
+    # Plot first, then let Matplotlib expand the data limits by 5%.
     fig = plt.figure(figsize=(8, 5), dpi=100, facecolor="white")
     ax = fig.add_axes([0.12, 0.15, 0.83, 0.73])
     x = np.linspace(3, 7, 100)

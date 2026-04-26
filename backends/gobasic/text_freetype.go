@@ -23,8 +23,8 @@ var (
 	freetypeFontCache   = map[string]*opentype.Font{}
 )
 
-func measureText(text string, size float64, fontKey string) render.TextMetrics {
-	face, err := openTypeFace(fontKey, size)
+func measureText(text string, size float64, fontKey string, dpi uint) render.TextMetrics {
+	face, err := openTypeFace(fontKey, size, dpi)
 	if err != nil {
 		return render.TextMetrics{}
 	}
@@ -41,8 +41,8 @@ func measureText(text string, size float64, fontKey string) render.TextMetrics {
 	}
 }
 
-func renderTextBitmap(text string, size float64, textColor render.Color, fontKey string) *image.RGBA {
-	face, err := openTypeFace(fontKey, size)
+func renderTextBitmap(text string, size float64, textColor render.Color, fontKey string, dpi uint) *image.RGBA {
+	face, err := openTypeFace(fontKey, size, dpi)
 	if err != nil {
 		return nil
 	}
@@ -66,15 +66,18 @@ func renderTextBitmap(text string, size float64, textColor render.Color, fontKey
 	return src
 }
 
-func openTypeFace(fontKey string, size float64) (font.Face, error) {
+func openTypeFace(fontKey string, size float64, dpi uint) (font.Face, error) {
 	t, err := parseOpentypeFont(fontKey)
 	if err != nil {
 		return nil, err
 	}
+	if dpi == 0 {
+		dpi = 72
+	}
 
 	return opentype.NewFace(t, &opentype.FaceOptions{
 		Size:    size,
-		DPI:     72,
+		DPI:     float64(dpi),
 		Hinting: font.HintingFull,
 	})
 }

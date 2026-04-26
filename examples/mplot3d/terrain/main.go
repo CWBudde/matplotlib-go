@@ -25,8 +25,13 @@ func main() {
 	ax.SetYLabel("y")
 	ax.SetView(35, -60)
 
+	// Use the same deterministic terrain formula as the Python counterpart so
+	// surface, contour, and contourf behavior can be compared directly.
 	x, y, z := sinusoidalTerrain(90, 70)
 	ax.PlotSurfaceGrid(x, y, z)
+
+	// Additional primitives exercise mixed 3D artist ordering on top of the
+	// surface: a floor outline, sample points, a triangular patch, and text.
 	ax.Plot3D([]float64{0, 0.9, 0.9, 0, 0}, []float64{0, 0, 0.9, 0.9, 0}, []float64{-0.2, -0.2, -0.2, -0.2, -0.2})
 	ax.Scatter3D([]float64{0.2, 0.5, 0.8}, []float64{0.2, 0.5, 0.8}, []float64{0.3, 0.35, 0.2})
 	ax.Contour(x, y, z)

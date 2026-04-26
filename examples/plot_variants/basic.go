@@ -12,18 +12,14 @@ import (
 
 func main() {
 	fig := core.NewFigure(840, 620)
-	grid := fig.Subplots(
-		2,
-		2,
-		core.WithSubplotPadding(0.08, 0.97, 0.10, 0.93),
-		core.WithSubplotSpacing(0.10, 0.14),
-	)
 
-	stepAx := grid[0][0]
+	// Use explicit axes rectangles to mirror the Matplotlib reference exactly.
+	stepAx := fig.AddAxes(rect(0.08, 0.585, 0.475, 0.93))
 	stepAx.SetTitle("Step + Stairs")
 	stepAx.SetXLim(0, 6)
 	stepAx.SetYLim(0, 5.2)
 	stepAx.AddYGrid()
+	// Step uses "post" placement; Stairs consumes already-binned values.
 	stepWhere := core.StepWherePost
 	stepAx.Step(
 		[]float64{0.6, 1.4, 2.2, 3.0, 3.8, 4.6, 5.4},
@@ -48,11 +44,13 @@ func main() {
 		},
 	)
 
-	fillAx := grid[0][1]
+	fillAx := fig.AddAxes(rect(0.575, 0.585, 0.97, 0.93))
 	fillAx.SetTitle("FillBetweenX + Refs")
 	fillAx.SetXLim(0, 7)
 	fillAx.SetYLim(0, 6)
 	fillAx.AddXGrid()
+	// FillBetweenX follows Matplotlib's fill_betweenx shape: y samples first,
+	// then the left and right x curves.
 	fillAx.FillBetweenX(
 		[]float64{0.4, 1.2, 2.0, 2.8, 3.6, 4.4, 5.2},
 		[]float64{1.3, 2.1, 1.7, 2.8, 2.2, 3.1, 2.6},
@@ -86,7 +84,7 @@ func main() {
 		},
 	)
 
-	brokenAx := grid[1][0]
+	brokenAx := fig.AddAxes(rect(0.08, 0.10, 0.475, 0.445))
 	brokenAx.SetTitle("broken_barh")
 	brokenAx.SetXLim(0, 10)
 	brokenAx.SetYLim(0, 4.4)
@@ -112,7 +110,7 @@ func main() {
 		FontSize: 10,
 	})
 
-	stackAx := grid[1][1]
+	stackAx := fig.AddAxes(rect(0.575, 0.10, 0.97, 0.445))
 	stackAx.SetTitle("Stacked Bars + Labels")
 	stackAx.SetXLim(0.4, 4.6)
 	stackAx.SetYLim(0, 7.6)
@@ -143,7 +141,7 @@ func main() {
 		Width:      840,
 		Height:     620,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
-		DPI:        96,
+		DPI:        100,
 	}, backends.TextCapabilities)
 	if createErr != nil {
 		fmt.Printf("error creating renderer: %v\n", createErr)
@@ -160,4 +158,11 @@ func main() {
 
 func floatPtr(v float64) *float64 {
 	return &v
+}
+
+func rect(minX, minY, maxX, maxY float64) geom.Rect {
+	return geom.Rect{
+		Min: geom.Pt{X: minX, Y: minY},
+		Max: geom.Pt{X: maxX, Y: maxY},
+	}
 }

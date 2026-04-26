@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+	// Focus on title and axis-label placement, including the rotated y-label.
 	fig := core.NewFigure(800, 500)
 
 	ax := fig.AddAxes(geom.Rect{
@@ -23,19 +24,18 @@ func main() {
 	ax.XScale = transform.NewLinear(0, 2*math.Pi)
 	ax.YScale = transform.NewLinear(-1.5, 1.5)
 
-	// Title, xlabel, ylabel (ylabel is rotated 90° in AGG backend)
 	ax.SetTitle("Text Labels: Title, X-Label, Rotated Y-Label")
 	ax.SetXLabel("Angle (radians)")
 	ax.SetYLabel("Amplitude")
 
-	// Minor ticks for finer detail
+	// Minor ticks mirror Matplotlib's minorticks_on() call.
 	ax.XAxis.MinorLocator = core.MinorLinearLocator{N: 5}
 	ax.YAxis.MinorLocator = core.MinorLinearLocator{N: 4}
 
 	ax.AddXGrid()
 	ax.AddYGrid()
 
-	// Generate data
+	// Single sine curve keeps attention on the label and tick text rendering.
 	n := 200
 	x := make([]float64, n)
 	y := make([]float64, n)

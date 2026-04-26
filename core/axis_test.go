@@ -5,6 +5,7 @@ import (
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
+	"matplotlib-go/style"
 	"matplotlib-go/transform"
 )
 
@@ -267,6 +268,27 @@ func TestAxes_TopAxisCreatesExplicitAxis(t *testing.T) {
 	}
 }
 
+func TestAddAxesDefaultXAxisMatchesMatplotlibBottomOnly(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(unitRect())
+
+	if ax.XAxis == nil {
+		t.Fatal("default axes should create a bottom x-axis")
+	}
+	if ax.XAxis.Side != AxisBottom {
+		t.Fatalf("default x-axis side = %v, want bottom", ax.XAxis.Side)
+	}
+	if !ax.XAxis.ShowTicks || !ax.XAxis.ShowLabels {
+		t.Fatalf("default bottom x-axis should show ticks and labels: %+v", ax.XAxis)
+	}
+	if ax.XAxisTop != nil {
+		t.Fatalf("default axes should not create a top x-axis, got %+v", ax.XAxisTop)
+	}
+	if ax.effectiveXLabelSide() != AxisBottom {
+		t.Fatalf("default x-label side = %v, want bottom", ax.effectiveXLabelSide())
+	}
+}
+
 func TestAxes_RightAxisCreatesExplicitAxis(t *testing.T) {
 	axes := &Axes{
 		YAxis: NewYAxis(),
@@ -462,6 +484,28 @@ func TestAxes_TickParamsLocatorParamsAndMinorTicks(t *testing.T) {
 	}
 	if axes.XAxis.MinorLocator != nil || axes.XAxisTop.MinorLocator != nil {
 		t.Fatal("MinorticksOff(x) should clear minor locators on both x axes")
+	}
+}
+
+func TestAxisMajorTickTargetUsesMatplotlibTickSpaceHeuristic(t *testing.T) {
+	ctx := &DrawContext{
+		RC: style.RC{
+			DPI:                100,
+			XTickLabelFontSize: 10,
+			YTickLabelFontSize: 10,
+		},
+		Clip: geom.Rect{
+			Min: geom.Pt{X: 0, Y: 0},
+			Max: geom.Pt{X: 320, Y: 460},
+		},
+	}
+
+	axis := NewXAxis()
+	if got, want := axis.majorTickTargetCountForContext(ctx, true), 7; got != want {
+		t.Fatalf("x tick target = %v, want %v", got, want)
+	}
+	if got, want := axis.majorTickTargetCountForContext(ctx, false), 9; got != want {
+		t.Fatalf("y tick target = %v, want %v", got, want)
 	}
 }
 
@@ -808,6 +852,8 @@ func TestGrid_CustomLocator(t *testing.T) {
 
 func TestAxis_DrawTickLabels_UsesStepPrecisionForScalarFormatter(t *testing.T) {
 	axis := NewYAxis()
+	axis.Locator = LinearLocator{}
+	axis.MajorTickCount = 6
 	ctx := createTestDrawContext()
 	ctx.DataToPixel.YScale = transform.NewLinear(0, 0.196)
 

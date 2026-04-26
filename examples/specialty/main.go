@@ -12,14 +12,9 @@ import (
 
 func main() {
 	fig := core.NewFigure(980, 720)
-	grid := fig.Subplots(
-		2,
-		3,
-		core.WithSubplotPadding(0.07, 0.98, 0.08, 0.94),
-		core.WithSubplotSpacing(0.10, 0.14),
-	)
 
-	eventAx := grid[0][0]
+	// Use explicit normalized axes rectangles to match test/matplotlib_ref/plots/specialty_artists.py.
+	eventAx := fig.AddAxes(axisRect(0.07, 0.57, 0.34, 0.94))
 	eventAx.SetTitle("Eventplot")
 	eventAx.SetXLim(0, 10)
 	eventAx.SetYLim(0.4, 3.6)
@@ -38,7 +33,7 @@ func main() {
 		},
 	})
 
-	hexAx := grid[0][1]
+	hexAx := fig.AddAxes(axisRect(0.39, 0.57, 0.66, 0.94))
 	hexAx.SetTitle("Hexbin")
 	hexAx.SetXLim(0, 1)
 	hexAx.SetYLim(0, 1)
@@ -53,7 +48,7 @@ func main() {
 		},
 	)
 
-	pieAx := grid[0][2]
+	pieAx := fig.AddAxes(axisRect(0.73, 0.57, 0.98, 0.94))
 	pieAx.SetTitle("Pie")
 	pieAx.Pie([]float64{28, 22, 18, 32}, core.PieOptions{
 		Labels:        []string{"Core", "I/O", "Render", "Docs"},
@@ -63,7 +58,7 @@ func main() {
 		Explode:       []float64{0, 0.04, 0, 0.02},
 	})
 
-	violinAx := grid[1][0]
+	violinAx := fig.AddAxes(axisRect(0.07, 0.08, 0.34, 0.45))
 	violinAx.SetTitle("Violin")
 	violinAx.SetXLim(0.4, 3.6)
 	violinAx.SetYLim(0.8, 5.2)
@@ -77,7 +72,7 @@ func main() {
 		Label:     "distribution",
 	})
 
-	tableAx := grid[1][1]
+	tableAx := fig.AddAxes(axisRect(0.39, 0.08, 0.66, 0.45))
 	tableAx.SetTitle("Table")
 	tableAx.ShowFrame = false
 	if tableAx.XAxis != nil {
@@ -101,7 +96,7 @@ func main() {
 		},
 	})
 
-	sankeyAx := grid[1][2]
+	sankeyAx := fig.AddAxes(axisRect(0.73, 0.08, 0.98, 0.45))
 	sankeyAx.SetTitle("Sankey")
 	sankeyAx.ShowFrame = false
 	if sankeyAx.XAxis != nil {
@@ -140,4 +135,11 @@ func main() {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+func axisRect(x0, y0, x1, y1 float64) geom.Rect {
+	return geom.Rect{
+		Min: geom.Pt{X: x0, Y: y0},
+		Max: geom.Pt{X: x1, Y: y1},
+	}
 }

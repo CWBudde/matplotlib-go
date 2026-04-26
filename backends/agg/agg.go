@@ -377,17 +377,22 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 	)
 	switch font.backend {
 	case textBackendRaster:
+		if metrics, ok := r.measureRasterText(text, font.fontPath, font.size); ok {
+			return metrics
+		}
 		if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err == nil {
 			w, ascent, descent = r.ctx.TextMetrics(text)
 			break
 		}
 		r.fallback = true
-		w = measureLocalGSVTextWidth(text, font.size)
-		ascent = font.size
+		sizePx := r.fontPixelSize(font.size)
+		w = measureLocalGSVTextWidth(text, sizePx)
+		ascent = sizePx
 		descent = 0
 	default:
-		w = measureLocalGSVTextWidth(text, font.size)
-		ascent = font.size
+		sizePx := r.fontPixelSize(font.size)
+		w = measureLocalGSVTextWidth(text, sizePx)
+		ascent = sizePx
 		descent = 0
 	}
 
@@ -454,6 +459,14 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 	if font.backend != textBackendRaster {
 		return render.FontHeightMetrics{}, false
 	}
+	if face, err := r.openRasterFace(font.fontPath, font.size); err == nil {
+		defer func() { _ = face.Close() }()
+		metrics := face.Metrics()
+		return render.FontHeightMetrics{
+			Ascent:  float64(metrics.Ascent.Ceil()),
+			Descent: float64(metrics.Descent.Ceil()),
+		}, true
+	}
 	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
 		r.fallback = true
 		return render.FontHeightMetrics{}, false
@@ -482,7 +495,7 @@ func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey s
 	if font.fontPath == "" {
 		return geom.Path{}, false
 	}
-	return render.TextPath(text, origin, size, font.fontPath)
+	return render.TextPath(text, origin, r.fontPixelSize(size), font.fontPath)
 }
 
 // DrawText renders text at the given position with the specified size and color.
@@ -496,23 +509,28 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 
 	switch font.backend {
 	case textBackendRaster:
+		if r.drawRasterText(text, font.fontPath, origin, font.size, textColor) {
+			return
+		}
 		if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err == nil {
 			r.ctx.SetFillColor(renderColorToAGG(textColor))
 			r.ctx.SetStrokeColor(renderColorToAGG(textColor))
 			r.ctx.DrawText(text, origin.X, origin.Y)
 			return
 		}
-		if r.drawTextPathFallback(text, origin, font.size, textColor, font.fontPath) {
+		sizePx := r.fontPixelSize(font.size)
+		if r.drawTextPathFallback(text, origin, sizePx, textColor, font.fontPath) {
 			return
 		}
 		r.fallback = true
 		fallthrough
 	default:
+		sizePx := r.fontPixelSize(font.size)
 		r.ctx.SetStrokeColor(renderColorToAGG(textColor))
-		r.ctx.SetStrokeWidth(math.Max(1, font.size*0.08))
+		r.ctx.SetStrokeWidth(math.Max(1, sizePx*0.08))
 		r.ctx.SetLineCap(agglib.CapRound)
 		r.ctx.SetLineJoin(agglib.JoinRound)
-		if appendLocalGSVText(r.ctx, origin.X, origin.Y, font.size, text) {
+		if appendLocalGSVText(r.ctx, origin.X, origin.Y, sizePx, text) {
 			r.ctx.Stroke()
 		}
 	}
@@ -542,26 +560,36 @@ func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle floa
 	r.ctx.Translate(anchor.X, anchor.Y)
 
 	if font.fontPath != "" {
-		if face, err := r.configureOutlineFont(font.fontPath, font.size); err == nil {
+		sizePx := r.fontPixelSize(font.size)
+		if face, err := r.configureOutlineFont(font.fontPath, sizePx); err == nil {
 			r.ctx.SetFillColor(renderColorToAGG(textColor))
 			r.ctx.SetStrokeColor(renderColorToAGG(textColor))
 			if drawTrueTypeOutlineText(r.ctx, face, origin.X, origin.Y, text) {
 				return
 			}
 		}
-		if r.drawTextPathFallback(text, origin, font.size, textColor, font.fontPath) {
+		if r.drawTextPathFallback(text, origin, sizePx, textColor, font.fontPath) {
 			return
 		}
 		r.fallback = true
 	}
 
+	sizePx := r.fontPixelSize(font.size)
 	r.ctx.SetStrokeColor(renderColorToAGG(textColor))
-	r.ctx.SetStrokeWidth(math.Max(1, font.size*0.08))
+	r.ctx.SetStrokeWidth(math.Max(1, sizePx*0.08))
 	r.ctx.SetLineCap(agglib.CapRound)
 	r.ctx.SetLineJoin(agglib.JoinRound)
-	if appendLocalGSVText(r.ctx, origin.X, origin.Y, font.size, text) {
+	if appendLocalGSVText(r.ctx, origin.X, origin.Y, sizePx, text) {
 		r.ctx.Stroke()
 	}
+}
+
+func (r *Renderer) fontPixelSize(size float64) float64 {
+	dpi := float64(r.resolution)
+	if dpi <= 0 {
+		dpi = 72
+	}
+	return size * dpi / 72.0
 }
 
 func (r *Renderer) drawTextPathFallback(text string, origin geom.Pt, size float64, textColor render.Color, fontPath string) bool {

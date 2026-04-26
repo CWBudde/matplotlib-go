@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from pathlib import Path
 import argparse
 import math
 
@@ -33,7 +32,13 @@ def main():
     ax.set_ylim(0, 1)
     ax.set_yticks([0.25, 0.5, 0.75, 1.0])
     ax.set_yticklabels(["25%", "50%", "75%", "100%"])
-    ax.grid(color=(0.80, 0.83, 0.88), linewidth=0.8)
+
+    # Split theta and radius grids so their styling matches the Go projection
+    # calls, while the radial ticks use percent labels.
+    ax.xaxis.grid(True, color=(0.78, 0.80, 0.84), linewidth=0.8)
+    ax.yaxis.grid(True, color=(0.80, 0.83, 0.88), linewidth=0.8)
+
+    # Radar data is closed explicitly by repeating the first angle/value pair.
     ax.fill(closed_angles, closed_values, color=(0.18, 0.50, 0.82, 0.22))
     ax.plot(closed_angles, closed_values, color=(0.15, 0.35, 0.70), linewidth=2.2, label="model A")
     save(fig, args.out)

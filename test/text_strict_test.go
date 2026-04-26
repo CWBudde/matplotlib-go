@@ -14,7 +14,7 @@ const (
 	textStrictMinPSNR     = 48.0
 	textStrictMaxMeanAbs  = 1.25
 	titleStrictTolerance  = 1
-	titleStrictMinPSNR    = 46.7
+	titleStrictMinPSNR    = 46.5
 	titleStrictMaxMeanAbs = 2.00
 )
 

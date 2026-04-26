@@ -18,6 +18,8 @@ def save(fig, path):
 def render_theme(style_name, title, out):
     if style_name != "default":
         plt.style.use("ggplot" if style_name == "ggplot" else "default")
+
+    # Keep the data and axes rectangle matched to themes.go; the style is the variable.
     fig = plt.figure(figsize=(9, 5.2), dpi=100, facecolor="white")
     ax = fig.add_axes([0.1, 0.14, 0.84, 0.74])
     x = np.linspace(0, 10, 220)
@@ -36,7 +38,7 @@ def render_theme(style_name, title, out):
 
 def main():
     parser = argparse.ArgumentParser(description="Matplotlib counterpart for styling/themes.go")
-    parser.add_argument("--output-dir", default=".")
+    parser.add_argument("--output-dir", default="examples/styling")
     args = parser.parse_args()
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
     for name, title in [("default", "Default Theme"), ("ggplot", "GGPlot Theme"), ("publication", "Publication Theme")]:

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
+	"matplotlib-go/style"
 )
 
 func TestRelativeAnchoredBoxLocatorCentersBox(t *testing.T) {
@@ -70,6 +72,34 @@ func TestAnchoredTextBoxBoxRectUsesLocator(t *testing.T) {
 	if !floatApprox(rect.Min.Y+rect.H()/2, ctx.Clip.Min.Y+ctx.Clip.H()/2, 1e-9) {
 		t.Fatalf("box center y = %v, want %v", rect.Min.Y+rect.H()/2, ctx.Clip.Min.Y+ctx.Clip.H()/2)
 	}
+}
+
+func TestAnchoredTextOptionsMergeWithDefaults(t *testing.T) {
+	box := newAnchoredTextBox("note", styleRCForAnchoredTextTest(), AnchoredTextOptions{
+		Location:        LegendLowerRight,
+		Padding:         4,
+		Inset:           6,
+		CornerRadius:    3,
+		BackgroundColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+		FontSize:        10,
+	})
+
+	if box.RowGap != 4 {
+		t.Fatalf("row gap = %v, want default 4", box.RowGap)
+	}
+	if box.BorderWidth != 1 {
+		t.Fatalf("border width = %v, want default 1", box.BorderWidth)
+	}
+	if box.TextColor == (render.Color{}) || box.BorderColor == (render.Color{}) {
+		t.Fatalf("expected text and border colors to inherit defaults: %+v", box)
+	}
+}
+
+func styleRCForAnchoredTextTest() style.RC {
+	rc := style.Default
+	rc.LegendTextColor = render.Color{R: 0.1, G: 0.1, B: 0.1, A: 1}
+	rc.LegendBorderColor = render.Color{R: 0.2, G: 0.2, B: 0.2, A: 1}
+	return rc
 }
 
 func TestLegendBoxRectUsesLocator(t *testing.T) {

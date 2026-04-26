@@ -24,6 +24,13 @@ func quantize(v float64) float64 {
 	return math.Round(v/quantizationEpsilon) * quantizationEpsilon
 }
 
+func scalePointSize(size float64, dpi uint) float64 {
+	if dpi == 0 {
+		dpi = 72
+	}
+	return size * float64(dpi) / 72.0
+}
+
 // quantizePt quantizes both X and Y coordinates of a point.
 func quantizePt(p geom.Pt) geom.Pt {
 	return geom.Pt{
@@ -61,9 +68,11 @@ type Renderer struct {
 	clipRect    *geom.Rect
 	rasterizer  *vector.Rasterizer
 	lastFontKey string
+	resolution  uint
 }
 
 var _ render.Renderer = (*Renderer)(nil)
+var _ render.DPIAware = (*Renderer)(nil)
 var _ render.TextPather = (*Renderer)(nil)
 
 // New creates a new GoBasic renderer with the specified dimensions and background color.
@@ -89,6 +98,7 @@ func New(w, h int, bg render.Color) *Renderer {
 	return &Renderer{
 		dst:        dst,
 		rasterizer: vector.NewRasterizer(w, h),
+		resolution: 72,
 	}
 }
 
@@ -379,7 +389,7 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 	}
 	r.lastFontKey = fontKey
 
-	return measureText(text, size, fontKey)
+	return measureText(text, size, fontKey, r.resolution)
 }
 
 // TextPath converts text to a vector path using the shared font manager.
@@ -480,9 +490,12 @@ func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, t
 	}
 }
 
-// SetResolution supports the optional renderer text-resolution hook used by cores.
-// For bitmap text it has no effect.
-func (r *Renderer) SetResolution(_ uint) {}
+// SetResolution sets the text rendering resolution used for point-sized fonts.
+func (r *Renderer) SetResolution(dpi uint) {
+	if dpi > 0 {
+		r.resolution = dpi
+	}
+}
 
 func (r *Renderer) renderTextBitmap(text string, size float64, textColor render.Color, fontKey string) *image.RGBA {
 	if text == "" || size <= 0 {
@@ -491,7 +504,7 @@ func (r *Renderer) renderTextBitmap(text string, size float64, textColor render.
 	if fontKey == "" {
 		fontKey = "DejaVuSans"
 	}
-	return renderTextBitmap(text, size, textColor, fontKey)
+	return renderTextBitmap(text, size, textColor, fontKey, r.resolution)
 }
 
 func (r *Renderer) drawBitmapScaled(src *image.RGBA, dstX, dstY, dstW, dstH int) {

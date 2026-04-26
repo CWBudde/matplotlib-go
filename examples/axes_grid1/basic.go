@@ -14,6 +14,8 @@ import (
 func main() {
 	fig := core.NewFigure(1100, 720)
 
+	// Left side mirrors the Python ImageGrid reference: a 2x2 image tile layout
+	// with small gutters and per-tile anchored labels.
 	grid := fig.NewImageGrid(
 		2,
 		2,
@@ -35,6 +37,8 @@ func main() {
 		for col := range 2 {
 			ax := grid.At(row, col)
 			ax.SetTitle(fmt.Sprintf("Tile %d,%d", row+1, col+1))
+			// Use the same deterministic phase formula as the Python reference
+			// so each tile differs without needing external image assets.
 			ax.MatShow(surface(24, 24, float64(row*2+col)))
 			ax.AddAnchoredText("image grid", core.AnchoredTextOptions{
 				Location: core.LegendLowerRight,
@@ -42,10 +46,12 @@ func main() {
 		}
 	}
 
+	// Right side mirrors the RGB channel axes: three shared small images in a
+	// single row. The Go helper exposes this as RGBAxes.
 	rgb := fig.NewRGBAxes(
 		geom.Rect{
-			Min: geom.Pt{X: 0.66, Y: 0.18},
-			Max: geom.Pt{X: 0.96, Y: 0.84},
+			Min: geom.Pt{X: 0.66, Y: 0.34},
+			Max: geom.Pt{X: 0.98, Y: 0.56},
 		},
 		core.WithAxesDividerHorizontalSpace(0.025),
 	)
@@ -57,18 +63,23 @@ func main() {
 	channels := []struct {
 		ax    *core.Axes
 		title string
-		phase float64
+		phase int
+		cmap  string
 	}{
-		{ax: rgb.Red, title: "Red", phase: 0},
-		{ax: rgb.Green, title: "Green", phase: 1.2},
-		{ax: rgb.Blue, title: "Blue", phase: 2.4},
+		{ax: rgb.Red, title: "Red", phase: 0, cmap: "red channel"},
+		{ax: rgb.Green, title: "Green", phase: 1, cmap: "green channel"},
+		{ax: rgb.Blue, title: "Blue", phase: 2, cmap: "blue channel"},
 	}
 	for _, channel := range channels {
 		channel.ax.SetTitle(channel.title)
-		channel.ax.MatShow(channelSurface(28, 28, channel.phase))
+		channel.ax.MatShow(channelSurface(28, 28, channel.phase), core.MatShowOptions{
+			Colormap: &channel.cmap,
+		})
+		channel.ax.XAxis.Locator = core.FixedLocator{TicksList: []float64{0, 10, 20}}
+		channel.ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0, 10, 20}}
 	}
 
-	fig.AddAnchoredText("axes_grid1-style layout\nImageGrid + RGBAxes", core.AnchoredTextOptions{
+	fig.AddAnchoredText("axes_grid1-style layout\nImageGrid + RGB channel views", core.AnchoredTextOptions{
 		Location: core.LegendUpperRight,
 	})
 
@@ -103,14 +114,25 @@ func surface(rows, cols int, phase float64) [][]float64 {
 	return values
 }
 
-func channelSurface(rows, cols int, phase float64) [][]float64 {
+func channelSurface(rows, cols int, phase int) [][]float64 {
 	values := make([][]float64, rows)
 	for y := range rows {
 		values[y] = make([]float64, cols)
 		yy := float64(y) / float64(rows-1)
 		for x := range cols {
 			xx := float64(x) / float64(cols-1)
-			values[y][x] = 0.5 + 0.5*math.Sin((xx*2+yy*1.5+phase)*math.Pi)
+			switch phase {
+			case 1:
+				values[y][x] = 0.5 + 0.32*math.Sin(yy*4*math.Pi) + 0.18*math.Cos(xx*2*math.Pi)
+			case 2:
+				dx := xx - 0.5
+				dy := yy - 0.5
+				values[y][x] = 0.58 + 0.36*math.Sin((xx+yy)*3*math.Pi) - 0.18*math.Hypot(dx, dy)
+			default:
+				dx := xx - 0.35
+				dy := yy - 0.42
+				values[y][x] = 0.35 + 0.65*math.Exp(-7*(dx*dx+dy*dy))
+			}
 		}
 	}
 	return values

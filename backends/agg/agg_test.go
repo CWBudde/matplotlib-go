@@ -150,6 +150,23 @@ func TestMeasureText(t *testing.T) {
 	}
 }
 
+func TestMeasureTextScalesWithResolution(t *testing.T) {
+	r := mustNew(t, 100, 100)
+
+	r.SetResolution(72)
+	width72 := r.MeasureText("Hello", 12, "").W
+
+	r.SetResolution(100)
+	width100 := r.MeasureText("Hello", 12, "").W
+
+	if width72 <= 0 || width100 <= 0 {
+		t.Fatalf("expected positive widths, got 72dpi=%v 100dpi=%v", width72, width100)
+	}
+	if width100 <= width72 {
+		t.Fatalf("expected width to increase with DPI, got 72dpi=%v 100dpi=%v", width72, width100)
+	}
+}
+
 func TestDrawTextRotatedMaintainsReadableFootprint(t *testing.T) {
 	r := mustNew(t, 220, 220)
 	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 220, Y: 220}}

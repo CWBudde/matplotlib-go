@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description="Matplotlib counterpart for axes/grid/main.go")
     parser.add_argument("--out", default="grid_python.png")
     args = parser.parse_args()
+    # Major grid lines stay solid; minor grid lines are lighter and dashed.
     fig = plt.figure(figsize=(8, 5), dpi=100, facecolor="white")
     ax = fig.add_axes([0.12, 0.15, 0.83, 0.73])
     x = np.linspace(0, 10, 200)

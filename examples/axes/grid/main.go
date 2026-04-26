@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+	// Demonstrate major and minor grid rendering on the same pair of curves.
 	fig := core.NewFigure(800, 500)
 
 	ax := fig.AddAxes(geom.Rect{
@@ -27,7 +28,7 @@ func main() {
 	ax.SetXLabel("x")
 	ax.SetYLabel("y")
 
-	// Add major grid (solid)
+	// Major grid lines are solid.
 	xGrid := ax.AddXGrid()
 	xGrid.Color = render.Color{R: 0.7, G: 0.7, B: 0.7, A: 0.8}
 	xGrid.LineWidth = 0.8
@@ -36,7 +37,7 @@ func main() {
 	yGrid.Color = render.Color{R: 0.7, G: 0.7, B: 0.7, A: 0.8}
 	yGrid.LineWidth = 0.8
 
-	// Enable minor grid with dashes
+	// Minor grid lines share the axes locators but use a lighter dashed style.
 	xGrid.Minor = true
 	xGrid.MinorDashes = []float64{2, 3}
 	xGrid.MinorColor = render.Color{R: 0.85, G: 0.85, B: 0.85, A: 0.6}
@@ -45,11 +46,11 @@ func main() {
 	yGrid.MinorDashes = []float64{2, 3}
 	yGrid.MinorColor = render.Color{R: 0.85, G: 0.85, B: 0.85, A: 0.6}
 
-	// Also show minor ticks on axes
 	ax.XAxis.MinorLocator = core.MinorLinearLocator{N: 5}
 	ax.YAxis.MinorLocator = core.MinorLinearLocator{N: 5}
 
-	// Plot data
+	// Plot the two waves after the grid setup so the example reads like the
+	// Python reference: configure axes, then draw data.
 	n := 200
 	x := make([]float64, n)
 	y1 := make([]float64, n)

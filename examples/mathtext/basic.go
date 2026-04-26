@@ -18,6 +18,8 @@ func main() {
 		Max: geom.Pt{X: 0.92, Y: 0.88},
 	})
 
+	// Damped sinusoid keeps the example simple while exercising math text in
+	// titles, labels, free text, annotations, and anchored text.
 	const n = 200
 	x := make([]float64, n)
 	y := make([]float64, n)

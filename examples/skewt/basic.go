@@ -24,6 +24,8 @@ func main() {
 	ax.SetTitle("Skew-T Style Projection")
 	ax.SetXLabel("Temperature (deg C)")
 	ax.SetYLabel("Pressure (hPa)")
+	ax.SetXLim(-70, 35)
+	ax.SetYLim(1050, 180)
 
 	gridColor := render.Color{R: 0.82, G: 0.84, B: 0.88, A: 1}
 	xGrid := ax.AddGrid(core.AxisBottom)
@@ -37,6 +39,8 @@ func main() {
 	temperature := []float64{24, 20, 15, 5, -4, -14, -28, -43, -51, -58}
 	dewpoint := []float64{18, 14, 8, -4, -14, -25, -38, -50, -57, -64}
 
+	// AddSkewXAxes applies the skew transform, so these profiles are supplied
+	// in normal temperature/pressure coordinates just like the Python data.
 	tempColor := render.Color{R: 0.78, G: 0.13, B: 0.16, A: 1}
 	dewColor := render.Color{R: 0.05, G: 0.48, B: 0.28, A: 1}
 	width := 2.4

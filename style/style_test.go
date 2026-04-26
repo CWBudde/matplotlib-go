@@ -32,6 +32,28 @@ func TestDefaults(t *testing.T) {
 	}
 }
 
+func TestDefaultFontSizesMatchMatplotlib(t *testing.T) {
+	d := Default
+	if got, want := d.FontKey, "DejaVu Sans"; got != want {
+		t.Fatalf("font family = %q, want Matplotlib sans-serif default resolved to %q", got, want)
+	}
+	if got, want := d.FontSize, 10.0; got != want {
+		t.Fatalf("font.size = %v, want Matplotlib default %v pt", got, want)
+	}
+	if got, want := d.TitleSize(), 12.0; got != want {
+		t.Fatalf("axes.titlesize = %v, want Matplotlib 'large' = %v pt", got, want)
+	}
+	if got, want := d.AxisLabelSize(), 10.0; got != want {
+		t.Fatalf("axes.labelsize = %v, want Matplotlib 'medium' = %v pt", got, want)
+	}
+	if got, want := d.TickLabelSize("x"), 10.0; got != want {
+		t.Fatalf("xtick.labelsize = %v, want Matplotlib 'medium' = %v pt", got, want)
+	}
+	if got, want := d.TickLabelSize("y"), 10.0; got != want {
+		t.Fatalf("ytick.labelsize = %v, want Matplotlib 'medium' = %v pt", got, want)
+	}
+}
+
 func TestOptionsApplyAndOrder(t *testing.T) {
 	rc := Apply(Default,
 		WithDPI(144),

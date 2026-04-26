@@ -85,3 +85,42 @@ when a counterpart is optimized for reading rather than golden generation.
 Remaining intentional differences are Go option pointers, renderer
 construction, and the local glue needed to map figure/axes anchored text onto
 each library's API.
+
+## Rendering parity fixes from the arrays comparison
+
+The side-by-side render exposed several differences that belonged in the port,
+not in the example source:
+
+- Matplotlib's default text sizes come from `font.size: 10`,
+  `axes.titlesize: large`, and `axes.labelsize`/tick/legend `medium`
+  (`third_party/matplotlib/lib/matplotlib/mpl-data/matplotlibrc`). The Go
+  defaults now mirror those point sizes instead of deriving labels and legends
+  from earlier local ratios.
+- Matplotlib's `AutoLocator` is a `MaxNLocator` with automatic tick-space
+  budgeting and `[1, 2, 2.5, 5, 10]` steps
+  (`third_party/matplotlib/lib/matplotlib/ticker.py`). Go axes now default to
+  `AutoLocator` and estimate tick capacity with the same x/y label-size
+  heuristic used by Matplotlib's `XAxis.get_tick_space` and
+  `YAxis.get_tick_space` (`third_party/matplotlib/lib/matplotlib/axis.py`).
+- Matplotlib's title placement updates against the top x-axis tight bounding
+  box, including top ticks and top xlabel
+  (`third_party/matplotlib/lib/matplotlib/axes/_base.py`). Go title placement
+  now includes the top xlabel extent, fixing the title/xlabel collision in
+  matrix-style plots.
+- Matplotlib scatter sizes are marker areas in points squared, and collections
+  convert them with `sqrt(size) * dpi / 72`
+  (`third_party/matplotlib/lib/matplotlib/axes/_axes.py` and
+  `third_party/matplotlib/lib/matplotlib/collections.py`). Go `Scatter` now
+  uses the same area semantics, which fixes oversized sparse-matrix markers.
+- The AGG backend could fall back to local vector text whose size did not track
+  renderer DPI. AGG text measurement and unrotated drawing now use the
+  FreeType-backed Go raster path first, so 10pt/12pt text in examples scales
+  like Matplotlib's 100 DPI Agg output.
+- `AnchoredText` padding and border padding are font-relative in Matplotlib
+  (`third_party/matplotlib/lib/matplotlib/offsetbox.py`). Go anchored text now
+  merges user options with inherited defaults instead of replacing the whole
+  box configuration, preserving default row gaps and frame/text defaults.
+- The arrays matplotlib reference now uses the same lower-level source shape as
+  the examples for the heatmap and sparse-matrix panels: image/scatter calls,
+  explicit integer ticks, and an explicit matrix top axis. This avoids masking
+  source drift with a Go-only post-processing workaround.

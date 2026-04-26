@@ -126,6 +126,13 @@ func titleTopExtent(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 			extent = math.Min(extent, tickBounds.Min.Y)
 		}
 	}
+	if ax.XLabel != "" && ax.effectiveXLabelSide() == AxisTop {
+		layout := measureSingleLineTextLayout(r, ax.XLabel, axisLabelFontSize(ctx), ctx.RC.FontKey)
+		anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, AxisTop, figureTextAlignment{})
+		if bounds, ok := textInkRect(alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign), layout); ok {
+			extent = math.Min(extent, bounds.Min.Y)
+		}
+	}
 	return extent
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math"
 	"os"
 
 	"matplotlib-go/backends"
@@ -25,7 +26,7 @@ func main() {
 	)
 	flag.Parse()
 
-	// List backends if requested
+	// Registry-only mode: useful for comparing which Go backends are linked in.
 	if *listFlag {
 		fmt.Println("Available backends:")
 		for _, backend := range backends.Available() {
@@ -39,19 +40,18 @@ func main() {
 		return
 	}
 
-	// Show capabilities matrix if requested
+	// Matplotlib exposes this differently; the Python counterpart prints its active backend.
 	if *capabilitiesFlag {
 		fmt.Println("Backend Capabilities:")
 		fmt.Print(backends.CapabilityMatrix())
 		return
 	}
 
-	// Select backend
 	var backend backends.Backend
 	var err error
 
 	if *backendFlag == "" {
-		// Auto-select based on use case
+		// Auto-select based on the same use-case names listed by backends/info.
 		backend, err = backends.GetRecommendedBackend(*useCaseFlag)
 		if err != nil {
 			fmt.Printf("Error selecting backend for use case '%s': %v\n", *useCaseFlag, err)
@@ -81,15 +81,13 @@ func main() {
 		}
 	}
 
-	// Create demo figure
 	fig := createDemoFigure(*widthFlag, *heightFlag)
 
-	// Create renderer
 	config := backends.Config{
 		Width:      *widthFlag,
 		Height:     *heightFlag,
-		Background: render.Color{R: 1, G: 1, B: 1, A: 1}, // white background
-		DPI:        72.0,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        100.0,
 	}
 
 	renderer, err := backends.Create(backend, config)
@@ -98,7 +96,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Render and save
 	fmt.Printf("Rendering with %s backend...\n", backend)
 	err = core.SavePNG(fig, renderer, *outputFlag)
 	if err != nil {
@@ -108,7 +105,6 @@ func main() {
 
 	fmt.Printf("✓ Successfully created %s using %s backend\n", *outputFlag, backend)
 
-	// Show backend info
 	info, _ := backends.DefaultRegistry.Get(backend)
 	fmt.Printf("Backend: %s - %s\n", info.Name, info.Description)
 	fmt.Printf("Capabilities: ")
@@ -124,50 +120,29 @@ func main() {
 func createDemoFigure(width, height int) *core.Figure {
 	fig := core.NewFigure(width, height)
 
-	// Add axes with margins
+	// Keep the plot body close to the Matplotlib counterpart: two trigonometric lines.
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 
-	// Set up scales
 	ax.XScale = transform.NewLinear(0, 10)
 	ax.YScale = transform.NewLinear(-1, 1)
+	ax.SetTitle("Matplotlib-Go backend demo")
+	ax.AddXGrid()
+	ax.AddYGrid()
 
-	// Add multiple lines to showcase backend capabilities
-	colors := []render.Color{
-		{R: 0.2, G: 0.4, B: 0.8, A: 1}, // blue
-		{R: 0.8, G: 0.2, B: 0.2, A: 1}, // red
-		{R: 0.2, G: 0.8, B: 0.2, A: 1}, // green
+	x := make([]float64, 200)
+	sinY := make([]float64, len(x))
+	cosY := make([]float64, len(x))
+	for i := range x {
+		x[i] = float64(i) * 10.0 / float64(len(x)-1)
+		sinY[i] = math.Sin(x[i])
+		cosY[i] = math.Cos(x[i])
 	}
-
-	for i, color := range colors {
-		points := make([]geom.Pt, 50)
-		for j := range points {
-			x := float64(j) * 10.0 / 49.0
-			y := 0.8 * float64(i-1) * (0.5 + 0.5*sin(x*2.0+float64(i)))
-			points[j] = geom.Pt{X: x, Y: y}
-		}
-
-		line := &core.Line2D{
-			XY:  points,
-			W:   2.0 + float64(i),
-			Col: color,
-		}
-
-		ax.Add(line)
-	}
+	ax.Plot(x, sinY, core.PlotOptions{Label: "sin(x)"})
+	ax.Plot(x, cosY, core.PlotOptions{Label: "cos(x)"})
+	ax.AddLegend()
 
 	return fig
-}
-
-// Simple sin approximation (since we're not importing math)
-func sin(x float64) float64 {
-	// Taylor series approximation for sin(x) - good enough for demo
-	x -= float64(int(x/(2*3.14159))) * 2 * 3.14159 // normalize to [-2π, 2π]
-	if x < 0 {
-		x = -x
-		return -(x - x*x*x/6 + x*x*x*x*x/120)
-	}
-	return x - x*x*x/6 + x*x*x*x*x/120
 }

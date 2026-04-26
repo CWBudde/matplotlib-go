@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from pathlib import Path
 import argparse
-import math
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,6 +30,9 @@ def main():
     pressure = np.array([1000, 925, 850, 700, 600, 500, 400, 300, 250, 200])
     temperature = np.array([24, 20, 15, 5, -4, -14, -28, -43, -51, -58])
     dewpoint = np.array([18, 14, 8, -4, -14, -25, -38, -50, -57, -64])
+
+    # The transform skews ordinary temperature/pressure coordinates, matching
+    # how AddSkewXAxes handles the Go profiles.
     transform = skew + ax.transData
     ax.plot(temperature, pressure, color=(0.78, 0.13, 0.16), linewidth=2.4, label="temperature", transform=transform)
     ax.plot(dewpoint, pressure, color=(0.05, 0.48, 0.28), linewidth=2.4, label="dewpoint", transform=transform)

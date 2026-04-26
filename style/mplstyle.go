@@ -587,25 +587,25 @@ func finalizeMPLStyleState(state *mplStyleState) {
 		state.rc.AxisLineWidth = mplPointsToPixels(state.axisLineWidthPt, state.rc.DPI)
 	}
 	if state.fontSizeSet || state.titleFontSizeSet {
-		state.rc.TitleFontSize = maxFloat(8, state.rc.FontSize)
+		state.rc.TitleFontSize = maxFloat(8, state.rc.FontSize*1.2)
 	}
 	if state.titleFontSizeSet {
 		state.rc.TitleFontSize = maxFloat(8, state.titleFontSize)
 	}
 	if state.fontSizeSet || state.labelFontSizeSet {
-		state.rc.AxisLabelFontSize = maxFloat(8, state.rc.FontSize*0.97)
+		state.rc.AxisLabelFontSize = maxFloat(8, state.rc.FontSize)
 	}
 	if state.labelFontSizeSet {
 		state.rc.AxisLabelFontSize = maxFloat(8, state.labelFontSize)
 	}
 	if state.fontSizeSet || state.xTickFontSizeSet {
-		state.rc.XTickLabelFontSize = maxFloat(8, state.rc.FontSize*10.0/12.0)
+		state.rc.XTickLabelFontSize = maxFloat(8, state.rc.FontSize)
 	}
 	if state.xTickFontSizeSet {
 		state.rc.XTickLabelFontSize = maxFloat(8, state.xTickFontSize)
 	}
 	if state.fontSizeSet || state.yTickFontSizeSet {
-		state.rc.YTickLabelFontSize = maxFloat(8, state.rc.FontSize*10.0/12.0)
+		state.rc.YTickLabelFontSize = maxFloat(8, state.rc.FontSize)
 	}
 	if state.yTickFontSizeSet {
 		state.rc.YTickLabelFontSize = maxFloat(8, state.yTickFontSize)
@@ -671,7 +671,7 @@ func finalizeMPLStyleState(state *mplStyleState) {
 		state.rc.LegendTextColor = resolveMPLSpecialColor(state.legendTextValue, state.rc, state.rc.DefaultTextColor())
 	}
 	if state.fontSizeSet || state.legendFontSet {
-		state.rc.LegendFontSize = maxFloat(8, state.rc.FontSize*0.92)
+		state.rc.LegendFontSize = maxFloat(8, state.rc.FontSize)
 	}
 	if state.legendFontSet {
 		state.rc.LegendFontSize = maxFloat(8, state.legendFontSize)

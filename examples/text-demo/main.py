@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 
@@ -14,6 +13,8 @@ def main():
     fig = plt.figure(figsize=(400 / 72, 200 / 72), dpi=72, facecolor="white")
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_axis_off()
+
+    # Convert the Go renderer's pixel positions into axes coordinates.
     ax.text(20 / 400, 1 - 30 / 200, "matplotlib-go Text Rendering Demo", transform=ax.transAxes, fontsize=13, color="black")
     ax.text(20 / 400, 1 - 60 / 200, "Rendered with DejaVu Sans via Matplotlib", transform=ax.transAxes, fontsize=13, color="black")
     ax.text(20 / 400, 1 - 90 / 200, "Supports basic text positioning", transform=ax.transAxes, fontsize=13, color="black")

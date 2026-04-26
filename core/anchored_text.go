@@ -74,27 +74,35 @@ func newAnchoredTextBox(text string, rc style.RC, opts ...AnchoredTextOptions) *
 		BorderWidth:     1,
 	}
 	if len(opts) > 0 {
-		cfg = opts[0]
-		if cfg.Padding <= 0 {
-			cfg.Padding = 8
+		opt := opts[0]
+		cfg.Location = opt.Location
+		cfg.Locator = opt.Locator
+		if opt.Padding > 0 {
+			cfg.Padding = opt.Padding
 		}
-		if cfg.Inset <= 0 {
-			cfg.Inset = 8
+		if opt.Inset > 0 {
+			cfg.Inset = opt.Inset
 		}
-		if cfg.RowGap < 0 {
-			cfg.RowGap = 0
+		if opt.RowGap > 0 {
+			cfg.RowGap = opt.RowGap
 		}
-		if cfg.BackgroundColor == (render.Color{}) {
-			cfg.BackgroundColor = rc.LegendBackground
+		if opt.CornerRadius > 0 {
+			cfg.CornerRadius = opt.CornerRadius
 		}
-		if cfg.BorderColor == (render.Color{}) {
-			cfg.BorderColor = rc.LegendBorderColor
+		if opt.BackgroundColor != (render.Color{}) {
+			cfg.BackgroundColor = opt.BackgroundColor
 		}
-		if cfg.TextColor == (render.Color{}) {
-			cfg.TextColor = rc.LegendTextColor
+		if opt.BorderColor != (render.Color{}) {
+			cfg.BorderColor = opt.BorderColor
 		}
-		if cfg.BorderWidth <= 0 {
-			cfg.BorderWidth = 1
+		if opt.TextColor != (render.Color{}) {
+			cfg.TextColor = opt.TextColor
+		}
+		if opt.BorderWidth > 0 {
+			cfg.BorderWidth = opt.BorderWidth
+		}
+		if opt.FontSize > 0 {
+			cfg.FontSize = opt.FontSize
 		}
 	}
 

@@ -11,7 +11,8 @@ import (
 	"matplotlib-go/render"
 )
 
-func measureText(text string, size float64, _ string) render.TextMetrics {
+func measureText(text string, size float64, _ string, dpi uint) render.TextMetrics {
+	size = scalePointSize(size, dpi)
 	scale := size / defaultFontHeight
 	if size <= 0 || scale <= 0 {
 		return render.TextMetrics{}
@@ -31,7 +32,8 @@ func measureText(text string, size float64, _ string) render.TextMetrics {
 	}
 }
 
-func renderTextBitmap(text string, size float64, textColor render.Color, _ string) *image.RGBA {
+func renderTextBitmap(text string, size float64, textColor render.Color, _ string, dpi uint) *image.RGBA {
+	size = scalePointSize(size, dpi)
 	face := basicfont.Face7x13
 	baseFontMetrics := face.Metrics()
 	baseW := int(font.MeasureString(face, text).Ceil())

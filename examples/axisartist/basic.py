@@ -23,6 +23,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default=str(Path.cwd()))
     args = parser.parse_args()
+    # Delegate to the shared reference plot so the example stays aligned with
+    # visual regression generation for axisartist-style parasite axes.
     PLOT(args.output_dir)
 
 

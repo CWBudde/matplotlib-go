@@ -19,6 +19,8 @@ func main() {
 
 	grid := fig.Subplots(2, 2)
 
+	// Build four related panels so the figure-level title, labels, and legend
+	// have multiple axes to coordinate.
 	for row := range grid {
 		for col, ax := range grid[row] {
 			x := make([]float64, 180)
@@ -42,6 +44,8 @@ func main() {
 		}
 	}
 
+	// Place notes at both axes and figure scope to demonstrate anchored text in
+	// the same composition as the shared labels.
 	grid[0][0].AddAnchoredText("upper-left\nnote")
 	grid[1][1].AddAnchoredText("lower-right", core.AnchoredTextOptions{
 		Location: core.LegendLowerRight,
