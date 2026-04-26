@@ -84,6 +84,24 @@ parity-viewer PORT="8090" FILTER="":
 parity-viewer-print PORT="8090" FILTER="" PREFIX="":
     PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --name-filter "{{FILTER}}" --name-prefix "{{PREFIX}}" --print
 
+# Generate Go and Matplotlib PNGs for the browser demo catalog.
+web-parity-update DEMOS="all" WIDTH="960" HEIGHT="540":
+    mkdir -p testdata/_artifacts/webdemo/go testdata/_artifacts/webdemo/matplotlib
+    CGO_ENABLED=1 go run -tags freetype ./cmd/webdemoexport --output-dir testdata/_artifacts/webdemo/go --demos "{{DEMOS}}" --width {{WIDTH}} --height {{HEIGHT}}
+    if command -v uv >/dev/null 2>&1; then \
+      uv run test/matplotlib_ref/webdemo.py --output-dir testdata/_artifacts/webdemo/matplotlib --width {{WIDTH}} --height {{HEIGHT}} --plots {{DEMOS}}; \
+    else \
+      python3 test/matplotlib_ref/webdemo.py --output-dir testdata/_artifacts/webdemo/matplotlib --width {{WIDTH}} --height {{HEIGHT}} --plots {{DEMOS}}; \
+    fi
+
+# Start parity viewer for web demo Matplotlib references vs direct Go PNG exports.
+web-parity-viewer PORT="8090" FILTER="":
+    PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --baseline-dir testdata/_artifacts/webdemo/matplotlib --artifact-dir testdata/_artifacts/webdemo/go --name-filter "{{FILTER}}"
+
+# Print web demo parity comparison rows without starting a server.
+web-parity-print PORT="8090" FILTER="" PREFIX="":
+    PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --baseline-dir testdata/_artifacts/webdemo/matplotlib --artifact-dir testdata/_artifacts/webdemo/go --name-filter "{{FILTER}}" --name-prefix "{{PREFIX}}" --print
+
 examples:
     @echo "Running examples..."
     @for dir in examples/*/; do \

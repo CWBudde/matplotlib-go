@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"runtime/debug"
 	"syscall/js"
@@ -24,6 +25,7 @@ func main() {
 		safeCallback("resizeDemo", errorResult, resizeDemo),
 		safeCallback("unmountDemo", errorResult, unmountDemo),
 		safeCallback("defaultDemoID", func(string) any { return webdemo.DefaultDemoID() }, defaultDemoID),
+		safeCallback("renderDemoPNG", errorResult, renderDemoPNG),
 	)
 
 	api := js.Global().Get("Object").New()
@@ -32,6 +34,7 @@ func main() {
 	api.Set("resizeDemo", callbacks[2])
 	api.Set("unmountDemo", callbacks[3])
 	api.Set("defaultDemoID", callbacks[4])
+	api.Set("renderDemoPNG", callbacks[5])
 	js.Global().Set("matplotlibGoWASM", api)
 	js.Global().Get("console").Call("log", "matplotlib-go wasm ready")
 
@@ -139,6 +142,38 @@ func unmountDemo(_ js.Value, _ []js.Value) any {
 
 func defaultDemoID(_ js.Value, _ []js.Value) any {
 	return webdemo.DefaultDemoID()
+}
+
+func renderDemoPNG(_ js.Value, args []js.Value) any {
+	result := js.Global().Get("Object").New()
+	id := webdemo.DefaultDemoID()
+	width := webdemo.DefaultWidth
+	height := webdemo.DefaultHeight
+
+	if len(args) > 0 && args[0].Type() == js.TypeString && webdemo.ValidDemoID(args[0].String()) {
+		id = args[0].String()
+	}
+	if len(args) > 1 && args[1].Type() == js.TypeNumber {
+		width = args[1].Int()
+	}
+	if len(args) > 2 && args[2].Type() == js.TypeNumber {
+		height = args[2].Int()
+	}
+
+	pngBytes, descriptor, err := webdemo.RenderPNG(id, width, height)
+	if err != nil {
+		result.Set("error", err.Error())
+		return result
+	}
+
+	result.Set("id", descriptor.ID)
+	result.Set("title", descriptor.Title)
+	result.Set("description", descriptor.Description)
+	result.Set("width", width)
+	result.Set("height", height)
+	result.Set("mimeType", "image/png")
+	result.Set("base64", base64.StdEncoding.EncodeToString(pngBytes))
+	return result
 }
 
 func loadDemo(canvasID, id string, width, height int) any {

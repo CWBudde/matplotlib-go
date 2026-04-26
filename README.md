@@ -98,6 +98,21 @@ Then serve the `web/` directory with any static file server, for example:
 python3 -m http.server 8000 --directory web
 ```
 
+The same demo catalog can also be rendered directly to PNGs without serving the
+HTML page:
+
+```bash
+go run -tags freetype ./cmd/webdemoexport --output-dir testdata/_artifacts/webdemo/go
+```
+
+To compare those direct Go exports against Matplotlib references for the same
+demo source, generate both image sets and open the parity viewer:
+
+```bash
+just web-parity-update
+just web-parity-viewer
+```
+
 The GitHub Actions workflow [`.github/workflows/deploy-wasm.yml`](.github/workflows/deploy-wasm.yml)
 builds the same artifact and deploys it to GitHub Pages on pushes to `main`.
 

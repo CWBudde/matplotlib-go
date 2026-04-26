@@ -4,6 +4,7 @@ export const REQUIRED_API_METHODS = Object.freeze([
   "resizeDemo",
   "unmountDemo",
   "defaultDemoID",
+  "renderDemoPNG",
 ]);
 
 export function missingAPIMethods(api) {

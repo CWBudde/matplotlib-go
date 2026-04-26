@@ -18,6 +18,7 @@ test("missingAPIMethods reports the required API surface in order", () => {
     "mountDemo",
     "resizeDemo",
     "unmountDemo",
+    "renderDemoPNG",
   ]);
   assert.deepEqual(missingAPIMethods(Object.fromEntries(REQUIRED_API_METHODS.map((name) => [name, () => {}]))), []);
 });

@@ -710,7 +710,8 @@ Current slice landed:
 ### 9.4 Embedding Examples
 
 - [ ] Desktop embedding examples
-- [ ] Web/server embedding examples
+- [x] Web/server embedding examples
+- [x] Direct web-demo PNG export and Matplotlib parity-viewer workflow
 - [ ] Interactive example gallery parity for events, widgets, and animation
 
 **Exit Criteria:**

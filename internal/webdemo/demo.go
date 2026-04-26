@@ -1,9 +1,11 @@
 package webdemo
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
+	"image/png"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -232,6 +234,19 @@ func Render(id string, width, height int) (*image.RGBA, Descriptor, error) {
 
 	core.DrawFigure(fig, r)
 	return r.GetImage(), descriptor, nil
+}
+
+func RenderPNG(id string, width, height int) ([]byte, Descriptor, error) {
+	img, descriptor, err := Render(id, width, height)
+	if err != nil {
+		return nil, Descriptor{}, err
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, Descriptor{}, fmt.Errorf("webdemo: encode PNG: %w", err)
+	}
+	return buf.Bytes(), descriptor, nil
 }
 
 func DefaultDemoID() string {

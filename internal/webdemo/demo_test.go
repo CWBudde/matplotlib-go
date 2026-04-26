@@ -1,6 +1,8 @@
 package webdemo
 
 import (
+	"bytes"
+	"image/png"
 	"math"
 	"testing"
 
@@ -73,6 +75,26 @@ func TestRenderProducesImage(t *testing.T) {
 	}
 	if allWhite {
 		t.Fatal("Render() returned an all-white image")
+	}
+}
+
+func TestRenderPNGProducesPNGBytes(t *testing.T) {
+	pngBytes, descriptor, err := RenderPNG("lines", 320, 180)
+	if err != nil {
+		t.Fatalf("RenderPNG() error = %v", err)
+	}
+	if descriptor.ID != "lines" {
+		t.Fatalf("RenderPNG() descriptor ID = %q, want %q", descriptor.ID, "lines")
+	}
+	if len(pngBytes) == 0 {
+		t.Fatal("RenderPNG() returned no bytes")
+	}
+	img, err := png.Decode(bytes.NewReader(pngBytes))
+	if err != nil {
+		t.Fatalf("RenderPNG() bytes are not a PNG: %v", err)
+	}
+	if img.Bounds().Dx() != 320 || img.Bounds().Dy() != 180 {
+		t.Fatalf("RenderPNG() bounds = %v, want 320x180", img.Bounds())
 	}
 }
 
