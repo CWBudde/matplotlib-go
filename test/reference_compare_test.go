@@ -68,6 +68,8 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "vector_fields", render: renderVectorFields, minPSNR: 41.5, maxMeanAbs: 2.8},
 	{name: "polar_axes", render: renderPolarAxes, minPSNR: 32.0, maxMeanAbs: 9.0},
 	{name: "geo_mollweide_axes", render: renderGeoMollweideAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "unstructured_showcase", render: renderUnstructuredShowcase, minPSNR: 30.0, maxMeanAbs: 10.0},
+	{name: "arrays_showcase", render: renderArraysShowcase, minPSNR: 30.0, maxMeanAbs: 10.0},
 }
 
 func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {

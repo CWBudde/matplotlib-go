@@ -1777,6 +1777,194 @@ def geo_mollweide_axes(out_dir):
     save(fig, out_dir, "geo_mollweide_axes")
 
 
+def unstructured_showcase(out_dir):
+    fig = make_fig_px(1320, 520)
+
+    tri_x = np.array([0.0, 0.85, 1.75, 2.85, 0.2, 1.1, 2.1, 0.55, 1.55, 2.55])
+    tri_y = np.array([0.0, 0.2, 0.05, 0.3, 1.0, 1.15, 1.25, 2.15, 2.3, 2.05])
+    triangles = np.array([
+        [0, 1, 4],
+        [1, 5, 4],
+        [1, 2, 5],
+        [2, 6, 5],
+        [2, 3, 6],
+        [4, 5, 7],
+        [5, 8, 7],
+        [5, 6, 8],
+        [6, 9, 8],
+    ])
+    tri = mtri.Triangulation(tri_x, tri_y, triangles)
+    values = np.sin(tri_x * 1.4) + 0.7 * np.cos((tri_y + 0.15) * 2.1)
+
+    ax_mesh = fig.add_axes(go_rect(0.05, 0.16, 0.31, 0.88))
+    ax_mesh.set_title("Triangulation")
+    ax_mesh.set_xlabel("x")
+    ax_mesh.set_ylabel("y")
+    ax_mesh.set_xlim(-0.1, 3.1)
+    ax_mesh.set_ylim(-0.15, 2.65)
+    ax_mesh.set_aspect("equal")
+    ax_mesh.triplot(tri, color=(0.18, 0.24, 0.34, 1.0), linewidth=lw(1.35))
+    ax_mesh.text(
+        0.98,
+        0.02,
+        "explicit triangular mesh",
+        transform=ax_mesh.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=10,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
+    )
+
+    ax_color = fig.add_axes(go_rect(0.37, 0.16, 0.63, 0.88))
+    ax_color.set_title("Tripcolor + Tricontour")
+    ax_color.set_xlabel("x")
+    ax_color.set_ylabel("y")
+    ax_color.set_xlim(-0.1, 3.1)
+    ax_color.set_ylim(-0.15, 2.65)
+    ax_color.set_aspect("equal")
+    ax_color.tripcolor(
+        tri,
+        values,
+        cmap="viridis",
+        edgecolors="white",
+        linewidth=lw(0.6),
+        shading="flat",
+    )
+    contour = ax_color.tricontour(
+        tri,
+        values,
+        levels=6,
+        colors=[(0.08, 0.12, 0.18, 0.95)],
+        linewidths=lw(1.15),
+    )
+    ax_color.clabel(contour, inline=True, fmt="%.3g", fontsize=10, colors=[(0.08, 0.12, 0.18, 0.95)])
+
+    ax_fill = fig.add_axes(go_rect(0.69, 0.16, 0.95, 0.88))
+    ax_fill.set_title("Filled Tricontour")
+    ax_fill.set_xlabel("x")
+    ax_fill.set_ylabel("y")
+    ax_fill.set_xlim(-0.1, 3.1)
+    ax_fill.set_ylim(-0.15, 2.65)
+    ax_fill.set_aspect("equal")
+    ax_fill.tricontourf(tri, values, levels=7, cmap="plasma")
+    ax_fill.tricontour(
+        tri,
+        values,
+        levels=7,
+        colors=[(1.0, 1.0, 1.0, 0.88)],
+        linewidths=lw(0.95),
+    )
+
+    fig.text(
+        0.98,
+        0.98,
+        "unstructured gallery family\ntriangulation, tripcolor, tricontour",
+        ha="right",
+        va="top",
+        fontsize=11,
+        bbox=dict(boxstyle="round,pad=0.35", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
+    )
+
+    save(fig, out_dir, "unstructured_showcase")
+
+
+def arrays_showcase(out_dir):
+    fig = make_fig_px(1240, 620)
+
+    annotated = np.array([
+        [0.12, 0.28, 0.46, 0.64, 0.82],
+        [0.18, 0.34, 0.58, 0.74, 0.88],
+        [0.24, 0.42, 0.63, 0.79, 0.91],
+        [0.16, 0.38, 0.61, 0.83, 0.97],
+    ])
+
+    ax_heat = fig.add_axes(go_rect(0.05, 0.14, 0.31, 0.88))
+    ax_heat.set_title("Annotated Heatmap")
+    ax_heat.set_xlabel("column")
+    ax_heat.set_ylabel("row")
+    img = ax_heat.imshow(annotated, cmap="viridis", aspect="equal", origin="upper")
+    ax_heat.set_xticks(np.arange(annotated.shape[1]))
+    ax_heat.set_yticks(np.arange(annotated.shape[0]))
+    threshold = (annotated.min() + annotated.max()) / 2.0
+    for row in range(annotated.shape[0]):
+        for col in range(annotated.shape[1]):
+            color = (1.0, 1.0, 1.0, 1.0) if annotated[row, col] >= threshold else (0.12, 0.12, 0.14, 1.0)
+            ax_heat.text(col, row, f"{annotated[row, col]:.2f}", ha="center", va="center", fontsize=10, color=color)
+
+    rows, cols = 8, 10
+    xx = np.linspace(0.0, 1.0, cols)
+    yy = np.linspace(0.0, 1.0, rows)
+    mesh_data = np.zeros((rows, cols))
+    for y in range(rows):
+        for x in range(cols):
+            mesh_data[y, x] = 0.55 + 0.25 * math.sin((xx[x] * 2.3 + 0.35) * math.pi) + 0.20 * math.cos((yy[y] * 2.8 - 0.35 * 0.4) * math.pi)
+
+    ax_mesh = fig.add_axes(go_rect(0.37, 0.14, 0.63, 0.88))
+    ax_mesh.set_title("PColorMesh + Contour")
+    ax_mesh.set_xlabel("x bin")
+    ax_mesh.set_ylabel("y bin")
+    x_edges = np.arange(cols + 1)
+    y_edges = np.arange(rows + 1)
+    quad = ax_mesh.pcolormesh(
+        x_edges,
+        y_edges,
+        mesh_data,
+        cmap="plasma",
+        edgecolors="white",
+        linewidth=lw(0.65),
+        shading="flat",
+    )
+    contour = ax_mesh.contour(
+        np.arange(cols),
+        np.arange(rows),
+        mesh_data,
+        levels=6,
+        colors=[(0.14, 0.10, 0.16, 0.95)],
+        linewidths=lw(1.1),
+    )
+    ax_mesh.clabel(contour, inline=True, fmt="%.3g", fontsize=10, colors=[(0.14, 0.10, 0.16, 0.95)])
+
+    spy = np.zeros((18, 18))
+    for y in range(18):
+        for x in range(18):
+            if x == y or x + y == 17 or (x + 2 * y) % 7 == 0 or (2 * x + y) % 11 == 0:
+                spy[y, x] = 1
+
+    ax_spy = fig.add_axes(go_rect(0.69, 0.14, 0.95, 0.88))
+    ax_spy.set_title("Spy")
+    ax_spy.set_xlabel("column")
+    ax_spy.set_ylabel("row")
+    yy_spy, xx_spy = np.where(spy > 0.1)
+    ax_spy.scatter(xx_spy, yy_spy, s=ss(10), color=(0.16, 0.38, 0.72, 1.0), marker="s", linewidths=0)
+    ax_spy.set_xlim(-0.5, 17.5)
+    ax_spy.set_ylim(17.5, -0.5)
+    ax_spy.set_aspect("equal")
+    ax_spy.set_xticks(np.arange(18))
+    ax_spy.set_yticks(np.arange(18))
+    ax_spy.text(
+        0.98,
+        0.02,
+        "sparse structure view",
+        transform=ax_spy.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=10,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
+    )
+
+    fig.text(
+        0.98,
+        0.98,
+        "arrays gallery family\nheatmap, quad mesh, sparse matrix",
+        ha="right",
+        va="top",
+        fontsize=11,
+        bbox=dict(boxstyle="round,pad=0.35", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
+    )
+
+    save(fig, out_dir, "arrays_showcase")
+
+
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 ALL_PLOTS = [
@@ -1811,6 +1999,8 @@ ALL_PLOTS = [
     vector_fields,
     polar_axes,
     geo_mollweide_axes,
+    unstructured_showcase,
+    arrays_showcase,
 ]
 
 

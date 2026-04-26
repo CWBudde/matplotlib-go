@@ -187,6 +187,12 @@ func TestMpl_SpecialtyArtists(t *testing.T) {
 func TestMpl_UnitsOverview(t *testing.T) { runMplTest(t, "units_overview", renderUnitsOverview) }
 func TestMpl_VectorFields(t *testing.T)  { runMplTest(t, "vector_fields", renderVectorFields) }
 func TestMpl_PolarAxes(t *testing.T)     { runMplTest(t, "polar_axes", renderPolarAxes) }
+func TestMpl_UnstructuredShowcase(t *testing.T) {
+	runMplTest(t, "unstructured_showcase", renderUnstructuredShowcase)
+}
+func TestMpl_ArraysShowcase(t *testing.T) {
+	runMplTest(t, "arrays_showcase", renderArraysShowcase)
+}
 func TestMpl_ErrorBars(t *testing.T)     { runMplTest(t, "errorbar_basic", renderErrorBars) }
 func TestMpl_TitleStrict(t *testing.T)   { runMplTest(t, "title_strict", renderTitleStrict) }
 func TestMpl_ImageHeatmap(t *testing.T)  { runMplTest(t, "image_heatmap", renderImageHeatmap) }

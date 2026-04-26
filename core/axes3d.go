@@ -121,14 +121,16 @@ func (a *Axes3D) Wireframe(x, y []float64, z [][]float64, opts ...PlotOptions) *
 	}
 
 	collection := &LineCollection{
-		Segments:    segments,
-		Color:       color,
-		LineWidth:   lineWidth,
-		LineJoin:    render.JoinRound,
-		LineCap:     render.CapRound,
-		Alpha:       alpha,
-		Coords:      CoordData,
-		Collection:  Collection{Label: label},
+		Collection: Collection{
+			Coords: Coords(CoordData),
+			Label:  label,
+			Alpha:  alpha,
+		},
+		Segments:  segments,
+		Color:     color,
+		LineWidth: lineWidth,
+		LineJoin:  render.JoinRound,
+		LineCap:   render.CapRound,
 	}
 	a.Add(collection)
 	return collection
@@ -160,14 +162,16 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 	}
 
 	collection := &LineCollection{
-		Segments:    segments,
-		Color:       color,
-		LineWidth:   lineWidth,
-		LineJoin:    render.JoinRound,
-		LineCap:     render.CapRound,
-		Alpha:       alpha,
-		Coords:      CoordData,
-		Collection:  Collection{Label: label},
+		Collection: Collection{
+			Coords: Coords(CoordData),
+			Label:  label,
+			Alpha:  alpha,
+		},
+		Segments:  segments,
+		Color:     color,
+		LineWidth: lineWidth,
+		LineJoin:  render.JoinRound,
+		LineCap:   render.CapRound,
 	}
 	a.Add(collection)
 	return collection
@@ -404,14 +408,16 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *L
 	}
 
 	collection := &LineCollection{
-		Segments:    segments,
-		Color:       color,
-		LineWidth:   lineWidth,
-		LineJoin:    render.JoinRound,
-		LineCap:     render.CapRound,
-		Alpha:       alpha,
-		Coords:      CoordData,
-		Collection:  Collection{Label: label},
+		Collection: Collection{
+			Coords: Coords(CoordData),
+			Label:  label,
+			Alpha:  alpha,
+		},
+		Segments:  segments,
+		Color:     color,
+		LineWidth: lineWidth,
+		LineJoin:  render.JoinRound,
+		LineCap:   render.CapRound,
 	}
 	a.Add(collection)
 	return collection
@@ -513,14 +519,16 @@ func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *Lin
 	}
 
 	collection := &LineCollection{
-		Segments:    segments,
-		Color:       color,
-		LineWidth:   lineWidth,
-		LineJoin:    render.JoinRound,
-		LineCap:     render.CapRound,
-		Alpha:       alpha,
-		Coords:      CoordData,
-		Collection:  Collection{Label: label},
+		Collection: Collection{
+			Coords: Coords(CoordData),
+			Label:  label,
+			Alpha:  alpha,
+		},
+		Segments:  segments,
+		Color:     color,
+		LineWidth: lineWidth,
+		LineJoin:  render.JoinRound,
+		LineCap:   render.CapRound,
 	}
 	a.Add(collection)
 	return collection

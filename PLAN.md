@@ -514,6 +514,7 @@ Current slice landed:
 
 - Added showcase examples for `axisartist` and `axes_grid1` using the new floating-axis, parasite-axis, anchored-box, `ImageGrid`, and `RGBAxes` helpers.
 - Added showcase examples for `unstructured` and `arrays` using `TriPlot`, `TriColor`, `TriContour`, `TriContourf`, `AnnotatedHeatmap`, `PColorMesh`, `Contour`, and `Spy`.
+- Added golden and Matplotlib parity fixtures for the new `unstructured` and `arrays` showcase cases, including cross-reference thresholds and reference-image generator entries.
 
 **Exit Criteria:**
 
