@@ -223,16 +223,19 @@ func renderAxisArtistShowcase() image.Image {
 	floatX := host.FloatingXAxis(0)
 	floatX.Axis.Color = render.Color{R: 0.26, G: 0.26, B: 0.30, A: 1}
 	floatX.Axis.SetLineStyle(render.CapRound, render.JoinRound, 5, 3)
+	floatX.Axis.ShowTicks = false
+	floatX.Axis.ShowLabels = false
 	_ = floatX.SetTickDirection("inout")
 
 	floatY := host.FloatingYAxis(0)
 	floatY.Axis.Color = render.Color{R: 0.26, G: 0.26, B: 0.30, A: 1}
 	floatY.Axis.SetLineStyle(render.CapRound, render.JoinRound, 5, 3)
+	floatY.Axis.ShowTicks = false
+	floatY.Axis.ShowLabels = false
 	_ = floatY.SetTickDirection("inout")
 
-	parasite := host.ParasiteAxes(core.WithParasiteSharedX(host))
-	if parasite != nil && parasite.Axes != nil {
-		overlay := parasite.Axes
+	overlay := host.TwinX()
+	if overlay != nil {
 		overlay.SetYLim(0, 100)
 		overlay.YAxis.Color = render.Color{R: 0.74, G: 0.28, B: 0.18, A: 1}
 		overlay.YAxis.ShowSpine = false
@@ -258,7 +261,14 @@ func renderAxisArtistShowcase() image.Image {
 	host.AddAnchoredText("floating axes at x=0 / y=0\nparasite right scale", core.AnchoredTextOptions{
 		Location: core.LegendUpperLeft,
 	})
-	host.AddLegend()
+	legend := host.AddLegend()
+	legend.SetLocator(core.RelativeAnchoredBoxLocator{
+		X:      0.5,
+		Y:      0,
+		OffsetY: 10,
+		HAlign: core.BoxAlignCenter,
+		VAlign: core.BoxAlignTop,
+	})
 
 	r, err := agg.New(980, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -297,7 +307,14 @@ func renderAxesGrid1Showcase() image.Image {
 				ax.YAxis.ShowLabels = false
 			}
 			ax.AddAnchoredText("image grid", core.AnchoredTextOptions{
-				Location: core.LegendLowerRight,
+				Location:        core.LegendLowerRight,
+				Locator:         core.NewAnchoredOffsetLocator(core.LegendLowerRight, 3, 1, 3),
+				Padding:         2,
+				CornerRadius:    4,
+				BackgroundColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+				BorderColor:     render.Color{R: 0.75, G: 0.75, B: 0.75, A: 1},
+				TextColor:       render.Color{R: 0, G: 0, B: 0, A: 1},
+				FontSize:        10,
 			})
 		}
 	}

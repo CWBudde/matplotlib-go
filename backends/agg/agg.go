@@ -502,6 +502,9 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 			r.ctx.DrawText(text, origin.X, origin.Y)
 			return
 		}
+		if r.drawTextPathFallback(text, origin, font.size, textColor, font.fontPath) {
+			return
+		}
 		r.fallback = true
 		fallthrough
 	default:
@@ -546,6 +549,9 @@ func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle floa
 				return
 			}
 		}
+		if r.drawTextPathFallback(text, origin, font.size, textColor, font.fontPath) {
+			return
+		}
 		r.fallback = true
 	}
 
@@ -556,6 +562,20 @@ func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle floa
 	if appendLocalGSVText(r.ctx, origin.X, origin.Y, font.size, text) {
 		r.ctx.Stroke()
 	}
+}
+
+func (r *Renderer) drawTextPathFallback(text string, origin geom.Pt, size float64, textColor render.Color, fontPath string) bool {
+	if fontPath == "" {
+		return false
+	}
+	path, ok := render.TextPath(text, origin, size, fontPath)
+	if !ok {
+		return false
+	}
+	r.Path(path, &render.Paint{
+		Fill: textColor,
+	})
+	return true
 }
 
 func rotatedTextOrigin(anchor geom.Pt, metrics render.TextMetrics, bounds render.TextBounds, haveBounds bool) geom.Pt {

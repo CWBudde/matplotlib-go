@@ -84,6 +84,7 @@ type PieOptions struct {
 	LineWidth        float64
 	Alpha            float64
 	Coords           CoordinateSpec
+	Frame            *bool
 }
 
 // PieContainer groups the wedge and text artists created by Axes.Pie.
@@ -103,6 +104,7 @@ type ViolinOptions struct {
 	Alpha       float64
 	Bandwidth   float64
 	Points      int
+	LineColor   *render.Color
 	ShowMeans   *bool
 	ShowMedians *bool
 	ShowExtrema *bool
@@ -483,7 +485,7 @@ func (a *Axes) Eventplot(positions [][]float64, opts ...EventPlotOptions) *Event
 			Segments:   segments,
 			Colors:     colors,
 			LineWidth:  cfg.LineWidth,
-			LineCap:    render.CapRound,
+			LineCap:    render.CapButt,
 			LineJoin:   render.JoinRound,
 		},
 		Positions:   positions,
@@ -791,10 +793,13 @@ func (a *Axes) Pie(values []float64, opts ...PieOptions) *PieContainer {
 	}
 
 	if cfg.Coords == Coords(CoordData) {
-		padding := cfg.Radius * 1.35
+		padding := cfg.Radius * 1.25
 		a.SetXLim(cfg.Center.X-padding, cfg.Center.X+padding)
 		a.SetYLim(cfg.Center.Y-padding, cfg.Center.Y+padding)
 		a.SetAxisEqual()
+		if !specialtyBool(cfg.Frame, false) {
+			hideAxesFrame(a)
+		}
 	}
 	return container
 }
@@ -807,7 +812,7 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 	cfg := ViolinOptions{
 		EdgeWidth: 1,
 		Alpha:     0.65,
-		Points:    64,
+		Points:    100,
 	}
 	if len(opts) > 0 {
 		cfg = opts[0]
@@ -818,7 +823,7 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 			cfg.Alpha = 0.65
 		}
 		if cfg.Points < 8 {
-			cfg.Points = 64
+			cfg.Points = 100
 		}
 	}
 
@@ -834,9 +839,9 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 			continue
 		}
 
-		width := math.Abs(floatAt(cfg.Widths, i, 0.7))
+		width := math.Abs(floatAt(cfg.Widths, i, 0.5))
 		if width == 0 {
-			width = 0.7
+			width = 0.5
 		}
 		position := floatAt(cfg.Positions, i, float64(i+1))
 		stats := specialtyViolinStats(values)
@@ -888,8 +893,8 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 		if specialtyBool(cfg.ShowExtrema, true) {
 			extremaSegments = append(extremaSegments,
 				[]geom.Pt{{X: position, Y: stats.min}, {X: position, Y: stats.max}},
-				[]geom.Pt{{X: position - width*0.12, Y: stats.min}, {X: position + width*0.12, Y: stats.min}},
-				[]geom.Pt{{X: position - width*0.12, Y: stats.max}, {X: position + width*0.12, Y: stats.max}},
+				[]geom.Pt{{X: position - width*0.25, Y: stats.min}, {X: position + width*0.25, Y: stats.min}},
+				[]geom.Pt{{X: position - width*0.25, Y: stats.max}, {X: position + width*0.25, Y: stats.max}},
 			)
 		}
 	}
@@ -901,6 +906,10 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 	edgeColor := render.Color{R: 0.12, G: 0.12, B: 0.12, A: 0.9}
 	if cfg.EdgeColor != nil {
 		edgeColor = *cfg.EdgeColor
+	}
+	lineColor := edgeColor
+	if cfg.LineColor != nil {
+		lineColor = *cfg.LineColor
 	}
 
 	container := &ViolinContainer{
@@ -920,7 +929,7 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 		container.Means = &LineCollection{
 			Collection: Collection{Alpha: 1, z: 2.3},
 			Segments:   meanSegments,
-			Color:      edgeColor,
+			Color:      lineColor,
 			LineWidth:  math.Max(cfg.EdgeWidth, 1.25),
 			LineCap:    render.CapRound,
 		}
@@ -940,7 +949,7 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 		container.Extrema = &LineCollection{
 			Collection: Collection{Alpha: 1, z: 2.1},
 			Segments:   extremaSegments,
-			Color:      edgeColor,
+			Color:      lineColor,
 			LineWidth:  math.Max(cfg.EdgeWidth*0.9, 1),
 			LineCap:    render.CapRound,
 		}
@@ -1127,7 +1136,7 @@ func (t *Table) Draw(r render.Renderer, ctx *DrawContext) {
 			cell := t.Cells[row][col]
 			minPt := geom.Pt{
 				X: t.BBox.Min.X + float64(col)*cellW,
-				Y: t.BBox.Min.Y + float64(row)*cellH,
+				Y: t.BBox.Min.Y + float64(len(t.Cells)-1-row)*cellH,
 			}
 			maxPt := geom.Pt{
 				X: minPt.X + cellW,
@@ -1388,4 +1397,19 @@ func specialtyBool(value *bool, fallback bool) bool {
 		return fallback
 	}
 	return *value
+}
+
+func hideAxesFrame(a *Axes) {
+	if a == nil {
+		return
+	}
+	a.ShowFrame = false
+	for _, axis := range []*Axis{a.XAxis, a.YAxis, a.XAxisTop, a.YAxisRight} {
+		if axis == nil {
+			continue
+		}
+		axis.ShowSpine = false
+		axis.ShowTicks = false
+		axis.ShowLabels = false
+	}
 }

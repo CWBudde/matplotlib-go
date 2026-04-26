@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	geoFrameSegments = 160
-	geoGridSegments  = 96
+	geoFrameSegments    = 160
+	geoGridSegments     = 75
+	geoLongitudeGridCap = 5 * math.Pi / 12
 )
 
 type geoProjection struct {
@@ -49,6 +50,7 @@ func (p *geoProjection) ConfigureAxes(ax *Axes) {
 
 	ax.XScale = transform.NewLinear(-math.Pi, math.Pi)
 	ax.YScale = transform.NewLinear(-math.Pi/2, math.Pi/2)
+	_ = ax.SetBoxAspect(0.5)
 	ax.XAxis = NewXAxis()
 	ax.YAxis = NewYAxis()
 	ax.XAxisTop = nil
@@ -192,6 +194,8 @@ func drawGeoGridLine(r render.Renderer, ctx *DrawContext, axis AxisSide, tick fl
 		var data geom.Pt
 		switch axis {
 		case AxisBottom, AxisTop:
+			yMin = -geoLongitudeGridCap
+			yMax = geoLongitudeGridCap
 			data = geom.Pt{X: tick, Y: yMin + (yMax-yMin)*t}
 		default:
 			data = geom.Pt{X: xMin + (xMax-xMin)*t, Y: tick}

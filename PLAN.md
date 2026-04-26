@@ -2,9 +2,80 @@
 
 This plan prioritizes getting useful plotting functionality working quickly. The AGG backend (via `github.com/cwbudde/agg_go`) is now available and provides a high-quality AGG-backed raster renderer, while GoBasic remains the default pure-Go backend.
 
-This roadmap is also now cross-checked against the local upstream Matplotlib checkout in `/tmp/matplotlib` so uncovered areas are tracked explicitly instead of being left in broad "future work" buckets.
+This roadmap is cross-checked against the local upstream Matplotlib snapshot in `third_party/matplotlib` so uncovered areas are tracked explicitly instead of being left in broad "future work" buckets.
 
 ---
+
+# Plan Tracking
+
+- `✅` = done and stable
+- `🧪` = implemented but under hardening
+- `⚪` = in progress
+- `⚠️` = deferred/design decision required
+- `[ ]` = not started
+
+---
+
+# ✅ Phase 0: Architecture Alignment (COMPLETED)
+
+**Goal:** convert PoC decisions and the new upstream architecture comparison into concrete execution tracks before adding more surface area.
+
+### 0.1 Architecture Baseline
+
+- [x] Clone/record upstream Matplotlib into `third_party/matplotlib`.
+- [x] Add upstream snapshot to `.gitignore`.
+- [x] Author `docs/architecture-comparison-with-matplotlib.md` capturing the fundamental differences.
+
+### 0.2 Sub-Phase A: Core Object Model Parity
+
+- [x] Keep interface-based `Artist` model as the port design baseline.
+- [ ] Add explicit parity notes for state/callback/stale behaviors that differ from upstream (`Artist` callbacks, stale propagation, picker/query surface).
+- [ ] Document and codify lifecycle boundaries in `core` for parity-critical cases (animation, clipping, draw ordering, overlay).
+
+### 0.3 Sub-Phase B: Transform & Coordinate System
+
+- [x] Keep explicit transform combinators (`transform` package) as the operational model.
+- [ ] Build a minimal invalidation-capable `TransformNode`-style compatibility layer for non-affine/affine split and cache-friendly compositions where it matters for projection-heavy cases.
+- [ ] Expand composable coordinate helpers (`transData`, `transAxes`, `transFigure`, blended transforms) with explicit test coverage on nested projections.
+
+### 0.4 Sub-Phase C: Renderer/Backend Runtime Parity
+
+- [x] Keep compact `render.Renderer` interface for portability.
+- [ ] Add parity-facing façade for backend capability checks and optional methods in a single registry contract.
+- [ ] Add backend contract tests for raster/vector export behavior, text pipelines, clipping, and save/dispatch semantics.
+
+### 0.5 Sub-Phase D: Canvas, Event, and State API
+
+- [x] Keep current headless canvas and event dispatcher as the minimum baseline.
+- [ ] Add parity mapping for Matplotlib event categories (`mouse`, `key`, `resize`, `draw`, `close`) and cursor/pick interactions.
+- [ ] Introduce a stricter manager contract for interactive backends (tooling + host lifecycle hooks) without blocking current non-interactive flow.
+
+### 0.6 Sub-Phase E: Style/RC and Pyplot/API Surface
+
+- [x] Keep lightweight `style` RC defaults and stackable contexts.
+- [ ] Add a staged rc-system expansion plan keyed by `supportedMPLStyleKeys` and upstream validator parity.
+- [ ] Add `pyplot` parity buckets for wrappers that are high-value but currently absent or partial (e.g. figure/axes/window/axes property convenience, output dispatch, context helpers).
+
+### 0.7 Sub-Phase F: Architecture-First Test Strategy
+
+- [x] Keep golden/reference comparison loop alive for image behavior.
+- [ ] Add architecture tests that validate: backend capability behavior, transform semantics, event lifecycle, rc param/option precedence.
+- [ ] Add review points in plan milestones so feature work only starts when structural test debt is bounded.
+
+---
+
+## Baseline Status (Stable to Keep Unless Broken)
+
+The following phases have reached "foundational parity enough to continue feature expansion" and should be treated as stable:
+
+- ✅ Foundation (PoC to working renderer + AGG integration)
+- ✅ Phase 1: Core Plot Types
+- ✅ Phase 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.8
+- ✅ Phase 3 (except open edges noted)
+- ✅ Phase 4 completed items shown as checked
+- ✅ Phase 5.1, 5.2, 5.3, 5.4
+- ✅ Phase 6 (including sections 6.1–6.6)
+- ✅ Phase 7 core projection/toolkit scaffolding
 
 # ✅ Foundation (COMPLETED)
 
@@ -134,7 +205,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] `MeasureText` for layout calculations
 - [x] Example: `examples/axes/labels/main.go`
 
-### 2.7 Axes Control Surface
+### 2.7 Axes Control Surface ✅
 
 - [x] Public API for top/right spines, ticks, and labels instead of only internal `AxisSide` support
 - [x] Axis inversion helpers (`InvertX`, `InvertY`)
@@ -152,21 +223,21 @@ core.SavePNG(fig, r, "output.png")
 - [x] Scale-specific configuration (`base`, `subs`, `linthresh`, non-positive handling, etc.)
 - [x] Scale registration hooks so projections/toolkits can contribute custom scales
 
-### 2.9 Locator and Formatter Parity
+### 2.9 Locator and Formatter Parity ✅
 
 - [x] Additional locators: `FixedLocator`, `NullLocator`, `MultipleLocator`, `MaxNLocator`, `AutoLocator`, `AutoMinorLocator`
 - [x] Additional formatters: `FixedFormatter`, `NullFormatter`, `FuncFormatter`, `FormatStrFormatter`, `StrMethodFormatter`, `EngFormatter`, `PercentFormatter`
 - [x] Axis-owned tick style/state instead of today's loose locator/formatter pairing only
 - [x] Multi-level ticks, label rotation/alignment helpers, and top/right tick label placement
 
-### 2.10 Transform Graph and Coordinate Systems
+### 2.10 ⚪ Transform Graph and Coordinate Systems
 
 - [x] Expose Matplotlib-like coordinate spaces: `transData`, `transAxes`, `transFigure`
 - [x] Add blended transforms, offset transforms, and bbox-driven transforms
 - [x] Refactor annotations/layout helpers to consume shared transform primitives instead of ad-hoc math
 - [x] Make the transform stack projection-friendly so non-Cartesian axes do not require a redraw pipeline rewrite
 
-### 2.11 Dates, Categories, and Units
+### 2.11 Dates, Categories, and Units ✅
 
 - [x] Date locators/formatters and `time.Time`-friendly axis plumbing
 - [x] Categorical axes instead of today's "categories as float positions" workaround
@@ -174,14 +245,19 @@ core.SavePNG(fig, r, "output.png")
 - [x] Example coverage for dates, units, and category plots
 - [x] Golden/parity coverage for dates, units, and category plots
 
+### 2.12 ⚪ Architecture Gates for Axes/Transforms
+
+- [ ] Add automated assertions for axis state transitions in non-affine/projection-heavy paths.
+- [ ] Add focused tests for transform-space APIs (`CoordData`, `CoordAxes`, `CoordFigure`) before adding new transform-specific plot APIs.
+- [ ] Add parity acceptance checks for coordinate-space helpers used by annotations and inset-like features.
+
 **Exit Criteria:**
 
-- All plots render with AGG anti-aliasing
-- Plots have proper axis lines, ticks, and labels
-- Grid lines work and look good (major + minor, dashed)
-- Axis limits can be set manually or auto-computed
-
-**Current follow-up after Phase 2:** package-level tests for `color`, `render`, `backends`, and `core` are green after the renderer-contract cleanup; the remaining short-term backend-quality work is in image golden/reference parity, while the largest functional gap versus Matplotlib is now the broader axes/scale/ticker surface above.
+- [x] All plots render with AGG anti-aliasing
+- [x] Plots have proper axis lines, ticks, and labels
+- [x] Grid lines work and look good (major + minor, dashed)
+- [x] Axis limits can be set manually or auto-computed
+- [ ] Architectural gates for transforms/coordinate systems are validated
 
 ---
 

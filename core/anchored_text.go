@@ -156,7 +156,11 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 	}
 
 	box := resolveAnchoredBoxRect(a.Locator, ctx.Clip, maxWidth+a.Padding*2, contentHeight+a.Padding*2, a.Location, a.Inset)
-	r.Path(pixelRectPath(box), &render.Paint{
+	boxPath := pixelRectPath(box)
+	if a.CornerRadius > 0 {
+		boxPath = roundedRectPath(box, a.CornerRadius)
+	}
+	r.Path(boxPath, &render.Paint{
 		Fill:      a.BackgroundColor,
 		Stroke:    a.BorderColor,
 		LineWidth: a.BorderWidth,

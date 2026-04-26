@@ -2,6 +2,7 @@ package core
 
 import (
 	"math"
+	"sort"
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -184,7 +185,7 @@ func (p *Patch) resolvedHatchWidth() float64 {
 
 func (p *Patch) resolvedHatchSpacing() float64 {
 	if p == nil || p.HatchSpacing <= 0 {
-		return 8
+		return 32
 	}
 	return p.HatchSpacing
 }
@@ -268,9 +269,10 @@ func (p *Patch) drawHatch(r render.Renderer, clipPath geom.Path) {
 		return
 	}
 
-	r.Save()
-	r.ClipPath(clipPath)
-	defer r.Restore()
+	clipPolygon := hatchClipPolygon(clipPath)
+	if len(clipPolygon) < 3 {
+		return
+	}
 
 	for pattern, count := range counts {
 		spacing := math.Max(2, p.resolvedHatchSpacing()/float64(count))
@@ -283,36 +285,255 @@ func (p *Patch) drawHatch(r render.Renderer, clipPath geom.Path) {
 		switch pattern {
 		case '|':
 			if path := verticalHatchPath(bounds, spacing); len(path.C) > 0 {
-				r.Path(path, &paint)
+				r.Path(clipHatchPathToPolygon(path, clipPolygon), &paint)
 			}
 		case '-':
 			if path := horizontalHatchPath(bounds, spacing); len(path.C) > 0 {
-				r.Path(path, &paint)
+				r.Path(clipHatchPathToPolygon(path, clipPolygon), &paint)
 			}
 		case '/':
 			if path := slashHatchPath(bounds, spacing); len(path.C) > 0 {
-				r.Path(path, &paint)
+				r.Path(clipHatchPathToPolygon(path, clipPolygon), &paint)
 			}
 		case '\\':
 			if path := backslashHatchPath(bounds, spacing); len(path.C) > 0 {
-				r.Path(path, &paint)
+				r.Path(clipHatchPathToPolygon(path, clipPolygon), &paint)
 			}
 		case '+':
 			if path := verticalHatchPath(bounds, spacing); len(path.C) > 0 {
-				r.Path(path, &paint)
+				r.Path(clipHatchPathToPolygon(path, clipPolygon), &paint)
 			}
 			if path := horizontalHatchPath(bounds, spacing); len(path.C) > 0 {
-				r.Path(path, &paint)
+				r.Path(clipHatchPathToPolygon(path, clipPolygon), &paint)
 			}
 		case 'x', 'X':
 			if path := slashHatchPath(bounds, spacing); len(path.C) > 0 {
-				r.Path(path, &paint)
+				r.Path(clipHatchPathToPolygon(path, clipPolygon), &paint)
 			}
 			if path := backslashHatchPath(bounds, spacing); len(path.C) > 0 {
-				r.Path(path, &paint)
+				r.Path(clipHatchPathToPolygon(path, clipPolygon), &paint)
 			}
 		}
 	}
+}
+
+func hatchClipPolygon(path geom.Path) []geom.Pt {
+	const curveSteps = 16
+	polygon := make([]geom.Pt, 0, len(path.V))
+	var current, start geom.Pt
+	haveCurrent := false
+	vi := 0
+	for _, cmd := range path.C {
+		switch cmd {
+		case geom.MoveTo:
+			if vi >= len(path.V) {
+				return polygon
+			}
+			current = path.V[vi]
+			start = current
+			haveCurrent = true
+			polygon = append(polygon, current)
+			vi++
+		case geom.LineTo:
+			if vi >= len(path.V) || !haveCurrent {
+				return polygon
+			}
+			current = path.V[vi]
+			polygon = append(polygon, current)
+			vi++
+		case geom.QuadTo:
+			if vi+1 >= len(path.V) || !haveCurrent {
+				return polygon
+			}
+			ctrl := path.V[vi]
+			to := path.V[vi+1]
+			for step := 1; step <= curveSteps; step++ {
+				t := float64(step) / curveSteps
+				polygon = append(polygon, quadPoint(current, ctrl, to, t))
+			}
+			current = to
+			vi += 2
+		case geom.CubicTo:
+			if vi+2 >= len(path.V) || !haveCurrent {
+				return polygon
+			}
+			c1 := path.V[vi]
+			c2 := path.V[vi+1]
+			to := path.V[vi+2]
+			for step := 1; step <= curveSteps; step++ {
+				t := float64(step) / curveSteps
+				polygon = append(polygon, cubicPoint(current, c1, c2, to, t))
+			}
+			current = to
+			vi += 3
+		case geom.ClosePath:
+			if haveCurrent && !samePoint(current, start) {
+				polygon = append(polygon, start)
+			}
+		}
+	}
+	return dedupeAdjacentPoints(polygon)
+}
+
+func quadPoint(p0, p1, p2 geom.Pt, t float64) geom.Pt {
+	mt := 1 - t
+	return geom.Pt{
+		X: mt*mt*p0.X + 2*mt*t*p1.X + t*t*p2.X,
+		Y: mt*mt*p0.Y + 2*mt*t*p1.Y + t*t*p2.Y,
+	}
+}
+
+func cubicPoint(p0, p1, p2, p3 geom.Pt, t float64) geom.Pt {
+	mt := 1 - t
+	return geom.Pt{
+		X: mt*mt*mt*p0.X + 3*mt*mt*t*p1.X + 3*mt*t*t*p2.X + t*t*t*p3.X,
+		Y: mt*mt*mt*p0.Y + 3*mt*mt*t*p1.Y + 3*mt*t*t*p2.Y + t*t*t*p3.Y,
+	}
+}
+
+func clipHatchPathToPolygon(path geom.Path, polygon []geom.Pt) geom.Path {
+	out := geom.Path{}
+	var current geom.Pt
+	haveCurrent := false
+	vi := 0
+	for _, cmd := range path.C {
+		switch cmd {
+		case geom.MoveTo:
+			if vi >= len(path.V) {
+				return out
+			}
+			current = path.V[vi]
+			haveCurrent = true
+			vi++
+		case geom.LineTo:
+			if vi >= len(path.V) || !haveCurrent {
+				return out
+			}
+			to := path.V[vi]
+			appendClippedSegment(&out, current, to, polygon)
+			current = to
+			vi++
+		case geom.QuadTo:
+			vi += 2
+		case geom.CubicTo:
+			vi += 3
+		}
+	}
+	return out
+}
+
+func appendClippedSegment(out *geom.Path, a, b geom.Pt, polygon []geom.Pt) {
+	ts := []float64{0, 1}
+	for i := range polygon {
+		c := polygon[i]
+		d := polygon[(i+1)%len(polygon)]
+		if samePoint(c, d) {
+			continue
+		}
+		if t, ok := segmentIntersectionParameter(a, b, c, d); ok && t > -1e-9 && t < 1+1e-9 {
+			ts = append(ts, clamp(t, 0, 1))
+		}
+	}
+	sort.Float64s(ts)
+	ts = uniqueSortedParameters(ts)
+	for i := 0; i < len(ts)-1; i++ {
+		t0 := ts[i]
+		t1 := ts[i+1]
+		if t1-t0 <= 1e-9 {
+			continue
+		}
+		mid := lerpPoint(a, b, (t0+t1)/2)
+		if !pointInPolygon(mid, polygon) && !pointOnPolygon(mid, polygon) {
+			continue
+		}
+		p0 := lerpPoint(a, b, t0)
+		p1 := lerpPoint(a, b, t1)
+		out.MoveTo(p0)
+		out.LineTo(p1)
+	}
+}
+
+func segmentIntersectionParameter(a, b, c, d geom.Pt) (float64, bool) {
+	r := geom.Pt{X: b.X - a.X, Y: b.Y - a.Y}
+	s := geom.Pt{X: d.X - c.X, Y: d.Y - c.Y}
+	denom := cross(r, s)
+	if math.Abs(denom) < 1e-9 {
+		return 0, false
+	}
+	qp := geom.Pt{X: c.X - a.X, Y: c.Y - a.Y}
+	t := cross(qp, s) / denom
+	u := cross(qp, r) / denom
+	if t < -1e-9 || t > 1+1e-9 || u < -1e-9 || u > 1+1e-9 {
+		return 0, false
+	}
+	return t, true
+}
+
+func pointOnPolygon(p geom.Pt, polygon []geom.Pt) bool {
+	for i := range polygon {
+		if hatchPointOnSegment(p, polygon[i], polygon[(i+1)%len(polygon)]) {
+			return true
+		}
+	}
+	return false
+}
+
+func hatchPointOnSegment(p, a, b geom.Pt) bool {
+	ab := geom.Pt{X: b.X - a.X, Y: b.Y - a.Y}
+	ap := geom.Pt{X: p.X - a.X, Y: p.Y - a.Y}
+	if math.Abs(cross(ab, ap)) > 1e-7 {
+		return false
+	}
+	dot := ap.X*ab.X + ap.Y*ab.Y
+	if dot < -1e-7 {
+		return false
+	}
+	len2 := ab.X*ab.X + ab.Y*ab.Y
+	return dot <= len2+1e-7
+}
+
+func cross(a, b geom.Pt) float64 {
+	return a.X*b.Y - a.Y*b.X
+}
+
+func lerpPoint(a, b geom.Pt, t float64) geom.Pt {
+	return geom.Pt{
+		X: a.X + (b.X-a.X)*t,
+		Y: a.Y + (b.Y-a.Y)*t,
+	}
+}
+
+func uniqueSortedParameters(values []float64) []float64 {
+	if len(values) == 0 {
+		return values
+	}
+	out := values[:1]
+	for _, v := range values[1:] {
+		if math.Abs(v-out[len(out)-1]) > 1e-8 {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func dedupeAdjacentPoints(points []geom.Pt) []geom.Pt {
+	if len(points) == 0 {
+		return points
+	}
+	out := points[:1]
+	for _, p := range points[1:] {
+		if !samePoint(p, out[len(out)-1]) {
+			out = append(out, p)
+		}
+	}
+	if len(out) > 1 && samePoint(out[0], out[len(out)-1]) {
+		out = out[:len(out)-1]
+	}
+	return out
+}
+
+func samePoint(a, b geom.Pt) bool {
+	return math.Abs(a.X-b.X) < 1e-9 && math.Abs(a.Y-b.Y) < 1e-9
 }
 
 func hatchCounts(pattern string) map[rune]int {
@@ -371,7 +592,7 @@ func backslashHatchPath(bounds geom.Rect, spacing float64) geom.Path {
 	height := bounds.H()
 	for x := bounds.Min.X; x <= bounds.Max.X+height+spacing; x += spacing {
 		path.MoveTo(geom.Pt{X: x, Y: bounds.Min.Y})
-		path.LineTo(geom.Pt{X: x - height, Y: bounds.Max.Y})
+		path.LineTo(geom.Pt{X: x + height, Y: bounds.Max.Y})
 	}
 	return path
 }

@@ -24,30 +24,30 @@ const (
 
 // QuiverOptions configures vector-arrow plots.
 type QuiverOptions struct {
-	Color      *render.Color
-	Colors     []render.Color
-	C          []float64
-	CGrid      [][]float64
-	Colormap   *string
-	VMin       *float64
-	VMax       *float64
-	Alpha      *float64
-	EdgeColor  *render.Color
-	EdgeWidth  *float64
-	Pivot      string
-	Angles     string
-	AngleValues []float64
-	Scale      *float64
-	ScaleUnits string
-	Units      string
-	Width      *float64
-	HeadWidth  *float64
-	HeadLength *float64
+	Color          *render.Color
+	Colors         []render.Color
+	C              []float64
+	CGrid          [][]float64
+	Colormap       *string
+	VMin           *float64
+	VMax           *float64
+	Alpha          *float64
+	EdgeColor      *render.Color
+	EdgeWidth      *float64
+	Pivot          string
+	Angles         string
+	AngleValues    []float64
+	Scale          *float64
+	ScaleUnits     string
+	Units          string
+	Width          *float64
+	HeadWidth      *float64
+	HeadLength     *float64
 	HeadAxisLength *float64
-	MinShaft   *float64
-	MinLength  *float64
-	Label      string
-	ZOrder     *float64
+	MinShaft       *float64
+	MinLength      *float64
+	Label          string
+	ZOrder         *float64
 }
 
 // Quiver renders repeated vector arrows anchored at data points.
@@ -101,18 +101,18 @@ type QuiverKeyOptions struct {
 
 // QuiverKey renders a labeled reference arrow using an existing quiver style.
 type QuiverKey struct {
-	Quiver    *Quiver
-	Position  geom.Pt
-	U         float64
-	Label     string
-	Coords    CoordinateSpec
-	Angle     float64
-	LabelPos  string
-	LabelSep  float64
-	Color     render.Color
+	Quiver     *Quiver
+	Position   geom.Pt
+	U          float64
+	Label      string
+	Coords     CoordinateSpec
+	Angle      float64
+	LabelPos   string
+	LabelSep   float64
+	Color      render.Color
 	LabelColor render.Color
-	FontSize  float64
-	z         float64
+	FontSize   float64
+	z          float64
 }
 
 // BarbIncrements configures the value represented by each barb segment.
@@ -226,13 +226,13 @@ type streamplotGrid struct {
 }
 
 type streamplotMask struct {
-	nx     int
-	ny     int
-	used   []bool
-	xmin   float64
-	xspan  float64
-	ymin   float64
-	yspan  float64
+	nx    int
+	ny    int
+	used  []bool
+	xmin  float64
+	xspan float64
+	ymin  float64
+	yspan float64
 }
 
 type streamTrajectory struct {
@@ -266,31 +266,31 @@ func (a *Axes) Quiver(x, y, u, v []float64, opts ...QuiverOptions) *Quiver {
 	}
 
 	q := &Quiver{
-		Anchors:         anchors,
-		U:               uu,
-		V:               vv,
-		Colors:          append([]render.Color(nil), opt.Colors...),
-		Color:           color,
-		ScalarColors:    append([]float64(nil), scalars...),
-		EdgeColor:       edgeColor,
-		EdgeWidth:       edgeWidth,
-		Alpha:           alpha,
-		Pivot:           normalizeVectorPivot(opt.Pivot, vectorPivotTail),
-		Angles:          normalizeQuiverAngles(opt.Angles),
-		AngleValues:     append([]float64(nil), opt.AngleValues...),
-		ScaleUnits:      normalizeVectorUnits(opt.ScaleUnits, "width"),
-		Units:           normalizeVectorUnits(opt.Units, "width"),
-		Width:           optionFloat(opt.Width, 0),
-		HeadWidth:       optionFloat(opt.HeadWidth, 3),
-		HeadLength:      optionFloat(opt.HeadLength, 5),
-		HeadAxisLength:  optionFloat(opt.HeadAxisLength, 4.5),
-		MinShaft:        optionFloat(opt.MinShaft, 1),
-		MinLength:       optionFloat(opt.MinLength, 1),
-		Label:           opt.Label,
-		Colormap:        scalarColormap(opt.Colormap),
-		VMin:            scalarVMin(opt.C, scalars, opt.VMin),
-		VMax:            scalarVMax(opt.C, scalars, opt.VMax),
-		z:               optionFloat(opt.ZOrder, 1),
+		Anchors:        anchors,
+		U:              uu,
+		V:              vv,
+		Colors:         append([]render.Color(nil), opt.Colors...),
+		Color:          color,
+		ScalarColors:   append([]float64(nil), scalars...),
+		EdgeColor:      edgeColor,
+		EdgeWidth:      edgeWidth,
+		Alpha:          alpha,
+		Pivot:          normalizeVectorPivot(opt.Pivot, vectorPivotTail),
+		Angles:         normalizeQuiverAngles(opt.Angles),
+		AngleValues:    append([]float64(nil), opt.AngleValues...),
+		ScaleUnits:     normalizeVectorUnits(opt.ScaleUnits, "width"),
+		Units:          normalizeVectorUnits(opt.Units, "width"),
+		Width:          optionFloat(opt.Width, 0),
+		HeadWidth:      optionFloat(opt.HeadWidth, 3),
+		HeadLength:     optionFloat(opt.HeadLength, 5),
+		HeadAxisLength: optionFloat(opt.HeadAxisLength, 4.5),
+		MinShaft:       optionFloat(opt.MinShaft, 1),
+		MinLength:      optionFloat(opt.MinLength, 1),
+		Label:          opt.Label,
+		Colormap:       scalarColormap(opt.Colormap),
+		VMin:           scalarVMin(opt.C, scalars, opt.VMin),
+		VMax:           scalarVMax(opt.C, scalars, opt.VMax),
+		z:              optionFloat(opt.ZOrder, 1),
 	}
 	if opt.Scale != nil && *opt.Scale > 0 {
 		q.Scale = *opt.Scale
@@ -324,31 +324,31 @@ func (a *Axes) quiverFromFlattened(anchors []geom.Pt, u, v, scalars []float64, o
 		color = *opt.Color
 	}
 	q := &Quiver{
-		Anchors:         anchors,
-		U:               append([]float64(nil), u...),
-		V:               append([]float64(nil), v...),
-		Colors:          append([]render.Color(nil), opt.Colors...),
-		Color:           color,
-		ScalarColors:    append([]float64(nil), scalars...),
-		EdgeColor:       derefColor(opt.EdgeColor),
-		EdgeWidth:       optionFloat(opt.EdgeWidth, 0),
-		Alpha:           optionAlpha(opt.Alpha),
-		Pivot:           normalizeVectorPivot(opt.Pivot, vectorPivotTail),
-		Angles:          normalizeQuiverAngles(opt.Angles),
-		AngleValues:     append([]float64(nil), opt.AngleValues...),
-		ScaleUnits:      normalizeVectorUnits(opt.ScaleUnits, "width"),
-		Units:           normalizeVectorUnits(opt.Units, "width"),
-		Width:           optionFloat(opt.Width, 0),
-		HeadWidth:       optionFloat(opt.HeadWidth, 3),
-		HeadLength:      optionFloat(opt.HeadLength, 5),
-		HeadAxisLength:  optionFloat(opt.HeadAxisLength, 4.5),
-		MinShaft:        optionFloat(opt.MinShaft, 1),
-		MinLength:       optionFloat(opt.MinLength, 1),
-		Label:           opt.Label,
-		Colormap:        scalarColormap(opt.Colormap),
-		VMin:            scalarVMin(opt.C, scalars, opt.VMin),
-		VMax:            scalarVMax(opt.C, scalars, opt.VMax),
-		z:               optionFloat(opt.ZOrder, 1),
+		Anchors:        anchors,
+		U:              append([]float64(nil), u...),
+		V:              append([]float64(nil), v...),
+		Colors:         append([]render.Color(nil), opt.Colors...),
+		Color:          color,
+		ScalarColors:   append([]float64(nil), scalars...),
+		EdgeColor:      derefColor(opt.EdgeColor),
+		EdgeWidth:      optionFloat(opt.EdgeWidth, 0),
+		Alpha:          optionAlpha(opt.Alpha),
+		Pivot:          normalizeVectorPivot(opt.Pivot, vectorPivotTail),
+		Angles:         normalizeQuiverAngles(opt.Angles),
+		AngleValues:    append([]float64(nil), opt.AngleValues...),
+		ScaleUnits:     normalizeVectorUnits(opt.ScaleUnits, "width"),
+		Units:          normalizeVectorUnits(opt.Units, "width"),
+		Width:          optionFloat(opt.Width, 0),
+		HeadWidth:      optionFloat(opt.HeadWidth, 3),
+		HeadLength:     optionFloat(opt.HeadLength, 5),
+		HeadAxisLength: optionFloat(opt.HeadAxisLength, 4.5),
+		MinShaft:       optionFloat(opt.MinShaft, 1),
+		MinLength:      optionFloat(opt.MinLength, 1),
+		Label:          opt.Label,
+		Colormap:       scalarColormap(opt.Colormap),
+		VMin:           scalarVMin(opt.C, scalars, opt.VMin),
+		VMax:           scalarVMax(opt.C, scalars, opt.VMax),
+		z:              optionFloat(opt.ZOrder, 1),
 	}
 	if opt.Scale != nil && *opt.Scale > 0 {
 		q.Scale = *opt.Scale
@@ -425,29 +425,29 @@ func (a *Axes) Barbs(x, y, u, v []float64, opts ...BarbsOptions) *Barbs {
 	}
 
 	b := &Barbs{
-		Anchors:         anchors,
-		U:               uu,
-		V:               vv,
-		Colors:          append([]render.Color(nil), opt.Colors...),
-		Color:           color,
-		ScalarColors:    append([]float64(nil), scalars...),
-		BarbColor:       barbColor,
-		FlagColor:       flagColor,
-		LineWidth:       optionFloat(opt.LineWidth, 1),
-		Alpha:           optionAlpha(opt.Alpha),
-		Pivot:           normalizeVectorPivot(opt.Pivot, vectorPivotTip),
-		Length:          optionFloat(opt.Length, 18),
-		Units:           normalizeVectorUnits(opt.Units, "dots"),
-		Sizes:           defaultBarbSizes(opt.Sizes),
-		Increments:      defaultBarbIncrements(opt.Increments),
-		FillEmpty:       optionBool(opt.FillEmpty, false),
-		Rounding:        optionBool(opt.Rounding, true),
-		Flip:            normalizeFlipSlice(opt.FlipBarb, opt.Flip, len(anchors)),
-		Label:           opt.Label,
-		Colormap:        scalarColormap(opt.Colormap),
-		VMin:            scalarVMin(opt.C, scalars, opt.VMin),
-		VMax:            scalarVMax(opt.C, scalars, opt.VMax),
-		z:               optionFloat(opt.ZOrder, 1),
+		Anchors:      anchors,
+		U:            uu,
+		V:            vv,
+		Colors:       append([]render.Color(nil), opt.Colors...),
+		Color:        color,
+		ScalarColors: append([]float64(nil), scalars...),
+		BarbColor:    barbColor,
+		FlagColor:    flagColor,
+		LineWidth:    optionFloat(opt.LineWidth, 1),
+		Alpha:        optionAlpha(opt.Alpha),
+		Pivot:        normalizeVectorPivot(opt.Pivot, vectorPivotTip),
+		Length:       optionFloat(opt.Length, 18),
+		Units:        normalizeVectorUnits(opt.Units, "dots"),
+		Sizes:        defaultBarbSizes(opt.Sizes),
+		Increments:   defaultBarbIncrements(opt.Increments),
+		FillEmpty:    optionBool(opt.FillEmpty, false),
+		Rounding:     optionBool(opt.Rounding, true),
+		Flip:         normalizeFlipSlice(opt.FlipBarb, opt.Flip, len(anchors)),
+		Label:        opt.Label,
+		Colormap:     scalarColormap(opt.Colormap),
+		VMin:         scalarVMin(opt.C, scalars, opt.VMin),
+		VMax:         scalarVMax(opt.C, scalars, opt.VMax),
+		z:            optionFloat(opt.ZOrder, 1),
 	}
 	a.Add(b)
 	return b
@@ -484,29 +484,29 @@ func (a *Axes) BarbsGrid(x, y []float64, u, v [][]float64, opts ...BarbsOptions)
 	}
 
 	b := &Barbs{
-		Anchors:         anchors,
-		U:               append([]float64(nil), uu...),
-		V:               append([]float64(nil), vv...),
-		Colors:          append([]render.Color(nil), opt.Colors...),
-		Color:           color,
-		ScalarColors:    append([]float64(nil), scalars...),
-		BarbColor:       barbColor,
-		FlagColor:       flagColor,
-		LineWidth:       optionFloat(opt.LineWidth, 1),
-		Alpha:           optionAlpha(opt.Alpha),
-		Pivot:           normalizeVectorPivot(opt.Pivot, vectorPivotTip),
-		Length:          optionFloat(opt.Length, 18),
-		Units:           normalizeVectorUnits(opt.Units, "dots"),
-		Sizes:           defaultBarbSizes(opt.Sizes),
-		Increments:      defaultBarbIncrements(opt.Increments),
-		FillEmpty:       optionBool(opt.FillEmpty, false),
-		Rounding:        optionBool(opt.Rounding, true),
-		Flip:            normalizeFlipSlice(opt.FlipBarb, opt.Flip, len(anchors)),
-		Label:           opt.Label,
-		Colormap:        scalarColormap(opt.Colormap),
-		VMin:            scalarVMin(opt.C, scalars, opt.VMin),
-		VMax:            scalarVMax(opt.C, scalars, opt.VMax),
-		z:               optionFloat(opt.ZOrder, 1),
+		Anchors:      anchors,
+		U:            append([]float64(nil), uu...),
+		V:            append([]float64(nil), vv...),
+		Colors:       append([]render.Color(nil), opt.Colors...),
+		Color:        color,
+		ScalarColors: append([]float64(nil), scalars...),
+		BarbColor:    barbColor,
+		FlagColor:    flagColor,
+		LineWidth:    optionFloat(opt.LineWidth, 1),
+		Alpha:        optionAlpha(opt.Alpha),
+		Pivot:        normalizeVectorPivot(opt.Pivot, vectorPivotTip),
+		Length:       optionFloat(opt.Length, 18),
+		Units:        normalizeVectorUnits(opt.Units, "dots"),
+		Sizes:        defaultBarbSizes(opt.Sizes),
+		Increments:   defaultBarbIncrements(opt.Increments),
+		FillEmpty:    optionBool(opt.FillEmpty, false),
+		Rounding:     optionBool(opt.Rounding, true),
+		Flip:         normalizeFlipSlice(opt.FlipBarb, opt.Flip, len(anchors)),
+		Label:        opt.Label,
+		Colormap:     scalarColormap(opt.Colormap),
+		VMin:         scalarVMin(opt.C, scalars, opt.VMin),
+		VMax:         scalarVMax(opt.C, scalars, opt.VMax),
+		z:            optionFloat(opt.ZOrder, 1),
 	}
 	a.Add(b)
 	return b
@@ -853,7 +853,7 @@ func (q *Quiver) unitDirectionAt(ctx *DrawContext, i int) (geom.Pt, bool) {
 	if length == 0 {
 		return geom.Pt{}, false
 	}
-	return geom.Pt{X: u / length, Y: v / length}, true
+	return geom.Pt{X: u / length, Y: -v / length}, true
 }
 
 func (q *Quiver) baseDisplayLengthAt(ctx *DrawContext, i int) (float64, bool) {

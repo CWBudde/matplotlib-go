@@ -141,7 +141,7 @@ func (g *Grid) drawGeo(r render.Renderer, ctx *DrawContext) {
 		}
 		paint := polarTickPaint(minorColor, minorWidth, g.MinorDashes)
 		for _, tick := range visibleTicks(minorLoc.Ticks(domainMin, domainMax, 20), domainMin, domainMax) {
-			drawSampledGridLine(r, ctx, g.Axis, tick, geoGridSegments, paint)
+			drawGeoGridLine(r, ctx, g.Axis, tick, paint)
 		}
 	}
 
@@ -157,7 +157,7 @@ func (g *Grid) drawGeo(r render.Renderer, ctx *DrawContext) {
 		}
 		paint := polarTickPaint(majorColor, g.LineWidth, g.Dashes)
 		for _, tick := range visibleTicks(loc.Ticks(domainMin, domainMax, 8), domainMin, domainMax) {
-			drawSampledGridLine(r, ctx, g.Axis, tick, geoGridSegments, paint)
+			drawGeoGridLine(r, ctx, g.Axis, tick, paint)
 		}
 	}
 }

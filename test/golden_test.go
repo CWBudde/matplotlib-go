@@ -16,6 +16,7 @@ import (
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
+	"matplotlib-go/style"
 	"matplotlib-go/test/imagecmp"
 	"matplotlib-go/transform"
 )
@@ -1531,28 +1532,33 @@ func renderTransformCoordinates() image.Image {
 
 func renderGridSpecComposition() image.Image {
 	fig := core.NewFigure(960, 640)
+	applyMatplotlibGridSpecStyle(fig)
 
 	outer := fig.GridSpec(
 		2,
 		2,
 		core.WithGridSpecPadding(0.08, 0.96, 0.10, 0.92),
-		core.WithGridSpecSpacing(0.06, 0.08),
+		core.WithGridSpecSpacing(0.06/(2+0.06), 0.28/(2+0.28)),
 		core.WithGridSpecWidthRatios(2, 1),
 	)
 
 	mainAx := outer.Span(0, 0, 2, 1).AddAxes()
 	configureCompositionAxes(mainAx, "Main Span", []float64{0, 1, 2, 3, 4}, []float64{1.2, 2.8, 2.1, 3.6, 3.1}, render.Color{R: 0.15, G: 0.35, B: 0.72, A: 1})
+	configureCompositionTicks(mainAx, []float64{0, 1, 2, 3, 4}, []float64{1.0, 1.5, 2.0, 2.5, 3.0, 3.5}, "%.1f")
 
-	nested := outer.Cell(0, 1).GridSpec(2, 1, core.WithGridSpecSpacing(0, 0.12))
+	nested := outer.Cell(0, 1).GridSpec(2, 1, core.WithGridSpecSpacing(0, 0.75/(2+0.75)))
 	topRight := nested.Cell(0, 0).AddAxes()
 	configureCompositionAxes(topRight, "Nested Top", []float64{0, 1, 2, 3}, []float64{3.4, 2.6, 2.9, 1.8}, render.Color{R: 0.72, G: 0.32, B: 0.18, A: 1})
+	configureCompositionTicks(topRight, []float64{0, 1, 2, 3}, []float64{2, 3}, "%.0f")
 
 	bottomRight := nested.Cell(1, 0).AddAxes(core.WithSharedX(topRight))
 	configureCompositionAxes(bottomRight, "Nested Bottom", []float64{0, 1, 2, 3}, []float64{1.0, 1.6, 1.3, 2.2}, render.Color{R: 0.18, G: 0.55, B: 0.34, A: 1})
+	configureCompositionTicks(bottomRight, []float64{0, 1, 2, 3}, []float64{1, 2}, "%.0f")
 
 	sub := outer.Cell(1, 1).SubFigure()
 	inset := sub.AddSubplot(1, 1, 1)
 	configureCompositionAxes(inset, "SubFigure", []float64{0, 1, 2, 3}, []float64{2.0, 2.4, 1.9, 2.7}, render.Color{R: 0.55, G: 0.22, B: 0.50, A: 1})
+	configureCompositionTicks(inset, []float64{0, 1, 2, 3}, []float64{2.0, 2.2, 2.4, 2.6}, "%.1f")
 
 	r, err := agg.New(960, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -1560,6 +1566,14 @@ func renderGridSpecComposition() image.Image {
 	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
+}
+
+func applyMatplotlibGridSpecStyle(fig *core.Figure) {
+	fig.RC = style.Apply(fig.RC, style.WithFont("DejaVu Sans", 10))
+	fig.RC.TitleFontSize = 12 * fig.RC.DPI / 72
+	fig.RC.AxisLabelFontSize = 10 * fig.RC.DPI / 72
+	fig.RC.XTickLabelFontSize = 10 * fig.RC.DPI / 72
+	fig.RC.YTickLabelFontSize = 10 * fig.RC.DPI / 72
 }
 
 func configureCompositionAxes(ax *core.Axes, title string, x, y []float64, c render.Color) {
@@ -1573,6 +1587,12 @@ func configureCompositionAxes(ax *core.Axes, title string, x, y []float64, c ren
 		Label:     title,
 	})
 	ax.AutoScale(0.10)
+}
+
+func configureCompositionTicks(ax *core.Axes, xTicks, yTicks []float64, yFormat string) {
+	ax.XAxis.Locator = core.FixedLocator{TicksList: xTicks}
+	ax.YAxis.Locator = core.FixedLocator{TicksList: yTicks}
+	ax.YAxis.Formatter = core.FormatStrFormatter{Pattern: yFormat}
 }
 
 func renderFigureLabelsComposition() image.Image {
@@ -2169,6 +2189,11 @@ func renderUnitsCustomConverter() image.Image {
 		panic(err)
 	}
 	ax.AutoScale(0.08)
+	ax.SetXLim(2.024, 45.176)
+	ax.SetYLim(4.996, 6.504)
+	ax.XAxis.Locator = core.MultipleLocator{Base: 5}
+	ax.YAxis.Locator = core.MultipleLocator{Base: 0.2}
+	ax.YAxis.Formatter = core.FormatStrFormatter{Pattern: "%.1f"}
 
 	r, err := agg.New(680, 380, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -2481,7 +2506,7 @@ func renderSpecialtyArtists() image.Image {
 		Labels:        []string{"Core", "I/O", "Render", "Docs"},
 		AutoPct:       "%.0f%%",
 		StartAngle:    90,
-		LabelDistance: 1.08,
+		LabelDistance: 0.98,
 		Explode:       []float64{0, 0.04, 0, 0.02},
 		Colors: []render.Color{
 			{R: 0.12, G: 0.47, B: 0.71, A: 1},
@@ -2506,6 +2531,8 @@ func renderSpecialtyArtists() image.Image {
 	violinShowMeans := true
 	violinShowMedians := false
 	violinShowExtrema := true
+	violinPoints := 100
+	violinWidths := []float64{0.5, 0.5, 0.5}
 	violinAx.Violinplot([][]float64{
 		{1.2, 1.5, 1.7, 2.1, 2.4, 2.6, 2.9, 3.0, 3.2},
 		{1.8, 2.0, 2.2, 2.5, 2.7, 3.0, 3.4, 3.8, 4.0},
@@ -2513,7 +2540,10 @@ func renderSpecialtyArtists() image.Image {
 	}, core.ViolinOptions{
 		Colors:      []render.Color{violinBlue, violinBlue, violinBlue},
 		EdgeColor:   &violinEdge,
+		LineColor:   &violinBlue,
 		Alpha:       0.45,
+		Points:      violinPoints,
+		Widths:      violinWidths,
 		ShowMeans:   &violinShowMeans,
 		ShowMedians: &violinShowMedians,
 		ShowExtrema: &violinShowExtrema,
@@ -2524,10 +2554,12 @@ func renderSpecialtyArtists() image.Image {
 	tableAx.SetTitle("Table")
 	tableAx.ShowFrame = false
 	if tableAx.XAxis != nil {
+		tableAx.XAxis.ShowSpine = false
 		tableAx.XAxis.ShowTicks = false
 		tableAx.XAxis.ShowLabels = false
 	}
 	if tableAx.YAxis != nil {
+		tableAx.YAxis.ShowSpine = false
 		tableAx.YAxis.ShowTicks = false
 		tableAx.YAxis.ShowLabels = false
 	}
@@ -2580,10 +2612,12 @@ func renderSpecialtyArtists() image.Image {
 	sankeyAx.SetTitle("Sankey")
 	sankeyAx.ShowFrame = false
 	if sankeyAx.XAxis != nil {
+		sankeyAx.XAxis.ShowSpine = false
 		sankeyAx.XAxis.ShowTicks = false
 		sankeyAx.XAxis.ShowLabels = false
 	}
 	if sankeyAx.YAxis != nil {
+		sankeyAx.YAxis.ShowSpine = false
 		sankeyAx.YAxis.ShowTicks = false
 		sankeyAx.YAxis.ShowLabels = false
 	}
@@ -2685,6 +2719,7 @@ func renderVectorFields() image.Image {
 		quiverAx.QuiverKey(quiver, 0.78, 0.12, 0.5, "0.5", core.QuiverKeyOptions{
 			Coords:   core.Coords(core.CoordAxes),
 			LabelPos: "E",
+			LabelSep: 10,
 		})
 	}
 
@@ -2705,7 +2740,7 @@ func renderVectorFields() image.Image {
 			bv = append(bv, 8*math.Cos(x*0.7))
 		}
 	}
-	barbLen := 16.0
+	barbLen := 28.0
 	barbAx.Barbs(bx, by, bu, bv, core.BarbsOptions{
 		BarbColor: &render.Color{R: 0.47, G: 0.23, B: 0.12, A: 1},
 		FlagColor: &render.Color{R: 0.86, G: 0.52, B: 0.24, A: 1},
@@ -2732,7 +2767,7 @@ func renderVectorFields() image.Image {
 		}
 	}
 	streamFalse := false
-	streamArrows := 2
+	streamArrows := 1
 	streamAx.Streamplot(sx, sy, su, sv, core.StreamplotOptions{
 		StartPoints:          []geom.Pt{{X: 0.4, Y: 0.8}, {X: 0.4, Y: 2.2}, {X: 0.4, Y: 3.6}},
 		BrokenStreamlines:    &streamFalse,
