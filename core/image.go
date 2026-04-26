@@ -198,7 +198,7 @@ func toByte(v float64) uint8 {
 	if v >= 1 {
 		return 255
 	}
-	return uint8(v*255 + 0.5)
+	return uint8(v * 255)
 }
 
 func minF(a, b float64) float64 {

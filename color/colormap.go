@@ -16,8 +16,9 @@ type ColorStop struct {
 
 // Colormap maps normalized values in [0,1] to colors.
 type Colormap struct {
-	name  string
-	stops []ColorStop
+	name   string
+	stops  []ColorStop
+	listed []render.Color
 }
 
 // Name returns the user-visible colormap name.
@@ -28,6 +29,15 @@ func (c Colormap) Name() string {
 // At returns a color for normalized input t in [0,1].
 // Interpolation is component-wise in normalized render.Color space.
 func (c Colormap) At(t float64) render.Color {
+	if len(c.listed) > 0 {
+		v := clamp01(t)
+		idx := int(v * float64(len(c.listed)))
+		if idx >= len(c.listed) {
+			idx = len(c.listed) - 1
+		}
+		return c.listed[idx]
+	}
+
 	if len(c.stops) == 0 {
 		return render.Color{R: 0, G: 0, B: 0, A: 1}
 	}
