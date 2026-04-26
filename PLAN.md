@@ -29,45 +29,45 @@ This roadmap is cross-checked against the local upstream Matplotlib snapshot in 
 ### 0.2 Sub-Phase A: Core Object Model Parity
 
 - [x] Keep interface-based `Artist` model as the port design baseline.
-- [ ] Add explicit parity notes for state/callback/stale behaviors that differ from upstream (`Artist` callbacks, stale propagation, picker/query surface).
-- [ ] Document and codify lifecycle boundaries in `core` for parity-critical cases (animation, clipping, draw ordering, overlay).
+- [x] Add explicit parity notes for state/callback/stale behaviors that differ from upstream (`Artist` callbacks, stale propagation, picker/query surface).
+- [x] Document and codify lifecycle boundaries in `core` for parity-critical cases (animation, clipping, draw ordering, overlay).
 
 ### 0.3 Sub-Phase B: Transform & Coordinate System
 
 - [x] Keep explicit transform combinators (`transform` package) as the operational model.
-- [ ] Build a minimal invalidation-capable `TransformNode`-style compatibility layer for non-affine/affine split and cache-friendly compositions where it matters for projection-heavy cases.
+- [x] Build a minimal invalidation-capable `TransformNode`-style compatibility layer for non-affine/affine split and cache-friendly compositions where it matters for projection-heavy cases.
 - [ ] Expand composable coordinate helpers (`transData`, `transAxes`, `transFigure`, blended transforms) with explicit test coverage on nested projections.
 
 ### 0.4 Sub-Phase C: Renderer/Backend Runtime Parity
 
 - [x] Keep compact `render.Renderer` interface for portability.
-- [ ] Add parity-facing façade for backend capability checks and optional methods in a single registry contract.
-- [ ] Add backend contract tests for raster/vector export behavior, text pipelines, clipping, and save/dispatch semantics.
+- [x] Add parity-facing façade for backend capability checks and optional methods in a single registry contract.
+- [x] Add backend contract tests for raster/vector export behavior, text pipelines, clipping, and save/dispatch semantics.
 
 ### 0.5 Sub-Phase D: Canvas, Event, and State API
 
 - [x] Keep current headless canvas and event dispatcher as the minimum baseline.
-- [ ] Add parity mapping for Matplotlib event categories (`mouse`, `key`, `resize`, `draw`, `close`) and cursor/pick interactions.
-- [ ] Introduce a stricter manager contract for interactive backends (tooling + host lifecycle hooks) without blocking current non-interactive flow.
+- [x] Add parity mapping for Matplotlib event categories (`mouse`, `key`, `resize`, `draw`, `close`) and cursor/pick interactions.
+- [x] Introduce a stricter manager contract for interactive backends (tooling + host lifecycle hooks) without blocking current non-interactive flow.
 
 ### 0.6 Sub-Phase E: Style/RC and Pyplot/API Surface
 
 - [x] Keep lightweight `style` RC defaults and stackable contexts.
-- [ ] Add a staged rc-system expansion plan keyed by `supportedMPLStyleKeys` and upstream validator parity.
-- [ ] Add `pyplot` parity buckets for wrappers that are high-value but currently absent or partial (e.g. figure/axes/window/axes property convenience, output dispatch, context helpers).
+- [x] Add a staged rc-system expansion plan keyed by `supportedMPLStyleKeys` and upstream validator parity.
+- [x] Add `pyplot` parity buckets for wrappers that are high-value but currently absent or partial (e.g. figure/axes/window/axes property convenience, output dispatch, context helpers).
 
 ### 0.7 Sub-Phase F: Architecture-First Test Strategy
 
 - [x] Keep golden/reference comparison loop alive for image behavior.
-- [ ] Add architecture tests that validate: backend capability behavior, transform semantics, event lifecycle, rc param/option precedence.
-- [ ] Add review points in plan milestones so feature work only starts when structural test debt is bounded.
+- [x] Add architecture tests that validate: backend capability behavior, transform semantics, event lifecycle, rc param/option precedence.
+- [x] Add review points in plan milestones so feature work only starts when structural test debt is bounded.
 
 ---
 
 ### 0.8 Missing architectural parity not yet tracked
 
 - [ ] Add an explicit draw-state model closer to Matplotlib’s `GraphicsContext` split (`RendererBase` vs stateful graphics context), including centralized opacity, clip, transform, and path-state ownership.
-- [ ] Add first-class event object types and connection lifecycle matching Matplotlib event classes (`MouseEvent`, `KeyEvent`, `PickEvent`) instead of only generic canvas events.
+- [x] Add first-class event object types and connection lifecycle matching Matplotlib event classes (`MouseEvent`, `KeyEvent`, `PickEvent`) instead of only generic canvas events.
 - [ ] Add event-loop and redraw queue semantics (`draw_idle`-style scheduling, timer callbacks) for interactive backends and widgets.
 - [ ] Add artist callback and dirty-state lifecycle (`add_callback`/`remove_callback`, stale propagation, and draw scheduling) in `core` to support interactive mutation.
 - [x] Add backend format/router parity (`register_backend` / default format handler behavior) as a single dynamic registry instead of path-extension switch logic.

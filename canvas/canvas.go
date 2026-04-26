@@ -66,6 +66,61 @@ type Event struct {
 	Native          any
 }
 
+// DrawEvent represents a completed draw lifecycle event.
+type DrawEvent struct{ Event }
+
+// ResizeEvent represents a figure canvas resize lifecycle event.
+type ResizeEvent struct{ Event }
+
+// CloseEvent represents a figure canvas close lifecycle event.
+type CloseEvent struct{ Event }
+
+// MouseEvent represents mouse press, release, move, and scroll events.
+type MouseEvent struct{ Event }
+
+// KeyEvent represents key press and release events.
+type KeyEvent struct{ Event }
+
+// PickEvent represents a picked artist. Backends may emit this after applying
+// their hit-testing policy to a mouse event.
+type PickEvent struct {
+	Event
+	Artist core.Artist
+}
+
+// NewDrawEvent creates a normalized draw event payload.
+func NewDrawEvent(fig *Figure, width, height int) DrawEvent {
+	return DrawEvent{Event: Event{Type: EventDraw, Figure: fig, Width: width, Height: height}}
+}
+
+// NewResizeEvent creates a normalized resize event payload.
+func NewResizeEvent(fig *Figure, width, height int) ResizeEvent {
+	return ResizeEvent{Event: Event{Type: EventResize, Figure: fig, Width: width, Height: height}}
+}
+
+// NewCloseEvent creates a normalized close event payload.
+func NewCloseEvent(fig *Figure) CloseEvent {
+	return CloseEvent{Event: Event{Type: EventClose, Figure: fig}}
+}
+
+// NewMouseEvent creates a normalized mouse event payload.
+func NewMouseEvent(eventType EventType, fig *Figure, position geom.Pt, button MouseButton) MouseEvent {
+	return MouseEvent{Event: Event{Type: eventType, Figure: fig, Position: position, Button: button}}
+}
+
+// NewKeyEvent creates a normalized key event payload.
+func NewKeyEvent(eventType EventType, fig *Figure, key string, modifiers Modifier) KeyEvent {
+	return KeyEvent{Event: Event{Type: eventType, Figure: fig, Key: key, Modifiers: modifiers}}
+}
+
+// NewPickEvent creates a normalized pick event payload.
+func NewPickEvent(fig *Figure, artist core.Artist, mouse MouseEvent) PickEvent {
+	event := mouse.Event
+	event.Type = EventMousePress
+	event.Figure = fig
+	return PickEvent{Event: event, Artist: artist}
+}
+
 // ConnectionID identifies a registered event handler.
 type ConnectionID int64
 

@@ -42,6 +42,23 @@ const (
 	FontHinting  Capability = "fonthinting"
 )
 
+// capabilityRuntimeChecks ties selected capabilities to concrete renderer interfaces.
+var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
+	TextShaping: func(r render.Renderer) bool {
+		_, ok := r.(render.TextDrawer)
+		return ok
+	},
+	FontHinting: func(r render.Renderer) bool {
+		_, ok := r.(render.TextFontMetricer)
+		return ok
+	},
+	VectorOutput: func(r render.Renderer) bool {
+		_, hasPNG := r.(render.PNGExporter)
+		_, hasSVG := r.(render.SVGExporter)
+		return hasPNG || hasSVG
+	},
+}
+
 // Config holds backend-specific configuration options.
 type Config struct {
 	// Common options
@@ -190,6 +207,42 @@ func (r *Registry) HasCapability(backend Backend, capability Capability) bool {
 	return false
 }
 
+// SupportsRendererCapability checks both registry declaration and renderer implementation
+// for optional capabilities that require runtime feature checks.
+func (r *Registry) SupportsRendererCapability(backend Backend, renderer render.Renderer, capability Capability) bool {
+	if renderer == nil {
+		return false
+	}
+	if !r.HasCapability(backend, capability) {
+		return false
+	}
+
+	check, ok := capabilityRuntimeChecks[capability]
+	if !ok {
+		return true
+	}
+	return check(renderer)
+}
+
+// VerifyRendererCapabilities ensures a renderer satisfies all capability-backed contracts
+// for the selected backend.
+func (r *Registry) VerifyRendererCapabilities(backend Backend, renderer render.Renderer) error {
+	if renderer == nil {
+		return fmt.Errorf("backends: nil renderer for %s", backend)
+	}
+
+	info, ok := r.Get(backend)
+	if !ok {
+		return fmt.Errorf("backends: unknown backend %s", backend)
+	}
+	for _, capability := range info.Capabilities {
+		if !r.SupportsRendererCapability(backend, renderer, capability) {
+			return fmt.Errorf("backends: backend %s does not fully implement capability %s", backend, capability)
+		}
+	}
+	return nil
+}
+
 // SaveViaExtension dispatches to the backend-specific save handler for extension.
 func (r *Registry) SaveViaExtension(backend Backend, renderer render.Renderer, path string) error {
 	info, ok := r.Get(backend)
@@ -249,6 +302,18 @@ func Available() []Backend {
 // HasCapability checks capability in the default registry.
 func HasCapability(backend Backend, capability Capability) bool {
 	return DefaultRegistry.HasCapability(backend, capability)
+}
+
+// SupportsRendererCapability checks default-registry capability contracts for renderer
+// support, including runtime feature checks for interface-based capabilities.
+func SupportsRendererCapability(backend Backend, renderer render.Renderer, capability Capability) bool {
+	return DefaultRegistry.SupportsRendererCapability(backend, renderer, capability)
+}
+
+// VerifyRendererCapabilities checks that the renderer satisfies all capability-backed
+// requirements of the selected backend in the default registry.
+func VerifyRendererCapabilities(backend Backend, renderer render.Renderer) error {
+	return DefaultRegistry.VerifyRendererCapabilities(backend, renderer)
 }
 
 // GetBestBackend selects the best available backend for given requirements.

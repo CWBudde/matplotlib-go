@@ -8,6 +8,9 @@ This document highlights architectural differences between:
 - the Go port in this repository (`core`, `render`, `transform`, `canvas`, `backends`, `style`, `pyplot`, etc.),
 - upstream Matplotlib (`third_party/matplotlib/lib/matplotlib`).
 
+For the concrete port-side contracts that follow from these differences, see
+`docs/phase0-architecture-alignment.md`.
+
 ## 1) Package footprint and decomposition
 
 Upstream Matplotlib is a full scientific plotting framework with broad domain modules: projections, widgets, animation, testing, UI backends, tooling, docs/test infra, and package-level sub-systems.
