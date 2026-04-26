@@ -2097,7 +2097,7 @@ func renderUnitsDates() image.Image {
 	lower := []float64{6, 7, 5, 8, 7}
 	upper := []float64{10, 15, 13, 18, 16}
 	_, err := ax.FillBetweenUnits(dates, lower, upper, core.FillOptions{
-		Color: &render.Color{R: 0.75, G: 0.86, B: 0.93, A: 1},
+		Color: &render.Color{R: 0.85, G: 0.91, B: 0.96, A: 1},
 	})
 	if err != nil {
 		panic(err)
