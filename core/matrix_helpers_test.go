@@ -32,17 +32,17 @@ func TestAxesMatShowConfiguresMatrixView(t *testing.T) {
 	if ax.XAxisTop == nil || !ax.XAxisTop.ShowTicks || !ax.XAxisTop.ShowLabels {
 		t.Fatal("MatShow() should show top x ticks and labels")
 	}
-	if ax.xLabelSide != AxisTop {
-		t.Fatalf("x label side = %v, want AxisTop", ax.xLabelSide)
+	if ax.xLabelSide != AxisBottom {
+		t.Fatalf("x label side = %v, want AxisBottom", ax.xLabelSide)
 	}
-	if _, ok := ax.XAxis.Locator.(FixedLocator); !ok {
-		t.Fatalf("x locator = %T, want FixedLocator", ax.XAxis.Locator)
+	if _, ok := ax.XAxis.Locator.(MaxNLocator); !ok {
+		t.Fatalf("x locator = %T, want MaxNLocator", ax.XAxis.Locator)
 	}
-	if _, ok := ax.XAxisTop.Locator.(FixedLocator); !ok {
-		t.Fatalf("top x locator = %T, want FixedLocator", ax.XAxisTop.Locator)
+	if _, ok := ax.XAxisTop.Locator.(MaxNLocator); !ok {
+		t.Fatalf("top x locator = %T, want MaxNLocator", ax.XAxisTop.Locator)
 	}
-	if _, ok := ax.YAxis.Locator.(FixedLocator); !ok {
-		t.Fatalf("y locator = %T, want FixedLocator", ax.YAxis.Locator)
+	if _, ok := ax.YAxis.Locator.(MaxNLocator); !ok {
+		t.Fatalf("y locator = %T, want MaxNLocator", ax.YAxis.Locator)
 	}
 }
 
@@ -57,10 +57,13 @@ func TestAxesSpySupportsMarkerAndImageModes(t *testing.T) {
 	ax := fig.AddAxes(unitRect())
 	result := ax.Spy(data, SpyOptions{Precision: 0.5})
 	if result == nil {
-		t.Fatal("Spy() returned nil for marker mode")
+		t.Fatal("Spy() returned nil for default image mode")
 	}
-	if result.Markers == nil {
-		t.Fatal("marker mode should create a PathCollection")
+	if result.Image == nil {
+		t.Fatal("default Spy() should create an Image2D like matplotlib")
+	}
+	if result.Markers != nil {
+		t.Fatal("default Spy() should not create marker collection")
 	}
 	if got := len(result.Indices); got != 3 {
 		t.Fatalf("len(indices) = %d, want 3", got)
@@ -74,16 +77,34 @@ func TestAxesSpySupportsMarkerAndImageModes(t *testing.T) {
 
 	fig = NewFigure(400, 300)
 	ax = fig.AddAxes(unitRect())
-	useImage := true
+	useImage := false
 	result = ax.Spy(data, SpyOptions{UseImage: &useImage})
 	if result == nil {
-		t.Fatal("Spy() returned nil for image mode")
+		t.Fatal("Spy() returned nil for marker mode")
 	}
-	if result.Image == nil {
-		t.Fatal("image mode should create an Image2D")
+	if result.Markers == nil {
+		t.Fatal("marker mode should create a PathCollection")
 	}
-	if result.Markers != nil {
-		t.Fatal("image mode should not create marker collection")
+	if result.Image != nil {
+		t.Fatal("marker mode should not create an Image2D")
+	}
+}
+
+func TestAxesSpyMarkerSizeUsesMatplotlibPointDiameter(t *testing.T) {
+	data := [][]float64{{1}}
+
+	fig := NewFigure(400, 300)
+	small := fig.AddAxes(unitRect()).Spy(data, SpyOptions{MarkerSize: 5})
+	large := fig.AddAxes(unitRect()).Spy(data, SpyOptions{MarkerSize: 10})
+
+	if small == nil || small.Markers == nil || large == nil || large.Markers == nil {
+		t.Fatal("Spy(marker size) should use marker mode")
+	}
+	if !(large.Markers.Size > small.Markers.Size) {
+		t.Fatalf("larger MarkerSize should increase rendered marker scale, got small=%v large=%v", small.Markers.Size, large.Markers.Size)
+	}
+	if got, want := large.Markers.Size/small.Markers.Size, 2.0; !almostEqualFloat(got, want) {
+		t.Fatalf("marker scale ratio = %v, want %v", got, want)
 	}
 }
 

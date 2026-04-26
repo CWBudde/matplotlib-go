@@ -133,8 +133,7 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 	}
 
 	cfg := SpyOptions{
-		MarkerSize: 7,
-		Aspect:     "equal",
+		Aspect: "equal",
 	}
 	if len(opts) > 0 {
 		opt := opts[0]
@@ -157,11 +156,6 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 			cfg.Label = opt.Label
 		}
 	}
-	if cfg.MarkerSize <= 0 {
-		cfg.MarkerSize = 7
-	}
-	marker := markerValue(cfg.Marker, MarkerSquare)
-
 	indices := make([]geom.Pt, 0)
 	mask := make([][]float64, rows)
 	for row := 0; row < rows; row++ {
@@ -177,7 +171,11 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 	}
 
 	result := &SpyResult{Indices: indices}
-	if boolValue(cfg.UseImage, false) {
+	useImage := cfg.UseImage == nil || boolValue(cfg.UseImage, true)
+	if cfg.Marker != nil || cfg.MarkerSize > 0 {
+		useImage = false
+	}
+	if useImage {
 		cmap := "gray"
 		vMin := 0.0
 		vMax := 1.0
@@ -193,6 +191,10 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 		return result
 	}
 
+	if cfg.MarkerSize <= 0 {
+		cfg.MarkerSize = 10
+	}
+	marker := markerValue(cfg.Marker, MarkerSquare)
 	color := render.Color{A: 1}
 	if cfg.Color != nil {
 		color = *cfg.Color
@@ -203,6 +205,7 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 	}
 	path := (&Scatter2D{Marker: marker}).markerPrototypePath()
 	lineOnly := marker == MarkerPlus || marker == MarkerCross
+	markerSizePx := cfg.MarkerSize * matrixMarkerDPI(a) / 72.0
 	pc := &PathCollection{
 		Collection: Collection{
 			Coords: Coords(CoordData),
@@ -211,7 +214,7 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 		},
 		Path:          path,
 		Offsets:       append([]geom.Pt(nil), indices...),
-		Size:          cfg.MarkerSize * stemMarkerScale,
+		Size:          markerSizePx,
 		PathInDisplay: true,
 		FaceColor:     color,
 		EdgeColor:     color,
@@ -236,6 +239,15 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 	applyMatrixAxisPresentation(a)
 	applyMatrixTicks(a, rows, cols)
 	return result
+}
+
+func matrixMarkerDPI(a *Axes) float64 {
+	if a != nil {
+		if dpi := a.resolvedRC().DPI; dpi > 0 {
+			return dpi
+		}
+	}
+	return 72
 }
 
 // AnnotatedHeatmap renders a matrix display plus a centered value label in each cell.
@@ -326,7 +338,6 @@ func applyMatrixAxisPresentation(a *Axes) {
 		top.ShowTicks = true
 		top.ShowLabels = true
 	}
-	_ = a.SetXLabelPosition("top")
 }
 
 func applyMatrixTicks(a *Axes, rows, cols int) {
@@ -355,14 +366,7 @@ func integerMatrixLocator(count int) Locator {
 	if count <= 0 {
 		return NullLocator{}
 	}
-	if count <= 16 {
-		ticks := make([]float64, count)
-		for i := range ticks {
-			ticks[i] = float64(i)
-		}
-		return FixedLocator{TicksList: ticks}
-	}
-	return MaxNLocator{N: 8, Integer: true}
+	return MaxNLocator{N: 9, Steps: []float64{1, 2, 5, 10}, Integer: true}
 }
 
 func formatAnnotatedHeatmapValue(value float64, pattern, nanText string) string {

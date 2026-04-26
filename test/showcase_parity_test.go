@@ -186,24 +186,15 @@ func renderArraysShowcase() image.Image {
 	spyAx.SetTitle("Spy")
 	spyAx.SetXLabel("column")
 	spyAx.SetYLabel("row")
-	spyData := paritySparsePattern(18, 18)
-	spyX, spyY := paritySparseIndices(spyData, 0.1)
 	spyColor := render.Color{R: 0.16, G: 0.38, B: 0.72, A: 1}
-	spySize := 10.0
 	spyMarker := core.MarkerSquare
-	spyEdgeWidth := 0.0
-	spyAx.Scatter(spyX, spyY, core.ScatterOptions{
-		Size:      &spySize,
-		Color:     &spyColor,
-		Marker:    &spyMarker,
-		EdgeWidth: &spyEdgeWidth,
-		Label:     "spy",
+	spyAx.Spy(paritySparsePattern(18, 18), core.SpyOptions{
+		Precision:  0.1,
+		Marker:     &spyMarker,
+		MarkerSize: 10,
+		Color:      &spyColor,
+		Label:      "spy",
 	})
-	spyAx.SetXLim(-0.5, 17.5)
-	spyAx.SetYLim(17.5, -0.5)
-	_ = spyAx.SetAspect("equal")
-	paritySetMatrixTicks(spyAx, 18, 18)
-	parityUseMatrixTopAxis(spyAx)
 	spyAx.AddAnchoredText("sparse structure view", core.AnchoredTextOptions{
 		Location: core.LegendLowerRight,
 	})
@@ -545,18 +536,4 @@ func parityArange(n int) []float64 {
 		values[i] = float64(i)
 	}
 	return values
-}
-
-func paritySparseIndices(data [][]float64, precision float64) ([]float64, []float64) {
-	xx := []float64{}
-	yy := []float64{}
-	for y, row := range data {
-		for x, value := range row {
-			if value > precision {
-				xx = append(xx, float64(x))
-				yy = append(yy, float64(y))
-			}
-		}
-	}
-	return xx, yy
 }

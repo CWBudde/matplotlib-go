@@ -31,6 +31,13 @@
 - Aim for deterministic behavior (no randomness without fixed seeds); avoid timing-based assertions.
 - Run all packages: `go test ./...`. For verbose: `go test -v ./...`.
 
+## Parity testing
+
+- When trying to achieve parity with Matplotlib, always compare with the original code of matplotlib at ./third_party
+- If possible, try to inspect the rendered output visually and compare it with the original matplotlib output.
+- Try to keep the examples as close to the original matplotlib examples as possible.
+- The aim is to have core library parity with matplotlib, so don't tweak the examples to achieve parity, but rather tweak the core library to achieve parity with the original matplotlib output.
+
 ## Commit & Pull Request Guidelines
 
 - Commits: imperative mood, concise scope (e.g., `render: add NullRenderer stack checks`). Group mechanical changes separately from logic.

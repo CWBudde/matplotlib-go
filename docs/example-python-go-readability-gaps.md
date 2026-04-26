@@ -112,6 +112,12 @@ not in the example source:
   (`third_party/matplotlib/lib/matplotlib/axes/_axes.py` and
   `third_party/matplotlib/lib/matplotlib/collections.py`). Go `Scatter` now
   uses the same area semantics, which fixes oversized sparse-matrix markers.
+- Matplotlib `Axes.spy` marker mode is not `scatter`; it uses `Line2D` with
+  `markersize` in points and sets matrix ticks with
+  `MaxNLocator(nbins=9, steps=[1, 2, 5, 10], integer=True)`
+  (`third_party/matplotlib/lib/matplotlib/axes/_axes.py`). Go `Spy` now keeps
+  marker size as a point diameter, uses the same matrix tick locator, and only
+  uses image mode by default when no marker options are requested.
 - The AGG backend could fall back to local vector text whose size did not track
   renderer DPI. AGG text measurement and unrotated drawing now use the
   FreeType-backed Go raster path first, so 10pt/12pt text in examples scales

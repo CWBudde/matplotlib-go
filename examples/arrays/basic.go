@@ -113,22 +113,6 @@ func setMatrixTicks(ax *core.Axes, rows, cols int) {
 	}
 }
 
-// sparseIndices mirrors np.where(data > precision), returning x and y
-// coordinate slices for scatter.
-func sparseIndices(data [][]float64, precision float64) ([]float64, []float64) {
-	xx := []float64{}
-	yy := []float64{}
-	for y, row := range data {
-		for x, value := range row {
-			if value > precision {
-				xx = append(xx, float64(x))
-				yy = append(yy, float64(y))
-			}
-		}
-	}
-	return xx, yy
-}
-
 // addAnchoredText centralizes the boxed-note style used at axes and figure level.
 func addAnchoredText(target anchoredTextTarget, text string, location core.LegendLocation) {
 	target.AddAnchoredText(text, core.AnchoredTextOptions{
@@ -230,21 +214,15 @@ func drawSpyMatrix(fig *core.Figure) {
 	ax.SetXLabel("column index")
 	ax.SetYLabel("row")
 
-	// Convert non-zero matrix entries into square scatter markers.
-	xx, yy := sparseIndices(data, 0.1)
-	ax.Scatter(xx, yy, core.ScatterOptions{
-		Size:      ptr(10.0),
-		Color:     ptr(render.Color{R: 0.16, G: 0.38, B: 0.72, A: 1}),
-		Marker:    ptr(core.MarkerSquare),
-		EdgeWidth: ptr(0.0),
-		Label:     "spy",
+	// Spy converts non-zero matrix entries into square markers and applies the
+	// same matrix-style limits, aspect, y inversion, and tick locator as Matplotlib.
+	ax.Spy(data, core.SpyOptions{
+		Precision:  0.1,
+		Marker:     ptr(core.MarkerSquare),
+		MarkerSize: 10,
+		Color:      ptr(render.Color{R: 0.16, G: 0.38, B: 0.72, A: 1}),
+		Label:      "spy",
 	})
-	// Matrix coordinates increase downward, so the y-axis is inverted.
-	ax.SetXLim(-0.5, 17.5)
-	ax.SetYLim(17.5, -0.5)
-	_ = ax.SetAspect("equal")
-	setMatrixTicks(ax, 18, 18)
-	useMatrixTopAxis(ax)
 
 	// Add the small explanatory note inside the lower-right corner.
 	addAnchoredText(ax, "sparse structure view", core.LegendLowerRight)

@@ -78,12 +78,6 @@ def set_matrix_ticks(ax, rows, cols):
     ax.set_yticks(arange(rows))
 
 
-def sparse_indices(data, precision):
-    # Return x and y coordinate arrays for the scatter call below.
-    yy, xx = np.where(data > precision)
-    return xx, yy
-
-
 def add_anchored_text(target, text, location):
     # Centralize the boxed-note style so figure-level and axes-level notes match.
     kwargs = {}
@@ -199,22 +193,15 @@ def draw_spy_matrix(fig):
     ax.set_xlabel("column index")
     ax.set_ylabel("row")
 
-    xx, yy = sparse_indices(data, 0.1)
-    # Draw each non-zero matrix entry as a small square marker.
-    ax.scatter(
-        xx,
-        yy,
-        s=10,
-        color=(0.16, 0.38, 0.72, 1.0),
+    # spy converts non-zero matrix entries into square markers and applies the
+    # same matrix-style limits, aspect, y inversion, and tick locator as Go.
+    ax.spy(
+        data,
+        precision=0.1,
         marker="s",
-        linewidths=0,
+        markersize=10,
+        color=(0.16, 0.38, 0.72, 1.0),
     )
-    # Invert y so row zero appears at the top, like an image/matrix display.
-    ax.set_xlim(-0.5, 17.5)
-    ax.set_ylim(17.5, -0.5)
-    ax.set_aspect("equal")
-    set_matrix_ticks(ax, 18, 18)
-    use_matrix_top_axis(ax)
 
     add_anchored_text(ax, "sparse structure view", "lower right")
 
