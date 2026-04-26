@@ -68,6 +68,8 @@ Current baseline:
   `render.TextDrawer`, `render.PNGExporter`, and `render.SVGExporter`.
 - `backends.Registry` is the single registry for backend factories,
   capabilities, managers, canvases, and save-format handlers.
+- `render.GraphicsContext` is the shared draw-state model for centralized
+  opacity, clipping, transforms, and path paint state.
 
 Contract:
 
@@ -87,6 +89,8 @@ Current baseline:
 - `canvas.FigureManager` owns presentation, host title, close behavior, and
   tools.
 - `canvas.Dispatcher` owns connection IDs and handler lifecycle.
+- `canvas.DrawIdleCanvas`, `canvas.EventLoop`, and `canvas.Timer` define the
+  optional scheduling surface for interactive backends.
 
 Added contract:
 
@@ -100,7 +104,7 @@ Port decision:
 
 - Backends should emit normalized events through `Dispatcher`.
 - Interactive backends may add timers and redraw queues, but `draw_idle`-style
-  scheduling should be manager/canvas behavior rather than artist behavior.
+  scheduling is manager/canvas behavior rather than artist behavior.
 - Pick behavior should be layered on top of normalized mouse events and artist
   hit-testing, not embedded in the base event dispatcher.
 

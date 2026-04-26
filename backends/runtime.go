@@ -19,6 +19,7 @@ type headlessCanvas struct {
 	factory    Factory
 	renderer   render.Renderer
 	dispatcher canvas.Dispatcher
+	pendingDraw bool
 	closed     bool
 }
 
@@ -120,6 +121,26 @@ func (c *headlessCanvas) Draw() error {
 	return c.dispatcher.Emit(event)
 }
 
+func (c *headlessCanvas) DrawIdle() error {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return errors.New("backends: canvas is closed")
+	}
+	if c.pendingDraw {
+		c.mu.Unlock()
+		return nil
+	}
+	c.pendingDraw = true
+	c.mu.Unlock()
+
+	event, err := c.draw(false)
+	if err != nil {
+		return err
+	}
+	return c.dispatcher.Emit(event)
+}
+
 func (c *headlessCanvas) Resize(width, height int) error {
 	if width <= 0 || height <= 0 {
 		return errors.New("backends: resize dimensions must be positive")
@@ -201,6 +222,7 @@ func (c *headlessCanvas) draw(skipEmit bool) (canvas.Event, error) {
 	if c.closed {
 		return canvas.Event{}, errors.New("backends: canvas is closed")
 	}
+	c.pendingDraw = false
 	if c.factory == nil {
 		return canvas.Event{}, errors.New("backends: nil renderer factory")
 	}

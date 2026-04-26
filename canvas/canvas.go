@@ -26,6 +26,7 @@ const (
 	EventScroll       EventType = "scroll"
 	EventKeyPress     EventType = "key_press"
 	EventKeyRelease   EventType = "key_release"
+	EventPick         EventType = "pick"
 )
 
 // MouseButton identifies a mouse button in a runtime event.
@@ -116,7 +117,7 @@ func NewKeyEvent(eventType EventType, fig *Figure, key string, modifiers Modifie
 // NewPickEvent creates a normalized pick event payload.
 func NewPickEvent(fig *Figure, artist core.Artist, mouse MouseEvent) PickEvent {
 	event := mouse.Event
-	event.Type = EventMousePress
+	event.Type = EventPick
 	event.Figure = fig
 	return PickEvent{Event: event, Artist: artist}
 }

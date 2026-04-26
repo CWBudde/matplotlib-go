@@ -1,0 +1,113 @@
+package canvas
+
+import (
+	"sync"
+	"time"
+)
+
+// DrawIdleCanvas is an optional FigureCanvas extension for draw_idle-style
+// scheduling.
+type DrawIdleCanvas interface {
+	FigureCanvas
+	DrawIdle() error
+}
+
+// Timer represents a backend or event-loop timer.
+type Timer interface {
+	Start() error
+	Stop() error
+	Running() bool
+}
+
+// EventLoop defines the minimal scheduling behavior interactive backends need.
+type EventLoop interface {
+	CallSoon(func() error) error
+	NewTimer(interval time.Duration, callback func() error) Timer
+}
+
+// SynchronousEventLoop is the headless fallback loop. It executes queued work
+// immediately and uses time.Ticker for timers.
+type SynchronousEventLoop struct{}
+
+// CallSoon runs callback immediately.
+func (SynchronousEventLoop) CallSoon(callback func() error) error {
+	if callback == nil {
+		return nil
+	}
+	return callback()
+}
+
+// NewTimer creates a ticker-backed timer.
+func (SynchronousEventLoop) NewTimer(interval time.Duration, callback func() error) Timer {
+	return NewTimer(interval, callback)
+}
+
+type tickerTimer struct {
+	mu       sync.Mutex
+	interval time.Duration
+	callback func() error
+	stop     chan struct{}
+	running  bool
+}
+
+// NewTimer creates a ticker-backed timer for headless or simple backends.
+func NewTimer(interval time.Duration, callback func() error) Timer {
+	return &tickerTimer{interval: interval, callback: callback}
+}
+
+func (t *tickerTimer) Start() error {
+	if t == nil || t.callback == nil || t.interval <= 0 {
+		return nil
+	}
+
+	t.mu.Lock()
+	if t.running {
+		t.mu.Unlock()
+		return nil
+	}
+	stop := make(chan struct{})
+	t.stop = stop
+	t.running = true
+	interval := t.interval
+	callback := t.callback
+	t.mu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = callback()
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+func (t *tickerTimer) Stop() error {
+	if t == nil {
+		return nil
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.running {
+		return nil
+	}
+	close(t.stop)
+	t.stop = nil
+	t.running = false
+	return nil
+}
+
+func (t *tickerTimer) Running() bool {
+	if t == nil {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.running
+}

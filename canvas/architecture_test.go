@@ -23,6 +23,11 @@ func TestFirstClassEventWrappersPreserveCanonicalTypes(t *testing.T) {
 	if key.Type != EventKeyPress || key.Key != "ctrl+s" || key.Modifiers != ModifierControl {
 		t.Fatalf("key event = %+v", key.Event)
 	}
+
+	pick := NewPickEvent(fig, nil, mouse)
+	if pick.Type != EventPick || pick.Figure != fig {
+		t.Fatalf("pick event = %+v", pick.Event)
+	}
 }
 
 func TestDispatcherConnectionLifecycle(t *testing.T) {
