@@ -542,7 +542,7 @@ func buildHeatmapDemo(width, height int) *core.Figure {
 		}
 	}
 
-	ax.Image(data, core.ImageOptions{Colormap: strPtr("inferno")})
+	ax.Image(data, core.ImageOptions{Colormap: strPtr("inferno"), Origin: core.ImageOriginLower})
 	ax.SetXLim(0, float64(cols))
 	ax.SetYLim(0, float64(rows))
 	return fig
@@ -897,9 +897,8 @@ func buildAxesDemo(width, height int) *core.Figure {
 	_ = left.SetBoxAspect(1)
 	_ = left.MinorticksOn("both")
 	_ = left.LocatorParams(core.LocatorParams{Axis: "both", MajorCount: 6, MinorCount: 24})
-	tickColor := render.Color{R: 0.18, G: 0.42, B: 0.55, A: 1}
-	_ = left.TickParams(core.TickParams{Axis: "both", Which: "major", Color: &tickColor, Length: floatPtr(7), Width: floatPtr(1.2)})
-	_ = left.TickParams(core.TickParams{Axis: "both", Which: "minor", Color: &tickColor, Length: floatPtr(4), Width: floatPtr(0.9)})
+	_ = left.TickParams(core.TickParams{Axis: "both", Which: "major", Length: floatPtr(7), Width: floatPtr(1.2)})
+	_ = left.TickParams(core.TickParams{Axis: "both", Which: "minor", Length: floatPtr(4), Width: floatPtr(0.9)})
 	left.Plot([]float64{-0.5, 0.8, 2.2, 4.2}, []float64{-0.2, 1.0, 2.1, 4.4}, core.PlotOptions{
 		Color:     &render.Color{R: 0.10, G: 0.32, B: 0.76, A: 1},
 		LineWidth: floatPtr(2),
@@ -929,7 +928,6 @@ func buildAxesDemo(width, height int) *core.Figure {
 	twin.SetYLim(0, 100)
 	twinLineColor := render.Color{R: 0.80, G: 0.22, B: 0.22, A: 1}
 	if axis := twin.RightAxis(); axis != nil {
-		axis.Color = twinLineColor
 		axis.MinorLocator = nil
 	}
 	twin.Plot([]float64{0, 2, 4, 6, 8, 10}, []float64{10, 22, 38, 58, 81, 96}, core.PlotOptions{
@@ -939,7 +937,6 @@ func buildAxesDemo(width, height int) *core.Figure {
 	})
 	if sec, err := right.SecondaryXAxis(core.AxisTop, func(x float64) float64 { return x * 10 }, func(x float64) (float64, bool) { return x / 10, true }); err == nil {
 		if axis := sec.TopAxis(); axis != nil {
-			axis.Color = render.Color{R: 0.16, G: 0.42, B: 0.30, A: 1}
 			axis.MinorLocator = nil
 		}
 	}
@@ -1014,7 +1011,6 @@ func buildStatisticsDemo(width, height int) *core.Figure {
 
 func buildUnitsDemo(width, height int) *core.Figure {
 	fig := core.NewFigure(width, height)
-	fig.ConstrainedLayout()
 	grid := fig.Subplots(1, 3, core.WithSubplotPadding(0.06, 0.98, 0.17, 0.86), core.WithSubplotSpacing(0.10, 0.08))
 
 	dateAx := grid[0][0]
@@ -1030,6 +1026,7 @@ func buildUnitsDemo(width, height int) *core.Figure {
 		Color:     &render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1},
 		LineWidth: floatPtr(2),
 	})
+	_ = dateAx.TickParams(core.TickParams{Axis: "x", Which: "major", LabelRotation: floatPtr(30)})
 	dateAx.AutoScale(0.05)
 
 	categoryAx := grid[0][1]
@@ -1108,14 +1105,14 @@ func buildMeshDemo(width, height int) *core.Figure {
 	contourAx.SetYLim(0, 4)
 	contourData := [][]float64{{0, 0.4, 0.8, 0.4, 0}, {0.2, 0.8, 1.3, 0.8, 0.2}, {0.3, 1.0, 1.7, 1.0, 0.3}, {0.2, 0.8, 1.3, 0.8, 0.2}, {0, 0.4, 0.8, 0.4, 0}}
 	contourAx.Contourf(contourData, core.ContourOptions{Levels: []float64{0.2, 0.6, 1.0, 1.4, 1.8}})
-	contourAx.Contour(contourData, core.ContourOptions{Levels: []float64{0.4, 0.8, 1.2, 1.6}, LabelLines: true, Color: &render.Color{R: 0.18, G: 0.18, B: 0.18, A: 1}})
+	contourAx.Contour(contourData, core.ContourOptions{Levels: []float64{0.4, 0.8, 1.2, 1.6}, Color: &render.Color{R: 0.18, G: 0.18, B: 0.18, A: 1}})
 
 	histAx := grid[1][0]
 	histAx.SetTitle("Hist2D")
 	histAx.SetXLim(0, 4)
 	histAx.SetYLim(0, 4)
 	histAx.Hist2D([]float64{0.4, 0.7, 1.1, 1.4, 1.8, 2.1, 2.3, 2.6, 2.9, 3.2, 3.4, 3.6}, []float64{0.6, 1.0, 1.2, 1.6, 1.4, 2.0, 2.3, 2.1, 2.8, 3.0, 3.2, 3.4}, core.Hist2DOptions{
-		XBinEdges: []float64{0, 1, 2, 3, 4}, YBinEdges: []float64{0, 1, 2, 3, 4}, EdgeColor: &meshEdgeColor, EdgeWidth: &meshEdgeWidth,
+		XBinEdges: []float64{0, 1, 2, 3, 4}, YBinEdges: []float64{0, 1, 2, 3, 4},
 	})
 
 	triAx := grid[1][1]

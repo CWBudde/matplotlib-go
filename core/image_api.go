@@ -10,10 +10,10 @@ import (
 type ImageOrigin int
 
 const (
-	// ImageOriginLower maps row 0 to the lower Y extent.
-	ImageOriginLower ImageOrigin = iota
 	// ImageOriginUpper maps row 0 to the upper Y extent.
-	ImageOriginUpper
+	ImageOriginUpper ImageOrigin = iota
+	// ImageOriginLower maps row 0 to the lower Y extent.
+	ImageOriginLower
 )
 
 // ImageAnchor selects the point around which image rotation is applied.

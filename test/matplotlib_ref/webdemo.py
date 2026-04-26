@@ -22,7 +22,6 @@ matplotlib.use("Agg")
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Circle, Ellipse, FancyArrow, Polygon, Rectangle
 from matplotlib.sankey import Sankey
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
@@ -54,6 +53,37 @@ def make_fig(width_px, height_px):
 
 def rect(min_x=0.10, min_y=0.12, max_x=0.96, max_y=0.90):
     return [min_x, min_y, max_x - min_x, max_y - min_y]
+
+
+def grid_rects(nrows, ncols, left, right, bottom, top, wspace, hspace, width_ratios=None, height_ratios=None):
+    """Return axes rectangles using matplotlib-go's figure-normalized GridSpec math."""
+    width_ratios = list(width_ratios or [1.0] * ncols)
+    height_ratios = list(height_ratios or [1.0] * nrows)
+    inner_w = right - left
+    inner_h = top - bottom
+    available_w = inner_w - wspace * (ncols - 1)
+    available_h = inner_h - hspace * (nrows - 1)
+    widths = [available_w * r / sum(width_ratios) for r in width_ratios]
+    heights = [available_h * r / sum(height_ratios) for r in height_ratios]
+
+    out = []
+    for row in range(nrows):
+        row_rects = []
+        y_top = top - sum(heights[:row]) - hspace * row
+        y0 = y_top - heights[row]
+        for col in range(ncols):
+            x0 = left + sum(widths[:col]) + wspace * col
+            row_rects.append([x0, y0, widths[col], heights[row]])
+        out.append(row_rects)
+    return out
+
+
+def span_rect(rects, row, col, row_span, col_span):
+    x0 = rects[row][col][0]
+    y0 = rects[row + row_span - 1][col][1]
+    x1 = rects[row][col + col_span - 1][0] + rects[row][col + col_span - 1][2]
+    y1 = rects[row][col][1] + rects[row][col][3]
+    return [x0, y0, x1 - x0, y1 - y0]
 
 
 def linspace(start, stop, n):
@@ -336,11 +366,11 @@ def demo_phase7(out_dir, width, height):
 
 def demo_subplots(out_dir, width, height):
     fig = make_fig(width, height)
-    axs = fig.subplots(2, 2, sharex=True, sharey=True)
-    fig.subplots_adjust(left=0.08, right=0.97, bottom=0.10, top=0.92, wspace=0.08, hspace=0.12)
+    rects = grid_rects(2, 2, 0.08, 0.97, 0.10, 0.92, 0.08, 0.12)
+    axs = [[fig.add_axes(rects[row][col]) for col in range(2)] for row in range(2)]
     palette = [color(0.16, 0.42, 0.82), color(0.91, 0.45, 0.16), color(0.24, 0.72, 0.42), color(0.80, 0.20, 0.42)]
     x = linspace(0, 10, 120)
-    for idx, ax in enumerate(axs.flat):
+    for idx, ax in enumerate([axs[0][0], axs[0][1], axs[1][0], axs[1][1]]):
         row, col = divmod(idx, 2)
         ax.set_title(f"Panel {idx + 1}")
         ax.set_xlabel("x")
@@ -348,16 +378,16 @@ def demo_subplots(out_dir, width, height):
         ax.grid(True)
         y = np.sin((col + 1) * x + idx * 0.4) * np.exp(-0.12 * (row + 1) * x / 10)
         ax.plot(x, y, color=palette[idx], linewidth=lw(2.4))
-    axs[0, 0].set_xlim(0, 10)
-    axs[0, 0].set_ylim(-1.25, 1.25)
+    axs[0][0].set_xlim(0, 10)
+    axs[0][0].set_ylim(-1.25, 1.25)
     save(fig, out_dir, "subplots")
 
 
 def demo_variants(out_dir, width, height):
     fig = make_fig(width, height)
-    axs = fig.subplots(2, 2)
-    fig.subplots_adjust(left=0.08, right=0.97, bottom=0.11, top=0.91, wspace=0.10, hspace=0.16)
-    ax = axs[0, 0]
+    rects = grid_rects(2, 2, 0.08, 0.97, 0.11, 0.91, 0.10, 0.16)
+    axs = [[fig.add_axes(rects[row][col]) for col in range(2)] for row in range(2)]
+    ax = axs[0][0]
     ax.set_title("Step + Stairs")
     ax.set_xlim(0, 6)
     ax.set_ylim(0, 5.2)
@@ -365,7 +395,7 @@ def demo_variants(out_dir, width, height):
     ax.step([0.6, 1.4, 2.2, 3.0, 3.8, 4.6, 5.4], [1.1, 2.5, 1.7, 3.4, 2.9, 4.1, 3.6], where="post", color=color(0.15, 0.39, 0.78), linewidth=lw(2), label="step")
     ax.stairs([0.9, 1.7, 1.4, 2.6, 1.8, 2.2], [0.4, 1.1, 2.0, 2.9, 3.7, 4.6, 5.5], baseline=0.35, fill=True, color=color(0.91, 0.49, 0.20, 0.72), edgecolor=color(0.58, 0.26, 0.08), linewidth=lw(1.5), label="stairs")
     ax.legend()
-    ax = axs[0, 1]
+    ax = axs[0][1]
     ax.set_title("FillBetweenX + Refs")
     ax.set_xlim(0, 7)
     ax.set_ylim(0, 6)
@@ -374,7 +404,7 @@ def demo_variants(out_dir, width, height):
     ax.axvspan(2.2, 3.1, color=color(0.92, 0.75, 0.18), alpha=0.20)
     ax.axhline(4.0, color=color(0.52, 0.18, 0.18), linewidth=lw(1.2), dashes=[4, 3])
     ax.axline((0.9, 0.3), (6.4, 5.6), color=color(0.22, 0.22, 0.22), linewidth=lw(1.1))
-    ax = axs[1, 0]
+    ax = axs[1][0]
     ax.set_title("Broken BarH")
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 4.4)
@@ -383,7 +413,7 @@ def demo_variants(out_dir, width, height):
     ax.broken_barh([(1.6, 1.0), (4.0, 1.4), (7.1, 1.7)], (2.1, 0.9), facecolors=color(0.86, 0.38, 0.16))
     for x, y, txt in [(1.6, 1.15, "prep"), (4.2, 1.15, "run"), (7.15, 1.15, "cool"), (2.1, 2.55, "IO"), (4.7, 2.55, "fit"), (7.95, 2.55, "ship")]:
         ax.text(x, y, txt, ha="center", va="center", color="white", fontsize=10)
-    ax = axs[1, 1]
+    ax = axs[1][1]
     ax.set_title("Stacked Bars")
     ax.set_xlim(0.4, 4.6)
     ax.set_ylim(0, 7.6)
@@ -434,30 +464,30 @@ def demo_axes(out_dir, width, height):
 
 def demo_statistics(out_dir, width, height):
     fig = make_fig(width, height)
-    axs = fig.subplots(2, 2)
-    fig.subplots_adjust(left=0.08, right=0.97, bottom=0.10, top=0.91, wspace=0.10, hspace=0.16)
+    rects = grid_rects(2, 2, 0.08, 0.97, 0.10, 0.91, 0.10, 0.16)
+    axs = [[fig.add_axes(rects[row][col]) for col in range(2)] for row in range(2)]
     data = [[1.2, 1.5, 1.7, 2.1, 2.4, 2.6, 2.9, 3.0, 3.2], [1.8, 2.0, 2.2, 2.5, 2.7, 3.0, 3.4, 3.8, 4.0], [2.4, 2.5, 2.7, 2.9, 3.1, 3.4, 3.7, 4.1, 4.6]]
-    ax = axs[0, 0]
+    ax = axs[0][0]
     ax.set_title("Box + Violin")
     ax.set_xlim(0.4, 3.6)
     ax.set_ylim(0.6, 5.4)
     ax.grid(True, axis="y")
     ax.boxplot(data, positions=[1, 2, 3], widths=0.42, patch_artist=True, boxprops={"facecolor": color(0.39, 0.62, 0.84, 0.38)})
     ax.violinplot(data, showmeans=True, showmedians=True)
-    ax = axs[0, 1]
+    ax = axs[0][1]
     ax.set_title("ECDF")
     vals = np.array([1.2, 1.8, 2.0, 2.0, 3.1, 3.7, 4.3, 5.0, 5.8, 6.6, 7.0])
     ax.step(np.sort(vals), np.arange(1, len(vals) + 1) / len(vals), where="post", color=color(0.18, 0.36, 0.75), linewidth=lw(2))
     ax.set_xlim(0, 8)
     ax.set_ylim(0, 1.05)
     ax.grid(True, axis="y")
-    ax = axs[1, 0]
+    ax = axs[1][0]
     ax.set_title("StackPlot")
     ax.stackplot([0, 1, 2, 3, 4, 5], [[1.0, 1.4, 1.3, 1.8, 1.6, 2.0], [0.8, 1.1, 1.4, 1.2, 1.6, 1.8], [0.5, 0.8, 1.0, 1.4, 1.1, 1.5]], colors=[color(0.20, 0.55, 0.75, 0.76), color(0.90, 0.48, 0.18, 0.76), color(0.35, 0.66, 0.42, 0.76)])
     ax.set_xlim(0, 5)
     ax.set_ylim(0, 7)
     ax.grid(True, axis="y")
-    ax = axs[1, 1]
+    ax = axs[1][1]
     ax.set_title("Cumulative Multi-Hist")
     ax.hist([[0.3, 0.8, 1.2, 1.7, 2.6, 3.4, 4.1, 5.2], [0.5, 1.1, 1.9, 2.3, 2.8, 3.0, 3.7, 4.5, 5.0], [1.0, 1.6, 2.2, 2.9, 3.5, 4.2, 4.8, 5.4]], bins=[0, 1, 2, 3, 4, 5, 6], stacked=True, color=[color(0.22, 0.55, 0.70, 0.8), color(0.86, 0.42, 0.19, 0.8), color(0.36, 0.62, 0.36, 0.8)])
     ax.set_xlim(0, 6)
@@ -468,8 +498,8 @@ def demo_statistics(out_dir, width, height):
 
 def demo_units(out_dir, width, height):
     fig = make_fig(width, height)
-    axs = fig.subplots(1, 3)
-    fig.subplots_adjust(left=0.06, right=0.98, bottom=0.17, top=0.86, wspace=0.10)
+    rects = grid_rects(1, 3, 0.06, 0.98, 0.17, 0.86, 0.10, 0.08)
+    axs = [fig.add_axes(rects[0][col]) for col in range(3)]
     ax = axs[0]
     ax.set_title("Dates")
     ax.set_ylabel("requests")
@@ -493,8 +523,8 @@ def demo_units(out_dir, width, height):
 
 def demo_matrix(out_dir, width, height):
     fig = make_fig(width, height)
-    axs = fig.subplots(1, 3)
-    fig.subplots_adjust(left=0.07, right=0.92, bottom=0.14, top=0.86, wspace=0.10)
+    rects = grid_rects(1, 3, 0.07, 0.92, 0.14, 0.86, 0.10, 0.06)
+    axs = [fig.add_axes(rects[0][col]) for col in range(3)]
     axs[0].set_title("MatShow")
     axs[0].imshow([[0.1, 0.5, 0.9], [0.7, 0.3, 0.2], [0.4, 0.8, 0.6]], cmap="viridis", origin="upper")
     axs[1].set_title("Spy")
@@ -511,26 +541,26 @@ def demo_matrix(out_dir, width, height):
 
 def demo_mesh(out_dir, width, height):
     fig = make_fig(width, height)
-    axs = fig.subplots(2, 2)
-    fig.subplots_adjust(left=0.08, right=0.97, bottom=0.10, top=0.91, wspace=0.12, hspace=0.16)
-    ax = axs[0, 0]
+    rects = grid_rects(2, 2, 0.08, 0.97, 0.10, 0.91, 0.12, 0.16)
+    axs = [[fig.add_axes(rects[row][col]) for col in range(2)] for row in range(2)]
+    ax = axs[0][0]
     ax.set_title("PColorMesh")
     ax.pcolormesh([0, 1, 2, 3, 4], [0, 1, 2, 3], [[0.2, 0.6, 0.3, 0.9], [0.4, 0.8, 0.5, 0.7], [0.1, 0.3, 0.9, 0.6]], edgecolors=color(0.95, 0.95, 0.95), linewidth=lw(0.8))
     ax.set_xlim(0, 4)
     ax.set_ylim(0, 3)
-    ax = axs[0, 1]
+    ax = axs[0][1]
     ax.set_title("Contour + Contourf")
     z = np.array([[0, 0.4, 0.8, 0.4, 0], [0.2, 0.8, 1.3, 0.8, 0.2], [0.3, 1.0, 1.7, 1.0, 0.3], [0.2, 0.8, 1.3, 0.8, 0.2], [0, 0.4, 0.8, 0.4, 0]])
     ax.contourf(z, levels=[0.2, 0.6, 1.0, 1.4, 1.8])
     ax.contour(z, levels=[0.4, 0.8, 1.2, 1.6], colors=[color(0.18, 0.18, 0.18)])
     ax.set_xlim(0, 4)
     ax.set_ylim(0, 4)
-    ax = axs[1, 0]
+    ax = axs[1][0]
     ax.set_title("Hist2D")
     ax.hist2d([0.4, 0.7, 1.1, 1.4, 1.8, 2.1, 2.3, 2.6, 2.9, 3.2, 3.4, 3.6], [0.6, 1.0, 1.2, 1.6, 1.4, 2.0, 2.3, 2.1, 2.8, 3.0, 3.2, 3.4], bins=[[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]])
     ax.set_xlim(0, 4)
     ax.set_ylim(0, 4)
-    ax = axs[1, 1]
+    ax = axs[1][1]
     ax.set_title("Triangulation")
     tx = [0.4, 1.6, 3.0, 0.8, 2.1, 3.5]
     ty = [0.5, 0.4, 0.7, 2.2, 2.8, 2.1]
@@ -546,9 +576,9 @@ def demo_mesh(out_dir, width, height):
 
 def demo_vectors(out_dir, width, height):
     fig = make_fig(width, height)
-    axs = fig.subplots(2, 2)
-    fig.subplots_adjust(left=0.08, right=0.97, bottom=0.10, top=0.91, wspace=0.10, hspace=0.16)
-    ax = axs[0, 0]
+    rects = grid_rects(2, 2, 0.08, 0.97, 0.10, 0.91, 0.10, 0.16)
+    axs = [[fig.add_axes(rects[row][col]) for col in range(2)] for row in range(2)]
+    ax = axs[0][0]
     ax.set_title("Quiver + Key")
     qx, qy, qu, qv = [], [], [], []
     for row in range(4):
@@ -564,7 +594,7 @@ def demo_vectors(out_dir, width, height):
     ax.set_xlim(0, 6)
     ax.set_ylim(0, 5)
     ax.grid(True)
-    ax = axs[0, 1]
+    ax = axs[0][1]
     ax.set_title("Barbs")
     bx, by, bu, bv = [], [], [], []
     for row in range(4):
@@ -579,7 +609,7 @@ def demo_vectors(out_dir, width, height):
     ax.set_xlim(0, 6)
     ax.set_ylim(0, 5)
     ax.grid(True)
-    ax = axs[1, 0]
+    ax = axs[1][0]
     ax.set_title("Streamplot")
     sx = np.array([0, 1, 2, 3, 4, 5, 6])
     sy = np.array([0, 1, 2, 3, 4, 5])
@@ -587,7 +617,7 @@ def demo_vectors(out_dir, width, height):
     ax.streamplot(sx, sy, su, sv, start_points=np.array([[0.4, 0.8], [0.4, 2.2], [0.4, 3.6]]), color=color(0.13, 0.53, 0.39), integration_direction="forward", broken_streamlines=False)
     ax.set_xlim(0, 6)
     ax.set_ylim(0, 5)
-    ax = axs[1, 1]
+    ax = axs[1][1]
     ax.set_title("Quiver Grid XY")
     xg = np.array([0.8, 1.8, 2.8, 3.8, 4.8])
     yg = np.array([0.8, 1.8, 2.8, 3.8])
@@ -600,22 +630,22 @@ def demo_vectors(out_dir, width, height):
 
 def demo_specialty(out_dir, width, height):
     fig = make_fig(width, height)
-    axs = fig.subplots(2, 3)
-    fig.subplots_adjust(left=0.07, right=0.98, bottom=0.09, top=0.91, wspace=0.10, hspace=0.14)
-    ax = axs[0, 0]
+    rects = grid_rects(2, 3, 0.07, 0.98, 0.09, 0.91, 0.10, 0.14)
+    axs = [[fig.add_axes(rects[row][col]) for col in range(3)] for row in range(2)]
+    ax = axs[0][0]
     ax.set_title("Eventplot")
     ax.eventplot([[0.8, 1.4, 3.1, 4.6, 7.3], [1.2, 2.9, 4.0, 6.4, 8.6], [0.5, 2.2, 5.4, 6.8, 9.1]], lineoffsets=[1, 2, 3], linelengths=[0.6, 0.7, 0.8], colors=[color(0.18, 0.44, 0.74), color(0.84, 0.38, 0.16), color(0.20, 0.63, 0.42)])
     ax.set_xlim(0, 10)
     ax.set_ylim(0.4, 3.6)
-    ax = axs[0, 1]
+    ax = axs[0][1]
     ax.set_title("Hexbin")
     ax.hexbin([0.08, 0.15, 0.21, 0.25, 0.34, 0.41, 0.48, 0.56, 0.63, 0.66, 0.74, 0.82, 0.88], [0.14, 0.19, 0.24, 0.31, 0.46, 0.52, 0.61, 0.44, 0.73, 0.81, 0.68, 0.86, 0.58], C=[1, 2, 1.5, 2.3, 2.8, 3.1, 3.6, 2.1, 4.5, 4.9, 3.8, 5.2, 4.1], gridsize=7, reduce_C_function=np.mean)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    ax = axs[0, 2]
+    ax = axs[0][2]
     ax.set_title("Pie")
     ax.pie([28, 22, 18, 32], labels=["Core", "I/O", "Render", "Docs"], autopct="%.0f%%", startangle=90, labeldistance=1.08, explode=[0, 0.04, 0, 0.02])
-    ax = axs[1, 0]
+    ax = axs[1][0]
     ax.set_title("Stem")
     markerline, stemlines, baseline = ax.stem([1, 2, 3, 4, 5, 6, 7], [0.9, 2.2, 1.6, 3.3, 2.4, 3.7, 2.1], basefmt=" ")
     plt.setp(stemlines, color=color(0.15, 0.42, 0.73))
@@ -624,11 +654,11 @@ def demo_specialty(out_dir, width, height):
     ax.set_xlim(0.5, 7.5)
     ax.set_ylim(-0.2, 4.2)
     ax.grid(True, axis="y")
-    ax = axs[1, 1]
+    ax = axs[1][1]
     ax.set_title("Table")
     ax.axis("off")
     ax.table(cellText=[["Latency", "18ms", "14ms"], ["Throughput", "220/s", "265/s"]], rowLabels=["A", "B"], colLabels=["Metric", "Q1", "Q2"], bbox=[0.04, 0.18, 0.92, 0.64])
-    ax = axs[1, 2]
+    ax = axs[1][2]
     ax.set_title("Sankey")
     ax.axis("off")
     Sankey(ax=ax, scale=0.16, offset=0.2).add(flows=[-2, 3, 1.5], labels=["Waste", "CPU", "Cache"], orientations=[-1, 1, 1]).finish()
@@ -662,21 +692,21 @@ def demo_composition(out_dir, width, height):
     fig.suptitle("GridSpec, Figure Labels, Legend, Colorbar")
     fig.supxlabel("shared figure x")
     fig.supylabel("shared figure y")
-    gs = GridSpec(2, 3, figure=fig, left=0.08, right=0.92, bottom=0.14, top=0.86, wspace=0.08, hspace=0.12, width_ratios=[1.3, 1, 0.9])
-    left = fig.add_subplot(gs[:, 0])
+    rects = grid_rects(2, 3, 0.08, 0.92, 0.14, 0.86, 0.08, 0.12, width_ratios=[1.3, 1, 0.9])
+    left = fig.add_axes(span_rect(rects, 0, 0, 2, 1))
     left.set_title("spanning axes")
     left.grid(True, axis="y")
     left.plot([0, 1, 2, 3, 4], [1.0, 1.6, 1.2, 2.2, 1.8], color=color(0.16, 0.42, 0.82), linewidth=lw(2), label="left")
     left.scatter([0, 1, 2, 3, 4], [1.0, 1.6, 1.2, 2.2, 1.8], color=color(0.91, 0.45, 0.16), s=ss(6), label="points")
-    top = fig.add_subplot(gs[0, 1], sharex=left)
+    top = fig.add_axes(rects[0][1], sharex=left)
     top.set_title("shared x")
     top.plot([0, 1, 2, 3, 4], [2, 1, 2.4, 1.7, 2.8], color=color(0.23, 0.62, 0.34), linewidth=lw(1.8), label="top")
-    bottom = fig.add_subplot(gs[1, 1])
+    bottom = fig.add_axes(rects[1][1])
     bottom.set_title("anchored")
     bottom.grid(True)
     bottom.plot([0, 1, 2, 3, 4], [3.0, 2.6, 2.9, 2.1, 1.9], color=color(0.69, 0.27, 0.67), linewidth=lw(1.8), label="bottom")
     bottom.text(0.02, 0.98, "axes note", transform=bottom.transAxes, ha="left", va="top", bbox={"facecolor": "white", "edgecolor": "0.7"})
-    heat = fig.add_subplot(gs[:, 2])
+    heat = fig.add_axes(span_rect(rects, 0, 2, 2, 1))
     heat.set_title("colorbar")
     im = heat.imshow([[0.2, 0.5, 0.7], [0.9, 0.4, 0.1], [0.3, 0.8, 0.6]], cmap="inferno", origin="upper")
     fig.colorbar(im, ax=heat, label="intensity")
