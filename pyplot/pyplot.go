@@ -156,8 +156,9 @@ func ParasiteAxes(opts ...core.ParasiteAxesOption) *core.ParasiteAxes {
 	}
 
 	registry.mu.Lock()
-	registry.current = ax.figure
-	registry.currentAxes[ax.figure] = parasite.Axes
+	fig := GCF()
+	registry.current = fig
+	registry.currentAxes[fig] = parasite.Axes
 	registry.mu.Unlock()
 	return parasite
 }

@@ -507,7 +507,7 @@ Current slice landed:
 
 ### 7.5 Gallery Parity and Showcase Coverage
 
-- [ ] Add example coverage for the remaining upstream gallery families still missing here (`widgets`) and deepen the newer showcase families where coverage is still thin (`axes_grid1`, `axisartist`, `unstructured`, `arrays`)
+- [x] Add example coverage for the remaining upstream gallery families still missing here (`widgets`) and deepen the newer showcase families where coverage is still thin (`axes_grid1`, `axisartist`, `unstructured`, `arrays`)
 - [ ] Add parity fixtures for each newly ported toolkit/projection family
 
 Current slice landed:
@@ -515,6 +515,8 @@ Current slice landed:
 - Added showcase examples for `axisartist` and `axes_grid1` using the new floating-axis, parasite-axis, anchored-box, `ImageGrid`, and `RGBAxes` helpers.
 - Added showcase examples for `unstructured` and `arrays` using `TriPlot`, `TriColor`, `TriContour`, `TriContourf`, `AnnotatedHeatmap`, `PColorMesh`, `Contour`, and `Spy`.
 - Added golden and Matplotlib parity fixtures for the new `unstructured` and `arrays` showcase cases, including cross-reference thresholds and reference-image generator entries.
+- Added golden and Matplotlib parity fixtures for the `axisartist` and `axes_grid1` showcase cases so the new toolkit-style examples are covered by the same visual-regression pipeline.
+- Added a first static widget artist surface in `core` (`Button`, `Slider`, `CheckButtons`, `RadioButtons`, `TextBox`) plus a `widgets` showcase example to close the remaining gallery-family example gap in Phase 7.
 
 **Exit Criteria:**
 

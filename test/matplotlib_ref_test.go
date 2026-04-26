@@ -193,6 +193,12 @@ func TestMpl_UnstructuredShowcase(t *testing.T) {
 func TestMpl_ArraysShowcase(t *testing.T) {
 	runMplTest(t, "arrays_showcase", renderArraysShowcase)
 }
+func TestMpl_AxisArtistShowcase(t *testing.T) {
+	runMplTest(t, "axisartist_showcase", renderAxisArtistShowcase)
+}
+func TestMpl_AxesGrid1Showcase(t *testing.T) {
+	runMplTest(t, "axes_grid1_showcase", renderAxesGrid1Showcase)
+}
 func TestMpl_ErrorBars(t *testing.T)     { runMplTest(t, "errorbar_basic", renderErrorBars) }
 func TestMpl_TitleStrict(t *testing.T)   { runMplTest(t, "title_strict", renderTitleStrict) }
 func TestMpl_ImageHeatmap(t *testing.T)  { runMplTest(t, "image_heatmap", renderImageHeatmap) }

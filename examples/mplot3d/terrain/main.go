@@ -45,9 +45,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := core.DrawFigure(fig, r); err != nil {
-		log.Fatalf("draw figure: %v", err)
-	}
+	core.DrawFigure(fig, r)
 	if err := r.SavePNG("mplot3d_terrain.png"); err != nil {
 		log.Fatalf("save PNG: %v", err)
 	}

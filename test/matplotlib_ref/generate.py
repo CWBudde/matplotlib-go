@@ -29,6 +29,7 @@ import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
 import matplotlib.tri as mtri
+from mpl_toolkits.axes_grid1 import ImageGrid, make_axes_locatable
 
 DPI = 100
 W_PX, H_PX = 640, 360
@@ -1965,6 +1966,124 @@ def arrays_showcase(out_dir):
     save(fig, out_dir, "arrays_showcase")
 
 
+def axisartist_showcase(out_dir):
+    fig = make_fig_px(980, 640)
+
+    host = fig.add_axes(go_rect(0.08, 0.14, 0.56, 0.88))
+    host.set_title("AxisArtist / Parasite")
+    host.set_xlabel("phase")
+    host.set_ylabel("signal")
+    host.set_xlim(-3.5, 3.5)
+    host.set_ylim(-1.3, 1.3)
+    host.grid(axis="y", color=(0.78, 0.80, 0.84, 1.0), linewidth=lw(0.8))
+
+    x = np.linspace(-3.5, 3.5, 240)
+    sine = np.sin(x)
+    cos_scaled = 55 + 35 * np.cos(x * 0.8)
+
+    host.plot(x, sine, color=(0.14, 0.34, 0.72, 1.0), linewidth=lw(2.2), label="sin(x)")
+    host.axhline(0.0, color=(0.26, 0.26, 0.30, 1.0), linewidth=lw(1.4), dashes=[5 * 36.0 / DPI, 3 * 36.0 / DPI])
+    host.axvline(0.0, color=(0.26, 0.26, 0.30, 1.0), linewidth=lw(1.4), dashes=[5 * 36.0 / DPI, 3 * 36.0 / DPI])
+    host.tick_params(direction="inout")
+
+    right = host.twinx()
+    right.set_ylim(0, 100)
+    right.plot(x, cos_scaled, color=(0.74, 0.28, 0.18, 1.0), linewidth=lw(1.8), label="55 + 35 cos(0.8x)")
+    right.spines["right"].set_color((0.74, 0.28, 0.18, 1.0))
+    right.tick_params(axis="y", colors=(0.74, 0.28, 0.18, 1.0))
+    right.spines["top"].set_visible(False)
+    right.spines["left"].set_visible(False)
+    right.spines["bottom"].set_visible(False)
+
+    host.text(
+        0.02,
+        0.98,
+        "floating axes at x=0 / y=0\nparasite right scale",
+        transform=host.transAxes,
+        ha="left",
+        va="top",
+        fontsize=10,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
+    )
+    host.legend(loc="upper center")
+
+    save(fig, out_dir, "axisartist_showcase")
+
+
+def axes_grid1_showcase(out_dir):
+    fig = make_fig_px(1100, 720)
+
+    grid = ImageGrid(
+        fig,
+        go_rect(0.06, 0.12, 0.58, 0.88),
+        nrows_ncols=(2, 2),
+        axes_pad=(0.03, 0.04),
+        share_all=False,
+    )
+
+    for idx, ax in enumerate(grid):
+        row = idx // 2
+        col = idx % 2
+        ax.set_title(f"Tile {row + 1},{col + 1}")
+        rows, cols = 24, 24
+        data = np.zeros((rows, cols))
+        phase = float(row * 2 + col)
+        for y in range(rows):
+            yy = y / float(rows - 1)
+            for x in range(cols):
+                xx = x / float(cols - 1)
+                data[y, x] = 0.5 + 0.25 * math.sin((xx + phase) * 2 * math.pi) + 0.25 * math.cos((yy + phase * 0.3) * 3 * math.pi)
+        ax.imshow(data, origin="upper")
+        ax.text(
+            0.98,
+            0.02,
+            "image grid",
+            transform=ax.transAxes,
+            ha="right",
+            va="bottom",
+            fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
+        )
+
+    parent = fig.add_axes(go_rect(0.66, 0.18, 0.96, 0.84))
+    parent.set_frame_on(False)
+    parent.set_xticks([])
+    parent.set_yticks([])
+    parent.set_title("RGBAxes")
+    divider = make_axes_locatable(parent)
+    red_ax = divider.append_axes("left", size="100%", pad=0.0)
+    green_ax = divider.append_axes("right", size="100%", pad=0.10)
+    blue_ax = divider.append_axes("right", size="100%", pad=0.10)
+    parent.remove()
+
+    for ax, title, phase in [
+        (red_ax, "Red", 0.0),
+        (green_ax, "Green", 1.2),
+        (blue_ax, "Blue", 2.4),
+    ]:
+        rows, cols = 28, 28
+        data = np.zeros((rows, cols))
+        for y in range(rows):
+            yy = y / float(rows - 1)
+            for x in range(cols):
+                xx = x / float(cols - 1)
+                data[y, x] = 0.5 + 0.5 * math.sin((xx * 2 + yy * 1.5 + phase) * math.pi)
+        ax.set_title(title)
+        ax.imshow(data, origin="upper")
+
+    fig.text(
+        0.98,
+        0.98,
+        "axes_grid1-style layout\nImageGrid + RGBAxes",
+        ha="right",
+        va="top",
+        fontsize=11,
+        bbox=dict(boxstyle="round,pad=0.35", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
+    )
+
+    save(fig, out_dir, "axes_grid1_showcase")
+
+
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 ALL_PLOTS = [
@@ -2001,6 +2120,8 @@ ALL_PLOTS = [
     geo_mollweide_axes,
     unstructured_showcase,
     arrays_showcase,
+    axisartist_showcase,
+    axes_grid1_showcase,
 ]
 
 
