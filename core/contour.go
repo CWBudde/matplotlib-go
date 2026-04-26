@@ -44,6 +44,8 @@ type ContourSet struct {
 	LabelFontSize  float64
 	LabelColor     render.Color
 	labels         []contourLabel
+	lineLevels     []float64
+	inlineLabels   bool
 	z              float64
 }
 
@@ -90,6 +92,10 @@ func (c *ContourSet) Draw(r render.Renderer, ctx *DrawContext) {
 		c.Fills.Draw(r, ctx)
 	}
 	if c.Lines != nil {
+		if c.inlineLabels {
+			c.drawInlineLabeledLines(r, ctx)
+			return
+		}
 		c.Lines.Draw(r, ctx)
 	}
 }
@@ -128,6 +134,31 @@ func (c *ContourSet) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 		origin := alignedSingleLineOrigin(displayPt, layout, TextAlignCenter, textLayoutVAlignCenter)
 		drawDisplayText(textRen, text, origin, fontSize, color, ctx.RC.FontKey)
 	}
+}
+
+func (c *ContourSet) drawInlineLabeledLines(r render.Renderer, ctx *DrawContext) {
+	if c == nil || c.Lines == nil || ctx == nil {
+		return
+	}
+	if _, ok := r.(render.TextDrawer); !ok {
+		c.Lines.Draw(r, ctx)
+		return
+	}
+
+	setRendererResolution(r, ctx.RC.DPI)
+	fontSize := resolvedFontSize(c.LabelFontSize, ctx)
+	segments, colors, widths, labels := contourInlineLabelSegments(c.Lines, c.lineLevels, c.LabelFormatter, fontSize, r, ctx)
+	c.labels = labels
+	if len(segments) == 0 {
+		return
+	}
+	lines := *c.Lines
+	lines.Segments = segments
+	lines.Colors = colors
+	lines.Color = render.Color{}
+	lines.LineWidths = widths
+	lines.LineWidth = c.Lines.LineWidth
+	lines.Draw(r, ctx)
 }
 
 // Bounds returns the union of the contour set's line and fill geometry.
@@ -265,7 +296,9 @@ func (a *Axes) buildContourSet(tri Triangulation, values []float64, filled bool,
 				LineJoin:  render.JoinRound,
 				LineCap:   render.CapRound,
 			}
+			set.lineLevels = append([]float64(nil), polylineLevels...)
 			if opt.LabelLines {
+				set.inlineLabels = true
 				set.labels = contourLabels(polylines, polylineLevels, colors, set.LabelFormatter)
 			}
 		}
@@ -643,6 +676,286 @@ func contourLabels(polylines [][]geom.Pt, levels []float64, colors []render.Colo
 		})
 	}
 	return labels
+}
+
+func contourInlineLabelSegments(lines *LineCollection, levels []float64, formatter Formatter, fontSize float64, r render.Renderer, ctx *DrawContext) ([][]geom.Pt, []render.Color, []float64, []contourLabel) {
+	const inlineSpacing = 5.0
+
+	segments := make([][]geom.Pt, 0, len(lines.Segments))
+	colors := make([]render.Color, 0, len(lines.Segments))
+	widths := make([]float64, 0, len(lines.Segments))
+	labels := []contourLabel{}
+	placed := []geom.Pt{}
+
+	for i, segment := range lines.Segments {
+		color := colorAt(lines.Color, lines.Colors, i)
+		width := widthAt(lines.LineWidth, lines.LineWidths, i)
+		appendSegment := func(part []geom.Pt) {
+			if len(part) < 2 {
+				return
+			}
+			segments = append(segments, part)
+			colors = append(colors, color)
+			widths = append(widths, width)
+		}
+
+		if len(segment) < 2 || i >= len(levels) {
+			appendSegment(segment)
+			continue
+		}
+
+		text := formatter.Format(levels[i])
+		if displayTextIsEmpty(text) {
+			appendSegment(segment)
+			continue
+		}
+		labelWidth := contourLabelWidth(text, fontSize, r, ctx)
+		screen := contourDisplayPolyline(segment, ctx)
+		if !contourPrintLabel(screen, labelWidth) {
+			appendSegment(segment)
+			continue
+		}
+
+		screenPos, labelIdx := contourLocateLabel(screen, labelWidth, placed)
+		if labelIdx < 0 || labelIdx >= len(segment) {
+			appendSegment(segment)
+			continue
+		}
+
+		angle, parts := splitContourPolylineForLabel(segment, screen, labelIdx, labelWidth, inlineSpacing)
+		if len(parts) == 0 {
+			appendSegment(segment)
+			continue
+		}
+		for _, part := range parts {
+			appendSegment(part)
+		}
+		placed = append(placed, screenPos)
+		labels = append(labels, contourLabel{
+			Text:     text,
+			Position: segment[labelIdx],
+			Angle:    angle,
+			Color:    color,
+		})
+	}
+
+	return segments, colors, widths, labels
+}
+
+func contourLabelWidth(text string, fontSize float64, r render.Renderer, ctx *DrawContext) float64 {
+	fontKey := ""
+	if ctx != nil {
+		fontKey = ctx.RC.FontKey
+	}
+	layout := measureSingleLineTextLayout(r, text, fontSize, fontKey)
+	if layout.Width > 0 {
+		return layout.Width
+	}
+	return math.Max(fontSize, 1)
+}
+
+func contourDisplayPolyline(polyline []geom.Pt, ctx *DrawContext) []geom.Pt {
+	out := make([]geom.Pt, len(polyline))
+	for i, pt := range polyline {
+		out[i] = ctx.DataToPixel.Apply(pt)
+	}
+	return out
+}
+
+func contourPrintLabel(line []geom.Pt, labelWidth float64) bool {
+	if len(line) == 0 || labelWidth <= 0 {
+		return false
+	}
+	if float64(len(line)) > 10*labelWidth {
+		return true
+	}
+	minX, maxX := line[0].X, line[0].X
+	minY, maxY := line[0].Y, line[0].Y
+	for _, pt := range line[1:] {
+		minX = math.Min(minX, pt.X)
+		maxX = math.Max(maxX, pt.X)
+		minY = math.Min(minY, pt.Y)
+		maxY = math.Max(maxY, pt.Y)
+	}
+	return maxX-minX > 1.2*labelWidth || maxY-minY > 1.2*labelWidth
+}
+
+func contourLocateLabel(line []geom.Pt, labelWidth float64, placed []geom.Pt) (geom.Pt, int) {
+	if len(line) == 0 {
+		return geom.Pt{}, -1
+	}
+	ctrSize := len(line)
+	nBlocks := 1
+	if labelWidth > 1 {
+		nBlocks = int(math.Ceil(float64(ctrSize) / labelWidth))
+		if nBlocks < 1 {
+			nBlocks = 1
+		}
+	}
+	blockSize := ctrSize
+	if nBlocks != 1 {
+		blockSize = int(labelWidth)
+		if blockSize < 1 {
+			blockSize = 1
+		}
+	}
+
+	type candidate struct {
+		block    int
+		distance float64
+	}
+	candidates := make([]candidate, nBlocks)
+	for block := 0; block < nBlocks; block++ {
+		first := contourResizedPoint(line, block, blockSize, 0)
+		last := contourResizedPoint(line, block, blockSize, blockSize-1)
+		length := math.Hypot(last.X-first.X, last.Y-first.Y)
+		distance := math.Inf(1)
+		if length > 0 {
+			distance = 0
+			for j := 0; j < blockSize; j++ {
+				pt := contourResizedPoint(line, block, blockSize, j)
+				cross := (first.Y-pt.Y)*(last.X-first.X) - (first.X-pt.X)*(last.Y-first.Y)
+				distance += math.Abs(cross) / length
+			}
+		}
+		candidates[block] = candidate{block: block, distance: distance}
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].distance < candidates[j].distance
+	})
+
+	halfBlock := blockSize / 2
+	chosen := candidates[0].block
+	for _, candidate := range candidates {
+		idx := (candidate.block*blockSize + halfBlock) % ctrSize
+		pt := line[idx]
+		if !contourLabelTooClose(pt, labelWidth, placed) {
+			chosen = candidate.block
+			break
+		}
+	}
+	idx := (chosen*blockSize + halfBlock) % ctrSize
+	return line[idx], idx
+}
+
+func contourResizedPoint(line []geom.Pt, block, blockSize, offset int) geom.Pt {
+	return line[(block*blockSize+offset)%len(line)]
+}
+
+func contourLabelTooClose(pt geom.Pt, labelWidth float64, placed []geom.Pt) bool {
+	threshold := 1.2 * labelWidth
+	threshold *= threshold
+	for _, existing := range placed {
+		dx := pt.X - existing.X
+		dy := pt.Y - existing.Y
+		if dx*dx+dy*dy < threshold {
+			return true
+		}
+	}
+	return false
+}
+
+func splitContourPolylineForLabel(data, screen []geom.Pt, labelIdx int, labelWidth, spacing float64) (float64, [][]geom.Pt) {
+	if len(data) < 2 || len(data) != len(screen) || labelIdx < 0 || labelIdx >= len(data) {
+		return 0, nil
+	}
+	cpls := contourCumulativeDisplayLengths(screen)
+	total := cpls[len(cpls)-1]
+	if total <= 0 {
+		return 0, nil
+	}
+
+	center := cpls[labelIdx]
+	angleStart := clampFloat(center-labelWidth/2, 0, total)
+	angleEnd := clampFloat(center+labelWidth/2, 0, total)
+	p0, ok0 := contourInterpolateAtCPL(screen, cpls, angleStart)
+	p1, ok1 := contourInterpolateAtCPL(screen, cpls, angleEnd)
+	angle := 0.0
+	if ok0 && ok1 {
+		angle = normalizeLabelAngle(math.Atan2(p1.Y-p0.Y, p1.X-p0.X))
+	}
+
+	gapStart := center - labelWidth/2 - spacing
+	gapEnd := center + labelWidth/2 + spacing
+	parts := [][]geom.Pt{}
+	if gapStart > 0 {
+		before := contourPolylineBeforeCPL(data, cpls, gapStart)
+		if len(before) >= 2 {
+			parts = append(parts, before)
+		}
+	}
+	if gapEnd < total {
+		after := contourPolylineAfterCPL(data, cpls, gapEnd)
+		if len(after) >= 2 {
+			parts = append(parts, after)
+		}
+	}
+	return angle, parts
+}
+
+func contourCumulativeDisplayLengths(points []geom.Pt) []float64 {
+	cpls := make([]float64, len(points))
+	for i := 1; i < len(points); i++ {
+		cpls[i] = cpls[i-1] + math.Hypot(points[i].X-points[i-1].X, points[i].Y-points[i-1].Y)
+	}
+	return cpls
+}
+
+func contourPolylineBeforeCPL(data []geom.Pt, cpls []float64, target float64) []geom.Pt {
+	out := []geom.Pt{}
+	for i, pt := range data {
+		if cpls[i] <= target {
+			out = append(out, pt)
+		}
+	}
+	if pt, ok := contourInterpolateAtCPL(data, cpls, target); ok {
+		out = appendContourPoint(out, pt)
+	}
+	return out
+}
+
+func contourPolylineAfterCPL(data []geom.Pt, cpls []float64, target float64) []geom.Pt {
+	out := []geom.Pt{}
+	if pt, ok := contourInterpolateAtCPL(data, cpls, target); ok {
+		out = append(out, pt)
+	}
+	for i, pt := range data {
+		if cpls[i] >= target {
+			out = appendContourPoint(out, pt)
+		}
+	}
+	return out
+}
+
+func contourInterpolateAtCPL(points []geom.Pt, cpls []float64, target float64) (geom.Pt, bool) {
+	if len(points) == 0 || len(points) != len(cpls) {
+		return geom.Pt{}, false
+	}
+	if target <= cpls[0] {
+		return points[0], true
+	}
+	last := len(cpls) - 1
+	if target >= cpls[last] {
+		return points[last], true
+	}
+	for i := 1; i < len(cpls); i++ {
+		if cpls[i] < target {
+			continue
+		}
+		if cpls[i] == cpls[i-1] {
+			return points[i], true
+		}
+		t := (target - cpls[i-1]) / (cpls[i] - cpls[i-1])
+		return interpolatePoint(points[i-1], points[i], t), true
+	}
+	return points[last], true
+}
+
+func appendContourPoint(points []geom.Pt, point geom.Pt) []geom.Pt {
+	if len(points) > 0 && sameContourPoint(points[len(points)-1], point) {
+		return points
+	}
+	return append(points, point)
 }
 
 func contourFormatter(formatter Formatter) Formatter {

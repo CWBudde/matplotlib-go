@@ -952,6 +952,7 @@ def colorbar_composition(out_dir):
     ax.set_ylabel("y")
     ax.set_xlim(0, cols)
     ax.set_ylim(0, rows)
+    ax.set_yticks(np.arange(0, rows + 1, 20))
     ax.grid(True, color=(0.8, 0.8, 0.8), linewidth=lw(0.5))
     cbar = fig.colorbar(im, ax=ax)
     cbar.set_label("Intensity")

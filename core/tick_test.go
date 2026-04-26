@@ -69,7 +69,20 @@ func TestLinearLocator_Property(t *testing.T) {
 
 func TestLinearLocator_HistogramStyleRange(t *testing.T) {
 	ticks := (LinearLocator{}).Ticks(0, 0.196, 6)
-	want := []float64{0, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2}
+	want := []float64{0, 0.05, 0.1, 0.15, 0.2}
+	if len(ticks) != len(want) {
+		t.Fatalf("tick count mismatch: got %v want %v", ticks, want)
+	}
+	for i := range want {
+		if math.Abs(ticks[i]-want[i]) > 1e-12 {
+			t.Fatalf("tick %d mismatch: got %.17g want %.17g", i, ticks[i], want[i])
+		}
+	}
+}
+
+func TestLinearLocator_TargetIsMaximumDensity(t *testing.T) {
+	ticks := (LinearLocator{}).Ticks(0, 80, 6)
+	want := []float64{0, 20, 40, 60, 80}
 	if len(ticks) != len(want) {
 		t.Fatalf("tick count mismatch: got %v want %v", ticks, want)
 	}

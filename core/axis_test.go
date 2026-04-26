@@ -716,6 +716,35 @@ func TestGrid_Draw(t *testing.T) {
 	}
 }
 
+type gridRecordingRenderer struct {
+	render.NullRenderer
+	paths []geom.Path
+}
+
+func (r *gridRecordingRenderer) Path(p geom.Path, _ *render.Paint) {
+	r.paths = append(r.paths, p)
+}
+
+func TestGrid_UsesOwningAxisMajorLocator(t *testing.T) {
+	grid := NewGrid(AxisLeft)
+	ctx := createTestDrawContext()
+	ctx.DataToPixel.YScale = transform.NewLinear(0, 80)
+	ctx.Axes = &Axes{
+		XAxis: NewXAxis(),
+		YAxis: NewYAxis(),
+	}
+	ctx.Axes.YAxis.Locator = FixedLocator{TicksList: []float64{0, 20, 40, 60, 80}}
+
+	renderer := &gridRecordingRenderer{}
+	_ = renderer.Begin(geom.Rect{})
+	grid.Draw(renderer, ctx)
+	_ = renderer.End()
+
+	if got, want := len(renderer.paths), 5; got != want {
+		t.Fatalf("grid path count = %d, want %d", got, want)
+	}
+}
+
 func TestGrid_Disabled(t *testing.T) {
 	// Test grid with major disabled
 	grid := NewGrid(AxisLeft)
@@ -791,7 +820,7 @@ func TestAxis_DrawTickLabels_UsesStepPrecisionForScalarFormatter(t *testing.T) {
 		t.Fatalf("End: %v", err)
 	}
 
-	want := []string{"0.000", "0.025", "0.050", "0.075", "0.100", "0.125", "0.150", "0.175"}
+	want := []string{"0.00", "0.05", "0.10", "0.15"}
 	if len(r.texts) != len(want) {
 		t.Fatalf("unexpected tick label count: got %v want %v", r.texts, want)
 	}

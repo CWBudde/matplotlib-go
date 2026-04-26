@@ -185,6 +185,7 @@ func renderArraysShowcase() image.Image {
 	if err != nil {
 		panic(err)
 	}
+	r.SetResolution(100)
 	core.DrawFigure(fig, r)
 	return r.GetImage()
 }

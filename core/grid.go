@@ -19,8 +19,8 @@ type Grid struct {
 	MinorColor     render.Color // minor grid line color (zero value uses Color with lower alpha)
 	MinorLineWidth float64      // width of minor grid lines (0 uses LineWidth*0.5)
 	MinorDashes    []float64    // dash pattern for minor grid (nil = solid)
-	Locator        Locator      // major tick locator (nil = LinearLocator)
-	MinorLocator   Locator      // minor tick locator (nil = MinorLinearLocator{N:5})
+	Locator        Locator      // major tick locator (nil = owning axis locator, then LinearLocator)
+	MinorLocator   Locator      // minor tick locator (nil = owning axis minor locator, then MinorLinearLocator{N:5})
 	z              float64      // z-order (should be behind data)
 }
 
@@ -69,6 +69,7 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 		domainMin, domainMax = ctx.DataToPixel.YScale.Domain()
 	}
 
+	axis := g.axisForContext(ctx)
 	majorColor := g.Color
 	if g.Alpha > 0 && g.Alpha <= 1 {
 		majorColor.A = g.Alpha
@@ -77,10 +78,13 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 	// Draw minor grid first (behind major)
 	if g.Minor {
 		minorLoc := g.MinorLocator
+		if minorLoc == nil && axis != nil && axis.MinorLocator != nil {
+			minorLoc = axis.MinorLocator
+		}
 		if minorLoc == nil {
 			minorLoc = MinorLinearLocator{N: 5}
 		}
-		minorTicks := minorLoc.Ticks(domainMin, domainMax, 30)
+		minorTicks := visibleTicks(minorLoc.Ticks(domainMin, domainMax, g.cartesianTargetTickCount(axis, true, ctx, isXAxis)), domainMin, domainMax)
 
 		minorColor := g.MinorColor
 		if minorColor == (render.Color{}) {
@@ -100,10 +104,13 @@ func (g *Grid) Draw(r render.Renderer, ctx *DrawContext) {
 	// Draw major grid
 	if g.Major {
 		loc := g.Locator
+		if loc == nil && axis != nil && axis.Locator != nil {
+			loc = axis.Locator
+		}
 		if loc == nil {
 			loc = LinearLocator{}
 		}
-		ticks := loc.Ticks(domainMin, domainMax, 8)
+		ticks := visibleTicks(loc.Ticks(domainMin, domainMax, g.cartesianTargetTickCount(axis, false, ctx, isXAxis)), domainMin, domainMax)
 
 		for _, v := range ticks {
 			g.drawLine(r, ctx, v, isXAxis, majorColor, g.LineWidth, g.Dashes)
@@ -371,6 +378,19 @@ func (g *Grid) curvelinearTargetTickCount(axis *Axis, minor bool) int {
 		return axis.minorTickTargetCount()
 	}
 	return axis.majorTickTargetCount()
+}
+
+func (g *Grid) cartesianTargetTickCount(axis *Axis, minor bool, ctx *DrawContext, isXAxis bool) int {
+	if axis == nil {
+		if minor {
+			return 30
+		}
+		return 8
+	}
+	if minor {
+		return axis.minorTickTargetCountForContext(ctx, isXAxis)
+	}
+	return axis.majorTickTargetCountForContext(ctx, isXAxis)
 }
 
 // drawLine draws a single grid line.

@@ -27,7 +27,8 @@ type IndexedFormatter interface {
 type LinearLocator struct{}
 
 // Ticks returns a strictly increasing slice of ticks that cover [min,max]
-// using a step chosen from {1,2,2.5,5}×10^k close to span/targetCount.
+// using the smallest step from {1,2,2.5,5,10}×10^k that does not exceed
+// the requested tick density.
 func (LinearLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 	if targetCount <= 0 {
 		targetCount = 1
@@ -50,12 +51,11 @@ func (LinearLocator) Ticks(minVal, maxVal float64, targetCount int) []float64 {
 	exp := math.Floor(math.Log10(raw))
 	base := math.Pow(10, exp)
 	candidates := []float64{1 * base, 2 * base, 2.5 * base, 5 * base, 10 * base}
-	step := candidates[0]
-	best := math.Abs(candidates[0] - raw)
-	for _, c := range candidates[1:] {
-		if d := math.Abs(c - raw); d < best {
-			best = d
+	step := candidates[len(candidates)-1]
+	for _, c := range candidates {
+		if c >= raw {
 			step = c
+			break
 		}
 	}
 	// Align start/end to cover [min,max]
