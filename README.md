@@ -110,8 +110,11 @@ demo source, generate both image sets and open the parity viewer:
 
 ```bash
 just web-parity-update
-just web-parity-viewer
+just parity-viewer-all
 ```
+
+Use `just parity-viewer` for only the standard golden/reference suite, or
+`just web-parity-viewer` for only the browser-demo suite.
 
 The GitHub Actions workflow [`.github/workflows/deploy-wasm.yml`](.github/workflows/deploy-wasm.yml)
 builds the same artifact and deploys it to GitHub Pages on pushes to `main`.

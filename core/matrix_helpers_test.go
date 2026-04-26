@@ -26,8 +26,20 @@ func TestAxesMatShowConfiguresMatrixView(t *testing.T) {
 	if !ax.YInverted() {
 		t.Fatal("MatShow() should invert the y-axis")
 	}
+	if ax.XAxis == nil || ax.XAxis.ShowTicks || ax.XAxis.ShowLabels {
+		t.Fatal("MatShow() should hide bottom x ticks and labels")
+	}
+	if ax.XAxisTop == nil || !ax.XAxisTop.ShowTicks || !ax.XAxisTop.ShowLabels {
+		t.Fatal("MatShow() should show top x ticks and labels")
+	}
+	if ax.xLabelSide != AxisTop {
+		t.Fatalf("x label side = %v, want AxisTop", ax.xLabelSide)
+	}
 	if _, ok := ax.XAxis.Locator.(FixedLocator); !ok {
 		t.Fatalf("x locator = %T, want FixedLocator", ax.XAxis.Locator)
+	}
+	if _, ok := ax.XAxisTop.Locator.(FixedLocator); !ok {
+		t.Fatalf("top x locator = %T, want FixedLocator", ax.XAxisTop.Locator)
 	}
 	if _, ok := ax.YAxis.Locator.(FixedLocator); !ok {
 		t.Fatalf("y locator = %T, want FixedLocator", ax.YAxis.Locator)
@@ -55,6 +67,9 @@ func TestAxesSpySupportsMarkerAndImageModes(t *testing.T) {
 	}
 	if !ax.YInverted() {
 		t.Fatal("Spy() should invert the y-axis")
+	}
+	if ax.XAxisTop == nil || !ax.XAxisTop.ShowTicks || !ax.XAxisTop.ShowLabels {
+		t.Fatal("Spy() should show matrix-style top x ticks and labels")
 	}
 
 	fig = NewFigure(400, 300)

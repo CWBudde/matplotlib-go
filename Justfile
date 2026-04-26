@@ -80,9 +80,17 @@ cli:
 parity-viewer PORT="8090" FILTER="":
     PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --name-filter "{{FILTER}}"
 
+# Start parity viewer with standard golden/reference cases and web demo cases.
+parity-viewer-all PORT="8090" FILTER="":
+    PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --include-webdemo --name-filter "{{FILTER}}"
+
 # Print parity comparison rows for filtered cases (no server) and exit.
 parity-viewer-print PORT="8090" FILTER="" PREFIX="":
     PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --name-filter "{{FILTER}}" --name-prefix "{{PREFIX}}" --print
+
+# Print standard and web demo parity comparison rows without starting a server.
+parity-viewer-all-print PORT="8090" FILTER="" PREFIX="":
+    PORT={{PORT}} CGO_ENABLED=1 go run -tags freetype ./cmd/parityviewer --port {{PORT}} --include-webdemo --name-filter "{{FILTER}}" --name-prefix "{{PREFIX}}" --print
 
 # Generate Go and Matplotlib PNGs for the browser demo catalog.
 web-parity-update DEMOS="all" WIDTH="960" HEIGHT="540":

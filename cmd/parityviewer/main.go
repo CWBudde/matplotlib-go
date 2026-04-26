@@ -70,6 +70,9 @@ func main() {
 	parityDir := flag.String("parity-dir", "", "Optional parity directory with suite/baseline-* / artifacts")
 	baselineDir := flag.String("baseline-dir", filepath.Join("testdata", "matplotlib_ref"), "Baseline PNG directory (used when --parity-dir is not set)")
 	artifactDir := flag.String("artifact-dir", filepath.Join("testdata", "golden"), "Artifact PNG directory (used when --parity-dir is not set)")
+	includeWebdemo := flag.Bool("include-webdemo", false, "Also include web demo parity artifacts")
+	webBaselineDir := flag.String("web-baseline-dir", filepath.Join("testdata", "_artifacts", "webdemo", "matplotlib"), "Web demo baseline PNG directory")
+	webArtifactDir := flag.String("web-artifact-dir", filepath.Join("testdata", "_artifacts", "webdemo", "go"), "Web demo artifact PNG directory")
 	nameFilter := flag.String("name-filter", "", "Optional case-name substring filter")
 	namePrefix := flag.String("name-prefix", "", "Optional case-name prefix filter")
 	printOnly := flag.Bool("print", false, "Print comparison rows and exit")
@@ -88,6 +91,14 @@ func main() {
 	if !filepath.IsAbs(artDir) {
 		artDir = filepath.Join(root, artDir)
 	}
+	webBaseDir := filepath.Clean(*webBaselineDir)
+	if !filepath.IsAbs(webBaseDir) {
+		webBaseDir = filepath.Join(root, webBaseDir)
+	}
+	webArtDir := filepath.Clean(*webArtifactDir)
+	if !filepath.IsAbs(webArtDir) {
+		webArtDir = filepath.Join(root, webArtDir)
+	}
 	parDir := filepath.Clean(*parityDir)
 	if *parityDir != "" && !filepath.IsAbs(parDir) {
 		parDir = filepath.Join(root, parDir)
@@ -98,12 +109,12 @@ func main() {
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		result, err := loadCases(*parityDir != "", parDir, baseDir, artDir, *nameFilter, *namePrefix)
+		result, err := loadCasesUnified(*parityDir != "", *includeWebdemo, parDir, baseDir, artDir, webBaseDir, webArtDir, *nameFilter, *namePrefix)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("load parity cases: %v", err), http.StatusInternalServerError)
 			return
 		}
-		renderPage(w, result, buildViewOptions(*parityDir != "", root, artDir))
+		renderPage(w, result, buildViewOptionsWithExtra(*parityDir != "", *includeWebdemo, root, artDir))
 	})
 	http.HandleFunc("/rerender", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -116,7 +127,7 @@ func main() {
 		}
 
 		if r.FormValue("all") == "1" {
-			if err := ensureRerenderSupported(*parityDir != "", root, artDir); err != nil {
+			if err := ensureRerenderSupportedWithExtra(*parityDir != "", *includeWebdemo, root, artDir); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -133,7 +144,7 @@ func main() {
 			http.Error(w, "missing name parameter", http.StatusBadRequest)
 			return
 		}
-		if err := ensureRerenderSupported(*parityDir != "", root, artDir); err != nil {
+		if err := ensureRerenderSupportedWithExtra(*parityDir != "", *includeWebdemo, root, artDir); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -145,7 +156,7 @@ func main() {
 	})
 
 	if *printOnly {
-		result, err := loadCases(*parityDir != "", parDir, baseDir, artDir, *nameFilter, *namePrefix)
+		result, err := loadCasesUnified(*parityDir != "", *includeWebdemo, parDir, baseDir, artDir, webBaseDir, webArtDir, *nameFilter, *namePrefix)
 		if err != nil {
 			log.Fatalf("load parity cases: %v", err)
 		}
@@ -159,10 +170,20 @@ func main() {
 }
 
 func buildViewOptions(useParity bool, repoRoot, artifactDir string) viewOptions {
+	return buildViewOptionsWithExtra(useParity, false, repoRoot, artifactDir)
+}
+
+func buildViewOptionsWithExtra(useParity, includeExtra bool, repoRoot, artifactDir string) viewOptions {
 	if useParity {
 		return viewOptions{
 			CanRerender:         false,
 			RerenderDisabledMsg: "Re-render is disabled in --parity-dir mode because the button only regenerates ./test goldens.",
+		}
+	}
+	if includeExtra {
+		return viewOptions{
+			CanRerender:         false,
+			RerenderDisabledMsg: "Re-render is disabled in unified mode because web demo artifacts need a different regeneration command.",
 		}
 	}
 	defaultArtifactDir := filepath.Join(repoRoot, "testdata", "golden")
@@ -176,7 +197,11 @@ func buildViewOptions(useParity bool, repoRoot, artifactDir string) viewOptions 
 }
 
 func ensureRerenderSupported(useParity bool, repoRoot, artifactDir string) error {
-	opts := buildViewOptions(useParity, repoRoot, artifactDir)
+	return ensureRerenderSupportedWithExtra(useParity, false, repoRoot, artifactDir)
+}
+
+func ensureRerenderSupportedWithExtra(useParity, includeExtra bool, repoRoot, artifactDir string) error {
+	opts := buildViewOptionsWithExtra(useParity, includeExtra, repoRoot, artifactDir)
 	if opts.CanRerender {
 		return nil
 	}
@@ -279,6 +304,29 @@ func loadCases(useParity bool, parityDir, baselineDir, artifactDir, nameFilter, 
 	return loadCasesFromDirectories(baselineDir, artifactDir, nameFilter, namePrefix)
 }
 
+func loadCasesUnified(useParity, includeWebdemo bool, parityDir, baselineDir, artifactDir, webBaselineDir, webArtifactDir, nameFilter, namePrefix string) (loadResult, error) {
+	if useParity {
+		return loadCasesFromParityDir(parityDir, nameFilter, namePrefix)
+	}
+	if !includeWebdemo {
+		return loadCasesFromDirectories(baselineDir, artifactDir, nameFilter, namePrefix)
+	}
+	return loadCasesFromDirectorySources([]directorySource{
+		{
+			Suite:       "plots",
+			Baseline:    filepath.Base(baselineDir),
+			BaselineDir: baselineDir,
+			ArtifactDir: artifactDir,
+		},
+		{
+			Suite:       "webdemo",
+			Baseline:    "matplotlib",
+			BaselineDir: webBaselineDir,
+			ArtifactDir: webArtifactDir,
+		},
+	}, nameFilter, namePrefix)
+}
+
 func printCases(w io.Writer, result loadResult) {
 	fmt.Fprintf(w, "found=%d skipped=%d\n", result.ComparedCount, result.SkippedCount)
 	for _, c := range result.Cases {
@@ -328,45 +376,68 @@ func envOr(key, fallback string) string {
 }
 
 func loadCasesFromDirectories(baselineDir, artifactDir, nameFilter, namePrefix string) (loadResult, error) {
+	return loadCasesFromDirectorySources([]directorySource{
+		{
+			Suite:       "plots",
+			Baseline:    filepath.Base(baselineDir),
+			BaselineDir: baselineDir,
+			ArtifactDir: artifactDir,
+		},
+	}, nameFilter, namePrefix)
+}
+
+type directorySource struct {
+	Suite       string
+	Baseline    string
+	BaselineDir string
+	ArtifactDir string
+}
+
+func loadCasesFromDirectorySources(sources []directorySource, nameFilter, namePrefix string) (loadResult, error) {
 	filter := strings.ToLower(strings.TrimSpace(nameFilter))
 	prefix := strings.ToLower(strings.TrimSpace(namePrefix))
 	var result loadResult
 
-	baseline, err := filepath.Glob(filepath.Join(baselineDir, "*.png"))
-	if err != nil {
-		return loadResult{}, fmt.Errorf("glob baseline %s: %w", baselineDir, err)
-	}
-	sort.Strings(baseline)
-
-	for _, baselinePath := range baseline {
-		name := strings.TrimSuffix(filepath.Base(baselinePath), filepath.Ext(baselinePath))
-		artifactPath := filepath.Join(artifactDir, filepath.Base(baselinePath))
-		_, statErr := os.Stat(artifactPath)
-		if os.IsNotExist(statErr) {
-			result.SkippedCount++
-			continue
-		}
-		if statErr != nil {
-			return loadResult{}, fmt.Errorf("stat artifact %s: %w", artifactPath, statErr)
-		}
-		if filter != "" && !strings.Contains(strings.ToLower(name), filter) {
-			continue
-		}
-		if prefix != "" && !strings.HasPrefix(strings.ToLower(name), prefix) {
-			continue
-		}
-
-		entry, err := buildEntry("plots", filepath.Base(baselineDir), name, baselinePath, artifactPath)
+	for _, source := range sources {
+		baseline, err := filepath.Glob(filepath.Join(source.BaselineDir, "*.png"))
 		if err != nil {
-			return loadResult{}, fmt.Errorf("build entry for %s: %w", name, err)
+			return loadResult{}, fmt.Errorf("glob baseline %s: %w", source.BaselineDir, err)
 		}
-		result.Cases = append(result.Cases, entry)
-		result.ComparedCount++
+		sort.Strings(baseline)
+
+		for _, baselinePath := range baseline {
+			name := strings.TrimSuffix(filepath.Base(baselinePath), filepath.Ext(baselinePath))
+			artifactPath := filepath.Join(source.ArtifactDir, filepath.Base(baselinePath))
+			_, statErr := os.Stat(artifactPath)
+			if os.IsNotExist(statErr) {
+				result.SkippedCount++
+				continue
+			}
+			if statErr != nil {
+				return loadResult{}, fmt.Errorf("stat artifact %s: %w", artifactPath, statErr)
+			}
+			if filter != "" && !strings.Contains(strings.ToLower(name), filter) {
+				continue
+			}
+			if prefix != "" && !strings.HasPrefix(strings.ToLower(name), prefix) {
+				continue
+			}
+
+			entry, err := buildEntry(source.Suite, source.Baseline, name, baselinePath, artifactPath)
+			if err != nil {
+				return loadResult{}, fmt.Errorf("build entry for %s/%s/%s: %w", source.Suite, source.Baseline, name, err)
+			}
+			result.Cases = append(result.Cases, entry)
+			result.ComparedCount++
+		}
 	}
 
 	sort.Slice(result.Cases, func(i, j int) bool {
 		if result.Cases[i].RMSE == result.Cases[j].RMSE {
-			return result.Cases[i].Name < result.Cases[j].Name
+			if result.Cases[i].Suite == result.Cases[j].Suite {
+				return result.Cases[i].Name < result.Cases[j].Name
+			}
+			return result.Cases[i].Suite < result.Cases[j].Suite
 		}
 		return result.Cases[i].RMSE > result.Cases[j].RMSE
 	})

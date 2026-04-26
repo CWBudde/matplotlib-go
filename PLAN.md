@@ -601,6 +601,7 @@ Current slice landed:
 - Added golden and Matplotlib parity fixtures for the new `unstructured` and `arrays` showcase cases, including cross-reference thresholds and reference-image generator entries.
 - Added golden and Matplotlib parity fixtures for the `axisartist` and `axes_grid1` showcase cases so the new toolkit-style examples are covered by the same visual-regression pipeline.
 - Added a first static widget artist surface in `core` (`Button`, `Slider`, `CheckButtons`, `RadioButtons`, `TextBox`) plus a `widgets` showcase example to close the remaining gallery-family example gap in Phase 7.
+- Documented the Python/Go example readability gaps in `docs/example-python-go-readability-gaps.md`, starting from the `examples/arrays` counterpart pair.
 
 **Exit Criteria:**
 

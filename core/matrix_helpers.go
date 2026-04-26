@@ -118,6 +118,7 @@ func (a *Axes) MatShow(data [][]float64, opts ...MatShowOptions) *Image2D {
 	if !a.YInverted() {
 		a.InvertY()
 	}
+	applyMatrixAxisPresentation(a)
 	if boolValue(cfg.IntegerTicks, true) {
 		applyMatrixTicks(a, rows, cols)
 	}
@@ -232,6 +233,7 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 	if !a.YInverted() {
 		a.InvertY()
 	}
+	applyMatrixAxisPresentation(a)
 	applyMatrixTicks(a, rows, cols)
 	return result
 }
@@ -309,6 +311,22 @@ func (a *Axes) AnnotatedHeatmap(data [][]float64, opts ...AnnotatedHeatmapOption
 		Image:  img,
 		Labels: labels,
 	}
+}
+
+func applyMatrixAxisPresentation(a *Axes) {
+	if a == nil {
+		return
+	}
+	if a.XAxis != nil {
+		a.XAxis.ShowTicks = false
+		a.XAxis.ShowLabels = false
+	}
+	if top := a.TopAxis(); top != nil {
+		top.ShowSpine = true
+		top.ShowTicks = true
+		top.ShowLabels = true
+	}
+	_ = a.SetXLabelPosition("top")
 }
 
 func applyMatrixTicks(a *Axes, rows, cols int) {
