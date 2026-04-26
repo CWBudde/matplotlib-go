@@ -507,8 +507,13 @@ Current slice landed:
 
 ### 7.5 Gallery Parity and Showcase Coverage
 
-- [ ] Add example coverage for major upstream gallery families still missing here (`axes_grid1`, `axisartist`, `mplot3d`, `pie_and_polar_charts`, `units`, `widgets`, `unstructured`, `arrays`)
+- [ ] Add example coverage for the remaining upstream gallery families still missing here (`widgets`) and deepen the newer showcase families where coverage is still thin (`axes_grid1`, `axisartist`, `unstructured`, `arrays`)
 - [ ] Add parity fixtures for each newly ported toolkit/projection family
+
+Current slice landed:
+
+- Added showcase examples for `axisartist` and `axes_grid1` using the new floating-axis, parasite-axis, anchored-box, `ImageGrid`, and `RGBAxes` helpers.
+- Added showcase examples for `unstructured` and `arrays` using `TriPlot`, `TriColor`, `TriContour`, `TriContourf`, `AnnotatedHeatmap`, `PColorMesh`, `Contour`, and `Spy`.
 
 **Exit Criteria:**
 
