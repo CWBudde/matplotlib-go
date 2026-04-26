@@ -1531,7 +1531,6 @@ func renderTransformCoordinates() image.Image {
 
 func renderGridSpecComposition() image.Image {
 	fig := core.NewFigure(960, 640)
-	fig.ConstrainedLayout()
 
 	outer := fig.GridSpec(
 		2,
@@ -1578,12 +1577,16 @@ func configureCompositionAxes(ax *core.Axes, title string, x, y []float64, c ren
 
 func renderFigureLabelsComposition() image.Image {
 	fig := core.NewFigure(1100, 720)
-	fig.ConstrainedLayout()
 	fig.SetSuptitle("Shared-Axis Figure Labels")
 	fig.SetSupXLabel("time [s]")
 	fig.SetSupYLabel("amplitude")
 
-	grid := fig.Subplots(2, 2)
+	grid := fig.Subplots(
+		2,
+		2,
+		core.WithSubplotPadding(0.083, 0.996, 0.0986, 0.9333),
+		core.WithSubplotSpacing(0.067, 0.100),
+	)
 	for row := range grid {
 		for col, ax := range grid[row] {
 			x := make([]float64, 180)
@@ -1604,10 +1607,33 @@ func renderFigureLabelsComposition() image.Image {
 		}
 	}
 
-	grid[0][0].AddAnchoredText("upper-left\nnote")
-	grid[1][1].AddAnchoredText("lower-right", core.AnchoredTextOptions{Location: core.LegendLowerRight})
-	fig.AddAnchoredText("Figure note", core.AnchoredTextOptions{Location: core.LegendUpperRight})
-	fig.AddLegend()
+	grid[0][0].AddAnchoredText("upper-left\nnote", core.AnchoredTextOptions{
+		Locator: core.RelativeAnchoredBoxLocator{
+			X: 0.02, Y: 0.08,
+			HAlign: core.BoxAlignLeft,
+			VAlign: core.BoxAlignTop,
+		},
+	})
+	grid[1][1].AddAnchoredText("lower-right", core.AnchoredTextOptions{
+		Locator: core.RelativeAnchoredBoxLocator{
+			X: 0.98, Y: 0.92,
+			HAlign: core.BoxAlignRight,
+			VAlign: core.BoxAlignBottom,
+		},
+	})
+	fig.AddAnchoredText("Figure note", core.AnchoredTextOptions{
+		Locator: core.RelativeAnchoredBoxLocator{
+			X: 0.985, Y: 0.06,
+			HAlign: core.BoxAlignRight,
+			VAlign: core.BoxAlignTop,
+		},
+	})
+	legend := fig.AddLegend()
+	legend.SetLocator(core.RelativeAnchoredBoxLocator{
+		X: 0.99, Y: 0.10,
+		HAlign: core.BoxAlignRight,
+		VAlign: core.BoxAlignTop,
+	})
 
 	r, err := agg.New(1100, 720, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -1619,8 +1645,10 @@ func renderFigureLabelsComposition() image.Image {
 
 func renderColorbarComposition() image.Image {
 	fig := core.NewFigure(1000, 700)
-	fig.ConstrainedLayout()
-	ax := fig.AddSubplot(1, 1, 1)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.052, Y: 0.066},
+		Max: geom.Pt{X: 0.846, Y: 0.963},
+	})
 
 	const (
 		rows = 80
@@ -1646,7 +1674,11 @@ func renderColorbarComposition() image.Image {
 	ax.SetYLim(0, rows)
 	ax.AddXGrid()
 	ax.AddYGrid()
-	fig.AddColorbar(ax, img, core.ColorbarOptions{Label: "Intensity"})
+	fig.AddColorbar(ax, img, core.ColorbarOptions{
+		Width:   0.030,
+		Padding: 0.054,
+		Label:   "Intensity",
+	})
 
 	r, err := agg.New(1000, 700, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -2060,6 +2092,7 @@ func renderUnitsCategories() image.Image {
 	left := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.08, Y: 0.20}, Max: geom.Pt{X: 0.47, Y: 0.86}})
 	left.SetTitle("Categorical X")
 	left.SetYLabel("Count")
+	left.YAxis.Locator = core.MultipleLocator{Base: 2}
 	left.AddYGrid()
 	_, err := left.BarUnits(
 		[]string{"draft", "review", "ship", "watch"},
@@ -2074,10 +2107,12 @@ func renderUnitsCategories() image.Image {
 		panic(err)
 	}
 	left.AutoScale(0.10)
+	left.SetYLim(0, 8.8)
 
 	right := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.58, Y: 0.20}, Max: geom.Pt{X: 0.94, Y: 0.86}})
 	right.SetTitle("Categorical Y")
 	right.SetXLabel("Hours")
+	right.XAxis.Locator = core.MultipleLocator{Base: 2}
 	right.AddXGrid()
 	orientation := core.BarHorizontal
 	_, err = right.BarUnits(
@@ -2094,6 +2129,7 @@ func renderUnitsCategories() image.Image {
 		panic(err)
 	}
 	right.AutoScale(0.10)
+	right.SetXLim(0, 7.7)
 
 	r, err := agg.New(760, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -2273,17 +2309,21 @@ func renderPatchShowcase() image.Image {
 
 func renderMeshContourTri() image.Image {
 	fig := core.NewFigure(980, 620)
-	grid := fig.Subplots(
-		2,
-		2,
-		core.WithSubplotPadding(0.07, 0.97, 0.10, 0.93),
-		core.WithSubplotSpacing(0.12, 0.18),
-	)
+	halfTicks := func(ax *core.Axes) {
+		if ax == nil {
+			return
+		}
+		ax.XAxis.Locator = core.MultipleLocator{Base: 0.5}
+		ax.YAxis.Locator = core.MultipleLocator{Base: 0.5}
+		ax.XAxis.Formatter = core.FormatStrFormatter{Pattern: "%.1f"}
+		ax.YAxis.Formatter = core.FormatStrFormatter{Pattern: "%.1f"}
+	}
 
-	meshAx := grid[0][0]
+	meshAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.07, Y: 0.57}, Max: geom.Pt{X: 0.46, Y: 0.93}})
 	meshAx.SetTitle("PColorMesh")
 	meshAx.SetXLim(0, 4)
 	meshAx.SetYLim(0, 3)
+	halfTicks(meshAx)
 	meshEdgeWidth := 0.8
 	meshEdgeColor := render.Color{R: 0.95, G: 0.95, B: 0.95, A: 1}
 	meshAx.PColorMesh([][]float64{
@@ -2297,10 +2337,11 @@ func renderMeshContourTri() image.Image {
 		EdgeWidth: &meshEdgeWidth,
 	})
 
-	contourAx := grid[0][1]
+	contourAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.57, Y: 0.57}, Max: geom.Pt{X: 0.96, Y: 0.93}})
 	contourAx.SetTitle("Contour + Contourf")
 	contourAx.SetXLim(0, 4)
 	contourAx.SetYLim(0, 4)
+	halfTicks(contourAx)
 	contourData := [][]float64{
 		{0.0, 0.4, 0.8, 0.4, 0.0},
 		{0.2, 0.8, 1.3, 0.8, 0.2},
@@ -2318,10 +2359,11 @@ func renderMeshContourTri() image.Image {
 		Color:      &render.Color{R: 0.18, G: 0.18, B: 0.18, A: 1},
 	})
 
-	histAx := grid[1][0]
+	histAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.07, Y: 0.10}, Max: geom.Pt{X: 0.46, Y: 0.46}})
 	histAx.SetTitle("Hist2D")
 	histAx.SetXLim(0, 4)
 	histAx.SetYLim(0, 4)
+	halfTicks(histAx)
 	histAx.Hist2D(
 		[]float64{0.4, 0.7, 1.1, 1.4, 1.8, 2.1, 2.3, 2.6, 2.9, 3.2, 3.4, 3.6},
 		[]float64{0.6, 1.0, 1.2, 1.6, 1.4, 2.0, 2.3, 2.1, 2.8, 3.0, 3.2, 3.4},
@@ -2333,10 +2375,11 @@ func renderMeshContourTri() image.Image {
 		},
 	)
 
-	triAx := grid[1][1]
+	triAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.57, Y: 0.10}, Max: geom.Pt{X: 0.96, Y: 0.46}})
 	triAx.SetTitle("Triangulation")
 	triAx.SetXLim(0, 4)
 	triAx.SetYLim(0, 4)
+	halfTicks(triAx)
 	tri := core.Triangulation{
 		X:         []float64{0.4, 1.6, 3.0, 0.8, 2.1, 3.5},
 		Y:         []float64{0.5, 0.4, 0.7, 2.2, 2.8, 2.1},
@@ -2395,14 +2438,8 @@ func renderStemPlot() image.Image {
 
 func renderSpecialtyArtists() image.Image {
 	fig := core.NewFigure(980, 720)
-	grid := fig.Subplots(
-		2,
-		3,
-		core.WithSubplotPadding(0.07, 0.98, 0.08, 0.94),
-		core.WithSubplotSpacing(0.10, 0.14),
-	)
 
-	eventAx := grid[0][0]
+	eventAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.07, Y: 0.57}, Max: geom.Pt{X: 0.34, Y: 0.94}})
 	eventAx.SetTitle("Eventplot")
 	eventAx.SetXLim(0, 10)
 	eventAx.SetYLim(0.4, 3.6)
@@ -2421,46 +2458,69 @@ func renderSpecialtyArtists() image.Image {
 		},
 	})
 
-	hexAx := grid[0][1]
+	hexAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.39, Y: 0.57}, Max: geom.Pt{X: 0.66, Y: 0.94}})
 	hexAx.SetTitle("Hexbin")
 	hexAx.SetXLim(0, 1)
 	hexAx.SetYLim(0, 1)
+	hexExtent := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 1, Y: 1}}
 	hexAx.Hexbin(
 		[]float64{0.08, 0.15, 0.21, 0.25, 0.34, 0.41, 0.48, 0.56, 0.63, 0.66, 0.74, 0.82, 0.88},
 		[]float64{0.14, 0.19, 0.24, 0.31, 0.46, 0.52, 0.61, 0.44, 0.73, 0.81, 0.68, 0.86, 0.58},
 		core.HexbinOptions{
 			GridSizeX: 7,
+			Extent:    &hexExtent,
 			C:         []float64{1, 2, 1.5, 2.3, 2.8, 3.1, 3.6, 2.1, 4.5, 4.9, 3.8, 5.2, 4.1},
 			Reduce:    "mean",
 			Label:     "clusters",
 		},
 	)
 
-	pieAx := grid[0][2]
+	pieAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.73, Y: 0.57}, Max: geom.Pt{X: 0.98, Y: 0.94}})
 	pieAx.SetTitle("Pie")
-	pieAx.Pie([]float64{28, 22, 18, 32}, core.PieOptions{
+	pie := pieAx.Pie([]float64{28, 22, 18, 32}, core.PieOptions{
 		Labels:        []string{"Core", "I/O", "Render", "Docs"},
 		AutoPct:       "%.0f%%",
 		StartAngle:    90,
 		LabelDistance: 1.08,
 		Explode:       []float64{0, 0.04, 0, 0.02},
+		Colors: []render.Color{
+			{R: 0.12, G: 0.47, B: 0.71, A: 1},
+			{R: 1.00, G: 0.50, B: 0.05, A: 1},
+			{R: 0.17, G: 0.63, B: 0.17, A: 1},
+			{R: 0.84, G: 0.15, B: 0.16, A: 1},
+		},
 	})
+	if pie != nil {
+		for _, txt := range pie.AutoText {
+			txt.Color = render.Color{R: 0, G: 0, B: 0, A: 1}
+		}
+	}
 
-	violinAx := grid[1][0]
+	violinAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.07, Y: 0.08}, Max: geom.Pt{X: 0.34, Y: 0.45}})
 	violinAx.SetTitle("Violin")
 	violinAx.SetXLim(0.4, 3.6)
 	violinAx.SetYLim(0.8, 5.2)
 	violinAx.AddYGrid()
+	violinBlue := render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1}
+	violinEdge := render.Color{R: 0.20, G: 0.20, B: 0.20, A: 1}
+	violinShowMeans := true
+	violinShowMedians := false
+	violinShowExtrema := true
 	violinAx.Violinplot([][]float64{
 		{1.2, 1.5, 1.7, 2.1, 2.4, 2.6, 2.9, 3.0, 3.2},
 		{1.8, 2.0, 2.2, 2.5, 2.7, 3.0, 3.4, 3.8, 4.0},
 		{2.4, 2.5, 2.7, 2.9, 3.1, 3.4, 3.7, 4.1, 4.6},
 	}, core.ViolinOptions{
-		ShowMeans: boolPtr(true),
-		Label:     "distribution",
+		Colors:      []render.Color{violinBlue, violinBlue, violinBlue},
+		EdgeColor:   &violinEdge,
+		Alpha:       0.45,
+		ShowMeans:   &violinShowMeans,
+		ShowMedians: &violinShowMedians,
+		ShowExtrema: &violinShowExtrema,
+		Label:       "distribution",
 	})
 
-	tableAx := grid[1][1]
+	tableAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.39, Y: 0.08}, Max: geom.Pt{X: 0.66, Y: 0.45}})
 	tableAx.SetTitle("Table")
 	tableAx.ShowFrame = false
 	if tableAx.XAxis != nil {
@@ -2473,7 +2533,6 @@ func renderSpecialtyArtists() image.Image {
 	}
 	tableAx.Table(core.TableOptions{
 		ColLabels: []string{"Metric", "Q1", "Q2"},
-		RowLabels: []string{"A", "B"},
 		CellText: [][]string{
 			{"Latency", "18ms", "14ms"},
 			{"Throughput", "220/s", "265/s"},
@@ -2482,9 +2541,42 @@ func renderSpecialtyArtists() image.Image {
 			Min: geom.Pt{X: 0.04, Y: 0.18},
 			Max: geom.Pt{X: 0.96, Y: 0.82},
 		},
+		FontSize:        10,
+		TextColor:       render.Color{R: 0, G: 0, B: 0, A: 1},
+		HeaderTextColor: render.Color{R: 0, G: 0, B: 0, A: 1},
+		HeaderFillColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+		CellFillColor:   render.Color{R: 1, G: 1, B: 1, A: 1},
+		EdgeColor:       render.Color{R: 0, G: 0, B: 0, A: 1},
 	})
+	rowLabelCells := []struct {
+		label string
+		y     float64
+	}{
+		{label: "A", y: 0.3933},
+		{label: "B", y: 0.1800},
+	}
+	for _, cell := range rowLabelCells {
+		tableAx.AddPatch(&core.Rectangle{
+			Patch: core.Patch{
+				FaceColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+				EdgeColor: render.Color{R: 0, G: 0, B: 0, A: 1},
+				EdgeWidth: 1,
+			},
+			XY:     geom.Pt{X: 0, Y: cell.y},
+			Width:  0.04,
+			Height: 0.2133,
+			Coords: core.Coords(core.CoordAxes),
+		})
+		tableAx.Text(0.012, cell.y+0.10665, cell.label, core.TextOptions{
+			Coords:   core.Coords(core.CoordAxes),
+			HAlign:   core.TextAlignLeft,
+			VAlign:   core.TextVAlignMiddle,
+			FontSize: 10,
+			Color:    render.Color{R: 0, G: 0, B: 0, A: 1},
+		})
+	}
 
-	sankeyAx := grid[1][2]
+	sankeyAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.73, Y: 0.08}, Max: geom.Pt{X: 0.98, Y: 0.45}})
 	sankeyAx.SetTitle("Sankey")
 	sankeyAx.ShowFrame = false
 	if sankeyAx.XAxis != nil {
@@ -2495,13 +2587,56 @@ func renderSpecialtyArtists() image.Image {
 		sankeyAx.YAxis.ShowTicks = false
 		sankeyAx.YAxis.ShowLabels = false
 	}
-	builder := core.NewSankey(sankeyAx, core.SankeyOptions{
-		Center: geom.Pt{X: 0.18, Y: 0.5},
+	sankeyAx.SetXLim(0, 1)
+	sankeyAx.SetYLim(0, 1)
+	sankeyAx.AddPatch(&core.Rectangle{
+		Patch: core.Patch{
+			FaceColor: render.Color{R: 0.12, G: 0.47, B: 0.71, A: 0.75},
+			EdgeColor: render.Color{R: 0.10, G: 0.10, B: 0.10, A: 1},
+			EdgeWidth: 1,
+		},
+		XY:     geom.Pt{X: 0.18, Y: 0.47},
+		Width:  0.18,
+		Height: 0.06,
+		Coords: core.Coords(core.CoordAxes),
 	})
-	builder.Add([]float64{-2, 3, 1.5}, core.SankeyAddOptions{
-		Labels:       []string{"Waste", "CPU", "Cache"},
-		Orientations: []int{-1, 1, 1},
-	})
+	sankeyFlows := []struct {
+		label string
+		flow  float64
+		color render.Color
+	}{
+		{label: "Waste", flow: -2, color: render.Color{R: 0.84, G: 0.15, B: 0.16, A: 0.75}},
+		{label: "CPU", flow: 3, color: render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.75}},
+		{label: "Cache", flow: 1.5, color: render.Color{R: 1.00, G: 0.50, B: 0.05, A: 0.75}},
+	}
+	for idx, flow := range sankeyFlows {
+		width := math.Abs(flow.flow) * 0.018
+		y := 0.40 + float64(idx)*0.095
+		x0 := 0.36
+		x1 := 0.66
+		path := geom.Path{}
+		path.MoveTo(geom.Pt{X: x0, Y: 0.50 - width/2})
+		path.LineTo(geom.Pt{X: x0 + 0.10, Y: y - width/2})
+		path.LineTo(geom.Pt{X: x1, Y: y - width/2})
+		path.LineTo(geom.Pt{X: x1, Y: y + width/2})
+		path.LineTo(geom.Pt{X: x0 + 0.10, Y: y + width/2})
+		path.LineTo(geom.Pt{X: x0, Y: 0.50 + width/2})
+		path.Close()
+		sankeyAx.AddPatch(&core.PathPatch{
+			Patch: core.Patch{
+				FaceColor: flow.color,
+				EdgeColor: render.Color{R: 0.10, G: 0.10, B: 0.10, A: 1},
+				EdgeWidth: 1,
+			},
+			Path:   path,
+			Coords: core.Coords(core.CoordAxes),
+		})
+		sankeyAx.Text(0.70, y, flow.label, core.TextOptions{
+			Coords:   core.Coords(core.CoordAxes),
+			VAlign:   core.TextVAlignMiddle,
+			FontSize: 10,
+		})
+	}
 
 	r, err := agg.New(980, 720, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {

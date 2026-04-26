@@ -228,10 +228,20 @@ func (p *Patch) drawStyledPath(r render.Renderer, fillPath, strokePath geom.Path
 		paint := render.Paint{Fill: faceColor}
 		combinedStroke := len(strokePath.C) == 0 && hasEdge
 		if combinedStroke {
-			paint = p.strokePaint(edgeColor)
-			paint.Fill = faceColor
+			if p.Hatch == "" {
+				paint = p.strokePaint(edgeColor)
+				paint.Fill = faceColor
+			}
 		}
 		if faceColor.A > 0 || combinedStroke {
+			r.Path(fillPath, &paint)
+		}
+	}
+
+	if len(fillPath.C) > 0 && p.Hatch != "" {
+		p.drawHatch(r, fillPath)
+		if len(strokePath.C) == 0 && hasEdge {
+			paint := p.strokePaint(edgeColor)
 			r.Path(fillPath, &paint)
 		}
 	}
@@ -239,10 +249,6 @@ func (p *Patch) drawStyledPath(r render.Renderer, fillPath, strokePath geom.Path
 	if len(strokePath.C) > 0 && hasEdge {
 		paint := p.strokePaint(edgeColor)
 		r.Path(strokePath, &paint)
-	}
-
-	if len(fillPath.C) > 0 && p.Hatch != "" {
-		p.drawHatch(r, fillPath)
 	}
 }
 

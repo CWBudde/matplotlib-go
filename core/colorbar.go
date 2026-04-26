@@ -36,7 +36,7 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 
 	cfg := ColorbarOptions{
 		Width:   0.035,
-		Padding: 0.02,
+		Padding: 0.053,
 	}
 	if len(opts) > 0 {
 		cfg = opts[0]
@@ -44,7 +44,7 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 			cfg.Width = 0.035
 		}
 		if cfg.Padding <= 0 {
-			cfg.Padding = 0.02
+			cfg.Padding = 0.053
 		}
 	}
 

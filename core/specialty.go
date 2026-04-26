@@ -62,6 +62,11 @@ type HexbinCollection struct {
 	Counts     []float64
 }
 
+type hexbinKey struct {
+	lattice  int
+	row, col int
+}
+
 // PieOptions configures Axes.Pie.
 type PieOptions struct {
 	Center           geom.Pt
@@ -542,7 +547,7 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		if !isFinite(ratio) || ratio <= 0 {
 			ratio = 1
 		}
-		gridY = max(1, int(math.Round(float64(gridX)*ratio)))
+		gridY = max(1, int(math.Round(float64(gridX)*ratio/math.Sqrt(3))))
 	}
 
 	xStep := extent.W() / float64(gridX)
@@ -554,14 +559,13 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		yStep = 1
 	}
 
-	type key struct{ row, col int }
 	type bin struct {
 		center geom.Pt
 		count  float64
 		sum    float64
 	}
 
-	bins := map[key]*bin{}
+	bins := map[hexbinKey]*bin{}
 	for i := range n {
 		xi, yi := x[i], y[i]
 		if !isFinite(xi) || !isFinite(yi) {
@@ -571,27 +575,11 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 			continue
 		}
 
-		row := int(math.Floor((yi - extent.Min.Y) / yStep))
-		if row >= gridY {
-			row = gridY - 1
-		}
-		xBase := extent.Min.X
-		if row%2 == 1 {
-			xBase += xStep * 0.5
-		}
-		col := int(math.Floor((xi - xBase) / xStep))
-		if col < 0 || col >= gridX {
-			continue
-		}
-
-		k := key{row: row, col: col}
+		k, center := nearestHexbinCenter(xi, yi, extent, gridX, gridY, xStep, yStep)
 		entry := bins[k]
 		if entry == nil {
 			entry = &bin{
-				center: geom.Pt{
-					X: xBase + (float64(col)+0.5)*xStep,
-					Y: extent.Min.Y + (float64(row)+0.5)*yStep,
-				},
+				center: center,
 			}
 			bins[k] = entry
 		}
@@ -606,11 +594,14 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		return nil
 	}
 
-	keys := make([]key, 0, len(bins))
+	keys := make([]hexbinKey, 0, len(bins))
 	for k := range bins {
 		keys = append(keys, k)
 	}
-	slices.SortFunc(keys, func(a, b key) int {
+	slices.SortFunc(keys, func(a, b hexbinKey) int {
+		if a.lattice != b.lattice {
+			return a.lattice - b.lattice
+		}
 		if a.row != b.row {
 			return a.row - b.row
 		}
@@ -622,7 +613,7 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 	counts := make([]float64, 0, len(keys))
 	centers := make([]geom.Pt, 0, len(keys))
 	rx := xStep / 2
-	ry := yStep / 2
+	ry := yStep / 3
 	for _, k := range keys {
 		entry := bins[k]
 		if int(entry.count) < cfg.MinCount {
@@ -1187,7 +1178,7 @@ func specialtyArcPoints(center geom.Pt, radius, theta1, theta2 float64) []geom.P
 		return nil
 	}
 	span := theta2 - theta1
-	steps := max(12, int(math.Ceil(math.Abs(span)/12))+1)
+	steps := max(24, int(math.Ceil(math.Abs(span)/3))+1)
 	points := make([]geom.Pt, 0, steps)
 	for i := range steps {
 		t := float64(i) / float64(max(steps-1, 1))
@@ -1202,13 +1193,40 @@ func specialtyArcPoints(center geom.Pt, radius, theta1, theta2 float64) []geom.P
 
 func specialtyHexagon(center geom.Pt, rx, ry float64) []geom.Pt {
 	return []geom.Pt{
-		{X: center.X - rx*0.5, Y: center.Y - ry},
-		{X: center.X + rx*0.5, Y: center.Y - ry},
-		{X: center.X + rx, Y: center.Y},
-		{X: center.X + rx*0.5, Y: center.Y + ry},
-		{X: center.X - rx*0.5, Y: center.Y + ry},
-		{X: center.X - rx, Y: center.Y},
+		{X: center.X + rx, Y: center.Y - ry/2},
+		{X: center.X + rx, Y: center.Y + ry/2},
+		{X: center.X, Y: center.Y + ry},
+		{X: center.X - rx, Y: center.Y + ry/2},
+		{X: center.X - rx, Y: center.Y - ry/2},
+		{X: center.X, Y: center.Y - ry},
 	}
+}
+
+func nearestHexbinCenter(x, y float64, extent *geom.Rect, gridX, gridY int, xStep, yStep float64) (hexbinKey, geom.Pt) {
+	aCol := clampInt(int(math.Round((x-extent.Min.X)/xStep)), 0, gridX)
+	aRow := clampInt(int(math.Round((y-extent.Min.Y)/yStep)), 0, gridY)
+	aCenter := geom.Pt{
+		X: extent.Min.X + float64(aCol)*xStep,
+		Y: extent.Min.Y + float64(aRow)*yStep,
+	}
+
+	bCol := clampInt(int(math.Round((x-extent.Min.X)/xStep-0.5)), 0, gridX-1)
+	bRow := clampInt(int(math.Round((y-extent.Min.Y)/yStep-0.5)), 0, gridY-1)
+	bCenter := geom.Pt{
+		X: extent.Min.X + (float64(bCol)+0.5)*xStep,
+		Y: extent.Min.Y + (float64(bRow)+0.5)*yStep,
+	}
+
+	aDX := x - aCenter.X
+	aDY := y - aCenter.Y
+	bDX := x - bCenter.X
+	bDY := y - bCenter.Y
+	aDist := aDX*aDX + aDY*aDY
+	bDist := bDX*bDX + bDY*bDY
+	if bDist < aDist {
+		return hexbinKey{lattice: 1, row: bRow, col: bCol}, bCenter
+	}
+	return hexbinKey{row: aRow, col: aCol}, aCenter
 }
 
 func specialtyFiniteValues(values []float64) []float64 {

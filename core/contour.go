@@ -386,12 +386,39 @@ func contourLevels(values, explicit []float64, levelCount int, filled bool) []fl
 		return []float64{minValue}
 	}
 
-	levels := make([]float64, levelCount)
+	levels := contourLocatorLevels(minValue, maxValue, levelCount, filled)
+	if len(levels) > 0 {
+		return levels
+	}
+
+	levels = make([]float64, levelCount)
 	step := (maxValue - minValue) / float64(levelCount-1)
 	for i := range levels {
 		levels[i] = minValue + float64(i)*step
 	}
 	return levels
+}
+
+func contourLocatorLevels(minValue, maxValue float64, levelCount int, filled bool) []float64 {
+	levels := (MaxNLocator{
+		N:     levelCount,
+		Steps: []float64{1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10},
+	}).Ticks(minValue, maxValue, 0)
+	if len(levels) == 0 {
+		return nil
+	}
+
+	out := levels[:0]
+	for _, level := range levels {
+		if !isFinite(level) {
+			continue
+		}
+		if !filled && (level < minValue || level > maxValue) {
+			continue
+		}
+		out = append(out, level)
+	}
+	return dedupeFloat64(out)
 }
 
 func contourPolylines(tri Triangulation, values, levels []float64) ([][]geom.Pt, []float64) {

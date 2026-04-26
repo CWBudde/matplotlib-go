@@ -61,17 +61,17 @@ func TestAxesHexbinAggregatesValues(t *testing.T) {
 	if hex == nil {
 		t.Fatal("expected hexbin collection")
 	}
-	if len(hex.Values) != 2 {
-		t.Fatalf("len(hex.Values) = %d, want 2", len(hex.Values))
+	if len(hex.Values) != 3 {
+		t.Fatalf("len(hex.Values) = %d, want 3", len(hex.Values))
 	}
-	if hex.Values[0] != 3 {
-		t.Fatalf("hex.Values[0] = %v, want 3", hex.Values[0])
+	if hex.Values[0] != 2 || hex.Values[1] != 4 || hex.Values[2] != 9 {
+		t.Fatalf("unexpected values %v", hex.Values)
 	}
-	if hex.Counts[0] != 2 || hex.Counts[1] != 1 {
+	if hex.Counts[0] != 1 || hex.Counts[1] != 1 || hex.Counts[2] != 1 {
 		t.Fatalf("unexpected counts %v", hex.Counts)
 	}
 	mapping := hex.ScalarMap()
-	if mapping.Colormap != "viridis" || mapping.VMin != 3 || mapping.VMax != 9 {
+	if mapping.Colormap != "viridis" || mapping.VMin != 2 || mapping.VMax != 9 {
 		t.Fatalf("unexpected scalar map %+v", mapping)
 	}
 }

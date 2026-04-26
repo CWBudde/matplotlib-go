@@ -26,6 +26,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
 import matplotlib.tri as mtri
@@ -2015,9 +2016,9 @@ def axes_grid1_showcase(out_dir):
 
     grid = ImageGrid(
         fig,
-        go_rect(0.06, 0.12, 0.58, 0.88),
+        go_rect(0.06, 0.12, 0.60, 0.88),
         nrows_ncols=(2, 2),
-        axes_pad=(0.03, 0.04),
+        axes_pad=(0.18, 0.20),
         share_all=False,
     )
 
@@ -2045,36 +2046,42 @@ def axes_grid1_showcase(out_dir):
             bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
         )
 
-    parent = fig.add_axes(go_rect(0.66, 0.18, 0.96, 0.84))
-    parent.set_frame_on(False)
-    parent.set_xticks([])
-    parent.set_yticks([])
-    parent.set_title("RGBAxes")
-    divider = make_axes_locatable(parent)
-    red_ax = divider.append_axes("left", size="100%", pad=0.0)
-    green_ax = divider.append_axes("right", size="100%", pad=0.10)
-    blue_ax = divider.append_axes("right", size="100%", pad=0.10)
-    parent.remove()
-
-    for ax, title, phase in [
-        (red_ax, "Red", 0.0),
-        (green_ax, "Green", 1.2),
-        (blue_ax, "Blue", 2.4),
-    ]:
+    channel_cmaps = {
+        "Red": mcolors.LinearSegmentedColormap.from_list("red channel", [(0.18, 0.02, 0.02), (1.00, 0.18, 0.12)]),
+        "Green": mcolors.LinearSegmentedColormap.from_list("green channel", [(0.02, 0.14, 0.05), (0.20, 0.90, 0.28)]),
+        "Blue": mcolors.LinearSegmentedColormap.from_list("blue channel", [(0.02, 0.05, 0.18), (0.18, 0.45, 1.00)]),
+    }
+    channels = [
+        (fig.add_axes(go_rect(0.66, 0.34, 0.75, 0.56)), "Red", 0),
+        (fig.add_axes(go_rect(0.775, 0.34, 0.865, 0.56)), "Green", 1),
+        (fig.add_axes(go_rect(0.89, 0.34, 0.98, 0.56)), "Blue", 2),
+    ]
+    for ax, title, phase in channels:
         rows, cols = 28, 28
         data = np.zeros((rows, cols))
         for y in range(rows):
             yy = y / float(rows - 1)
             for x in range(cols):
                 xx = x / float(cols - 1)
-                data[y, x] = 0.5 + 0.5 * math.sin((xx * 2 + yy * 1.5 + phase) * math.pi)
+                if phase == 1:
+                    data[y, x] = 0.5 + 0.32 * math.sin(yy * 4 * math.pi) + 0.18 * math.cos(xx * 2 * math.pi)
+                elif phase == 2:
+                    dx = xx - 0.5
+                    dy = yy - 0.5
+                    data[y, x] = 0.58 + 0.36 * math.sin((xx + yy) * 3 * math.pi) - 0.18 * math.hypot(dx, dy)
+                else:
+                    dx = xx - 0.35
+                    dy = yy - 0.42
+                    data[y, x] = 0.35 + 0.65 * math.exp(-7 * (dx * dx + dy * dy))
         ax.set_title(title)
-        ax.imshow(data, origin="upper")
+        ax.set_xticks([0, 10, 20])
+        ax.set_yticks([0, 10, 20])
+        ax.imshow(data, origin="upper", cmap=channel_cmaps[title])
 
     fig.text(
         0.98,
         0.98,
-        "axes_grid1-style layout\nImageGrid + RGBAxes",
+        "axes_grid1-style layout\nImageGrid + RGB channel views",
         ha="right",
         va="top",
         fontsize=11,

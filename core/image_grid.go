@@ -88,8 +88,8 @@ func (d *AxesDivider) axisRect(row, col int) (geom.Rect, bool) {
 		return geom.Rect{}, false
 	}
 
-	xCur := d.rect.Min.X + accumulate(widths[:col], col) + d.hSpace*float64(col)
-	maxY := d.rect.Max.Y - accumulate(heights[:row], row) - d.vSpace*float64(row)
+	xCur := d.rect.Min.X + accumulate(widths[:col], col)*usableW + d.hSpace*float64(col)
+	maxY := d.rect.Max.Y - accumulate(heights[:row], row)*usableH - d.vSpace*float64(row)
 	w := widths[col] * usableW
 	h := heights[row] * usableH
 	return geom.Rect{
@@ -151,15 +151,15 @@ func (f *Figure) NewRGBAxes(rect geom.Rect, dividerOpts ...AxesDividerOption) *R
 	blue.YAxis = red.YAxis
 
 	return &RGBAxes{
-		Red:      red,
-		Green:    green,
-		Blue:     blue,
-		divider:  divider,
+		Red:     red,
+		Green:   green,
+		Blue:    blue,
+		divider: divider,
 	}
 }
 
 type ImageGrid struct {
-	Axes   [][]*Axes
+	Axes    [][]*Axes
 	divider *AxesDivider
 }
 

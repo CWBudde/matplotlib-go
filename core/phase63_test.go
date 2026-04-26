@@ -117,6 +117,24 @@ func TestAxesContourAndContourf(t *testing.T) {
 	}
 }
 
+func TestContourLevelsUseNiceLocatorForImplicitCounts(t *testing.T) {
+	levels := contourLevels([]float64{0.287, 1.0}, nil, 6, false)
+	want := []float64{0.3, 0.45, 0.6, 0.75, 0.9}
+	if len(levels) != len(want) {
+		t.Fatalf("levels = %v, want %v", levels, want)
+	}
+	for i := range want {
+		if !approx(levels[i], want[i], 1e-12) {
+			t.Fatalf("levels = %v, want %v", levels, want)
+		}
+	}
+
+	filled := contourLevels([]float64{0.287, 1.0}, nil, 6, true)
+	if len(filled) < 2 || filled[0] > 0.287 || filled[len(filled)-1] < 1.0 {
+		t.Fatalf("filled levels should cover data range, got %v", filled)
+	}
+}
+
 func TestTriangulationArtists(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{

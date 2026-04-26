@@ -14,6 +14,36 @@ func TestGetColormap_UnknownFallsBackToViridis(t *testing.T) {
 	}
 }
 
+func TestGetColormap_PlasmaRegistered(t *testing.T) {
+	c := GetColormap("plasma")
+	if c.Name() != "plasma" {
+		t.Fatalf("expected plasma colormap, got %q", c.Name())
+	}
+	if got := c.At(0); got.B < got.R || got.B < got.G {
+		t.Fatalf("expected plasma low end to be purple, got %#v", got)
+	}
+	if got := c.At(1); got.R < 0.9 || got.G < 0.9 {
+		t.Fatalf("expected plasma high end to be yellow, got %#v", got)
+	}
+}
+
+func TestGetColormap_ChannelMapsRegistered(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "red channel", want: "red channel"},
+		{name: "green channel", want: "green channel"},
+		{name: "blue channel", want: "blue channel"},
+	}
+	for _, tt := range tests {
+		c := GetColormap(tt.name)
+		if c.Name() != tt.want {
+			t.Fatalf("GetColormap(%q).Name() = %q, want %q", tt.name, c.Name(), tt.want)
+		}
+	}
+}
+
 func TestRegisterColormap_NormalizesNameAndClampsStops(t *testing.T) {
 	name := "Custom Test"
 	RegisterColormap(name, NewColormap(name, []ColorStop{

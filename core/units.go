@@ -204,7 +204,39 @@ func (a *Axes) BarUnits(posVals, heights any, opts ...BarOptions) (*Bar2D, error
 	if err != nil {
 		return nil, err
 	}
+	a.applyCategoricalBarValueLocator(isXAxis)
 	return a.Bar(pos, heightFloats, opts...), nil
+}
+
+func (a *Axes) applyCategoricalBarValueLocator(categoryIsX bool) {
+	if a == nil {
+		return
+	}
+	categoryState := a.axisRoot(categoryIsX).unitState(categoryIsX)
+	if categoryState == nil || categoryState.kind != unitAxisCategory {
+		return
+	}
+
+	valueRoot := a.axisRoot(!categoryIsX)
+	if valueRoot == nil {
+		return
+	}
+	if categoryIsX {
+		applyAutoLocatorIfDefault(valueRoot.YAxis)
+		applyAutoLocatorIfDefault(valueRoot.YAxisRight)
+		return
+	}
+	applyAutoLocatorIfDefault(valueRoot.XAxis)
+	applyAutoLocatorIfDefault(valueRoot.XAxisTop)
+}
+
+func applyAutoLocatorIfDefault(axis *Axis) {
+	if axis == nil {
+		return
+	}
+	if _, ok := axis.Locator.(LinearLocator); ok {
+		axis.Locator = AutoLocator{}
+	}
 }
 
 // FillBetweenUnits converts x/y inputs using the axis units machinery and then

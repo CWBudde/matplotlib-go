@@ -57,8 +57,8 @@ func TestNewImageGridRespectsWidthAndHeightRatios(t *testing.T) {
 		t.Fatal("NewImageGrid returned nil")
 	}
 
-	assertRectApproxTol(t, grid.At(0, 0).RectFraction, geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.36666666666666664}, Max: geom.Pt{X: 0.2, Y: 0.9}}, 1e-12)
-	assertRectApproxTol(t, grid.At(0, 1).RectFraction, geom.Rect{Min: geom.Pt{X: 0.2, Y: 0.36666666666666664}, Max: geom.Pt{X: 0.9, Y: 0.9}}, 1e-12)
+	assertRectApproxTol(t, grid.At(0, 0).RectFraction, geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.36666666666666664}, Max: geom.Pt{X: 0.30000000000000004, Y: 0.9}}, 1e-12)
+	assertRectApproxTol(t, grid.At(0, 1).RectFraction, geom.Rect{Min: geom.Pt{X: 0.30000000000000004, Y: 0.36666666666666664}, Max: geom.Pt{X: 0.9, Y: 0.9}}, 1e-12)
 }
 
 func TestNewRGBAxesCreatesSharedScales(t *testing.T) {
@@ -80,6 +80,6 @@ func TestNewRGBAxesCreatesSharedScales(t *testing.T) {
 	if grid.Blue.yScaleRoot() != grid.Red.yScaleRoot() {
 		t.Fatal("blue axis should share y scale root with red axis")
 	}
-	assertRectApproxTol(t, grid.Red.RectFraction, geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.43333333333333335, Y: 0.9}}, 1e-12)
-	assertRectApproxTol(t, grid.Green.RectFraction, geom.Rect{Min: geom.Pt{X: 0.43333333333333335, Y: 0.1}, Max: geom.Pt{X: 0.7666666666666666, Y: 0.9}}, 1e-12)
+	assertRectApproxTol(t, grid.Red.RectFraction, geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.3666666666666667, Y: 0.9}}, 1e-12)
+	assertRectApproxTol(t, grid.Green.RectFraction, geom.Rect{Min: geom.Pt{X: 0.3666666666666667, Y: 0.1}, Max: geom.Pt{X: 0.6333333333333333, Y: 0.9}}, 1e-12)
 }

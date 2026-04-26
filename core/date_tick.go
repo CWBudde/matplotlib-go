@@ -134,12 +134,22 @@ func chooseDateTickInterval(minTime, maxTime time.Time, targetCount int) dateTic
 		{dateTickInterval{unit: "year", step: 10}, 10 * 365 * 24 * time.Hour},
 	}
 
-	for _, candidate := range candidates {
-		if raw <= candidate.approx {
-			return candidate.interval
+	best := candidates[0]
+	bestDelta := durationAbs(raw - best.approx)
+	for _, candidate := range candidates[1:] {
+		if delta := durationAbs(raw - candidate.approx); delta < bestDelta {
+			best = candidate
+			bestDelta = delta
 		}
 	}
-	return dateTickInterval{unit: "year", step: 10}
+	return best.interval
+}
+
+func durationAbs(d time.Duration) time.Duration {
+	if d < 0 {
+		return -d
+	}
+	return d
 }
 
 func (i dateTickInterval) align(t time.Time) time.Time {
@@ -195,9 +205,9 @@ func chooseDateLabelLayout(minVal, maxVal float64) string {
 	case span >= 90*24*3600:
 		return "Jan 2006"
 	case span >= 2*24*3600:
-		return "02 Jan"
+		return "2006-01-02"
 	case span >= 24*3600:
-		return "02 Jan 15:04"
+		return "2006-01-02 15:04"
 	case span >= 60:
 		return "15:04"
 	default:

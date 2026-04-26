@@ -137,6 +137,8 @@ func renderArraysShowcase() image.Image {
 	meshAx.SetTitle("PColorMesh + Contour")
 	meshAx.SetXLabel("x bin")
 	meshAx.SetYLabel("y bin")
+	meshAx.SetXLim(0, 10)
+	meshAx.SetYLim(0, 8)
 	meshMap := "plasma"
 	meshEdges := render.Color{R: 1, G: 1, B: 1, A: 0.48}
 	meshEdgeWidth := 0.65
@@ -273,13 +275,11 @@ func renderAxesGrid1Showcase() image.Image {
 		2,
 		2,
 		geom.Rect{
-			Min: geom.Pt{X: 0.06, Y: 0.12},
-			Max: geom.Pt{X: 0.58, Y: 0.88},
+			Min: geom.Pt{X: 0.0765, Y: 0.12},
+			Max: geom.Pt{X: 0.5835, Y: 0.88},
 		},
-		core.WithAxesDividerHorizontalSpace(0.03),
-		core.WithAxesDividerVerticalSpace(0.04),
-		core.WithAxesDividerWidthScales(1.2, 1),
-		core.WithAxesDividerHeightScales(1, 1.1),
+		core.WithAxesDividerHorizontalSpace(0.18/11.0),
+		core.WithAxesDividerVerticalSpace(0.20/7.2),
 	)
 	if grid == nil {
 		panic("image grid creation failed")
@@ -290,38 +290,59 @@ func renderAxesGrid1Showcase() image.Image {
 			ax := grid.At(row, col)
 			ax.SetTitle("Tile " + string(rune('1'+row)) + "," + string(rune('1'+col)))
 			ax.MatShow(parityGridSurface(24, 24, float64(row*2+col)))
+			if row == 0 {
+				ax.XAxis.ShowLabels = false
+			}
+			if col > 0 {
+				ax.YAxis.ShowLabels = false
+			}
 			ax.AddAnchoredText("image grid", core.AnchoredTextOptions{
 				Location: core.LegendLowerRight,
 			})
 		}
 	}
 
-	rgb := fig.NewRGBAxes(
-		geom.Rect{
-			Min: geom.Pt{X: 0.66, Y: 0.18},
-			Max: geom.Pt{X: 0.96, Y: 0.84},
-		},
-		core.WithAxesDividerHorizontalSpace(0.025),
-	)
-	if rgb == nil {
-		panic("rgb axes creation failed")
-	}
-
 	channels := []struct {
 		ax    *core.Axes
 		title string
-		phase float64
+		cmap  string
 	}{
-		{ax: rgb.Red, title: "Red", phase: 0},
-		{ax: rgb.Green, title: "Green", phase: 1.2},
-		{ax: rgb.Blue, title: "Blue", phase: 2.4},
+		{
+			ax: fig.AddAxes(geom.Rect{
+				Min: geom.Pt{X: 0.66, Y: 0.34},
+				Max: geom.Pt{X: 0.75, Y: 0.56},
+			}),
+			title: "Red",
+			cmap:  "red channel",
+		},
+		{
+			ax: fig.AddAxes(geom.Rect{
+				Min: geom.Pt{X: 0.775, Y: 0.34},
+				Max: geom.Pt{X: 0.865, Y: 0.56},
+			}),
+			title: "Green",
+			cmap:  "green channel",
+		},
+		{
+			ax: fig.AddAxes(geom.Rect{
+				Min: geom.Pt{X: 0.89, Y: 0.34},
+				Max: geom.Pt{X: 0.98, Y: 0.56},
+			}),
+			title: "Blue",
+			cmap:  "blue channel",
+		},
 	}
-	for _, channel := range channels {
+	for idx, channel := range channels {
 		channel.ax.SetTitle(channel.title)
-		channel.ax.MatShow(parityChannelSurface(28, 28, channel.phase))
+		channel.ax.XAxis.Locator = core.FixedLocator{TicksList: []float64{0, 10, 20}}
+		channel.ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0, 10, 20}}
+		cmap := channel.cmap
+		channel.ax.MatShow(parityChannelSurface(28, 28, idx), core.MatShowOptions{
+			Colormap: &cmap,
+		})
 	}
 
-	fig.AddAnchoredText("axes_grid1-style layout\nImageGrid + RGBAxes", core.AnchoredTextOptions{
+	fig.AddAnchoredText("axes_grid1-style layout\nImageGrid + RGB channel views", core.AnchoredTextOptions{
 		Location: core.LegendUpperRight,
 	})
 
@@ -401,14 +422,25 @@ func parityGridSurface(rows, cols int, phase float64) [][]float64 {
 	return values
 }
 
-func parityChannelSurface(rows, cols int, phase float64) [][]float64 {
+func parityChannelSurface(rows, cols, channel int) [][]float64 {
 	values := make([][]float64, rows)
 	for y := range rows {
 		values[y] = make([]float64, cols)
 		yy := float64(y) / float64(rows-1)
 		for x := range cols {
 			xx := float64(x) / float64(cols-1)
-			values[y][x] = 0.5 + 0.5*math.Sin((xx*2+yy*1.5+phase)*math.Pi)
+			switch channel {
+			case 1:
+				values[y][x] = 0.5 + 0.32*math.Sin(yy*4*math.Pi) + 0.18*math.Cos(xx*2*math.Pi)
+			case 2:
+				dx := xx - 0.5
+				dy := yy - 0.5
+				values[y][x] = 0.58 + 0.36*math.Sin((xx+yy)*3*math.Pi) - 0.18*math.Hypot(dx, dy)
+			default:
+				dx := xx - 0.35
+				dy := yy - 0.42
+				values[y][x] = 0.35 + 0.65*math.Exp(-7*(dx*dx+dy*dy))
+			}
 		}
 	}
 	return values

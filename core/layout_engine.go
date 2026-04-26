@@ -310,7 +310,6 @@ func figureLabelMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine L
 
 func figureLayoutMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {
 	margins := figureLabelMarginsPx(fig, r, vp, engine)
-	margins = addFigureMargins(margins, figureOverlayMarginsPx(fig, r, vp, engine))
 	margins = addFigureMargins(margins, figureColorbarMarginsPx(fig, r, vp, engine))
 	return margins
 }
@@ -382,7 +381,7 @@ func figureColorbarMarginsPx(fig *Figure, _ render.Renderer, vp geom.Rect, engin
 		if width <= 0 {
 			continue
 		}
-		margin.right = math.Max(margin.right, width+pad+pointsToPixels(fig.RC, 36))
+		margin.right = math.Max(margin.right, width+pad+pointsToPixels(fig.RC, 21))
 	}
 	return margin
 }
