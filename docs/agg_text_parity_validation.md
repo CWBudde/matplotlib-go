@@ -1,4 +1,4 @@
-# Phase X.5 Text Parity Validation
+# AGG Text Parity Validation
 
 This document freezes the validation and release discipline for AGG text-parity
 work. The goal is to make every meaningful backend text change go through the
@@ -130,7 +130,7 @@ Required sequence:
 2. commit the backend change cleanly
 3. create and push a new `agg_go` tag
 4. update `matplotlib-go` to that tag in `go.mod`
-5. rerun the Phase X.5 validation loop above
+5. rerun the AGG text parity validation loop above
 6. regenerate only the affected goldens
 
 Do not:

@@ -141,8 +141,8 @@ func TestPolarTickLabelsUseAngularFormatting(t *testing.T) {
 	if len(r.texts) != 3 {
 		t.Fatalf("expected 3 polar tick labels, got %d (%v)", len(r.texts), r.texts)
 	}
-	if r.texts[0] != "0 deg" || r.texts[1] != "90 deg" {
-		t.Fatalf("theta labels = %v, want [0 deg 90 deg ...]", r.texts)
+	if r.texts[0] != "0°" || r.texts[1] != "90°" {
+		t.Fatalf("theta labels = %v, want [0° 90° ...]", r.texts)
 	}
 	if r.texts[2] == "" {
 		t.Fatal("expected a radial tick label")

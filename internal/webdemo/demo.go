@@ -126,9 +126,9 @@ var descriptors = []Descriptor{
 		Description: "A filled polar curve with custom radial and angular grid styling.",
 	},
 	{
-		ID:          "phase7",
+		ID:          "projections",
 		Title:       "Projections and Insets",
-		Description: "Phase 7 features: Mollweide geo projection plus a zoomed inset axes.",
+		Description: "Mollweide geo projection plus a zoomed inset axes.",
 	},
 	{
 		ID:          "subplots",
@@ -196,8 +196,8 @@ func Build(id string, width, height int) (*core.Figure, Descriptor, error) {
 			fig = buildCompositionDemo(width, height)
 		case "polar":
 			fig = buildPolarDemo(width, height)
-		case "phase7":
-			fig = buildPhase7Demo(width, height)
+		case "projections":
+			fig = buildProjectionsDemo(width, height)
 		case "subplots":
 			fig = buildSubplotsDemo(width, height)
 		default:
@@ -671,7 +671,7 @@ func buildPolarDemo(width, height int) *core.Figure {
 	return fig
 }
 
-func buildPhase7Demo(width, height int) *core.Figure {
+func buildProjectionsDemo(width, height int) *core.Figure {
 	fig := core.NewFigure(width, height)
 
 	geoAx, err := fig.AddAxesProjection(geom.Rect{

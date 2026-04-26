@@ -1,13 +1,13 @@
 # Matplotlib Agg Text Parity Reference
 
-This document freezes the Phase X.1 reference model for text parity work.
+This document freezes the reference model for text parity work.
 It is based on the local upstream checkout in `/tmp/matplotlib` and should be
 treated as the canonical source map for backend text rendering work in this
 repository.
 
 ## Primary Parity Probes
 
-These fixtures are the Phase X text canaries and should stay in the loop for
+These fixtures are the text-rendering canaries and should stay in the loop for
 every meaningful backend text change:
 
 - `bar_basic_tick_labels`

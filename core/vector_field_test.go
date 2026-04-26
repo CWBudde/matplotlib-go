@@ -60,23 +60,23 @@ func TestQuiverPathsRespectPivot(t *testing.T) {
 	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
 
 	tail := &Quiver{
-		Anchors:         []geom.Pt{{X: 1, Y: 1}},
-		U:               []float64{1},
-		V:               []float64{0},
-		Color:           render.Color{R: 0.2, G: 0.3, B: 0.7, A: 1},
-		Pivot:           vectorPivotTail,
-		Angles:          quiverAnglesUV,
-		Units:           "dots",
-		ScaleUnits:      "dots",
-		Width:           4,
-		Scale:           1,
-		ScaleSet:        true,
-		HeadWidth:       3,
-		HeadLength:      5,
-		HeadAxisLength:  4.5,
-		MinShaft:        1,
-		MinLength:       1,
-		forceLengthPx:   20,
+		Anchors:        []geom.Pt{{X: 1, Y: 1}},
+		U:              []float64{1},
+		V:              []float64{0},
+		Color:          render.Color{R: 0.2, G: 0.3, B: 0.7, A: 1},
+		Pivot:          vectorPivotTail,
+		Angles:         quiverAnglesUV,
+		Units:          "dots",
+		ScaleUnits:     "dots",
+		Width:          4,
+		Scale:          1,
+		ScaleSet:       true,
+		HeadWidth:      3,
+		HeadLength:     5,
+		HeadAxisLength: 4.5,
+		MinShaft:       1,
+		MinLength:      1,
+		forceLengthPx:  20,
 	}
 	middle := *tail
 	middle.Pivot = vectorPivotMiddle
@@ -111,24 +111,24 @@ func TestQuiverExplicitAngles(t *testing.T) {
 	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
 
 	q := &Quiver{
-		Anchors:         []geom.Pt{{X: 1, Y: 1}},
-		U:               []float64{1},
-		V:               []float64{0},
-		AngleValues:     []float64{90},
-		Color:           render.Color{R: 0.2, G: 0.3, B: 0.7, A: 1},
-		Pivot:           vectorPivotTail,
-		Angles:          quiverAnglesUV,
-		Units:           "dots",
-		ScaleUnits:      "dots",
-		Width:           4,
-		Scale:           1,
-		ScaleSet:        true,
-		HeadWidth:       3,
-		HeadLength:      5,
-		HeadAxisLength:  4.5,
-		MinShaft:        1,
-		MinLength:       1,
-		forceLengthPx:   16,
+		Anchors:        []geom.Pt{{X: 1, Y: 1}},
+		U:              []float64{1},
+		V:              []float64{0},
+		AngleValues:    []float64{90},
+		Color:          render.Color{R: 0.2, G: 0.3, B: 0.7, A: 1},
+		Pivot:          vectorPivotTail,
+		Angles:         quiverAnglesUV,
+		Units:          "dots",
+		ScaleUnits:     "dots",
+		Width:          4,
+		Scale:          1,
+		ScaleSet:       true,
+		HeadWidth:      3,
+		HeadLength:     5,
+		HeadAxisLength: 4.5,
+		MinShaft:       1,
+		MinLength:      1,
+		forceLengthPx:  16,
 	}
 	vector, ok := q.directionVectorAt(ctx, 0)
 	if !ok {
@@ -157,8 +157,8 @@ func TestQuiverKeyDrawOverlay(t *testing.T) {
 			Color:      &render.Color{R: 0.2, G: 0.4, B: 0.7, A: 1},
 			ScaleUnits: "dots",
 			Units:      "dots",
-			Scale:      phase64FloatPtr(24),
-			Width:      phase64FloatPtr(4),
+			Scale:      floatPtr(24),
+			Width:      floatPtr(4),
 		},
 	)
 	if q == nil {
@@ -270,6 +270,6 @@ func intPtr(v int) *int {
 	return &v
 }
 
-func phase64FloatPtr(v float64) *float64 {
+func floatPtr(v float64) *float64 {
 	return &v
 }

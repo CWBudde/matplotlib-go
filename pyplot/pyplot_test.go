@@ -164,7 +164,7 @@ func TestVectorFieldHelpersDelegateToCurrentAxes(t *testing.T) {
 	}
 }
 
-func TestPhase66HelpersDelegateToCurrentAxes(t *testing.T) {
+func TestMatrixAndSignalHelpersDelegateToCurrentAxes(t *testing.T) {
 	resetForTests()
 
 	mat := [][]float64{
@@ -200,7 +200,7 @@ func TestPhase66HelpersDelegateToCurrentAxes(t *testing.T) {
 	}
 }
 
-func TestPhase67HelpersDelegateToCurrent3DAxes(t *testing.T) {
+func TestThreeDHelpersDelegateToCurrent3DAxes(t *testing.T) {
 	resetForTests()
 
 	ax := AddAxes3D(geom.Rect{

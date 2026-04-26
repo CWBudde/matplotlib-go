@@ -31,7 +31,7 @@ func TestCatalogStable(t *testing.T) {
 		"annotations",
 		"composition",
 		"polar",
-		"phase7",
+		"projections",
 		"subplots",
 	}
 	if len(got) != len(wantIDs) {
@@ -380,7 +380,7 @@ func TestBuildEachDemoStructure(t *testing.T) {
 			},
 		},
 		{
-			id:          "phase7",
+			id:          "projections",
 			width:       320,
 			height:      180,
 			wantAxes:    3,
@@ -496,13 +496,13 @@ func TestBuildUsesDefaultDimensions(t *testing.T) {
 	}
 }
 
-func TestPhase7DemoIncludesInsetAxes(t *testing.T) {
-	fig, descriptor, err := Build("phase7", 320, 180)
+func TestProjectionsDemoIncludesInsetAxes(t *testing.T) {
+	fig, descriptor, err := Build("projections", 320, 180)
 	if err != nil {
-		t.Fatalf("Build(phase7) error = %v", err)
+		t.Fatalf("Build(projections) error = %v", err)
 	}
-	if descriptor.ID != "phase7" {
-		t.Fatalf("descriptor.ID = %q, want phase7", descriptor.ID)
+	if descriptor.ID != "projections" {
+		t.Fatalf("descriptor.ID = %q, want projections", descriptor.ID)
 	}
 	if len(fig.Children) != 3 {
 		t.Fatalf("len(fig.Children) = %d, want 3", len(fig.Children))

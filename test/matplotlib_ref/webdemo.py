@@ -335,7 +335,7 @@ def demo_polar(out_dir, width, height):
     save(fig, out_dir, "polar")
 
 
-def demo_phase7(out_dir, width, height):
+def demo_projections(out_dir, width, height):
     fig = make_fig(width, height)
     geo = fig.add_axes(rect(0.06, 0.16, 0.48, 0.84), projection="mollweide")
     geo.set_title("Mollweide Projection")
@@ -361,7 +361,7 @@ def demo_phase7(out_dir, width, height):
     ins.set_ylim(-0.2, 1.05)
     ins.grid(True)
     mark_inset(ax, ins, loc1=2, loc2=4, fc="none", ec="0.5")
-    save(fig, out_dir, "phase7")
+    save(fig, out_dir, "projections")
 
 
 def demo_subplots(out_dir, width, height):
@@ -735,7 +735,7 @@ DEMOS = {
     "annotations": demo_annotations,
     "composition": demo_composition,
     "polar": demo_polar,
-    "phase7": demo_phase7,
+    "projections": demo_projections,
     "subplots": demo_subplots,
 }
 

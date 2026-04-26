@@ -1,6 +1,7 @@
 package style
 
 import (
+	"math"
 	"testing"
 
 	"matplotlib-go/render"
@@ -16,6 +17,18 @@ func TestDefaults(t *testing.T) {
 	}
 	if len(d.ColorCycle) == 0 {
 		t.Fatalf("expected default color cycle")
+	}
+	if got, want := d.GridColor, (render.Color{R: 0xb0 / 255.0, G: 0xb0 / 255.0, B: 0xb0 / 255.0, A: 1}); got != want {
+		t.Fatalf("grid color = %+v, want Matplotlib default %+v", got, want)
+	}
+	if got, want := d.MinorGridColor, d.GridColor; got != want {
+		t.Fatalf("minor grid color = %+v, want major grid color %+v", got, want)
+	}
+	if got, want := d.GridLineWidth, 0.8*d.DPI/72.0; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("grid line width = %v, want Matplotlib 0.8 pt at %v DPI = %v", got, d.DPI, want)
+	}
+	if got, want := d.MinorGridLineWidth, d.GridLineWidth; got != want {
+		t.Fatalf("minor grid line width = %v, want major grid line width %v", got, want)
 	}
 }
 

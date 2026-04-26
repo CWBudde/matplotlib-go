@@ -238,9 +238,9 @@ func formatPolarThetaLabel(theta float64) string {
 		deg += 360
 	}
 	if approx(deg, math.Round(deg), 1e-9) {
-		return fmt.Sprintf("%.0f deg", math.Round(deg))
+		return fmt.Sprintf("%.0f°", math.Round(deg))
 	}
-	return fmt.Sprintf("%.1f deg", deg)
+	return fmt.Sprintf("%.1f°", deg)
 }
 
 const defaultRadarVariables = 5
