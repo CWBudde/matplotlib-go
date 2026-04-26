@@ -28,6 +28,8 @@ const (
 	ImageAnchorCustom
 )
 
+const imageDefaultZ = -1100
+
 // ImageOptions controls Image2D rendering.
 type ImageOptions struct {
 	Colormap *string
@@ -188,6 +190,7 @@ func (a *Axes) Image(data [][]float64, opts ...ImageOptions) *Image2D {
 		RotateX:  rotateX,
 		RotateY:  rotateY,
 		Label:    opt.Label,
+		z:        imageDefaultZ,
 	}
 	a.Add(image)
 	return image

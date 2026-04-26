@@ -31,6 +31,9 @@ func TestAxesImage_DefaultOptions(t *testing.T) {
 	if img.AngleDeg != 0 {
 		t.Fatalf("expected angle 0, got %v", img.AngleDeg)
 	}
+	if img.Z() >= NewGrid(AxisBottom).Z() {
+		t.Fatalf("expected default image z-order below grid, got image=%v grid=%v", img.Z(), NewGrid(AxisBottom).Z())
+	}
 }
 
 func TestAxesImage_CustomOptions(t *testing.T) {
