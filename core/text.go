@@ -111,6 +111,38 @@ func (a *Axes) Text(x, y float64, text string, opts ...TextOptions) *Text {
 	return artist
 }
 
+// Text adds arbitrary text positioned in figure-fraction coordinates.
+func (f *Figure) Text(x, y float64, text string, opts ...TextOptions) *Text {
+	if f == nil {
+		return nil
+	}
+	opt := TextOptions{
+		HAlign: TextAlignLeft,
+		VAlign: TextVAlignBaseline,
+		Coords: Coords(CoordFigure),
+	}
+	if len(opts) > 0 {
+		opt = opts[0]
+		opt.Coords = Coords(CoordFigure)
+	}
+
+	artist := &Text{
+		Position: geom.Pt{X: x, Y: y},
+		Content:  text,
+		FontSize: opt.FontSize,
+		Color:    opt.Color,
+		HAlign:   opt.HAlign,
+		VAlign:   opt.VAlign,
+		Coords:   opt.Coords,
+		OffsetX:  opt.OffsetX,
+		OffsetY:  opt.OffsetY,
+		z:        500,
+	}
+	f.Artists = append(f.Artists, artist)
+	f.zsorted = false
+	return artist
+}
+
 // Annotate adds an arrow annotation pointing to a data-space point.
 func (a *Axes) Annotate(text string, x, y float64, opts ...AnnotationOptions) *Annotation {
 	opt := AnnotationOptions{

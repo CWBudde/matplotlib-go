@@ -392,9 +392,6 @@ func (a *Axes) BarLabel(bar *Bar2D, labels []string, opts ...BarLabelOptions) []
 		position = "edge"
 	}
 	padding := opt.Padding
-	if padding == 0 {
-		padding = 4
-	}
 	format := opt.Format
 	if format == "" {
 		format = "%g"
@@ -489,6 +486,17 @@ func (s *Stairs2D) Bounds(*DrawContext) geom.Rect {
 
 // Z returns the stairs z-order.
 func (s *Stairs2D) Z() float64 { return s.z }
+
+func (s *Stairs2D) legendEntry() (legendEntry, bool) {
+	if s == nil || s.Label == "" {
+		return legendEntry{}, false
+	}
+	fillColor, strokeColor := s.resolvedColors()
+	if s.Fill {
+		return legendEntryFromPatchStyle(s.Label, fillColor, strokeColor, s.LineWidth, "", render.Color{}, 0), true
+	}
+	return legendEntryFromLine(s.Label, strokeColor, s.LineWidth, nil), true
+}
 
 // Draw renders the line segment in its configured coordinate spaces.
 func (s *Segment2D) Draw(r render.Renderer, ctx *DrawContext) {

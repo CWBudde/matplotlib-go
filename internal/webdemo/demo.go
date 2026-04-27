@@ -15,7 +15,6 @@ import (
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
-	"matplotlib-go/transform"
 )
 
 const (
@@ -310,9 +309,9 @@ func buildScatterDemo(width, height int) *core.Figure {
 	xB, yB := scatterCluster(2, 22, 1.0, 1.4, 64)
 	xC, yC := scatterCluster(3, 33, 2.4, -0.8, 64)
 
-	sizeA := 10.0
-	sizeB := 12.0
-	sizeC := 11.0
+	sizeA := ss(10.0)
+	sizeB := ss(12.0)
+	sizeC := ss(11.0)
 	diamond := core.MarkerDiamond
 	triangle := core.MarkerTriangle
 	square := core.MarkerSquare
@@ -496,8 +495,8 @@ func buildErrorBarsDemo(width, height int) *core.Figure {
 	errorColor := render.Color{R: 0.10, G: 0.12, B: 0.16, A: 1}
 	lineWidth := 2.1
 	errorWidth := 1.2
-	pointSize := 5.0
-	capSize := 7.0
+	pointSize := ss(5.0)
+	capSize := capsize(7.0)
 
 	ax.Plot(x, y, core.PlotOptions{
 		Color:     &lineColor,
@@ -530,19 +529,12 @@ func buildHeatmapDemo(width, height int) *core.Figure {
 
 	rows := 28
 	cols := 36
-	data := make([][]float64, rows)
-	for row := range rows {
-		data[row] = make([]float64, cols)
-		y := -1 + 2*float64(row)/float64(rows-1)
-		for col := range cols {
-			x := -1 + 2*float64(col)/float64(cols-1)
-			r1 := math.Hypot(x+0.35, y-0.15)
-			r2 := math.Hypot(x-0.4, y+0.2)
-			data[row][col] = math.Sin(8*r1)/(1+3*r1) + 0.8*math.Cos(7*r2)
-		}
-	}
+	data := heatmapData(rows, cols)
 
-	ax.Image(data, core.ImageOptions{Colormap: strPtr("inferno"), Origin: core.ImageOriginLower})
+	ax.Image(data, core.ImageOptions{
+		Colormap: strPtr("inferno"),
+		Origin:   core.ImageOriginLower,
+	})
 	ax.SetXLim(0, float64(cols))
 	ax.SetYLim(0, float64(rows))
 	return fig
@@ -630,15 +622,15 @@ func buildPolarDemo(width, height int) *core.Figure {
 	ax.SetTitle("Polar Wave")
 	ax.SetXLabel("theta")
 	ax.SetYLabel("radius")
-	ax.YScale = transform.NewLinear(0, 1.1)
+	ax.SetYLim(0, 1.1)
 
 	thetaGrid := ax.AddGrid(core.AxisBottom)
 	thetaGrid.Color = render.Color{R: 0.80, G: 0.82, B: 0.86, A: 1}
 	thetaGrid.LineWidth = 0.9
 
 	radiusGrid := ax.AddGrid(core.AxisLeft)
-	radiusGrid.Color = render.Color{R: 0.82, G: 0.84, B: 0.88, A: 0.9}
-	radiusGrid.LineWidth = 0.8
+	radiusGrid.Color = render.Color{R: 0.80, G: 0.82, B: 0.86, A: 1}
+	radiusGrid.LineWidth = 0.9
 
 	const n = 720
 	theta := make([]float64, n)
@@ -720,7 +712,7 @@ func buildProjectionsDemo(width, height int) *core.Figure {
 	mainAx.Plot(x, y, core.PlotOptions{Color: &lineColor, LineWidth: floatPtr(2.0)})
 
 	inset, _ := mainAx.ZoomedInset(
-		geom.Rect{Min: geom.Pt{X: 0.52, Y: 0.52}, Max: geom.Pt{X: 0.95, Y: 0.92}},
+		geom.Rect{Min: geom.Pt{X: 0.551, Y: 0.581}, Max: geom.Pt{X: 0.981, Y: 0.981}},
 		[2]float64{2, 4},
 		[2]float64{-0.2, 1.05},
 	)
@@ -741,8 +733,6 @@ func buildSubplotsDemo(width, height int) *core.Figure {
 		2,
 		core.WithSubplotPadding(0.08, 0.97, 0.10, 0.92),
 		core.WithSubplotSpacing(0.08, 0.12),
-		core.WithSubplotShareX(),
-		core.WithSubplotShareY(),
 	)
 
 	palette := []render.Color{
@@ -896,9 +886,6 @@ func buildAxesDemo(width, height int) *core.Figure {
 	left.SetAxisEqual()
 	_ = left.SetBoxAspect(1)
 	_ = left.MinorticksOn("both")
-	_ = left.LocatorParams(core.LocatorParams{Axis: "both", MajorCount: 6, MinorCount: 24})
-	_ = left.TickParams(core.TickParams{Axis: "both", Which: "major", Length: floatPtr(7), Width: floatPtr(1.2)})
-	_ = left.TickParams(core.TickParams{Axis: "both", Which: "minor", Length: floatPtr(4), Width: floatPtr(0.9)})
 	left.Plot([]float64{-0.5, 0.8, 2.2, 4.2}, []float64{-0.2, 1.0, 2.1, 4.4}, core.PlotOptions{
 		Color:     &render.Color{R: 0.10, G: 0.32, B: 0.76, A: 1},
 		LineWidth: floatPtr(2),
@@ -907,7 +894,7 @@ func buildAxesDemo(width, height int) *core.Figure {
 		Color:     &render.Color{R: 0.92, G: 0.48, B: 0.20, A: 0.92},
 		EdgeColor: &render.Color{R: 0.52, G: 0.22, B: 0.08, A: 1},
 		EdgeWidth: floatPtr(1),
-		Size:      floatPtr(8),
+		Size:      floatPtr(ss(8)),
 	})
 
 	right := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.56, Y: 0.14}, Max: geom.Pt{X: 0.94, Y: 0.86}})
@@ -927,19 +914,12 @@ func buildAxesDemo(width, height int) *core.Figure {
 	twin := right.TwinX()
 	twin.SetYLim(0, 100)
 	twinLineColor := render.Color{R: 0.80, G: 0.22, B: 0.22, A: 1}
-	if axis := twin.RightAxis(); axis != nil {
-		axis.MinorLocator = nil
-	}
 	twin.Plot([]float64{0, 2, 4, 6, 8, 10}, []float64{10, 22, 38, 58, 81, 96}, core.PlotOptions{
 		Color:     &twinLineColor,
 		LineWidth: floatPtr(1.8),
 		Label:     "twin",
 	})
-	if sec, err := right.SecondaryXAxis(core.AxisTop, func(x float64) float64 { return x * 10 }, func(x float64) (float64, bool) { return x / 10, true }); err == nil {
-		if axis := sec.TopAxis(); axis != nil {
-			axis.MinorLocator = nil
-		}
-	}
+	_, _ = right.SecondaryXAxis(core.AxisTop, func(x float64) float64 { return x * 10 }, func(x float64) (float64, bool) { return x / 10, true })
 	right.AddLegend()
 	return fig
 }
@@ -969,14 +949,20 @@ func buildStatisticsDemo(width, height int) *core.Figure {
 
 	ecdfAx := grid[0][1]
 	ecdfAx.SetTitle("ECDF")
+	ecdfVals := []float64{1.2, 1.8, 2.0, 2.0, 3.1, 3.7, 4.3, 5.0, 5.8, 6.6, 7.0}
+	ecdfProb := make([]float64, len(ecdfVals))
+	for i := range ecdfProb {
+		ecdfProb[i] = float64(i+1) / float64(len(ecdfVals))
+	}
+	ecdfWhere := core.StepWherePost
+	ecdfAx.Step(ecdfVals, ecdfProb, core.StepOptions{
+		Color:     &render.Color{R: 0.18, G: 0.36, B: 0.75, A: 1},
+		LineWidth: floatPtr(2),
+		Where:     &ecdfWhere,
+	})
 	ecdfAx.SetXLim(0, 8)
 	ecdfAx.SetYLim(0, 1.05)
 	ecdfAx.AddYGrid()
-	ecdfAx.ECDF([]float64{1.2, 1.8, 2.0, 2.0, 3.1, 3.7, 4.3, 5.0, 5.8, 6.6, 7.0}, core.ECDFOptions{
-		Color:     &render.Color{R: 0.18, G: 0.36, B: 0.75, A: 1},
-		LineWidth: floatPtr(2),
-		Compress:  true,
-	})
 
 	stackAx := grid[1][0]
 	stackAx.SetTitle("StackPlot")
@@ -1026,8 +1012,9 @@ func buildUnitsDemo(width, height int) *core.Figure {
 		Color:     &render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1},
 		LineWidth: floatPtr(2),
 	})
-	_ = dateAx.TickParams(core.TickParams{Axis: "x", Which: "major", LabelRotation: floatPtr(30)})
 	dateAx.AutoScale(0.05)
+	dateAx.XAxis.Formatter = core.DateFormatter{Layout: "2006-01-02", Location: time.UTC}
+	_ = dateAx.TickParams(core.TickParams{Axis: "x", Which: "major", LabelRotation: floatPtr(30)})
 
 	categoryAx := grid[0][1]
 	categoryAx.SetTitle("Categories")
@@ -1061,7 +1048,10 @@ func buildMatrixDemo(width, height int) *core.Figure {
 
 	matAx := grid[0][0]
 	matAx.SetTitle("MatShow")
-	matAx.MatShow([][]float64{{0.1, 0.5, 0.9}, {0.7, 0.3, 0.2}, {0.4, 0.8, 0.6}}, core.MatShowOptions{Colormap: strPtr("viridis")})
+	matAx.Image([][]float64{{0.1, 0.5, 0.9}, {0.7, 0.3, 0.2}, {0.4, 0.8, 0.6}}, core.ImageOptions{Colormap: strPtr("viridis"), Origin: core.ImageOriginUpper, XMin: floatPtr(-0.5), XMax: floatPtr(2.5), YMin: floatPtr(2.5), YMax: floatPtr(-0.5)})
+	_ = matAx.SetAspect("equal")
+	matAx.SetXLim(-0.5, 2.5)
+	matAx.SetYLim(2.5, -0.5)
 
 	spyAx := grid[0][1]
 	spyAx.SetTitle("Spy")
@@ -1072,15 +1062,30 @@ func buildMatrixDemo(width, height int) *core.Figure {
 
 	heatAx := grid[0][2]
 	heatAx.SetTitle("Annotated Heatmap")
-	img := heatAx.AnnotatedHeatmap([][]float64{{0.1, 0.7, 0.4}, {0.9, 0.2, 0.5}, {0.3, 0.8, 0.6}}, core.AnnotatedHeatmapOptions{
-		MatShowOptions: core.MatShowOptions{Colormap: strPtr("magma")},
-		Format:         "%.1f",
-		FontSize:       9,
-		TextColor:      render.Color{R: 0.05, G: 0.05, B: 0.05, A: 1},
-		TextColorHigh:  render.Color{R: 1, G: 1, B: 1, A: 1},
-	})
-	if img != nil && img.Image != nil {
-		fig.AddColorbar(heatAx, img.Image, core.ColorbarOptions{Label: "value"})
+	colorbarWidth := 0.035
+	colorbarPadding := 0.053
+	heatAx.RectFraction.Max.X -= colorbarWidth + colorbarPadding
+	heatData := [][]float64{{0.1, 0.7, 0.4}, {0.9, 0.2, 0.5}, {0.3, 0.8, 0.6}}
+	img := heatAx.Image(heatData, core.ImageOptions{Colormap: strPtr("magma"), Origin: core.ImageOriginUpper, XMin: floatPtr(-0.5), XMax: floatPtr(2.5), YMin: floatPtr(2.5), YMax: floatPtr(-0.5)})
+	_ = heatAx.SetAspect("equal")
+	heatAx.SetXLim(-0.5, 2.5)
+	heatAx.SetYLim(2.5, -0.5)
+	for y, row := range heatData {
+		for x, value := range row {
+			textColor := render.Color{R: 0.05, G: 0.05, B: 0.05, A: 1}
+			if value > 0.5 {
+				textColor = render.Color{R: 1, G: 1, B: 1, A: 1}
+			}
+			heatAx.Text(float64(x), float64(y), fmt.Sprintf("%.1f", value), core.TextOptions{
+				HAlign:   core.TextAlignCenter,
+				VAlign:   core.TextVAlignMiddle,
+				FontSize: 9,
+				Color:    textColor,
+			})
+		}
+	}
+	if img != nil {
+		fig.AddColorbar(heatAx, img, core.ColorbarOptions{Width: colorbarWidth, Padding: colorbarPadding, Label: "value"})
 	}
 	return fig
 }
@@ -1093,62 +1098,46 @@ func buildMeshDemo(width, height int) *core.Figure {
 	meshEdgeColor := render.Color{R: 0.95, G: 0.95, B: 0.95, A: 1}
 	meshAx := grid[0][0]
 	meshAx.SetTitle("PColorMesh")
-	meshAx.SetXLim(0, 4)
-	meshAx.SetYLim(0, 3)
 	meshAx.PColorMesh([][]float64{{0.2, 0.6, 0.3, 0.9}, {0.4, 0.8, 0.5, 0.7}, {0.1, 0.3, 0.9, 0.6}}, core.MeshOptions{
 		XEdges: []float64{0, 1, 2, 3, 4}, YEdges: []float64{0, 1, 2, 3}, EdgeColor: &meshEdgeColor, EdgeWidth: &meshEdgeWidth,
 	})
+	meshAx.SetXLim(0, 4)
+	meshAx.SetYLim(0, 3)
 
 	contourAx := grid[0][1]
 	contourAx.SetTitle("Contour + Contourf")
-	contourAx.SetXLim(0, 4)
-	contourAx.SetYLim(0, 4)
 	contourData := [][]float64{{0, 0.4, 0.8, 0.4, 0}, {0.2, 0.8, 1.3, 0.8, 0.2}, {0.3, 1.0, 1.7, 1.0, 0.3}, {0.2, 0.8, 1.3, 0.8, 0.2}, {0, 0.4, 0.8, 0.4, 0}}
 	contourAx.Contourf(contourData, core.ContourOptions{Levels: []float64{0.2, 0.6, 1.0, 1.4, 1.8}})
-	contourAx.Contour(contourData, core.ContourOptions{Levels: []float64{0.4, 0.8, 1.2, 1.6}, Color: &render.Color{R: 0.18, G: 0.18, B: 0.18, A: 1}})
+	contourAx.Contour(contourData, core.ContourOptions{Levels: []float64{0.4, 0.8, 1.2, 1.6}, Colors: []render.Color{{R: 0.18, G: 0.18, B: 0.18, A: 1}}})
+	contourAx.SetXLim(0, 4)
+	contourAx.SetYLim(0, 4)
 
 	histAx := grid[1][0]
 	histAx.SetTitle("Hist2D")
-	histAx.SetXLim(0, 4)
-	histAx.SetYLim(0, 4)
 	histAx.Hist2D([]float64{0.4, 0.7, 1.1, 1.4, 1.8, 2.1, 2.3, 2.6, 2.9, 3.2, 3.4, 3.6}, []float64{0.6, 1.0, 1.2, 1.6, 1.4, 2.0, 2.3, 2.1, 2.8, 3.0, 3.2, 3.4}, core.Hist2DOptions{
 		XBinEdges: []float64{0, 1, 2, 3, 4}, YBinEdges: []float64{0, 1, 2, 3, 4},
 	})
+	histAx.SetXLim(0, 4)
+	histAx.SetYLim(0, 4)
 
 	triAx := grid[1][1]
 	triAx.SetTitle("Triangulation")
-	triAx.SetXLim(0, 4)
-	triAx.SetYLim(0, 4)
 	tri := core.Triangulation{X: []float64{0.4, 1.6, 3.0, 0.8, 2.1, 3.5}, Y: []float64{0.5, 0.4, 0.7, 2.2, 2.8, 2.1}, Triangles: [][3]int{{0, 1, 3}, {1, 4, 3}, {1, 2, 4}, {2, 5, 4}}}
 	values := []float64{0.2, 0.8, 1.0, 1.5, 1.1, 0.6}
 	triAx.TriColor(tri, values)
 	triAx.TriPlot(tri, core.TriPlotOptions{Color: &render.Color{R: 0.15, G: 0.15, B: 0.15, A: 1}, LineWidth: floatPtr(1)})
-	triAx.TriContour(tri, values, core.ContourOptions{Levels: []float64{0.7, 1.1}, Color: &render.Color{R: 0.98, G: 0.98, B: 0.98, A: 1}})
+	triAx.TriContour(tri, values, core.ContourOptions{Levels: []float64{0.7, 1.1}, Colors: []render.Color{{R: 0.98, G: 0.98, B: 0.98, A: 1}}})
+	triAx.SetXLim(0, 4)
+	triAx.SetYLim(0, 4)
 	return fig
 }
 
 func buildVectorFieldsDemo(width, height int) *core.Figure {
 	fig := core.NewFigure(width, height)
-	axes := map[string]*core.Axes{
-		"quiver": fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.07, Y: 0.58}, Max: geom.Pt{X: 0.47, Y: 0.92}}),
-		"barbs":  fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.57, Y: 0.58}, Max: geom.Pt{X: 0.97, Y: 0.92}}),
-		"stream": fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.07, Y: 0.10}, Max: geom.Pt{X: 0.47, Y: 0.44}}),
-		"xy":     fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.57, Y: 0.10}, Max: geom.Pt{X: 0.97, Y: 0.44}}),
-	}
-	addVectorGrid := func(ax *core.Axes) {
-		xGrid := ax.AddXGrid()
-		yGrid := ax.AddYGrid()
-		for _, grid := range []*core.Grid{xGrid, yGrid} {
-			grid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
-			grid.LineWidth = 0.5
-		}
-	}
+	grid := fig.Subplots(2, 2, core.WithSubplotPadding(0.08, 0.97, 0.10, 0.91), core.WithSubplotSpacing(0.10, 0.16))
 
-	quiverAx := axes["quiver"]
+	quiverAx := grid[0][0]
 	quiverAx.SetTitle("Quiver + Key")
-	quiverAx.SetXLim(0, 6)
-	quiverAx.SetYLim(0, 5)
-	addVectorGrid(quiverAx)
 	var qx, qy, qu, qv []float64
 	for row := 0; row < 4; row++ {
 		for col := 0; col < 5; col++ {
@@ -1158,16 +1147,17 @@ func buildVectorFieldsDemo(width, height int) *core.Figure {
 			qu, qv = append(qu, 0.55+0.08*math.Sin(y*0.9)), append(qv, 0.22*math.Cos(x*0.8))
 		}
 	}
-	quiver := quiverAx.Quiver(qx, qy, qu, qv, core.QuiverOptions{Color: &render.Color{R: 0.14, G: 0.42, B: 0.73, A: 1}, Scale: floatPtr(10), ScaleUnits: "width", Units: "dots", Width: floatPtr(2.2)})
+	quiver := quiverAx.Quiver(qx, qy, qu, qv, core.QuiverOptions{Color: &render.Color{R: 0.14, G: 0.42, B: 0.73, A: 1}, Scale: floatPtr(10), Units: "dots", Width: floatPtr(2.2)})
 	if quiver != nil {
 		quiverAx.QuiverKey(quiver, 0.78, 0.12, 0.5, "0.5", core.QuiverKeyOptions{Coords: core.Coords(core.CoordAxes), LabelPos: "E"})
 	}
+	quiverAx.SetXLim(0, 6)
+	quiverAx.SetYLim(0, 5)
+	quiverAx.AddXGrid()
+	quiverAx.AddYGrid()
 
-	barbAx := axes["barbs"]
+	barbAx := grid[0][1]
 	barbAx.SetTitle("Barbs")
-	barbAx.SetXLim(0, 6)
-	barbAx.SetYLim(0, 5)
-	addVectorGrid(barbAx)
 	var bx, by, bu, bv []float64
 	for row := 0; row < 4; row++ {
 		for col := 0; col < 5; col++ {
@@ -1178,24 +1168,24 @@ func buildVectorFieldsDemo(width, height int) *core.Figure {
 		}
 	}
 	barbLength := 6.0 * (6.0 / 2.0) * fig.RC.DPI / 72.0
-	barbAx.Barbs(bx, by, bu, bv, core.BarbsOptions{BarbColor: &render.Color{R: 0.47, G: 0.23, B: 0.12, A: 1}, FlagColor: &render.Color{R: 0.86, G: 0.52, B: 0.24, A: 1}, Length: &barbLength, LineWidth: floatPtr(1), Units: "dots"})
+	barbAx.Barbs(bx, by, bu, bv, core.BarbsOptions{BarbColor: &render.Color{R: 0.47, G: 0.23, B: 0.12, A: 1}, FlagColor: &render.Color{R: 0.86, G: 0.52, B: 0.24, A: 1}, Length: &barbLength, Units: "dots"})
+	barbAx.SetXLim(0, 6)
+	barbAx.SetYLim(0, 5)
+	barbAx.AddXGrid()
+	barbAx.AddYGrid()
 
-	streamAx := axes["stream"]
+	streamAx := grid[1][0]
 	streamAx.SetTitle("Streamplot")
-	streamAx.SetXLim(0, 6)
-	streamAx.SetYLim(0, 5)
-	addVectorGrid(streamAx)
 	sx := []float64{0, 1, 2, 3, 4, 5, 6}
 	sy := []float64{0, 1, 2, 3, 4, 5}
 	su, sv := vectorGrid(sx, sy)
 	streamFalse := false
-	streamAx.Streamplot(sx, sy, su, sv, core.StreamplotOptions{StartPoints: []geom.Pt{{X: 0.4, Y: 0.8}, {X: 0.4, Y: 2.2}, {X: 0.4, Y: 3.6}}, BrokenStreamlines: &streamFalse, IntegrationDirection: "forward", ArrowSize: floatPtr(1), LineWidth: floatPtr(1.5), Color: &render.Color{R: 0.13, G: 0.53, B: 0.39, A: 1}})
+	streamAx.Streamplot(sx, sy, su, sv, core.StreamplotOptions{StartPoints: []geom.Pt{{X: 0.4, Y: 0.8}, {X: 0.4, Y: 2.2}, {X: 0.4, Y: 3.6}}, BrokenStreamlines: &streamFalse, IntegrationDirection: "forward", Color: &render.Color{R: 0.13, G: 0.53, B: 0.39, A: 1}})
+	streamAx.SetXLim(0, 6)
+	streamAx.SetYLim(0, 5)
 
-	xyAx := axes["xy"]
-	xyAx.SetTitle("Quiver XY")
-	xyAx.SetXLim(0, 6)
-	xyAx.SetYLim(0, 5)
-	addVectorGrid(xyAx)
+	xyAx := grid[1][1]
+	xyAx.SetTitle("Quiver Grid XY")
 	xg := []float64{0.8, 1.8, 2.8, 3.8, 4.8}
 	yg := []float64{0.8, 1.8, 2.8, 3.8}
 	ugu := make([][]float64, len(yg))
@@ -1207,7 +1197,9 @@ func buildVectorFieldsDemo(width, height int) *core.Figure {
 			ugv[yi][xi] = (x - 2.8) * 0.35
 		}
 	}
-	xyAx.QuiverGrid(xg, yg, ugu, ugv, core.QuiverOptions{Color: &render.Color{R: 0.74, G: 0.23, B: 0.27, A: 1}, Pivot: "middle", Angles: "xy", Scale: floatPtr(9), ScaleUnits: "width", Units: "dots", Width: floatPtr(1.9)})
+	xyAx.QuiverGrid(xg, yg, ugu, ugv, core.QuiverOptions{Color: &render.Color{R: 0.74, G: 0.23, B: 0.27, A: 1}, Pivot: "middle", Angles: "xy", Scale: floatPtr(9), Units: "dots", Width: floatPtr(1.9)})
+	xyAx.SetXLim(0, 6)
+	xyAx.SetYLim(0, 5)
 	return fig
 }
 
@@ -1275,9 +1267,9 @@ func buildAnnotationsDemo(width, height int) *core.Figure {
 		}
 	}
 	ax.Plot(x, y, core.PlotOptions{Color: &render.Color{R: 0.13, G: 0.43, B: 0.72, A: 1}, LineWidth: floatPtr(2.2), Label: "signal"})
-	ax.Annotate("peak", peakX, peakY, core.AnnotationOptions{OffsetX: 44, OffsetY: -34, FontSize: 12})
+	ax.Annotate("peak", peakX, peakY, core.AnnotationOptions{OffsetX: points(44), OffsetY: -points(34)})
 	ax.Text(0.03, 0.94, "axes coords", core.TextOptions{Coords: core.Coords(core.CoordAxes), HAlign: core.TextAlignLeft, VAlign: core.TextVAlignTop, FontSize: 11})
-	ax.Text(0.50, 0.10, "figure coords", core.TextOptions{Coords: core.Coords(core.CoordFigure), HAlign: core.TextAlignCenter, VAlign: core.TextVAlignBottom, FontSize: 11})
+	fig.Text(0.50, 0.10, "figure coords", core.TextOptions{HAlign: core.TextAlignCenter, VAlign: core.TextVAlignBottom, FontSize: 11})
 	ax.Text(6.0, -0.55, "data coords", core.TextOptions{FontSize: 11, Color: render.Color{R: 0.56, G: 0.22, B: 0.18, A: 1}})
 	ax.AddAnchoredText("anchored\ntext box", core.AnchoredTextOptions{Location: core.LegendLowerRight})
 	ax.SetXLim(0, 8)
@@ -1309,7 +1301,7 @@ func buildCompositionDemo(width, height int) *core.Figure {
 	left.SetTitle("spanning axes")
 	left.AddYGrid()
 	left.Plot([]float64{0, 1, 2, 3, 4}, []float64{1.0, 1.6, 1.2, 2.2, 1.8}, core.PlotOptions{Color: &render.Color{R: 0.16, G: 0.42, B: 0.82, A: 1}, LineWidth: floatPtr(2), Label: "left"})
-	left.Scatter([]float64{0, 1, 2, 3, 4}, []float64{1.0, 1.6, 1.2, 2.2, 1.8}, core.ScatterOptions{Color: &render.Color{R: 0.91, G: 0.45, B: 0.16, A: 1}, Size: floatPtr(6), Label: "points"})
+	left.Scatter([]float64{0, 1, 2, 3, 4}, []float64{1.0, 1.6, 1.2, 2.2, 1.8}, core.ScatterOptions{Color: &render.Color{R: 0.91, G: 0.45, B: 0.16, A: 1}, Size: floatPtr(ss(6)), Label: "points"})
 	left.AutoScale(0.05)
 	left.XAxis.Locator = core.FixedLocator{TicksList: []float64{0, 1, 2, 3, 4}}
 	left.YAxis.Locator = core.FixedLocator{TicksList: []float64{1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2}}
@@ -1337,7 +1329,10 @@ func buildCompositionDemo(width, height int) *core.Figure {
 	heatRect.Max.X -= colorbarWidth + colorbarPadding
 	heat := fig.AddAxes(heatRect)
 	heat.SetTitle("colorbar")
-	img := heat.MatShow([][]float64{{0.2, 0.5, 0.7}, {0.9, 0.4, 0.1}, {0.3, 0.8, 0.6}}, core.MatShowOptions{Colormap: strPtr("inferno")})
+	img := heat.Image([][]float64{{0.2, 0.5, 0.7}, {0.9, 0.4, 0.1}, {0.3, 0.8, 0.6}}, core.ImageOptions{Colormap: strPtr("inferno"), Origin: core.ImageOriginUpper, XMin: floatPtr(-0.5), XMax: floatPtr(2.5), YMin: floatPtr(2.5), YMax: floatPtr(-0.5)})
+	_ = heat.SetAspect("equal")
+	heat.SetXLim(-0.5, 2.5)
+	heat.SetYLim(2.5, -0.5)
 	if img != nil {
 		cb := fig.AddColorbar(heat, img, core.ColorbarOptions{
 			Width:   colorbarWidth,
@@ -1359,15 +1354,7 @@ func buildCompositionDemo(width, height int) *core.Figure {
 			Max: geom.Pt{X: right, Y: top + boxHeight},
 		}
 	}))
-	note := fig.AddAnchoredText("figure note", core.AnchoredTextOptions{Location: core.LegendLowerRight})
-	note.SetLocator(core.AnchoredBoxLocatorFunc(func(_ geom.Rect, boxWidth, boxHeight float64) geom.Rect {
-		right := float64(width) - 13.64
-		bottom := float64(height) - 5.25
-		return geom.Rect{
-			Min: geom.Pt{X: right - boxWidth, Y: bottom - boxHeight},
-			Max: geom.Pt{X: right, Y: bottom},
-		}
-	}))
+	fig.Text(0.98, 0.02, "figure note", core.TextOptions{HAlign: core.TextAlignRight, VAlign: core.TextVAlignBottom})
 	return fig
 }
 
@@ -1388,6 +1375,19 @@ func linspace(min, max float64, n int) []float64 {
 		out[i] = min + float64(i)*step
 	}
 	return out
+}
+
+func ss(radiusPx float64) float64 {
+	radiusPt := radiusPx * 72.0 / 100.0
+	return math.Pi * radiusPt * radiusPt
+}
+
+func capsize(points float64) float64 {
+	return 2 * points * 100.0 / 72.0
+}
+
+func points(v float64) float64 {
+	return v * 100.0 / 72.0
 }
 
 func scatterCluster(seed1, seed2 uint64, centerX, centerY float64, n int) ([]float64, []float64) {
@@ -1431,6 +1431,21 @@ func vectorGrid(x, y []float64) ([][]float64, [][]float64) {
 		}
 	}
 	return u, v
+}
+
+func heatmapData(rows, cols int) [][]float64 {
+	data := make([][]float64, rows)
+	for row := range rows {
+		data[row] = make([]float64, cols)
+		y := -1 + 2*float64(row)/float64(rows-1)
+		for col := range cols {
+			x := -1 + 2*float64(col)/float64(cols-1)
+			r1 := math.Hypot(x+0.35, y-0.15)
+			r2 := math.Hypot(x-0.4, y+0.2)
+			data[row][col] = math.Sin(8*r1)/(1+3*r1) + 0.8*math.Cos(7*r2)
+		}
+	}
+	return data
 }
 
 func hideAxes(ax *core.Axes) {

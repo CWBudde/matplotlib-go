@@ -167,11 +167,16 @@ func TestAxesBarLabel_Placement(t *testing.T) {
 	if labels[0].Content != "up" || labels[1].Content != "down" {
 		t.Fatalf("unexpected labels: %q %q", labels[0].Content, labels[1].Content)
 	}
-	if labels[0].Position != (geom.Pt{X: 1, Y: 4}) || labels[0].VAlign != TextVAlignBottom || labels[0].OffsetY != -4 {
+	if labels[0].Position != (geom.Pt{X: 1, Y: 4}) || labels[0].VAlign != TextVAlignBottom || labels[0].OffsetY != 0 {
 		t.Fatalf("positive bar label = %+v", *labels[0])
 	}
-	if labels[1].Position != (geom.Pt{X: 2, Y: 2}) || labels[1].VAlign != TextVAlignTop || labels[1].OffsetY != 4 {
+	if labels[1].Position != (geom.Pt{X: 2, Y: 2}) || labels[1].VAlign != TextVAlignTop || labels[1].OffsetY != 0 {
 		t.Fatalf("negative bar label = %+v", *labels[1])
+	}
+
+	padded := ax.BarLabel(bar, []string{"padded"}, BarLabelOptions{Padding: 4})
+	if len(padded) == 0 || padded[0].OffsetY != -4 {
+		t.Fatalf("explicit padded label = %+v", padded)
 	}
 
 	centered := ax.BarLabel(bar, nil, BarLabelOptions{Position: "center", Format: "%.1f"})
