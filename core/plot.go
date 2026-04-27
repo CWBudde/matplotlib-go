@@ -77,7 +77,7 @@ func (a *Axes) Plot(x, y []float64, opts ...PlotOptions) *Line2D {
 // ScatterOptions holds optional parameters for scatter plots.
 type ScatterOptions struct {
 	Color      *render.Color // if nil, uses automatic color cycling
-	Size       *float64      // marker size
+	Size       *float64      // marker area in points^2
 	Marker     *MarkerType   // marker type
 	MarkerPath *geom.Path    // custom marker path (overrides Marker when non-nil)
 	EdgeColor  *render.Color // edge color

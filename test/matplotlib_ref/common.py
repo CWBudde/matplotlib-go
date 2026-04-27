@@ -161,9 +161,8 @@ def lw(go_width_px):
 
 
 def ss(go_radius_px):
-    """Go scatter radius (pixels) → matplotlib scatter s (points²).
+    """Desired scatter radius (pixels) → matplotlib scatter s (points²).
 
-    Go Scatter2D.Size is radius in pixels.
     Matplotlib scatter s ≈ π·r² where r is the radius in points.
     """
     r_pt = go_radius_px * 72.0 / DPI

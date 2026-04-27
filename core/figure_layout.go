@@ -272,7 +272,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleSize, fig.RC.FontKey)
 		anchor := geom.Pt{
 			X: centerX,
-			Y: figureRect.Min.Y + pointsToPixels(fig.RC, 6),
+			Y: figureRect.Min.Y,
 		}
 		drawDisplayText(
 			textRen,

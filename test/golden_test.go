@@ -51,6 +51,20 @@ func registerTestDistanceUnits() {
 	})
 }
 
+func referenceScatterAreaFromRadius(radiusPx float64) float64 {
+	radiusPt := radiusPx * 72.0 / style.Default.DPI
+	return math.Pi * radiusPt * radiusPt
+}
+
+func referenceDateNumber(t time.Time) float64 {
+	t = t.UTC()
+	return float64(t.Unix()) + float64(t.Nanosecond())/1e9
+}
+
+func referencePointsToPixels(points float64) float64 {
+	return points * style.Default.DPI / 72.0
+}
+
 func TestBasicLine_Golden(t *testing.T) {
 	runGoldenTest(t, "basic_line", renderBasicLine)
 }
@@ -1628,41 +1642,44 @@ func renderFigureLabelsComposition() image.Image {
 				x[i] = xv
 				y[i] = math.Sin(xv+float64(row)*0.5) * (1 + float64(col)*0.2)
 			}
-			ax.Plot(x, y, core.PlotOptions{Label: fmt.Sprintf("series %d", row*2+col+1)})
+			ax.Plot(x, y, core.PlotOptions{
+				LineWidth: floatPtr(referencePointsToPixels(1.5)),
+				Label:     fmt.Sprintf("series %d", row*2+col+1),
+			})
 			ax.SetTitle(fmt.Sprintf("Panel %d", row*2+col+1))
 			ax.SetXLabel("local x")
 			ax.SetYLabel("local y")
 			ax.SetXLim(0, 2*math.Pi)
 			ax.SetYLim(-1.6, 1.6)
-			ax.AddXGrid()
-			ax.AddYGrid()
+			addReferenceXYGrid(ax)
 		}
 	}
 
 	grid[0][0].AddAnchoredText("upper-left\nnote", core.AnchoredTextOptions{
 		Locator: core.RelativeAnchoredBoxLocator{
-			X: 0.02, Y: 0.08,
+			X: 0.005, Y: 0.055,
 			HAlign: core.BoxAlignLeft,
 			VAlign: core.BoxAlignTop,
 		},
 	})
 	grid[1][1].AddAnchoredText("lower-right", core.AnchoredTextOptions{
 		Locator: core.RelativeAnchoredBoxLocator{
-			X: 0.98, Y: 0.92,
+			X: 0.99, Y: 0.955,
 			HAlign: core.BoxAlignRight,
 			VAlign: core.BoxAlignBottom,
 		},
 	})
 	fig.AddAnchoredText("Figure note", core.AnchoredTextOptions{
+		Location: core.LegendUpperRight,
 		Locator: core.RelativeAnchoredBoxLocator{
-			X: 0.985, Y: 0.06,
+			X: 0.988, Y: 0.02,
 			HAlign: core.BoxAlignRight,
 			VAlign: core.BoxAlignTop,
 		},
 	})
 	legend := fig.AddLegend()
 	legend.SetLocator(core.RelativeAnchoredBoxLocator{
-		X: 0.99, Y: 0.10,
+		X: 0.99, Y: 0.03,
 		HAlign: core.BoxAlignRight,
 		VAlign: core.BoxAlignTop,
 	})
@@ -1704,8 +1721,7 @@ func renderColorbarComposition() image.Image {
 	ax.SetYLabel("y")
 	ax.SetXLim(0, cols)
 	ax.SetYLim(0, rows)
-	ax.AddXGrid()
-	ax.AddYGrid()
+	addReferenceXYGrid(ax)
 	fig.AddColorbar(ax, img, core.ColorbarOptions{
 		Width:   0.030,
 		Padding: 0.054,
@@ -2007,7 +2023,7 @@ func renderUnitsOverview() image.Image {
 	})
 	dateAx.SetTitle("Dates")
 	dateAx.SetYLabel("Requests")
-	dateAx.AddYGrid()
+	addReferenceYGrid(dateAx)
 	_, err := dateAx.PlotUnits(
 		[]time.Time{
 			time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC),
@@ -2032,7 +2048,7 @@ func renderUnitsOverview() image.Image {
 	})
 	categoryAx.SetTitle("Categories")
 	categoryAx.SetYLabel("Count")
-	categoryAx.AddYGrid()
+	addReferenceYGrid(categoryAx)
 	_, err = categoryAx.BarUnits(
 		[]string{"alpha", "beta", "gamma", "delta"},
 		[]float64{4, 9, 6, 7},
@@ -2054,8 +2070,7 @@ func renderUnitsOverview() image.Image {
 	unitAx.SetTitle("Custom Units")
 	unitAx.SetXLabel("Distance")
 	unitAx.SetYLabel("Pace")
-	unitAx.AddXGrid()
-	unitAx.AddYGrid()
+	addReferenceXYGrid(unitAx)
 	_, err = unitAx.ScatterUnits(
 		[]testDistanceKM{5, 10, 21.1, 42.2},
 		[]float64{6.4, 5.8, 5.2, 5.5},
@@ -2063,7 +2078,7 @@ func renderUnitsOverview() image.Image {
 			Color:     &render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.92},
 			EdgeColor: &render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1},
 			EdgeWidth: floatPtr(1.0),
-			Size:      floatPtr(8.0),
+			Size:      floatPtr(referenceScatterAreaFromRadius(8.0)),
 		},
 	)
 	if err != nil {
@@ -2079,13 +2094,26 @@ func renderUnitsOverview() image.Image {
 	return r.GetImage()
 }
 
+func addReferenceYGrid(ax *core.Axes) {
+	grid := ax.AddGrid(core.AxisLeft)
+	grid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
+	grid.LineWidth = 0.5
+}
+
+func addReferenceXYGrid(ax *core.Axes) {
+	xGrid := ax.AddGrid(core.AxisBottom)
+	xGrid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
+	xGrid.LineWidth = 0.5
+	addReferenceYGrid(ax)
+}
+
 func renderUnitsDates() image.Image {
 	fig := core.NewFigure(720, 380)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.18}, Max: geom.Pt{X: 0.94, Y: 0.88}})
 	ax.SetTitle("Date Units")
 	ax.SetXLabel("Date")
 	ax.SetYLabel("Requests")
-	ax.AddYGrid()
+	addReferenceYGrid(ax)
 
 	dates := []time.Time{
 		time.Date(2024, time.February, 1, 0, 0, 0, 0, time.UTC),
@@ -2110,6 +2138,12 @@ func renderUnitsDates() image.Image {
 		panic(err)
 	}
 	ax.AutoScale(0.06)
+	ax.XAxis.Locator = core.FixedLocator{TicksList: []float64{
+		referenceDateNumber(time.Date(2024, time.February, 5, 0, 0, 0, 0, time.UTC)),
+		referenceDateNumber(time.Date(2024, time.February, 12, 0, 0, 0, 0, time.UTC)),
+		referenceDateNumber(time.Date(2024, time.February, 19, 0, 0, 0, 0, time.UTC)),
+	}}
+	ax.XAxis.Formatter = core.DateFormatter{Layout: "02 Jan", Location: time.UTC}
 
 	r, err := agg.New(720, 380, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {

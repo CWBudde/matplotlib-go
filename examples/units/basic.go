@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"matplotlib-go/backends"
@@ -9,6 +10,7 @@ import (
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
+	"matplotlib-go/style"
 )
 
 type distanceKM float64
@@ -85,7 +87,7 @@ func main() {
 	scatterColor := render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.92}
 	scatterEdgeColor := render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1}
 	scatterEdgeWidth := 1.0
-	scatterSize := 8.0
+	scatterSize := scatterAreaFromRadius(8.0)
 	// distanceKM demonstrates a custom converter and axis formatter registered
 	// above; the plotted artist receives converted float64 coordinates.
 	_, _ = unitAx.ScatterUnits(
@@ -124,4 +126,9 @@ func addReferenceXYGrid(ax *core.Axes) {
 	xGrid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
 	xGrid.LineWidth = 0.5
 	addReferenceYGrid(ax)
+}
+
+func scatterAreaFromRadius(radiusPx float64) float64 {
+	radiusPt := radiusPx * 72.0 / style.Default.DPI
+	return math.Pi * radiusPt * radiusPt
 }

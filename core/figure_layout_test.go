@@ -26,6 +26,13 @@ func TestDrawFigure_RendersFigureLevelLabels(t *testing.T) {
 	if !containsString(r.texts, "Overview") {
 		t.Fatalf("missing suptitle draw: %v", r.texts)
 	}
+	titleOrigin, ok := r.textOrigin("Overview")
+	if !ok {
+		t.Fatalf("missing suptitle origin: %v", r.texts)
+	}
+	if titleOrigin.Y > 12 {
+		t.Fatalf("suptitle origin too low: %+v", titleOrigin)
+	}
 	if !containsString(r.texts, "time") {
 		t.Fatalf("missing supxlabel draw: %v", r.texts)
 	}
