@@ -5,6 +5,8 @@ import (
 	"matplotlib-go/render"
 )
 
+const defaultAutoScaleMargin = 0.05
+
 // PlotOptions holds optional parameters for plotting functions.
 type PlotOptions struct {
 	Color     *render.Color // if nil, uses automatic color cycling
@@ -68,6 +70,7 @@ func (a *Axes) Plot(x, y []float64, opts ...PlotOptions) *Line2D {
 	}
 
 	a.Add(line)
+	a.autoScaleIfEnabled(defaultAutoScaleMargin)
 	return line
 }
 

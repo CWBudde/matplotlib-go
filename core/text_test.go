@@ -563,13 +563,17 @@ func TestAnnotationDrawOverlayRendersArrowAndText(t *testing.T) {
 
 type textRecordingRenderer struct {
 	render.NullRenderer
-	pathCount int
-	texts     []string
-	origins   []geom.Pt
+	pathCount  int
+	pathPaints []render.Paint
+	texts      []string
+	origins    []geom.Pt
 }
 
-func (r *textRecordingRenderer) Path(_ geom.Path, _ *render.Paint) {
+func (r *textRecordingRenderer) Path(_ geom.Path, paint *render.Paint) {
 	r.pathCount++
+	if paint != nil {
+		r.pathPaints = append(r.pathPaints, *paint)
+	}
 }
 
 func (r *textRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
@@ -642,6 +646,50 @@ func TestAxesTextSupportsAxesAndBlendedCoordinates(t *testing.T) {
 	wantBlend := geom.Pt{X: 200, Y: 180}
 	if r.origins[1] != wantBlend {
 		t.Fatalf("blended coords origin = %+v, want %+v", r.origins[1], wantBlend)
+	}
+}
+
+func TestTextBBoxDrawsBehindAxesAndFigureText(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.XAxis.ShowSpine = false
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowSpine = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
+	ax.ShowFrame = false
+
+	box := &TextBBoxOptions{
+		FaceColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+		EdgeColor: render.Color{R: 0.7, G: 0.7, B: 0.7, A: 1},
+	}
+	ax.Text(0.02, 0.98, "axes note", TextOptions{
+		Coords: Coords(CoordAxes),
+		HAlign: TextAlignLeft,
+		VAlign: TextVAlignTop,
+		BBox:   box,
+	})
+	fig.Text(0.98, 0.02, "figure note", TextOptions{
+		HAlign: TextAlignRight,
+		VAlign: TextVAlignBottom,
+		BBox:   box,
+	})
+
+	var r textRecordingRenderer
+	DrawFigure(fig, &r)
+
+	if !containsTextString(r.texts, "axes note") || !containsTextString(r.texts, "figure note") {
+		t.Fatalf("missing bbox text draws: %v", r.texts)
+	}
+	if r.pathCount < 2 {
+		t.Fatalf("expected text bbox paths, got %d", r.pathCount)
+	}
+	if len(r.pathPaints) < 2 || r.pathPaints[0].Fill.A == 0 || r.pathPaints[0].Stroke.A == 0 {
+		t.Fatalf("expected visible bbox fill and stroke, got %+v", r.pathPaints)
 	}
 }
 

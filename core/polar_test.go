@@ -60,6 +60,25 @@ func TestAddPolarAxesConfiguresProjection(t *testing.T) {
 	}
 }
 
+func TestPolarPlotKeepsProjectionDomain(t *testing.T) {
+	fig := NewFigure(400, 400)
+	ax := fig.AddPolarAxes(unitRect())
+	if ax == nil {
+		t.Fatal("expected polar axes")
+	}
+
+	ax.Plot([]float64{0, math.Pi}, []float64{0.2, 0.8})
+
+	xMin, xMax := ax.XScale.Domain()
+	if !approx(xMin, 0, 1e-9) || !approx(xMax, 2*math.Pi, 1e-9) {
+		t.Fatalf("theta domain = (%v, %v), want (0, 2pi)", xMin, xMax)
+	}
+	yMin, yMax := ax.YScale.Domain()
+	if !approx(yMin, 0, 1e-9) || !approx(yMax, 1, 1e-9) {
+		t.Fatalf("radius domain = (%v, %v), want (0, 1)", yMin, yMax)
+	}
+}
+
 func TestPolarAxesPixelToDataRoundTrip(t *testing.T) {
 	fig := NewFigure(400, 400)
 	ax := fig.AddPolarAxes(unitRect())

@@ -70,6 +70,12 @@ func TestAxesHexbinAggregatesValues(t *testing.T) {
 	if hex.Counts[0] != 1 || hex.Counts[1] != 1 || hex.Counts[2] != 1 {
 		t.Fatalf("unexpected counts %v", hex.Counts)
 	}
+	if !floatApprox(hex.BinCenters[1].X, 0.25, 1e-6) || !floatApprox(hex.BinCenters[1].Y, 0.25, 1e-6) {
+		t.Fatalf("second center = %+v, want near {0.25 0.25}", hex.BinCenters[1])
+	}
+	if len(hex.EdgeColors) != len(hex.FaceColors) {
+		t.Fatalf("hex edge colors len = %d, want face-colored edges for %d faces", len(hex.EdgeColors), len(hex.FaceColors))
+	}
 	mapping := hex.ScalarMap()
 	if mapping.Colormap != "viridis" || mapping.VMin != 2 || mapping.VMax != 9 {
 		t.Fatalf("unexpected scalar map %+v", mapping)
@@ -92,6 +98,12 @@ func TestAxesPieCreatesWedgesAndLabels(t *testing.T) {
 	}
 	if len(pie.Wedges) != 2 || len(pie.Labels) != 2 || len(pie.AutoText) != 2 {
 		t.Fatalf("unexpected pie counts wedges=%d labels=%d auto=%d", len(pie.Wedges), len(pie.Labels), len(pie.AutoText))
+	}
+	if pie.Labels[0].ClipOn || pie.AutoText[0].ClipOn {
+		t.Fatal("expected pie label text to draw outside the axes clip")
+	}
+	if pie.AutoText[0].Color != (render.Color{}) {
+		t.Fatalf("autopct color = %+v, want default text color", pie.AutoText[0].Color)
 	}
 	if pie.Wedges[0].Theta1 != 0 || pie.Wedges[0].Theta2 != 144 {
 		t.Fatalf("unexpected first wedge angles %.1f -> %.1f", pie.Wedges[0].Theta1, pie.Wedges[0].Theta2)
@@ -151,11 +163,20 @@ func TestAxesTableDrawsCellsAndText(t *testing.T) {
 	if len(table.Cells) != 3 || len(table.Cells[0]) != 3 {
 		t.Fatalf("unexpected table grid %dx%d", len(table.Cells), len(table.Cells[0]))
 	}
+	if table.Cells[0][0].Rect != (geom.Rect{}) {
+		t.Fatalf("top-left row-label/header intersection rect = %+v, want empty", table.Cells[0][0].Rect)
+	}
+	if got, want := table.Cells[1][0].Rect.Max.X, table.BBox.Min.X; !floatApprox(got, want, 1e-12) {
+		t.Fatalf("row label right edge = %v, want bbox left %v", got, want)
+	}
+	if table.HeaderTextColor != (render.Color{A: 1}) || table.EdgeColor != (render.Color{A: 1}) {
+		t.Fatalf("table defaults headerText=%+v edge=%+v, want opaque black", table.HeaderTextColor, table.EdgeColor)
+	}
 
 	var renderer specialtyRecordingRenderer
 	DrawFigure(fig, &renderer)
-	if renderer.pathCount < 9 {
-		t.Fatalf("expected at least 9 cell paths, got %d", renderer.pathCount)
+	if renderer.pathCount < 8 {
+		t.Fatalf("expected at least 8 cell paths, got %d", renderer.pathCount)
 	}
 	if len(renderer.texts) < 8 {
 		t.Fatalf("expected cell/header text draws, got %v", renderer.texts)
@@ -171,6 +192,7 @@ func TestSankeyBuilderCreatesDiagram(t *testing.T) {
 
 	builder := NewSankey(ax, SankeyOptions{
 		Center: geom.Pt{X: 0.2, Y: 0.5},
+		Scale:  0.1,
 	})
 	if builder == nil {
 		t.Fatal("expected sankey builder")
@@ -182,8 +204,14 @@ func TestSankeyBuilderCreatesDiagram(t *testing.T) {
 	if diagram == nil {
 		t.Fatal("expected sankey diagram")
 	}
-	if diagram.Trunk == nil || len(diagram.Ribbons) != 2 || len(diagram.Labels) != 2 {
+	if diagram.Trunk == nil || len(diagram.Ribbons) != 1 || len(diagram.Labels) != 2 || len(diagram.Values) != 2 {
 		t.Fatalf("unexpected sankey content %+v", diagram)
+	}
+	if got, want := diagram.Trunk.Height, 0.3; !floatApprox(got, want, 1e-12) {
+		t.Fatalf("trunk height = %v, want max flow sum scaled to %v", got, want)
+	}
+	if diagram.Values[0].Content != "2" || diagram.Values[1].Content != "3" {
+		t.Fatalf("unexpected flow value labels %q %q", diagram.Values[0].Content, diagram.Values[1].Content)
 	}
 	if finished := builder.Finish(); len(finished) != 1 {
 		t.Fatalf("Finish len = %d, want 1", len(finished))

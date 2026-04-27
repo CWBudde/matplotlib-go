@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"testing"
 
 	"matplotlib-go/internal/geom"
@@ -114,6 +115,47 @@ func TestBar2D_MismatchedLengths(t *testing.T) {
 	err = renderer.End()
 	if err != nil {
 		t.Fatalf("Failed to end rendering: %v", err)
+	}
+}
+
+func TestBarAutoScaleUsesStickyBaseline(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	ax.Bar([]float64{0, 1, 2, 3}, []float64{3, 8, 6, 4})
+	ax.AutoScale(0.05)
+
+	_, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	if math.Abs(yMin) > 1e-12 {
+		t.Fatalf("bar autoscale y-min = %v, want sticky baseline 0", yMin)
+	}
+	if math.Abs(yMax-8.4) > 1e-12 {
+		t.Fatalf("bar autoscale y-max = %v, want 8.4", yMax)
+	}
+	if math.Abs(xMax-3.59) > 1e-12 {
+		t.Fatalf("bar autoscale x-max = %v, want 3.59", xMax)
+	}
+}
+
+func TestHorizontalBarAutoScaleUsesStickyBaseline(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	orientation := BarHorizontal
+
+	ax.Bar([]float64{0, 1, 2}, []float64{4, 7, 5}, BarOptions{Orientation: &orientation})
+	ax.AutoScale(0.05)
+
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	if math.Abs(xMin) > 1e-12 {
+		t.Fatalf("horizontal bar autoscale x-min = %v, want sticky baseline 0", xMin)
+	}
+	if math.Abs(xMax-7.35) > 1e-12 {
+		t.Fatalf("horizontal bar autoscale x-max = %v, want 7.35", xMax)
+	}
+	if math.Abs(yMin-(-0.54)) > 1e-12 || math.Abs(yMax-2.54) > 1e-12 {
+		t.Fatalf("horizontal bar autoscale y = [%v, %v], want [-0.54, 2.54]", yMin, yMax)
 	}
 }
 

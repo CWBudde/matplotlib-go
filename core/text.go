@@ -36,6 +36,17 @@ type TextOptions struct {
 	Coords   CoordinateSpec
 	OffsetX  float64
 	OffsetY  float64
+	ClipOn   *bool
+	BBox     *TextBBoxOptions
+}
+
+// TextBBoxOptions configures a rectangular background behind text.
+type TextBBoxOptions struct {
+	FaceColor    render.Color
+	EdgeColor    render.Color
+	LineWidth    float64
+	Padding      float64
+	CornerRadius float64
 }
 
 // AnnotationOptions configures an Annotation artist.
@@ -64,6 +75,8 @@ type Text struct {
 	Coords   CoordinateSpec
 	OffsetX  float64
 	OffsetY  float64
+	ClipOn   bool
+	BBox     *TextBBoxOptions
 	z        float64
 }
 
@@ -94,6 +107,10 @@ func (a *Axes) Text(x, y float64, text string, opts ...TextOptions) *Text {
 	if len(opts) > 0 {
 		opt = opts[0]
 	}
+	clipOn := true
+	if opt.ClipOn != nil {
+		clipOn = *opt.ClipOn
+	}
 
 	artist := &Text{
 		Position: geom.Pt{X: x, Y: y},
@@ -105,6 +122,8 @@ func (a *Axes) Text(x, y float64, text string, opts ...TextOptions) *Text {
 		Coords:   opt.Coords,
 		OffsetX:  opt.OffsetX,
 		OffsetY:  opt.OffsetY,
+		ClipOn:   clipOn,
+		BBox:     cloneTextBBoxOptions(opt.BBox),
 		z:        500,
 	}
 	a.Add(artist)
@@ -125,6 +144,10 @@ func (f *Figure) Text(x, y float64, text string, opts ...TextOptions) *Text {
 		opt = opts[0]
 		opt.Coords = Coords(CoordFigure)
 	}
+	clipOn := true
+	if opt.ClipOn != nil {
+		clipOn = *opt.ClipOn
+	}
 
 	artist := &Text{
 		Position: geom.Pt{X: x, Y: y},
@@ -136,6 +159,8 @@ func (f *Figure) Text(x, y float64, text string, opts ...TextOptions) *Text {
 		Coords:   opt.Coords,
 		OffsetX:  opt.OffsetX,
 		OffsetY:  opt.OffsetY,
+		ClipOn:   clipOn,
+		BBox:     cloneTextBBoxOptions(opt.BBox),
 		z:        500,
 	}
 	f.Artists = append(f.Artists, artist)
@@ -189,7 +214,21 @@ func (t *Text) Draw(r render.Renderer, ctx *DrawContext) {
 	if t == nil || ctx == nil {
 		return
 	}
+	if !t.ClipOn {
+		return
+	}
+	t.drawText(r, ctx)
+}
 
+// DrawOverlay renders unclipped text after the axes clip has been removed.
+func (t *Text) DrawOverlay(r render.Renderer, ctx *DrawContext) {
+	if t == nil || t.ClipOn {
+		return
+	}
+	t.drawText(r, ctx)
+}
+
+func (t *Text) drawText(r render.Renderer, ctx *DrawContext) {
 	textRen, ok := r.(render.TextDrawer)
 	if !ok {
 		return
@@ -203,6 +242,7 @@ func (t *Text) Draw(r render.Renderer, ctx *DrawContext) {
 	anchor := transformedPoint(ctx, t.Coords, t.Position, t.OffsetX, t.OffsetY)
 	layout := measureSingleLineTextLayout(r, t.Content, fontSize, ctx.RC.FontKey)
 	origin := alignedSingleLineOrigin(anchor, layout, t.HAlign, layoutVerticalAlign(t.VAlign, false))
+	drawTextBBox(r, origin, layout, t.BBox, ctx, fontSize)
 	drawDisplayText(textRen, t.Content, origin, fontSize, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey)
 }
 
@@ -311,6 +351,71 @@ func resolvedFontSize(size float64, ctx *DrawContext) float64 {
 		return ctx.RC.FontSize
 	}
 	return 12
+}
+
+func cloneTextBBoxOptions(opt *TextBBoxOptions) *TextBBoxOptions {
+	if opt == nil {
+		return nil
+	}
+	cloned := *opt
+	return &cloned
+}
+
+func drawTextBBox(r render.Renderer, origin geom.Pt, layout singleLineTextLayout, opt *TextBBoxOptions, ctx *DrawContext, fontSize float64) {
+	if opt == nil {
+		return
+	}
+	rect, ok := textInkRect(origin, layout)
+	if !ok {
+		return
+	}
+	cfg := resolvedTextBBoxOptions(*opt, ctx, fontSize)
+	rect.Min.X -= cfg.Padding
+	rect.Min.Y -= cfg.Padding
+	rect.Max.X += cfg.Padding
+	rect.Max.Y += cfg.Padding
+
+	path := pixelRectPath(rect)
+	if cfg.CornerRadius > 0 {
+		path = roundedRectPath(rect, cfg.CornerRadius)
+	}
+	r.Path(path, &render.Paint{
+		Fill:      cfg.FaceColor,
+		Stroke:    cfg.EdgeColor,
+		LineWidth: cfg.LineWidth,
+		LineJoin:  render.JoinMiter,
+		LineCap:   render.CapButt,
+	})
+}
+
+func resolvedTextBBoxOptions(opt TextBBoxOptions, ctx *DrawContext, fontSize float64) TextBBoxOptions {
+	if opt.FaceColor == (render.Color{}) {
+		opt.FaceColor = render.Color{R: 1, G: 1, B: 1, A: 1}
+	} else {
+		opt.FaceColor = resolvedTextBBoxColor(opt.FaceColor)
+	}
+	if opt.EdgeColor == (render.Color{}) {
+		opt.EdgeColor = render.Color{R: 0, G: 0, B: 0, A: 1}
+	} else {
+		opt.EdgeColor = resolvedTextBBoxColor(opt.EdgeColor)
+	}
+	if opt.LineWidth <= 0 {
+		opt.LineWidth = 1
+	}
+	if opt.Padding <= 0 {
+		opt.Padding = 4
+		if ctx != nil {
+			opt.Padding = pointsToPixels(ctx.RC, 0.4*fontSize)
+		}
+	}
+	return opt
+}
+
+func resolvedTextBBoxColor(c render.Color) render.Color {
+	if c.A == 0 && (c.R != 0 || c.G != 0 || c.B != 0) {
+		c.A = 1
+	}
+	return c
 }
 
 func annotationHAlign(opt AnnotationOptions) TextAlign {

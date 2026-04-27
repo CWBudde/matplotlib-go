@@ -173,3 +173,21 @@ func TestDateLocatorAndFormatter(t *testing.T) {
 		t.Fatal("formatted date tick should not be empty")
 	}
 }
+
+func TestDateLocatorUsesDailyTicksForCompactDateRange(t *testing.T) {
+	loc := DateLocator{Location: time.UTC}
+	minVal := timeToDateNumber(time.Date(2023, time.December, 31, 13, 12, 0, 0, time.UTC))
+	maxVal := timeToDateNumber(time.Date(2024, time.January, 10, 10, 48, 0, 0, time.UTC))
+
+	ticks := loc.Ticks(minVal, maxVal, 5)
+	if len(ticks) != 10 {
+		t.Fatalf("date tick count = %d, want 10: %v", len(ticks), ticks)
+	}
+	for i, tick := range ticks {
+		got := dateNumberToTime(tick, time.UTC)
+		want := time.Date(2024, time.January, i+1, 0, 0, 0, 0, time.UTC)
+		if !got.Equal(want) {
+			t.Fatalf("tick %d = %s, want %s", i, got, want)
+		}
+	}
+}

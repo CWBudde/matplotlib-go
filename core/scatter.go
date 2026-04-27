@@ -313,20 +313,10 @@ func (s *Scatter2D) Z() float64 {
 	return s.z
 }
 
-// Bounds returns the bounding box of all points, including marker size.
+// Bounds returns the data-space bounding box of all marker centers.
 func (s *Scatter2D) Bounds(*DrawContext) geom.Rect {
 	if len(s.XY) == 0 {
 		return geom.Rect{}
-	}
-
-	// Find the maximum size for bounds calculation
-	maxSize := s.Size
-	if s.Sizes != nil {
-		for _, size := range s.Sizes {
-			if size > maxSize {
-				maxSize = size
-			}
-		}
 	}
 
 	// Initialize bounds with first point
@@ -350,15 +340,6 @@ func (s *Scatter2D) Bounds(*DrawContext) geom.Rect {
 			bounds.Max.Y = pt.Y
 		}
 	}
-
-	// Expand bounds by marker size (in data space)
-	// Note: This is an approximation since marker size is in pixels
-	// A more accurate implementation would need the transform context
-	sizeInData := maxSize * 0.01 // rough approximation
-	bounds.Min.X -= sizeInData
-	bounds.Min.Y -= sizeInData
-	bounds.Max.X += sizeInData
-	bounds.Max.Y += sizeInData
 
 	return bounds
 }

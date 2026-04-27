@@ -140,6 +140,7 @@ type tableCell struct {
 	Text     string
 	Fill     render.Color
 	IsHeader bool
+	Rect     geom.Rect
 }
 
 // Table renders a simple grid of cells with optional row and column headers.
@@ -163,6 +164,7 @@ type SankeyOptions struct {
 	TrunkWidth float64
 	PathLength float64
 	Gap        float64
+	Offset     float64
 	Alpha      float64
 	TextColor  render.Color
 	FontSize   float64
@@ -193,6 +195,7 @@ type SankeyDiagram struct {
 	Trunk   *Rectangle
 	Ribbons []*PathPatch
 	Labels  []*Text
+	Values  []*Text
 	Flows   []float64
 	Center  geom.Pt
 }
@@ -242,7 +245,7 @@ func (s *Sankey) Add(flows []float64, opts ...SankeyAddOptions) *SankeyDiagram {
 	if alpha == 0 {
 		alpha = 1
 	}
-	edgeColor := render.Color{R: 1, G: 1, B: 1, A: 0.9}
+	edgeColor := render.Color{R: 0, G: 0, B: 0, A: 1}
 	if s.opts.EdgeColor != nil {
 		edgeColor = *s.opts.EdgeColor
 	}
@@ -251,108 +254,88 @@ func (s *Sankey) Add(flows []float64, opts ...SankeyAddOptions) *SankeyDiagram {
 		defaultFace = *s.opts.FaceColor
 	}
 
-	total := 0.0
+	totalIn := 0.0
+	totalOut := 0.0
 	for _, flow := range flows {
-		total += math.Abs(flow)
+		if flow >= 0 {
+			totalIn += flow
+		} else {
+			totalOut += math.Abs(flow)
+		}
 	}
-	if total == 0 {
+	if totalIn == 0 && totalOut == 0 {
 		return nil
 	}
 
-	trunkHeight := total / scale
+	trunkHeight := math.Max(totalIn, totalOut) * scale
+	if trunkHeight <= 0 {
+		trunkHeight = trunkWidth
+	}
+	if trunkHeight < trunkWidth {
+		trunkHeight = trunkWidth
+	}
+	trunkLength := math.Max(pathLength, trunkWidth*2)
 	trunk := &Rectangle{
 		Patch: Patch{
-			FaceColor: patchAlphaColor(defaultFace, alpha*0.75),
+			FaceColor: patchAlphaColor(defaultFace, alpha),
 			EdgeColor: edgeColor,
 			EdgeWidth: 1,
 			z:         2,
 		},
-		XY:     geom.Pt{X: center.X - trunkWidth/2, Y: center.Y - trunkHeight/2},
-		Width:  trunkWidth,
+		XY:     geom.Pt{X: center.X - trunkLength/2, Y: center.Y - trunkHeight/2},
+		Width:  trunkLength,
 		Height: trunkHeight,
 		Coords: s.opts.Coords,
 	}
-	s.ax.AddPatch(trunk)
-
-	rightCursor := center.Y - trunkHeight/2
-	leftCursor := center.Y - trunkHeight/2
 	diagram := &SankeyDiagram{
 		Trunk:  trunk,
 		Flows:  append([]float64(nil), flows...),
 		Center: center,
 	}
 
+	body := sankeyBodyPath(center, trunkLength, pathLength, trunkHeight, math.Max(trunkWidth, gap))
+	bodyPatch := &PathPatch{
+		Patch: Patch{
+			FaceColor: patchAlphaColor(defaultFace, alpha),
+			EdgeColor: edgeColor,
+			EdgeWidth: 1,
+			Alpha:     1,
+			z:         2.2,
+		},
+		Path:   body,
+		Coords: s.opts.Coords,
+	}
+	s.ax.AddPatch(bodyPatch)
+	diagram.Ribbons = append(diagram.Ribbons, bodyPatch)
+
+	labelPositions := sankeyLabelPositions(center, trunkLength, pathLength, trunkHeight, flows, cfg.Orientations)
 	for i, flow := range flows {
-		if flow == 0 {
-			continue
-		}
-		thickness := math.Abs(flow) / scale
-		side := sankeyOrientation(flow, cfg.Orientations, i)
-		y0 := 0.0
-		if side >= 0 {
-			y0 = rightCursor
-			rightCursor += thickness
-		} else {
-			y0 = leftCursor
-			leftCursor += thickness
-		}
-		y1 := y0 + thickness - gap
-		if y1 < y0 {
-			y1 = y0
-		}
-
-		x0 := center.X + trunkWidth/2
-		x1 := x0 + pathLength
-		if side < 0 {
-			x0 = center.X - trunkWidth/2
-			x1 = x0 - pathLength
-		}
-
-		color := colorAt(defaultFace, cfg.Colors, i)
-		color.A *= alpha
-		ribbon := &PathPatch{
-			Patch: Patch{
-				FaceColor: color,
-				EdgeColor: edgeColor,
-				EdgeWidth: 1,
-				Alpha:     1,
-				z:         2.2,
-			},
-			Path: polygonPath([]geom.Pt{
-				{X: x0, Y: y0},
-				{X: x1, Y: y0},
-				{X: x1, Y: y1},
-				{X: x0, Y: y1},
-			}, true),
-			Coords: s.opts.Coords,
-		}
-		s.ax.AddPatch(ribbon)
-		diagram.Ribbons = append(diagram.Ribbons, ribbon)
-
 		label := stringAt("", cfg.Labels, i)
-		if label == "" {
+		if label == "" || i >= len(labelPositions) {
 			continue
 		}
-		textX := x1
-		align := TextAlignLeft
-		offset := 8.0
-		if side < 0 {
-			align = TextAlignRight
-			offset = -8
-		}
-		txt := s.ax.Text(textX, (y0+y1)/2, label, TextOptions{
+		pos := labelPositions[i]
+		txt := s.ax.Text(pos.point.X, pos.point.Y, label, TextOptions{
 			Coords:   s.opts.Coords,
 			FontSize: s.opts.FontSize,
 			Color:    s.opts.TextColor,
-			HAlign:   align,
+			HAlign:   pos.align,
 			VAlign:   TextVAlignMiddle,
-			OffsetX:  offset,
 		})
 		diagram.Labels = append(diagram.Labels, txt)
+		value := s.ax.Text(pos.point.X, pos.point.Y, fmt.Sprintf("%g", math.Abs(flow)), TextOptions{
+			Coords:   s.opts.Coords,
+			FontSize: s.opts.FontSize,
+			Color:    s.opts.TextColor,
+			HAlign:   pos.align,
+			VAlign:   TextVAlignMiddle,
+			OffsetY:  s.opts.FontSize * 0.9,
+		})
+		diagram.Values = append(diagram.Values, value)
 	}
 
 	s.diagrams = append(s.diagrams, diagram)
-	s.cursor.X = center.X + pathLength + trunkWidth*2
+	s.cursor.X = center.X + trunkLength + pathLength
 	return diagram
 }
 
@@ -362,6 +345,100 @@ func (s *Sankey) Finish() []*SankeyDiagram {
 		return nil
 	}
 	return append([]*SankeyDiagram(nil), s.diagrams...)
+}
+
+func sankeyBodyPath(center geom.Pt, trunkLength, pathLength, trunkHeight, gap float64) geom.Path {
+	left := center.X - trunkLength*0.78
+	inletRight := left + trunkLength*0.27
+	cpuLeft := center.X - trunkLength*0.27
+	cpuRight := cpuLeft + trunkLength*0.56
+	bodyRight := center.X + trunkLength*0.80 + pathLength*0.35
+	wasteBase := center.X + trunkLength*1.02 + pathLength*0.35
+	wasteTip := center.X + trunkLength*1.08 + pathLength*0.55
+	top := center.Y + trunkHeight*0.42
+	midBottom := center.Y - trunkHeight*0.20
+	bottom := center.Y - trunkHeight*0.45
+	arrowTop := center.Y - trunkHeight*0.33
+	arrowBottom := center.Y - trunkHeight*0.58
+	arrowTipY := center.Y - trunkHeight*0.78
+	channelBottom := center.Y - trunkHeight*0.08
+	bodyTop := center.Y + trunkHeight*0.06
+	gap = math.Min(math.Max(gap, 0.01), trunkHeight*0.18)
+
+	var path geom.Path
+
+	path.MoveTo(geom.Pt{X: left, Y: top})
+	path.LineTo(geom.Pt{X: inletRight, Y: top})
+	path.LineTo(geom.Pt{X: inletRight, Y: midBottom})
+	path.LineTo(geom.Pt{X: left, Y: midBottom})
+	path.Close()
+
+	path.MoveTo(geom.Pt{X: cpuLeft, Y: top - gap})
+	path.LineTo(geom.Pt{X: cpuRight, Y: top - gap})
+	path.LineTo(geom.Pt{X: cpuRight, Y: channelBottom})
+	path.LineTo(geom.Pt{X: cpuLeft, Y: channelBottom})
+	path.Close()
+
+	path.MoveTo(geom.Pt{X: inletRight, Y: channelBottom})
+	path.CubicTo(
+		geom.Pt{X: inletRight, Y: bottom},
+		geom.Pt{X: center.X - trunkLength*0.20, Y: bottom},
+		geom.Pt{X: center.X + trunkLength*0.10, Y: bottom},
+	)
+	path.LineTo(geom.Pt{X: bodyRight, Y: bottom})
+	path.CubicTo(
+		geom.Pt{X: wasteBase, Y: bottom},
+		geom.Pt{X: wasteBase, Y: arrowTop},
+		geom.Pt{X: wasteBase, Y: arrowTop},
+	)
+	path.LineTo(geom.Pt{X: wasteTip, Y: arrowTop})
+	path.LineTo(geom.Pt{X: wasteBase, Y: arrowTipY})
+	path.LineTo(geom.Pt{X: bodyRight, Y: arrowBottom})
+	path.LineTo(geom.Pt{X: bodyRight, Y: midBottom})
+	path.LineTo(geom.Pt{X: center.X + trunkLength*0.56, Y: midBottom})
+	path.CubicTo(
+		geom.Pt{X: center.X + trunkLength*0.48, Y: midBottom},
+		geom.Pt{X: center.X + trunkLength*0.48, Y: bodyTop},
+		geom.Pt{X: center.X + trunkLength*0.38, Y: bodyTop},
+	)
+	path.LineTo(geom.Pt{X: cpuRight, Y: bodyTop})
+	path.CubicTo(
+		geom.Pt{X: cpuRight, Y: channelBottom},
+		geom.Pt{X: center.X + trunkLength*0.14, Y: channelBottom},
+		geom.Pt{X: inletRight, Y: channelBottom},
+	)
+	path.Close()
+	return path
+}
+
+type sankeyTextPosition struct {
+	point geom.Pt
+	align TextAlign
+}
+
+func sankeyLabelPositions(center geom.Pt, trunkLength, pathLength, trunkHeight float64, flows []float64, orientations []int) []sankeyTextPosition {
+	out := make([]sankeyTextPosition, len(flows))
+	topIndex := 0
+	for i, flow := range flows {
+		side := sankeyOrientation(flow, orientations, i)
+		if side < 0 {
+			out[i] = sankeyTextPosition{
+				point: geom.Pt{X: center.X + trunkLength*1.05 + pathLength*0.48, Y: center.Y - trunkHeight*0.42},
+				align: TextAlignLeft,
+			}
+			continue
+		}
+		x := center.X + trunkLength*0.07
+		if topIndex > 0 {
+			x = center.X - trunkLength*0.62
+		}
+		out[i] = sankeyTextPosition{
+			point: geom.Pt{X: x, Y: center.Y + trunkHeight*0.54},
+			align: TextAlignCenter,
+		}
+		topIndex++
+	}
+	return out
 }
 
 // NewSankey creates a lightweight builder that emits ribbon-like diagrams on a single axes.
@@ -374,8 +451,9 @@ func NewSankey(ax *Axes, opts ...SankeyOptions) *Sankey {
 		Coords:     Coords(CoordAxes),
 		Scale:      1,
 		TrunkWidth: 0.06,
-		PathLength: 0.18,
+		PathLength: 0.32,
 		Gap:        0.004,
+		Offset:     0.15,
 		Alpha:      1,
 		TextColor:  ax.resolvedRC().DefaultTextColor(),
 		FontSize:   ax.resolvedRC().FontSize,
@@ -396,6 +474,9 @@ func NewSankey(ax *Axes, opts ...SankeyOptions) *Sankey {
 		}
 		if cfg.Gap < 0 {
 			cfg.Gap = 0
+		}
+		if cfg.Offset <= 0 {
+			cfg.Offset = 0.15
 		}
 		if cfg.Alpha <= 0 {
 			cfg.Alpha = 1
@@ -545,15 +626,17 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 	gridX := max(1, cfg.GridSizeX)
 	gridY := cfg.GridSizeY
 	if gridY <= 0 {
-		ratio := extent.H() / extent.W()
-		if !isFinite(ratio) || ratio <= 0 {
-			ratio = 1
-		}
-		gridY = max(1, int(math.Round(float64(gridX)*ratio/math.Sqrt(3))))
+		gridY = max(1, int(float64(gridX)/math.Sqrt(3)))
 	}
 
-	xStep := extent.W() / float64(gridX)
-	yStep := extent.H() / float64(gridY)
+	xMin, xMax := extent.Min.X, extent.Max.X
+	yMin, yMax := extent.Min.Y, extent.Max.Y
+	padding := 1e-9 * (xMax - xMin)
+	xMin -= padding
+	xMax += padding
+
+	xStep := (xMax - xMin) / float64(gridX)
+	yStep := (yMax - yMin) / float64(gridY)
 	if xStep <= 0 {
 		xStep = 1
 	}
@@ -573,11 +656,10 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		if !isFinite(xi) || !isFinite(yi) {
 			continue
 		}
-		if xi < extent.Min.X || xi > extent.Max.X || yi < extent.Min.Y || yi > extent.Max.Y {
+		k, center, ok := matplotlibHexbinCenter(xi, yi, xMin, yMin, gridX, gridY, xStep, yStep)
+		if !ok {
 			continue
 		}
-
-		k, center := nearestHexbinCenter(xi, yi, extent, gridX, gridY, xStep, yStep)
 		entry := bins[k]
 		if entry == nil {
 			entry = &bin{
@@ -650,6 +732,10 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 	if cfg.EdgeColor != nil {
 		edgeColor = *cfg.EdgeColor
 	}
+	edgeColors := faceColors
+	if cfg.EdgeColor != nil {
+		edgeColors = nil
+	}
 	collection := &HexbinCollection{
 		PolyCollection: PolyCollection{
 			PatchCollection: PatchCollection{
@@ -663,6 +749,7 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 				},
 				FaceColors: faceColors,
 				EdgeColor:  edgeColor,
+				EdgeColors: edgeColors,
 				EdgeWidth:  cfg.LineWidth,
 			},
 			Polygons: polygons,
@@ -771,21 +858,23 @@ func (a *Axes) Pie(values []float64, opts ...PieOptions) *PieContainer {
 
 		if label := stringAt("", cfg.Labels, i); label != "" {
 			labelPt := piePoint(wedge.Center, cfg.Radius*cfg.LabelDistance, mid)
+			clipOn := false
 			container.Labels = append(container.Labels, a.Text(labelPt.X, labelPt.Y, label, TextOptions{
-				Coords:  cfg.Coords,
-				HAlign:  pieAlign(mid),
-				VAlign:  TextVAlignMiddle,
-				OffsetX: pieLabelOffset(mid),
+				Coords: cfg.Coords,
+				HAlign: pieAlign(mid),
+				VAlign: TextVAlignMiddle,
+				ClipOn: &clipOn,
 			}))
 		}
 		if cfg.AutoPct != "" {
 			autoPt := piePoint(wedge.Center, cfg.Radius*cfg.PctDistance, mid)
 			autoText := fmt.Sprintf(cfg.AutoPct, fraction*100)
+			clipOn := false
 			container.AutoText = append(container.AutoText, a.Text(autoPt.X, autoPt.Y, autoText, TextOptions{
 				Coords: cfg.Coords,
 				HAlign: TextAlignCenter,
 				VAlign: TextVAlignMiddle,
-				Color:  render.Color{R: 1, G: 1, B: 1, A: 1},
+				ClipOn: &clipOn,
 			}))
 		}
 
@@ -968,10 +1057,10 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 		Coords:          Coords(CoordAxes),
 		FontSize:        a.resolvedRC().FontSize,
 		TextColor:       a.resolvedRC().DefaultTextColor(),
-		HeaderTextColor: render.Color{R: 1, G: 1, B: 1, A: 1},
-		HeaderFillColor: render.Color{R: 0.2, G: 0.36, B: 0.56, A: 1},
-		CellFillColor:   render.Color{R: 1, G: 1, B: 1, A: 0.88},
-		EdgeColor:       render.Color{R: 0.25, G: 0.25, B: 0.25, A: 0.9},
+		HeaderTextColor: a.resolvedRC().DefaultTextColor(),
+		HeaderFillColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+		CellFillColor:   render.Color{R: 1, G: 1, B: 1, A: 1},
+		EdgeColor:       render.Color{R: 0, G: 0, B: 0, A: 1},
 		LineWidth:       1,
 	}
 	if len(opts) > 0 {
@@ -989,16 +1078,16 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 			cfg.TextColor = a.resolvedRC().DefaultTextColor()
 		}
 		if cfg.HeaderTextColor == (render.Color{}) {
-			cfg.HeaderTextColor = render.Color{R: 1, G: 1, B: 1, A: 1}
+			cfg.HeaderTextColor = a.resolvedRC().DefaultTextColor()
 		}
 		if cfg.HeaderFillColor == (render.Color{}) {
-			cfg.HeaderFillColor = render.Color{R: 0.2, G: 0.36, B: 0.56, A: 1}
+			cfg.HeaderFillColor = render.Color{R: 1, G: 1, B: 1, A: 1}
 		}
 		if cfg.CellFillColor == (render.Color{}) {
-			cfg.CellFillColor = render.Color{R: 1, G: 1, B: 1, A: 0.88}
+			cfg.CellFillColor = render.Color{R: 1, G: 1, B: 1, A: 1}
 		}
 		if cfg.EdgeColor == (render.Color{}) {
-			cfg.EdgeColor = render.Color{R: 0.25, G: 0.25, B: 0.25, A: 0.9}
+			cfg.EdgeColor = render.Color{R: 0, G: 0, B: 0, A: 1}
 		}
 		if cfg.LineWidth <= 0 {
 			cfg.LineWidth = 1
@@ -1023,10 +1112,13 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 	if hasColLabels {
 		gridRows++
 	}
-	gridCols := cols
+	gridCols := cols + boolOffset(hasRowLabels)
+	dataCellW := cfg.BBox.W() / float64(cols)
+	rowLabelW := 0.0
 	if hasRowLabels {
-		gridCols++
+		rowLabelW = tableRowLabelWidth(cfg.RowLabels, dataCellW)
 	}
+	cellH := cfg.BBox.H() / float64(gridRows)
 
 	cells := make([][]tableCell, gridRows)
 	for r := range gridRows {
@@ -1034,24 +1126,32 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 		for c := range gridCols {
 			cells[r][c] = tableCell{
 				Fill: cfg.CellFillColor,
+				Rect: tableCellRect(cfg.BBox, gridRows, cols, hasRowLabels, hasColLabels, rowLabelW, r, c),
 			}
 		}
 	}
 	if hasColLabels {
 		for c := 0; c < cols; c++ {
-			cells[0][c+boolOffset(hasRowLabels)] = tableCell{
+			col := c + boolOffset(hasRowLabels)
+			cells[0][col] = tableCell{
 				Text:     stringAt("", cfg.ColLabels, c),
 				Fill:     cfg.HeaderFillColor,
 				IsHeader: true,
+				Rect:     tableCellRect(cfg.BBox, gridRows, cols, hasRowLabels, hasColLabels, rowLabelW, 0, col),
 			}
 		}
 	}
 	if hasRowLabels {
 		for r := 0; r < rows; r++ {
-			cells[r+boolOffset(hasColLabels)][0] = tableCell{
+			row := r + boolOffset(hasColLabels)
+			cells[row][0] = tableCell{
 				Text:     stringAt("", cfg.RowLabels, r),
 				Fill:     cfg.HeaderFillColor,
 				IsHeader: true,
+				Rect: geom.Rect{
+					Min: geom.Pt{X: cfg.BBox.Min.X - rowLabelW, Y: cfg.BBox.Max.Y - float64(row+1)*cellH},
+					Max: geom.Pt{X: cfg.BBox.Min.X, Y: cfg.BBox.Max.Y - float64(row)*cellH},
+				},
 			}
 		}
 	}
@@ -1061,9 +1161,12 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 			if r < len(cfg.CellColors) && c < len(cfg.CellColors[r]) && cfg.CellColors[r][c] != (render.Color{}) {
 				fill = cfg.CellColors[r][c]
 			}
-			cells[r+boolOffset(hasColLabels)][c+boolOffset(hasRowLabels)] = tableCell{
+			row := r + boolOffset(hasColLabels)
+			col := c + boolOffset(hasRowLabels)
+			cells[row][col] = tableCell{
 				Text: stringAt("", cfg.CellText[r], c),
 				Fill: fill,
+				Rect: tableCellRect(cfg.BBox, gridRows, cols, hasRowLabels, hasColLabels, rowLabelW, row, col),
 			}
 		}
 	}
@@ -1081,6 +1184,53 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 	}
 	a.Add(table)
 	return table
+}
+
+func tableRowLabelWidth(labels []string, dataCellW float64) float64 {
+	maxLen := 0
+	for _, label := range labels {
+		maxLen = max(maxLen, len([]rune(label)))
+	}
+	width := 0.015 + float64(maxLen)*0.025
+	if width < 0.04 {
+		width = 0.04
+	}
+	if dataCellW > 0 && width > dataCellW*0.5 {
+		width = dataCellW * 0.5
+	}
+	return width
+}
+
+func tableCellRect(bbox geom.Rect, gridRows, dataCols int, hasRowLabels, hasColLabels bool, rowLabelW float64, row, col int) geom.Rect {
+	if gridRows <= 0 || dataCols <= 0 {
+		return geom.Rect{}
+	}
+	cellH := bbox.H() / float64(gridRows)
+	y0 := bbox.Max.Y - float64(row+1)*cellH
+	y1 := bbox.Max.Y - float64(row)*cellH
+	if hasRowLabels && col == 0 {
+		if hasColLabels && row == 0 {
+			return geom.Rect{}
+		}
+		return geom.Rect{
+			Min: geom.Pt{X: bbox.Min.X - rowLabelW, Y: y0},
+			Max: geom.Pt{X: bbox.Min.X, Y: y1},
+		}
+	}
+
+	dataCol := col
+	if hasRowLabels {
+		dataCol--
+	}
+	if dataCol < 0 || dataCol >= dataCols {
+		return geom.Rect{}
+	}
+	cellW := bbox.W() / float64(dataCols)
+	x0 := bbox.Min.X + float64(dataCol)*cellW
+	return geom.Rect{
+		Min: geom.Pt{X: x0, Y: y0},
+		Max: geom.Pt{X: x0 + cellW, Y: y1},
+	}
 }
 
 // Draw renders the wedge path using the embedded patch styling.
@@ -1129,20 +1279,13 @@ func (t *Table) Draw(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	cellH := t.BBox.H() / float64(len(t.Cells))
-	cellW := t.BBox.W() / float64(len(t.Cells[0]))
 	for row := range t.Cells {
 		for col := range t.Cells[row] {
 			cell := t.Cells[row][col]
-			minPt := geom.Pt{
-				X: t.BBox.Min.X + float64(col)*cellW,
-				Y: t.BBox.Min.Y + float64(len(t.Cells)-1-row)*cellH,
+			if cell.Rect == (geom.Rect{}) {
+				continue
 			}
-			maxPt := geom.Pt{
-				X: minPt.X + cellW,
-				Y: minPt.Y + cellH,
-			}
-			path := buildDisplayPath(ctx, t.Coords, patchRectPath(geom.Rect{Min: minPt, Max: maxPt}), geom.Identity())
+			path := buildDisplayPath(ctx, t.Coords, patchRectPath(cell.Rect), geom.Identity())
 			r.Path(path, &render.Paint{
 				Fill:      cell.Fill,
 				Stroke:    t.EdgeColor,
@@ -1156,8 +1299,8 @@ func (t *Table) Draw(r render.Renderer, ctx *DrawContext) {
 				continue
 			}
 			anchor := transformedPoint(ctx, t.Coords, geom.Pt{
-				X: minPt.X + cellW/2,
-				Y: minPt.Y + cellH/2,
+				X: cell.Rect.Min.X + cell.Rect.W()/2,
+				Y: cell.Rect.Min.Y + cell.Rect.H()/2,
 			}, 0, 0)
 			layout := measureSingleLineTextLayout(r, text, t.FontSize, ctx.RC.FontKey)
 			color := t.TextColor
@@ -1211,31 +1354,37 @@ func specialtyHexagon(center geom.Pt, rx, ry float64) []geom.Pt {
 	}
 }
 
-func nearestHexbinCenter(x, y float64, extent *geom.Rect, gridX, gridY int, xStep, yStep float64) (hexbinKey, geom.Pt) {
-	aCol := clampInt(int(math.Round((x-extent.Min.X)/xStep)), 0, gridX)
-	aRow := clampInt(int(math.Round((y-extent.Min.Y)/yStep)), 0, gridY)
-	aCenter := geom.Pt{
-		X: extent.Min.X + float64(aCol)*xStep,
-		Y: extent.Min.Y + float64(aRow)*yStep,
-	}
+func matplotlibHexbinCenter(x, y, xMin, yMin float64, gridX, gridY int, xStep, yStep float64) (hexbinKey, geom.Pt, bool) {
+	ix := (x - xMin) / xStep
+	iy := (y - yMin) / yStep
+	ix1 := int(math.Round(ix))
+	iy1 := int(math.Round(iy))
+	ix2 := int(math.Floor(ix))
+	iy2 := int(math.Floor(iy))
 
-	bCol := clampInt(int(math.Round((x-extent.Min.X)/xStep-0.5)), 0, gridX-1)
-	bRow := clampInt(int(math.Round((y-extent.Min.Y)/yStep-0.5)), 0, gridY-1)
-	bCenter := geom.Pt{
-		X: extent.Min.X + (float64(bCol)+0.5)*xStep,
-		Y: extent.Min.Y + (float64(bRow)+0.5)*yStep,
+	valid1 := 0 <= ix1 && ix1 <= gridX && 0 <= iy1 && iy1 <= gridY
+	valid2 := 0 <= ix2 && ix2 < gridX && 0 <= iy2 && iy2 < gridY
+	if !valid1 && !valid2 {
+		return hexbinKey{}, geom.Pt{}, false
 	}
-
-	aDX := x - aCenter.X
-	aDY := y - aCenter.Y
-	bDX := x - bCenter.X
-	bDY := y - bCenter.Y
-	aDist := aDX*aDX + aDY*aDY
-	bDist := bDX*bDX + bDY*bDY
-	if bDist < aDist {
-		return hexbinKey{lattice: 1, row: bRow, col: bCol}, bCenter
+	d1 := math.Inf(1)
+	if valid1 {
+		d1 = (ix-float64(ix1))*(ix-float64(ix1)) + 3*(iy-float64(iy1))*(iy-float64(iy1))
 	}
-	return hexbinKey{row: aRow, col: aCol}, aCenter
+	d2 := math.Inf(1)
+	if valid2 {
+		d2 = (ix-float64(ix2)-0.5)*(ix-float64(ix2)-0.5) + 3*(iy-float64(iy2)-0.5)*(iy-float64(iy2)-0.5)
+	}
+	if d1 < d2 {
+		return hexbinKey{lattice: 0, row: iy1, col: ix1}, geom.Pt{
+			X: xMin + float64(ix1)*xStep,
+			Y: yMin + float64(iy1)*yStep,
+		}, true
+	}
+	return hexbinKey{lattice: 1, row: iy2, col: ix2}, geom.Pt{
+		X: xMin + (float64(ix2)+0.5)*xStep,
+		Y: yMin + (float64(iy2)+0.5)*yStep,
+	}, true
 }
 
 func specialtyFiniteValues(values []float64) []float64 {
@@ -1348,18 +1497,6 @@ func pieAlign(angleDeg float64) TextAlign {
 		return TextAlignLeft
 	default:
 		return TextAlignCenter
-	}
-}
-
-func pieLabelOffset(angleDeg float64) float64 {
-	rad := angleDeg * math.Pi / 180
-	switch {
-	case math.Cos(rad) < -0.2:
-		return -6
-	case math.Cos(rad) > 0.2:
-		return 6
-	default:
-		return 0
 	}
 }
 

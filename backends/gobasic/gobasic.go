@@ -459,7 +459,7 @@ func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size float64, an
 		return
 	}
 
-	r.drawBitmapRotated(src, anchor, geom.Pt{X: pivotX, Y: pivotY}, angle)
+	r.drawBitmapRotated(src, anchor, geom.Pt{X: pivotX, Y: pivotY}, -angle)
 }
 
 // DrawTextVertical renders one character per line.
@@ -525,8 +525,7 @@ func (r *Renderer) drawBitmapScaled(src *image.RGBA, dstX, dstY, dstW, dstH int)
 
 	srcMin := src.Bounds().Min
 	for y := dst.Min.Y; y < dst.Max.Y; y++ {
-		syF := (float64(y-dstY) + 0.5) * float64(srcH) / float64(dstH)
-		sy := int(math.Floor(syF - 0.5))
+		sy := int(math.Floor(float64(y-dstY) * float64(srcH) / float64(dstH)))
 		if sy < 0 {
 			sy = 0
 		}
@@ -537,8 +536,7 @@ func (r *Renderer) drawBitmapScaled(src *image.RGBA, dstX, dstY, dstW, dstH int)
 		srcIdxBase := src.PixOffset(srcMin.X, srcMin.Y+sy)
 		srcRow := src.Pix[srcIdxBase : srcIdxBase+srcW*4]
 		for x := dst.Min.X; x < dst.Max.X; x++ {
-			sxF := (float64(x-dstX) + 0.5) * float64(srcW) / float64(dstW)
-			sx := int(math.Floor(sxF - 0.5))
+			sx := int(math.Floor(float64(x-dstX) * float64(srcW) / float64(dstW)))
 			if sx < 0 {
 				sx = 0
 			}

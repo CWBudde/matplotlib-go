@@ -36,6 +36,29 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestImageScalingUsesPixelEdges(t *testing.T) {
+	r := New(6, 1, render.Color{R: 1, G: 1, B: 1, A: 1})
+	src := image.NewRGBA(image.Rect(0, 0, 3, 1))
+	red := color.RGBA{R: 255, A: 255}
+	green := color.RGBA{G: 255, A: 255}
+	blue := color.RGBA{B: 255, A: 255}
+	src.SetRGBA(0, 0, red)
+	src.SetRGBA(1, 0, green)
+	src.SetRGBA(2, 0, blue)
+
+	r.Image(render.NewImageData(src), geom.Rect{
+		Min: geom.Pt{X: 0, Y: 0},
+		Max: geom.Pt{X: 6, Y: 1},
+	})
+
+	want := []color.RGBA{red, red, green, green, blue, blue}
+	for x, expected := range want {
+		if got := r.GetImage().RGBAAt(x, 0); got != expected {
+			t.Fatalf("pixel %d = %#v, want %#v", x, got, expected)
+		}
+	}
+}
+
 func TestBeginEnd(t *testing.T) {
 	r := New(100, 50, render.Color{R: 0, G: 0, B: 0, A: 1})
 

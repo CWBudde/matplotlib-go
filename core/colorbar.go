@@ -35,16 +35,16 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	}
 
 	cfg := ColorbarOptions{
-		Width:   0.035,
-		Padding: 0.053,
+		Width:   parent.RectFraction.W() * 0.15,
+		Padding: parent.RectFraction.W() * 0.05,
 	}
 	if len(opts) > 0 {
 		cfg = opts[0]
 		if cfg.Width <= 0 {
-			cfg.Width = 0.035
+			cfg.Width = parent.RectFraction.W() * 0.15
 		}
 		if cfg.Padding <= 0 {
-			cfg.Padding = 0.053
+			cfg.Padding = parent.RectFraction.W() * 0.05
 		}
 	}
 
@@ -65,6 +65,8 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 		vmax = vmin + 1
 	}
 
+	base := parent.RectFraction
+	parent.RectFraction = colorbarParentRect(base, cfg.Width, cfg.Padding)
 	rect := geom.Rect{
 		Min: geom.Pt{
 			X: parent.RectFraction.Max.X + cfg.Padding,
@@ -83,6 +85,7 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	ax.colorbarParent = parent
 	ax.colorbarWidth = cfg.Width
 	ax.colorbarPadding = cfg.Padding
+	ax.colorbarBase = base
 	ax.ShowFrame = false
 	ax.SetXLim(0, 1)
 	ax.SetYLim(vmin, vmax)
@@ -101,6 +104,8 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	if right := ax.RightAxis(); right != nil {
 		right.MinorLocator = nil
 	}
+	_ = ax.SetYTickLabelPosition("right")
+	_ = ax.SetYLabelPosition("right")
 	if cfg.Label != "" {
 		ax.SetYLabel(cfg.Label)
 	}
@@ -114,6 +119,19 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	})
 
 	return ax
+}
+
+func colorbarParentRect(base geom.Rect, width, padding float64) geom.Rect {
+	reserved := width + padding
+	if reserved <= 0 {
+		return base
+	}
+	shrunk := base
+	if base.Max.X-reserved <= base.Min.X {
+		return shrunk
+	}
+	shrunk.Max.X -= reserved
+	return shrunk
 }
 
 // Draw renders a vertical gradient across the colorbar axes.

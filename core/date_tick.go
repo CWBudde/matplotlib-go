@@ -96,60 +96,80 @@ type dateTickInterval struct {
 }
 
 func chooseDateTickInterval(minTime, maxTime time.Time, targetCount int) dateTickInterval {
-	if targetCount <= 0 {
-		targetCount = 6
-	}
-	span := maxTime.Sub(minTime)
-	if span <= 0 {
+	if !maxTime.After(minTime) {
 		return dateTickInterval{unit: "day", step: 1}
 	}
 
-	raw := span / time.Duration(targetCount)
+	// Match Matplotlib's AutoDateLocator selection model: first choose the
+	// finest frequency that can produce at least minticks, then choose the
+	// first interval that stays below that frequency's maxticks budget.
+	// targetCount is intentionally not treated as a hard cap because
+	// Matplotlib's date locator will allow dense daily labels in compact axes.
+	const minticks = 5
 	candidates := []struct {
 		interval dateTickInterval
-		approx   time.Duration
+		count    int
+		maxticks int
 	}{
-		{dateTickInterval{unit: "second", step: 1}, time.Second},
-		{dateTickInterval{unit: "second", step: 5}, 5 * time.Second},
-		{dateTickInterval{unit: "second", step: 15}, 15 * time.Second},
-		{dateTickInterval{unit: "second", step: 30}, 30 * time.Second},
-		{dateTickInterval{unit: "minute", step: 1}, time.Minute},
-		{dateTickInterval{unit: "minute", step: 5}, 5 * time.Minute},
-		{dateTickInterval{unit: "minute", step: 15}, 15 * time.Minute},
-		{dateTickInterval{unit: "minute", step: 30}, 30 * time.Minute},
-		{dateTickInterval{unit: "hour", step: 1}, time.Hour},
-		{dateTickInterval{unit: "hour", step: 3}, 3 * time.Hour},
-		{dateTickInterval{unit: "hour", step: 6}, 6 * time.Hour},
-		{dateTickInterval{unit: "hour", step: 12}, 12 * time.Hour},
-		{dateTickInterval{unit: "day", step: 1}, 24 * time.Hour},
-		{dateTickInterval{unit: "day", step: 2}, 48 * time.Hour},
-		{dateTickInterval{unit: "day", step: 7}, 7 * 24 * time.Hour},
-		{dateTickInterval{unit: "day", step: 14}, 14 * 24 * time.Hour},
-		{dateTickInterval{unit: "month", step: 1}, 30 * 24 * time.Hour},
-		{dateTickInterval{unit: "month", step: 3}, 90 * 24 * time.Hour},
-		{dateTickInterval{unit: "month", step: 6}, 180 * 24 * time.Hour},
-		{dateTickInterval{unit: "year", step: 1}, 365 * 24 * time.Hour},
-		{dateTickInterval{unit: "year", step: 2}, 2 * 365 * 24 * time.Hour},
-		{dateTickInterval{unit: "year", step: 5}, 5 * 365 * 24 * time.Hour},
-		{dateTickInterval{unit: "year", step: 10}, 10 * 365 * 24 * time.Hour},
+		{dateTickInterval{unit: "year"}, dateSpanYears(minTime, maxTime), 11},
+		{dateTickInterval{unit: "month"}, dateSpanMonths(minTime, maxTime), 12},
+		{dateTickInterval{unit: "day"}, int(maxTime.Sub(minTime).Hours() / 24), 11},
+		{dateTickInterval{unit: "hour"}, int(maxTime.Sub(minTime).Hours()), 12},
+		{dateTickInterval{unit: "minute"}, int(maxTime.Sub(minTime).Minutes()), 11},
+		{dateTickInterval{unit: "second"}, int(maxTime.Sub(minTime).Seconds()), 11},
 	}
 
-	best := candidates[0]
-	bestDelta := durationAbs(raw - best.approx)
-	for _, candidate := range candidates[1:] {
-		if delta := durationAbs(raw - candidate.approx); delta < bestDelta {
-			best = candidate
-			bestDelta = delta
-		}
+	intervals := map[string][]int{
+		"year":   []int{1, 2, 4, 5, 10, 20, 40, 50, 100, 200, 400, 500, 1000, 2000, 4000, 5000, 10000},
+		"month":  []int{1, 2, 3, 4, 6},
+		"day":    []int{1, 2, 4, 7, 14},
+		"hour":   []int{1, 2, 3, 4, 6, 12},
+		"minute": []int{1, 5, 10, 15, 30},
+		"second": []int{1, 5, 10, 15, 30},
 	}
-	return best.interval
+
+	for _, candidate := range candidates {
+		if candidate.count < minticks {
+			continue
+		}
+		steps := intervals[candidate.interval.unit]
+		for _, step := range steps {
+			if candidate.count <= step*(candidate.maxticks-1) {
+				candidate.interval.step = step
+				return candidate.interval
+			}
+		}
+		candidate.interval.step = steps[len(steps)-1]
+		return candidate.interval
+	}
+
+	span := maxTime.Sub(minTime)
+	if span >= time.Second {
+		return dateTickInterval{unit: "second", step: 1}
+	}
+	return dateTickInterval{unit: "second", step: 1}
 }
 
-func durationAbs(d time.Duration) time.Duration {
-	if d < 0 {
-		return -d
+func dateSpanYears(minTime, maxTime time.Time) int {
+	years := maxTime.Year() - minTime.Year()
+	if maxTime.YearDay() < minTime.YearDay() {
+		years--
 	}
-	return d
+	if years < 0 {
+		return 0
+	}
+	return years
+}
+
+func dateSpanMonths(minTime, maxTime time.Time) int {
+	months := (maxTime.Year()-minTime.Year())*12 + int(maxTime.Month()) - int(minTime.Month())
+	if maxTime.Day() < minTime.Day() {
+		months--
+	}
+	if months < 0 {
+		return 0
+	}
+	return months
 }
 
 func (i dateTickInterval) align(t time.Time) time.Time {

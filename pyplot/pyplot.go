@@ -154,9 +154,9 @@ func ParasiteAxes(opts ...core.ParasiteAxesOption) *core.ParasiteAxes {
 	if parasite == nil {
 		return nil
 	}
+	fig := GCF()
 
 	registry.mu.Lock()
-	fig := GCF()
 	registry.current = fig
 	registry.currentAxes[fig] = parasite.Axes
 	registry.mu.Unlock()

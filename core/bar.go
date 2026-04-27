@@ -190,6 +190,28 @@ func (b *Bar2D) Bounds(*DrawContext) geom.Rect {
 	}
 }
 
+// StickyEdges returns the bar baseline edge used by autoscaling. Matplotlib
+// bars suppress margins across the baseline so positive bars start at the
+// spine while the far data edge still receives the configured margin.
+func (b *Bar2D) StickyEdges() ([]float64, []float64) {
+	n := len(b.X)
+	if len(b.Heights) < n {
+		n = len(b.Heights)
+	}
+	if n <= 0 {
+		return nil, nil
+	}
+
+	edges := make([]float64, 0, n)
+	for i := 0; i < n; i++ {
+		edges = append(edges, b.baselineAt(i))
+	}
+	if b.Orientation == BarHorizontal {
+		return edges, nil
+	}
+	return nil, edges
+}
+
 // verticalBounds calculates bounds for vertical bars.
 func (b *Bar2D) verticalBounds(numBars int) geom.Rect {
 	// Get maximum width for bounds calculation

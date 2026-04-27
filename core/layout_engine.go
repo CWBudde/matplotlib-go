@@ -440,6 +440,11 @@ func syncColorbarAxes(fig *Figure) {
 		if width <= 0 {
 			width = 0.035
 		}
+		base := ax.colorbarBase
+		if parent.subplotSpec != nil {
+			base = parent.RectFraction
+		}
+		parent.RectFraction = colorbarParentRect(base, width, padding)
 		ax.RectFraction = geom.Rect{
 			Min: geom.Pt{
 				X: parent.RectFraction.Max.X + padding,

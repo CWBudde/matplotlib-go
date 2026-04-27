@@ -1025,7 +1025,7 @@ func buildUnitsDemo(width, height int) *core.Figure {
 		EdgeColor: &render.Color{R: 0.60, G: 0.30, B: 0.03, A: 1},
 		EdgeWidth: floatPtr(1),
 	})
-	categoryAx.AutoScale(0.10)
+	categoryAx.AutoScale(0.05)
 
 	horizontalAx := grid[0][2]
 	horizontalAx.SetTitle("Categorical Y")
@@ -1038,7 +1038,7 @@ func buildUnitsDemo(width, height int) *core.Figure {
 		EdgeColor:   &render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1},
 		EdgeWidth:   floatPtr(1),
 	})
-	horizontalAx.AutoScale(0.10)
+	horizontalAx.AutoScale(0.05)
 	return fig
 }
 
@@ -1062,9 +1062,6 @@ func buildMatrixDemo(width, height int) *core.Figure {
 
 	heatAx := grid[0][2]
 	heatAx.SetTitle("Annotated Heatmap")
-	colorbarWidth := 0.035
-	colorbarPadding := 0.053
-	heatAx.RectFraction.Max.X -= colorbarWidth + colorbarPadding
 	heatData := [][]float64{{0.1, 0.7, 0.4}, {0.9, 0.2, 0.5}, {0.3, 0.8, 0.6}}
 	img := heatAx.Image(heatData, core.ImageOptions{Colormap: strPtr("magma"), Origin: core.ImageOriginUpper, XMin: floatPtr(-0.5), XMax: floatPtr(2.5), YMin: floatPtr(2.5), YMax: floatPtr(-0.5)})
 	_ = heatAx.SetAspect("equal")
@@ -1085,7 +1082,7 @@ func buildMatrixDemo(width, height int) *core.Figure {
 		}
 	}
 	if img != nil {
-		fig.AddColorbar(heatAx, img, core.ColorbarOptions{Width: colorbarWidth, Padding: colorbarPadding, Label: "value"})
+		fig.AddColorbar(heatAx, img, core.ColorbarOptions{Label: "value"})
 	}
 	return fig
 }
@@ -1234,17 +1231,22 @@ func buildSpecialtyDemo(width, height int) *core.Figure {
 	stemAx.SetXLim(0.5, 7.5)
 	stemAx.SetYLim(-0.2, 4.2)
 	stemAx.AddYGrid()
-	stemAx.Stem([]float64{1, 2, 3, 4, 5, 6, 7}, []float64{0.9, 2.2, 1.6, 3.3, 2.4, 3.7, 2.1}, core.StemOptions{Color: &render.Color{R: 0.15, G: 0.42, B: 0.73, A: 1}, Baseline: floatPtr(0.3), MarkerSize: floatPtr(7)})
+	stem := stemAx.Stem([]float64{1, 2, 3, 4, 5, 6, 7}, []float64{0.9, 2.2, 1.6, 3.3, 2.4, 3.7, 2.1}, core.StemOptions{Color: &render.Color{R: 0.15, G: 0.42, B: 0.73, A: 1}, MarkerSize: floatPtr(7)})
+	if stem != nil && stem.Baseline != nil {
+		stem.Baseline.Col.A = 0
+		stem.Baseline.W = 0
+	}
+	stemAx.AxHLine(0.3, core.HLineOptions{Color: &render.Color{R: 0.4, G: 0.4, B: 0.4, A: 1}})
 
 	tableAx := grid[1][1]
 	tableAx.SetTitle("Table")
 	hideAxes(tableAx)
-	tableAx.Table(core.TableOptions{ColLabels: []string{"Metric", "Q1", "Q2"}, RowLabels: []string{"A", "B"}, CellText: [][]string{{"Latency", "18ms", "14ms"}, {"Throughput", "220/s", "265/s"}}, BBox: geom.Rect{Min: geom.Pt{X: 0.04, Y: 0.18}, Max: geom.Pt{X: 0.96, Y: 0.82}}})
+	tableAx.Table(core.TableOptions{ColLabels: []string{"Metric", "Q1", "Q2"}, RowLabels: []string{"A", "B"}, CellText: [][]string{{"Latency", "18ms", "14ms"}, {"Throughput", "220/s", "265/s"}}, BBox: geom.Rect{Min: geom.Pt{X: 0.04, Y: 0.18}, Max: geom.Pt{X: 0.96, Y: 0.82}}, FontSize: 10})
 
 	sankeyAx := grid[1][2]
 	sankeyAx.SetTitle("Sankey")
 	hideAxes(sankeyAx)
-	builder := core.NewSankey(sankeyAx, core.SankeyOptions{Center: geom.Pt{X: 0.18, Y: 0.5}})
+	builder := core.NewSankey(sankeyAx, core.SankeyOptions{Center: geom.Pt{X: 0.34, Y: 0.5}, Scale: 0.16, Offset: 0.2, PathLength: 0.32})
 	builder.Add([]float64{-2, 3, 1.5}, core.SankeyAddOptions{Labels: []string{"Waste", "CPU", "Cache"}, Orientations: []int{-1, 1, 1}})
 	return fig
 }
@@ -1317,7 +1319,16 @@ func buildCompositionDemo(width, height int) *core.Figure {
 	bottom.AddXGrid()
 	bottom.AddYGrid()
 	bottom.Plot([]float64{0, 1, 2, 3, 4}, []float64{3.0, 2.6, 2.9, 2.1, 1.9}, core.PlotOptions{Color: &render.Color{R: 0.69, G: 0.27, B: 0.67, A: 1}, LineWidth: floatPtr(1.8), Label: "bottom"})
-	bottom.AddAnchoredText("axes note", core.AnchoredTextOptions{Location: core.LegendUpperLeft})
+	noteBox := &core.TextBBoxOptions{
+		FaceColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+		EdgeColor: render.Color{R: 0.7, G: 0.7, B: 0.7, A: 1},
+	}
+	bottom.Text(0.02, 0.98, "axes note", core.TextOptions{
+		Coords: core.Coords(core.CoordAxes),
+		HAlign: core.TextAlignLeft,
+		VAlign: core.TextVAlignTop,
+		BBox:   noteBox,
+	})
 	bottom.AutoScale(0.05)
 	bottom.XAxis.Locator = core.FixedLocator{TicksList: []float64{0, 1, 2, 3, 4}}
 	bottom.YAxis.Locator = core.FixedLocator{TicksList: []float64{2.0, 2.25, 2.5, 2.75, 3.0}}
@@ -1325,9 +1336,7 @@ func buildCompositionDemo(width, height int) *core.Figure {
 	heatSlot := gs.Span(0, 2, 2, 1).Rect()
 	colorbarWidth := heatSlot.W() * 0.15
 	colorbarPadding := heatSlot.W() * 0.05
-	heatRect := heatSlot
-	heatRect.Max.X -= colorbarWidth + colorbarPadding
-	heat := fig.AddAxes(heatRect)
+	heat := fig.AddAxes(heatSlot)
 	heat.SetTitle("colorbar")
 	img := heat.Image([][]float64{{0.2, 0.5, 0.7}, {0.9, 0.4, 0.1}, {0.3, 0.8, 0.6}}, core.ImageOptions{Colormap: strPtr("inferno"), Origin: core.ImageOriginUpper, XMin: floatPtr(-0.5), XMax: floatPtr(2.5), YMin: floatPtr(2.5), YMax: floatPtr(-0.5)})
 	_ = heat.SetAspect("equal")
@@ -1346,6 +1355,9 @@ func buildCompositionDemo(width, height int) *core.Figure {
 		}
 	}
 	legend := fig.AddLegend()
+	legend.Padding = 5.56
+	legend.RowGap = 3.2
+	legend.SampleWidth = 28
 	legend.SetLocator(core.AnchoredBoxLocatorFunc(func(_ geom.Rect, boxWidth, boxHeight float64) geom.Rect {
 		right := float64(width) - 6.94
 		top := 6.94
@@ -1354,7 +1366,7 @@ func buildCompositionDemo(width, height int) *core.Figure {
 			Max: geom.Pt{X: right, Y: top + boxHeight},
 		}
 	}))
-	fig.Text(0.98, 0.02, "figure note", core.TextOptions{HAlign: core.TextAlignRight, VAlign: core.TextVAlignBottom})
+	fig.Text(0.98, 0.02, "figure note", core.TextOptions{HAlign: core.TextAlignRight, VAlign: core.TextVAlignBottom, BBox: noteBox})
 	return fig
 }
 
@@ -1454,10 +1466,12 @@ func hideAxes(ax *core.Axes) {
 	}
 	ax.ShowFrame = false
 	if ax.XAxis != nil {
+		ax.XAxis.ShowSpine = false
 		ax.XAxis.ShowTicks = false
 		ax.XAxis.ShowLabels = false
 	}
 	if ax.YAxis != nil {
+		ax.YAxis.ShowSpine = false
 		ax.YAxis.ShowTicks = false
 		ax.YAxis.ShowLabels = false
 	}

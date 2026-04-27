@@ -20,6 +20,14 @@ type Artist interface {
 	Bounds(ctx *DrawContext) geom.Rect
 }
 
+// StickyEdgeArtist can opt an autoscaled data edge out of margin expansion.
+// This mirrors Matplotlib's sticky_edges behavior used by bars and images:
+// if a margin would cross a sticky value that sits on a data bound, the bound
+// is clamped to that value.
+type StickyEdgeArtist interface {
+	StickyEdges() (x []float64, y []float64)
+}
+
 // OverlayArtist is an optional extension for artists that need to render
 // outside the axes clip, such as annotations with labels offset from the plot.
 type OverlayArtist interface {
@@ -340,6 +348,9 @@ type Axes struct {
 	shareY *Axes
 	figure *Figure
 
+	xLimitsManual bool
+	yLimitsManual bool
+
 	xUnits *axisUnitsState
 	yUnits *axisUnitsState
 
@@ -349,6 +360,7 @@ type Axes struct {
 	colorbarParent  *Axes
 	colorbarWidth   float64
 	colorbarPadding float64
+	colorbarBase    geom.Rect
 }
 
 // TickParams controls axis tick visibility and styling.
@@ -589,6 +601,7 @@ func (a *Axes) SetSkewXAngle(angleDeg float64) error {
 func (a *Axes) SetXLim(minVal, maxVal float64) {
 	target := a.xScaleRoot()
 	target.XScale = replaceScaleDomain(target.XScale, minVal, maxVal)
+	target.xLimitsManual = true
 	target.refreshUnitAxis(true)
 }
 
@@ -596,6 +609,7 @@ func (a *Axes) SetXLim(minVal, maxVal float64) {
 func (a *Axes) SetYLim(minVal, maxVal float64) {
 	target := a.yScaleRoot()
 	target.YScale = replaceScaleDomain(target.YScale, minVal, maxVal)
+	target.yLimitsManual = true
 	target.refreshUnitAxis(false)
 }
 
@@ -616,6 +630,7 @@ func (a *Axes) SetXLimLog(minVal, maxVal, base float64) {
 		return
 	}
 	target.XScale = transform.NewLog(minVal, maxVal, base)
+	target.xLimitsManual = true
 	configureScaleAxes(target.XAxis, target.XAxisTop, "log", transform.ResolveScaleOptions(
 		transform.WithScaleDomain(minVal, maxVal),
 		transform.WithScaleBase(base),
@@ -629,6 +644,7 @@ func (a *Axes) SetYLimLog(minVal, maxVal, base float64) {
 		return
 	}
 	target.YScale = transform.NewLog(minVal, maxVal, base)
+	target.yLimitsManual = true
 	configureScaleAxes(target.YAxis, target.YAxisRight, "log", transform.ResolveScaleOptions(
 		transform.WithScaleDomain(minVal, maxVal),
 		transform.WithScaleBase(base),
@@ -674,33 +690,74 @@ func (a *Axes) YInverted() bool {
 // A margin of 0 fits exactly to the data. If no artists have non-zero bounds,
 // limits remain unchanged.
 func (a *Axes) AutoScale(margin float64) {
-	targetX := a.xScaleRoot()
-	targetY := a.yScaleRoot()
+	a.autoScaleAxis(true, margin, false)
+	a.autoScaleAxis(false, margin, false)
+}
 
-	var xMin, xMax, yMin, yMax float64
+func (a *Axes) autoScaleIfEnabled(margin float64) {
+	if a == nil || a.ProjectionName() != "rectilinear" {
+		return
+	}
+	a.autoScaleAxis(true, margin, true)
+	a.autoScaleAxis(false, margin, true)
+}
+
+func (a *Axes) autoScaleAxis(isX bool, margin float64, respectManual bool) {
+	if a == nil {
+		return
+	}
+
+	target := a.xScaleRoot()
+	if !isX {
+		target = a.yScaleRoot()
+	}
+	if target == nil {
+		return
+	}
+	if respectManual {
+		if isX && target.xLimitsManual {
+			return
+		}
+		if !isX && target.yLimitsManual {
+			return
+		}
+	}
+
+	var minVal, maxVal float64
+	var stickies []float64
 	first := true
 
-	for _, art := range a.Artists {
-		b := art.Bounds(nil)
-		if b.W() == 0 && b.H() == 0 && b.Min.X == 0 && b.Min.Y == 0 {
-			continue // skip zero-bounds artists (grids, etc.)
-		}
-		if first {
-			xMin, xMax = b.Min.X, b.Max.X
-			yMin, yMax = b.Min.Y, b.Max.Y
-			first = false
-		} else {
-			if b.Min.X < xMin {
-				xMin = b.Min.X
+	for _, ax := range a.autoscaleAxesForTarget(isX, target) {
+		for _, art := range ax.Artists {
+			b := art.Bounds(nil)
+			if b.W() == 0 && b.H() == 0 && b.Min.X == 0 && b.Min.Y == 0 {
+				continue // skip zero-bounds artists (grids, etc.)
 			}
-			if b.Max.X > xMax {
-				xMax = b.Max.X
+			lo, hi := b.Min.X, b.Max.X
+			if !isX {
+				lo, hi = b.Min.Y, b.Max.Y
 			}
-			if b.Min.Y < yMin {
-				yMin = b.Min.Y
+			if math.IsNaN(lo) || math.IsNaN(hi) || math.IsInf(lo, 0) || math.IsInf(hi, 0) {
+				continue
 			}
-			if b.Max.Y > yMax {
-				yMax = b.Max.Y
+			if sticky, ok := art.(StickyEdgeArtist); ok {
+				xSticky, ySticky := sticky.StickyEdges()
+				if isX {
+					stickies = appendFinite(stickies, xSticky...)
+				} else {
+					stickies = appendFinite(stickies, ySticky...)
+				}
+			}
+			if first {
+				minVal, maxVal = lo, hi
+				first = false
+				continue
+			}
+			if lo < minVal {
+				minVal = lo
+			}
+			if hi > maxVal {
+				maxVal = hi
 			}
 		}
 	}
@@ -708,24 +765,84 @@ func (a *Axes) AutoScale(margin float64) {
 		return // no data artists
 	}
 
-	// Apply margin
-	xSpan := xMax - xMin
-	ySpan := yMax - yMin
-	if xSpan == 0 {
-		xSpan = 1 // avoid zero-span
+	span := maxVal - minVal
+	if span == 0 {
+		span = 1 // avoid zero-span
 	}
-	if ySpan == 0 {
-		ySpan = 1
+	lowerSticky, upperSticky := stickyBounds(minVal, maxVal, stickies)
+	minVal -= span * margin
+	maxVal += span * margin
+	if !math.IsNaN(lowerSticky) && minVal < lowerSticky {
+		minVal = lowerSticky
 	}
-	xMin -= xSpan * margin
-	xMax += xSpan * margin
-	yMin -= ySpan * margin
-	yMax += ySpan * margin
+	if !math.IsNaN(upperSticky) && maxVal > upperSticky {
+		maxVal = upperSticky
+	}
 
-	targetX.XScale = replaceScaleDomain(targetX.XScale, xMin, xMax)
-	targetY.YScale = replaceScaleDomain(targetY.YScale, yMin, yMax)
-	targetX.refreshUnitAxis(true)
-	targetY.refreshUnitAxis(false)
+	if isX {
+		target.XScale = replaceScaleDomain(target.XScale, minVal, maxVal)
+		target.refreshUnitAxis(true)
+	} else {
+		target.YScale = replaceScaleDomain(target.YScale, minVal, maxVal)
+		target.refreshUnitAxis(false)
+	}
+}
+
+func (a *Axes) autoscaleAxesForTarget(isX bool, target *Axes) []*Axes {
+	if a == nil {
+		return nil
+	}
+	fig := a.figure
+	if fig == nil || target == nil {
+		return []*Axes{a}
+	}
+
+	axes := make([]*Axes, 0, len(fig.Children))
+	for _, candidate := range fig.Children {
+		if candidate == nil {
+			continue
+		}
+		root := candidate.xScaleRoot()
+		if !isX {
+			root = candidate.yScaleRoot()
+		}
+		if root == target {
+			axes = append(axes, candidate)
+		}
+	}
+	if len(axes) == 0 {
+		return []*Axes{a}
+	}
+	return axes
+}
+
+func appendFinite(dst []float64, values ...float64) []float64 {
+	for _, value := range values {
+		if !math.IsNaN(value) && !math.IsInf(value, 0) {
+			dst = append(dst, value)
+		}
+	}
+	return dst
+}
+
+func stickyBounds(minVal, maxVal float64, stickies []float64) (float64, float64) {
+	if len(stickies) == 0 {
+		return math.NaN(), math.NaN()
+	}
+	sort.Float64s(stickies)
+
+	tol := 1e-5 * math.Abs(maxVal-minVal)
+	lower := math.NaN()
+	upper := math.NaN()
+	for _, sticky := range stickies {
+		if sticky < minVal+tol {
+			lower = sticky
+		}
+		if math.IsNaN(upper) && sticky > maxVal-tol {
+			upper = sticky
+		}
+	}
+	return lower, upper
 }
 
 // AddGrid adds grid lines for the specified axis.

@@ -194,12 +194,8 @@ func TestScatter2D_Bounds(t *testing.T) {
 	}
 	bounds = scatter.Bounds(nil)
 
-	// Should expand bounds by approximately the marker size
-	if bounds.Min.X > 0 || bounds.Min.Y > 0 {
-		t.Errorf("Expected bounds to expand below data minimum, got %v", bounds)
-	}
-	if bounds.Max.X < 2 || bounds.Max.Y < 2 {
-		t.Errorf("Expected bounds to expand above data maximum, got %v", bounds)
+	if bounds.Min.X != 0 || bounds.Min.Y != 0 || bounds.Max.X != 2 || bounds.Max.Y != 2 {
+		t.Errorf("Expected point-center bounds [0,0]-[2,2], got %v", bounds)
 	}
 
 	// Test with variable sizes
@@ -213,9 +209,26 @@ func TestScatter2D_Bounds(t *testing.T) {
 	}
 	bounds = scatter.Bounds(nil)
 
-	// Should use the maximum size for bounds expansion
-	if bounds.Min.X >= 0 || bounds.Min.Y >= 0 {
-		t.Errorf("Expected bounds to expand below origin with max size, got %v", bounds)
+	if bounds.Min.X != 0 || bounds.Min.Y != 0 || bounds.Max.X != 1 || bounds.Max.Y != 1 {
+		t.Errorf("Expected variable marker sizes not to affect data bounds, got %v", bounds)
+	}
+}
+
+func TestScatterAutoScaleIgnoresMarkerSize(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	size := 500.0
+	ax.Scatter([]float64{0, 2}, []float64{1, 3}, ScatterOptions{Size: &size})
+
+	ax.AutoScale(0.05)
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+
+	if !floatApprox(xMin, -0.1, 1e-12) || !floatApprox(xMax, 2.1, 1e-12) {
+		t.Fatalf("x limits = [%v, %v], want [-0.1, 2.1]", xMin, xMax)
+	}
+	if !floatApprox(yMin, 0.9, 1e-12) || !floatApprox(yMax, 3.1, 1e-12) {
+		t.Fatalf("y limits = [%v, %v], want [0.9, 3.1]", yMin, yMax)
 	}
 }
 

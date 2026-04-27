@@ -23,6 +23,12 @@ func TestFigureAddColorbarConfiguresAxes(t *testing.T) {
 		t.Fatal("expected colorbar axes")
 	}
 
+	if got, want := ax.RectFraction.Max.X, 0.78-(0.78-0.10)*0.20; !floatApprox(got, want, 1e-12) {
+		t.Fatalf("expected parent to reserve colorbar space: got right=%v want %v", got, want)
+	}
+	if got, want := cbAx.RectFraction.Max.X, 0.78; !floatApprox(got, want, 1e-12) {
+		t.Fatalf("expected colorbar to occupy reserved right edge: got right=%v want %v", got, want)
+	}
 	if cbAx.RectFraction.Min.X <= ax.RectFraction.Max.X {
 		t.Fatalf("expected colorbar to be placed to the right, got %+v", cbAx.RectFraction)
 	}
@@ -40,6 +46,15 @@ func TestFigureAddColorbarConfiguresAxes(t *testing.T) {
 	}
 	if cbAx.YAxisRight.Side != AxisRight {
 		t.Fatalf("expected right-side y-axis, got %v", cbAx.YAxisRight.Side)
+	}
+	if !cbAx.YAxisRight.ShowLabels || !cbAx.YAxisRight.ShowTicks {
+		t.Fatalf("expected visible right-side colorbar ticks and labels, got %+v", cbAx.YAxisRight)
+	}
+	if cbAx.YAxis.ShowLabels || cbAx.YAxis.ShowTicks {
+		t.Fatalf("expected hidden left-side colorbar ticks and labels, got %+v", cbAx.YAxis)
+	}
+	if cbAx.effectiveYLabelSide() != AxisRight {
+		t.Fatalf("expected colorbar label on right side")
 	}
 	if cbAx.YLabel != "Intensity" {
 		t.Fatalf("unexpected colorbar label %q", cbAx.YLabel)

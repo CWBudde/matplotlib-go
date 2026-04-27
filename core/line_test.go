@@ -242,3 +242,71 @@ func TestAutoScaleNoData(t *testing.T) {
 		t.Errorf("limits should be unchanged with no data: got [%v, %v]", xMin, xMax)
 	}
 }
+
+func TestPlotAutoScalesWithDefaultMargin(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	ax.Plot([]float64{0, 10}, []float64{-1, 3})
+
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	if !floatApprox(xMin, -0.5, 1e-12) || !floatApprox(xMax, 10.5, 1e-12) {
+		t.Fatalf("x limits = [%v, %v], want [-0.5, 10.5]", xMin, xMax)
+	}
+	if !floatApprox(yMin, -1.2, 1e-12) || !floatApprox(yMax, 3.2, 1e-12) {
+		t.Fatalf("y limits = [%v, %v], want [-1.2, 3.2]", yMin, yMax)
+	}
+}
+
+func TestPlotAutoScaleExpandsAcrossLines(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	ax.Plot([]float64{0, 1}, []float64{0, 1})
+	ax.Plot([]float64{-2, 4}, []float64{-3, 5})
+
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	if !floatApprox(xMin, -2.3, 1e-12) || !floatApprox(xMax, 4.3, 1e-12) {
+		t.Fatalf("x limits = [%v, %v], want [-2.3, 4.3]", xMin, xMax)
+	}
+	if !floatApprox(yMin, -3.4, 1e-12) || !floatApprox(yMax, 5.4, 1e-12) {
+		t.Fatalf("y limits = [%v, %v], want [-3.4, 5.4]", yMin, yMax)
+	}
+}
+
+func TestPlotAutoScalePreservesExplicitLimits(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	ax.SetXLim(0, 10)
+	ax.SetYLim(-2, 2)
+	ax.Plot([]float64{-100, 100}, []float64{-50, 50})
+
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	if xMin != 0 || xMax != 10 {
+		t.Fatalf("x limits = [%v, %v], want [0, 10]", xMin, xMax)
+	}
+	if yMin != -2 || yMax != 2 {
+		t.Fatalf("y limits = [%v, %v], want [-2, 2]", yMin, yMax)
+	}
+}
+
+func TestPlotAutoScalePreservesOnlyExplicitAxis(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	ax.SetXLim(0, 10)
+	ax.Plot([]float64{-100, 100}, []float64{-50, 50})
+
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	if xMin != 0 || xMax != 10 {
+		t.Fatalf("x limits = [%v, %v], want [0, 10]", xMin, xMax)
+	}
+	if yMin != -55 || yMax != 55 {
+		t.Fatalf("y limits = [%v, %v], want [-55, 55]", yMin, yMax)
+	}
+}
