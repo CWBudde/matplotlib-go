@@ -7,6 +7,8 @@ from pathlib import Path
 import argparse
 import sys
 
+from matplotlib.offsetbox import AnchoredText
+
 try:
     from test.matplotlib_ref.common import *  # noqa: F401,F403
 except ModuleNotFoundError:
@@ -80,15 +82,20 @@ def axes_grid1_showcase(out_dir):
         ax.set_yticks([0, 10, 20])
         ax.imshow(data, origin="upper", cmap=channel_cmaps[title])
 
-    fig.text(
-        0.98,
-        0.98,
+    note = AnchoredText(
         "axes_grid1-style layout\nImageGrid + RGB channel views",
-        ha="right",
-        va="top",
-        fontsize=11,
-        bbox=dict(boxstyle="round,pad=0.35", facecolor="white", edgecolor=(0.75, 0.75, 0.75, 1.0)),
+        loc="upper right",
+        prop={"size": 11},
+        pad=0.35,
+        borderpad=0.5,
+        frameon=True,
+        bbox_to_anchor=(0, 0, 1, 1),
+        bbox_transform=fig.transFigure,
     )
+    note.patch.set_boxstyle("round,pad=0.35")
+    note.patch.set_facecolor("white")
+    note.patch.set_edgecolor((0.75, 0.75, 0.75, 1.0))
+    fig.add_artist(note)
 
     save(fig, out_dir, "axes_grid1_showcase")
 

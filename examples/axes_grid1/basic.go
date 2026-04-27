@@ -77,8 +77,17 @@ func main() {
 		channel.ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0, 10, 20}}
 	}
 
+	notePad := 0.35 * 11 * fig.RC.DPI / 72
+	noteInset := 0.5 * 11 * fig.RC.DPI / 72
 	fig.AddAnchoredText("axes_grid1-style layout\nImageGrid + RGB channel views", core.AnchoredTextOptions{
-		Location: core.LegendUpperRight,
+		Location:        core.LegendUpperRight,
+		Padding:         notePad,
+		Inset:           noteInset,
+		BoxPadding:      notePad,
+		CornerRadius:    notePad,
+		BackgroundColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+		BorderColor:     render.Color{R: 0.75, G: 0.75, B: 0.75, A: 1},
+		FontSize:        11,
 	})
 
 	r, _, err := backends.NewRendererFromEnv(backends.Config{

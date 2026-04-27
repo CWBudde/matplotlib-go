@@ -15,6 +15,7 @@ type AnchoredTextOptions struct {
 	Padding         float64
 	Inset           float64
 	RowGap          float64
+	BoxPadding      float64
 	CornerRadius    float64
 	BackgroundColor render.Color
 	BorderColor     render.Color
@@ -32,6 +33,7 @@ type AnchoredTextBox struct {
 	Padding         float64
 	Inset           float64
 	RowGap          float64
+	BoxPadding      float64
 	CornerRadius    float64
 	BackgroundColor render.Color
 	BorderColor     render.Color
@@ -64,9 +66,9 @@ func (f *Figure) AddAnchoredText(text string, opts ...AnchoredTextOptions) *Anch
 func newAnchoredTextBox(text string, rc style.RC, opts ...AnchoredTextOptions) *AnchoredTextBox {
 	cfg := AnchoredTextOptions{
 		Location:        LegendUpperLeft,
-		Padding:         8,
-		Inset:           8,
-		RowGap:          4,
+		Padding:         -1,
+		Inset:           -1,
+		RowGap:          -1,
 		CornerRadius:    0,
 		BackgroundColor: rc.LegendBackground,
 		BorderColor:     rc.LegendBorderColor,
@@ -85,6 +87,9 @@ func newAnchoredTextBox(text string, rc style.RC, opts ...AnchoredTextOptions) *
 		}
 		if opt.RowGap > 0 {
 			cfg.RowGap = opt.RowGap
+		}
+		if opt.BoxPadding > 0 {
+			cfg.BoxPadding = opt.BoxPadding
 		}
 		if opt.CornerRadius > 0 {
 			cfg.CornerRadius = opt.CornerRadius
@@ -113,6 +118,7 @@ func newAnchoredTextBox(text string, rc style.RC, opts ...AnchoredTextOptions) *
 		Padding:         cfg.Padding,
 		Inset:           cfg.Inset,
 		RowGap:          cfg.RowGap,
+		BoxPadding:      cfg.BoxPadding,
 		CornerRadius:    cfg.CornerRadius,
 		BackgroundColor: cfg.BackgroundColor,
 		BorderColor:     cfg.BorderColor,
@@ -138,35 +144,16 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	fontSize := resolvedFontSize(a.FontSize, ctx)
-	maxWidth := 0.0
-	lineHeights := make([]float64, len(lines))
 	layouts := make([]singleLineTextLayout, len(lines))
+	fontSize := resolvedFontSize(a.FontSize, ctx)
 	for i, line := range lines {
-		layout := measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
-		layouts[i] = layout
-		if layout.Width > maxWidth {
-			maxWidth = layout.Width
-		}
-		lineHeight := layout.Height
-		if lineHeight < fontSize {
-			lineHeight = fontSize
-		}
-		lineHeights[i] = lineHeight
+		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
 	}
 
-	contentHeight := 0.0
-	for _, h := range lineHeights {
-		contentHeight += h
-	}
-	if len(lineHeights) > 1 {
-		contentHeight += a.RowGap * float64(len(lineHeights)-1)
-	}
-
-	box := resolveAnchoredBoxRect(a.Locator, ctx.Clip, maxWidth+a.Padding*2, contentHeight+a.Padding*2, a.Location, a.Inset)
-	boxPath := pixelRectPath(box)
+	boxLayout := a.layout(r, ctx, layouts, fontSize)
+	boxPath := pixelRectPath(boxLayout.patchBox)
 	if a.CornerRadius > 0 {
-		boxPath = roundedRectPath(box, a.CornerRadius)
+		boxPath = roundedRectPath(boxLayout.patchBox, a.CornerRadius)
 	}
 	r.Path(boxPath, &render.Paint{
 		Fill:      a.BackgroundColor,
@@ -176,15 +163,15 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 		LineCap:   render.CapButt,
 	})
 
-	y := box.Min.Y + a.Padding
+	y := boxLayout.contentBox.Min.Y + boxLayout.padding
 	for i, line := range lines {
 		layout := layouts[i]
 		if line == "" {
-			y += lineHeights[i] + a.RowGap
+			y += a.lineAdvance(fontSize, ctx)
 			continue
 		}
 		anchor := geom.Pt{
-			X: box.Min.X + a.Padding,
+			X: boxLayout.contentBox.Min.X + boxLayout.padding,
 			Y: y,
 		}
 		drawDisplayText(
@@ -195,7 +182,7 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 			resolvedTextColor(a.TextColor, ctx),
 			ctx.RC.FontKey,
 		)
-		y += lineHeights[i] + a.RowGap
+		y += a.lineAdvance(fontSize, ctx)
 	}
 }
 
@@ -224,24 +211,86 @@ func (a *AnchoredTextBox) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rec
 	}
 
 	fontSize := resolvedFontSize(a.FontSize, ctx)
+	layouts := make([]singleLineTextLayout, len(lines))
+	for i, line := range lines {
+		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
+	}
+
+	return a.layout(r, ctx, layouts, fontSize).patchBox, true
+}
+
+type anchoredTextLayout struct {
+	contentBox geom.Rect
+	patchBox   geom.Rect
+	padding    float64
+}
+
+func (a *AnchoredTextBox) layout(_ render.Renderer, ctx *DrawContext, layouts []singleLineTextLayout, fontSize float64) anchoredTextLayout {
+	padding := a.resolvedPadding(fontSize, ctx)
+	inset := a.resolvedInset(fontSize, ctx)
+	boxPadding := a.resolvedBoxPadding()
 	maxWidth := 0.0
-	contentHeight := 0.0
-	for _, line := range lines {
-		layout := measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
+	for _, layout := range layouts {
 		if layout.Width > maxWidth {
 			maxWidth = layout.Width
 		}
-		lineHeight := layout.Height
-		if lineHeight < fontSize {
-			lineHeight = fontSize
-		}
-		contentHeight += lineHeight
 	}
-	if len(lines) > 1 {
-		contentHeight += a.RowGap * float64(len(lines)-1)
+	contentHeight := 0.0
+	if len(layouts) > 0 {
+		contentHeight = a.lineHeight(fontSize, ctx) + a.lineAdvance(fontSize, ctx)*float64(len(layouts)-1)
 	}
+	contentBox := resolveAnchoredBoxRect(a.Locator, ctx.Clip, maxWidth+padding*2, contentHeight+padding*2, a.Location, inset)
+	return anchoredTextLayout{
+		contentBox: contentBox,
+		patchBox:   expandAnchoredRect(contentBox, boxPadding),
+		padding:    padding,
+	}
+}
 
-	return resolveAnchoredBoxRect(a.Locator, ctx.Clip, maxWidth+a.Padding*2, contentHeight+a.Padding*2, a.Location, a.Inset), true
+func (a *AnchoredTextBox) resolvedPadding(fontSize float64, ctx *DrawContext) float64 {
+	if a != nil && a.Padding >= 0 {
+		return a.Padding
+	}
+	return pointsToPixels(ctx.RC, 0.4*fontSize)
+}
+
+func (a *AnchoredTextBox) resolvedInset(fontSize float64, ctx *DrawContext) float64 {
+	if a != nil && a.Inset >= 0 {
+		return a.Inset
+	}
+	return pointsToPixels(ctx.RC, 0.5*fontSize)
+}
+
+func (a *AnchoredTextBox) resolvedRowGap(fontSize float64, ctx *DrawContext) float64 {
+	if a != nil && a.RowGap >= 0 {
+		return a.RowGap
+	}
+	return 0.2 * a.lineHeight(fontSize, ctx)
+}
+
+func (a *AnchoredTextBox) resolvedBoxPadding() float64 {
+	if a == nil || a.BoxPadding <= 0 {
+		return 0
+	}
+	return a.BoxPadding
+}
+
+func (a *AnchoredTextBox) lineHeight(fontSize float64, ctx *DrawContext) float64 {
+	return pointsToPixels(ctx.RC, fontSize)
+}
+
+func (a *AnchoredTextBox) lineAdvance(fontSize float64, ctx *DrawContext) float64 {
+	return a.lineHeight(fontSize, ctx) + a.resolvedRowGap(fontSize, ctx)
+}
+
+func expandAnchoredRect(r geom.Rect, pad float64) geom.Rect {
+	if pad <= 0 {
+		return r
+	}
+	return geom.Rect{
+		Min: geom.Pt{X: r.Min.X - pad, Y: r.Min.Y - pad},
+		Max: geom.Pt{X: r.Max.X + pad, Y: r.Max.Y + pad},
+	}
 }
 
 func anchoredBoxRect(clip geom.Rect, width, height float64, location LegendLocation, inset float64) geom.Rect {

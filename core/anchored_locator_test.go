@@ -84,8 +84,9 @@ func TestAnchoredTextOptionsMergeWithDefaults(t *testing.T) {
 		FontSize:        10,
 	})
 
-	if box.RowGap != 4 {
-		t.Fatalf("row gap = %v, want default 4", box.RowGap)
+	ctx := &DrawContext{RC: styleRCForAnchoredTextTest()}
+	if got, want := box.resolvedRowGap(10, ctx), pointsToPixels(ctx.RC, 2); !floatApprox(got, want, 1e-9) {
+		t.Fatalf("resolved row gap = %v, want %v", got, want)
 	}
 	if box.BorderWidth != 1 {
 		t.Fatalf("border width = %v, want default 1", box.BorderWidth)
