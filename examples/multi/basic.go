@@ -35,7 +35,7 @@ func main() {
 		},
 	)
 
-	size := 8.0
+	size := core.ScatterAreaFromRadius(8.0, 100.0)
 	edgeWidth := 0.0
 	ax.Scatter(
 		[]float64{1.5, 2.5, 3.5, 4.5, 5.5},

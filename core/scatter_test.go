@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"testing"
 
 	"matplotlib-go/internal/geom"
@@ -131,6 +132,27 @@ func TestScatter2D_SizeUsesMatplotlibAreaSemantics(t *testing.T) {
 	want := 6.0 * 144.0 / 72.0
 	if got := pc.Sizes[0]; got != want {
 		t.Fatalf("scatter scale = %v, want sqrt(area)*dpi/72 = %v", got, want)
+	}
+}
+
+func TestScatterAreaFromRadius(t *testing.T) {
+	got := ScatterAreaFromRadius(8, 100)
+	want := math.Pi * math.Pow(8*72.0/100.0, 2)
+	if math.Abs(got-want) > 1e-12 {
+		t.Fatalf("ScatterAreaFromRadius(8, 100) = %v, want %v", got, want)
+	}
+
+	for _, tc := range []struct {
+		radius float64
+		dpi    float64
+	}{
+		{radius: 0, dpi: 100},
+		{radius: 8, dpi: 0},
+		{radius: -1, dpi: 100},
+	} {
+		if got := ScatterAreaFromRadius(tc.radius, tc.dpi); got != 0 {
+			t.Fatalf("ScatterAreaFromRadius(%v, %v) = %v, want 0", tc.radius, tc.dpi, got)
+		}
 	}
 }
 

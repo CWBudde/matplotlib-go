@@ -134,6 +134,16 @@ func scatterAreaScale(area float64, ctx *DrawContext) float64 {
 	return math.Sqrt(area) * dpi / 72.0
 }
 
+// ScatterAreaFromRadius converts a marker radius in pixels to Matplotlib's
+// scatter area unit, points^2, for the given DPI.
+func ScatterAreaFromRadius(radiusPx, dpi float64) float64 {
+	if radiusPx <= 0 || dpi <= 0 || math.IsNaN(radiusPx) || math.IsNaN(dpi) || math.IsInf(radiusPx, 0) || math.IsInf(dpi, 0) {
+		return 0
+	}
+	radiusPt := radiusPx * 72.0 / dpi
+	return math.Pi * radiusPt * radiusPt
+}
+
 // createCirclePath creates a circular marker using a polygon approximation.
 func (s *Scatter2D) createCirclePath(center geom.Pt, radius float64) geom.Path {
 	const numSegments = 26 // Match matplotlib's default unit circle approximation.

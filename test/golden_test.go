@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"matplotlib-go/backends/agg"
+	"matplotlib-go/color"
 	"matplotlib-go/core"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -49,11 +50,6 @@ func registerTestDistanceUnits() {
 			return testDistanceConverter{}
 		})
 	})
-}
-
-func referenceScatterAreaFromRadius(radiusPx float64) float64 {
-	radiusPt := radiusPx * 72.0 / style.Default.DPI
-	return math.Pi * radiusPt * radiusPt
 }
 
 func referenceDateNumber(t time.Time) float64 {
@@ -447,25 +443,20 @@ func renderScatterBasic() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Basic Scatter")
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(0, 10)
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 10)
 
-	basicPoints := []geom.Pt{
-		{X: 2, Y: 3},
-		{X: 4, Y: 6},
-		{X: 6, Y: 4},
-		{X: 8, Y: 7},
-		{X: 3, Y: 8},
-		{X: 7, Y: 2},
-	}
-	scatter := &core.Scatter2D{
-		XY:     basicPoints,
-		Size:   8.0,
-		Color:  render.Color{R: 0.8, G: 0.2, B: 0.2, A: 1},
-		Marker: core.MarkerCircle,
-		Alpha:  1.0,
-	}
-	ax.Add(scatter)
+	size := core.ScatterAreaFromRadius(8.0, style.Default.DPI)
+	edgeWidth := 0.0
+	ax.Scatter(
+		[]float64{2, 4, 6, 8, 3, 7},
+		[]float64{3, 6, 4, 7, 8, 2},
+		core.ScatterOptions{
+			Color:     &render.Color{R: 0.8, G: 0.2, B: 0.2, A: 1},
+			Size:      &size,
+			EdgeWidth: &edgeWidth,
+		},
+	)
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -506,7 +497,7 @@ func renderScatterMarkerTypes() image.Image {
 		}
 		scatter := &core.Scatter2D{
 			XY:        []geom.Pt{{X: float64(1 + i), Y: 4}},
-			Size:      12.0,
+			Size:      core.ScatterAreaFromRadius(12.0, style.Default.DPI),
 			Color:     colors[i],
 			EdgeColor: colors[i],
 			EdgeWidth: lineWidth,
@@ -545,7 +536,11 @@ func renderScatterAdvanced() image.Image {
 		{X: 6, Y: 4},
 		{X: 8, Y: 2},
 	}
-	sizes := []float64{6, 10, 14, 18, 8, 12, 16, 20}
+	radii := []float64{6, 10, 14, 18, 8, 12, 16, 20}
+	sizes := make([]float64, len(radii))
+	for i, radius := range radii {
+		sizes[i] = core.ScatterAreaFromRadius(radius, style.Default.DPI)
+	}
 	fillColors := []render.Color{
 		{R: 1, G: 0.5, B: 0.5, A: 1},
 		{R: 0.5, G: 1, B: 0.5, A: 1},
@@ -857,20 +852,41 @@ func renderMultiSeriesBasic() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Multi-Series Plot")
-	ax.XScale = transform.NewLinear(0, 8)
-	ax.YScale = transform.NewLinear(0, 6)
+	ax.SetXLim(0, 8)
+	ax.SetYLim(0, 6)
 
-	x1 := []float64{1, 2, 3, 4, 5, 6}
-	y1 := []float64{1.5, 2.8, 2.2, 3.5, 3.8, 4.2}
-	x2 := []float64{1.5, 2.5, 3.5, 4.5, 5.5}
-	y2 := []float64{2.2, 3.1, 2.9, 4.1, 4.5}
-	x3 := []float64{2, 3, 4, 5}
-	y3 := []float64{3.8, 2.5, 4.8, 3.2}
+	tab10 := color.Tab10
+	lineWidth := 2.0
+	ax.Plot(
+		[]float64{1, 2, 3, 4, 5, 6},
+		[]float64{1.5, 2.8, 2.2, 3.5, 3.8, 4.2},
+		core.PlotOptions{
+			Color:     &tab10[0],
+			LineWidth: &lineWidth,
+		},
+	)
 
-	ax.Plot(x1, y1, core.PlotOptions{Label: "Series 1"})
-	ax.Scatter(x2, y2, core.ScatterOptions{Label: "Series 2"})
+	size := core.ScatterAreaFromRadius(8.0, style.Default.DPI)
+	edgeWidth := 0.0
+	ax.Scatter(
+		[]float64{1.5, 2.5, 3.5, 4.5, 5.5},
+		[]float64{2.2, 3.1, 2.9, 4.1, 4.5},
+		core.ScatterOptions{
+			Color:     &tab10[1],
+			Size:      &size,
+			EdgeWidth: &edgeWidth,
+		},
+	)
+
 	width := 0.4
-	ax.Bar(x3, y3, core.BarOptions{Label: "Series 3", Width: &width})
+	ax.Bar(
+		[]float64{2, 3, 4, 5},
+		[]float64{3.8, 2.5, 4.8, 3.2},
+		core.BarOptions{
+			Color: &tab10[2],
+			Width: &width,
+		},
+	)
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -1197,7 +1213,7 @@ func renderErrorBars() image.Image {
 	pointColor := render.Color{R: 0.17, G: 0.63, B: 0.17, A: 1}
 	lineWidth := 2.0
 	errorWidth := 1.2
-	pointSize := 4.5
+	pointSize := core.ScatterAreaFromRadius(4.5, style.Default.DPI)
 	errorCap := 6.0
 
 	ax.Plot(x, y, core.PlotOptions{
@@ -1299,7 +1315,7 @@ func renderAxesTopRightInverted() image.Image {
 			{X: 5, Y: 5},
 			{X: 8, Y: 2},
 		},
-		Size:      9,
+		Size:      core.ScatterAreaFromRadius(9.0, style.Default.DPI),
 		Color:     render.Color{R: 0.85, G: 0.35, B: 0.20, A: 0.9},
 		EdgeColor: render.Color{R: 0.45, G: 0.15, B: 0.05, A: 1},
 		EdgeWidth: 1.0,
@@ -1401,7 +1417,7 @@ func renderAxesControlSurface() image.Image {
 			{X: 3.5, Y: 3.2},
 			{X: 4.5, Y: 4.6},
 		},
-		Size:      8,
+		Size:      core.ScatterAreaFromRadius(8.0, style.Default.DPI),
 		Color:     render.Color{R: 0.92, G: 0.48, B: 0.20, A: 0.92},
 		EdgeColor: render.Color{R: 0.52, G: 0.22, B: 0.08, A: 1},
 		EdgeWidth: 1.0,
@@ -1505,7 +1521,7 @@ func renderTransformCoordinates() image.Image {
 			{X: 7.0, Y: 6.4},
 			{X: 8.8, Y: 8.2},
 		},
-		Size:      8,
+		Size:      core.ScatterAreaFromRadius(8.0, style.Default.DPI),
 		Color:     pointColor,
 		EdgeColor: render.Color{R: 0.45, G: 0.18, B: 0.05, A: 1},
 		EdgeWidth: 1.0,
@@ -2084,7 +2100,7 @@ func renderUnitsOverview() image.Image {
 			Color:     &render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.92},
 			EdgeColor: &render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1},
 			EdgeWidth: floatPtr(1.0),
-			Size:      floatPtr(referenceScatterAreaFromRadius(8.0)),
+			Size:      floatPtr(core.ScatterAreaFromRadius(8.0, style.Default.DPI)),
 		},
 	)
 	if err != nil {
@@ -2235,7 +2251,7 @@ func renderUnitsCustomConverter() image.Image {
 		Color:     &render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.92},
 		EdgeColor: &render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1},
 		EdgeWidth: floatPtr(1.0),
-		Size:      floatPtr(8.0),
+		Size:      floatPtr(core.ScatterAreaFromRadius(8.0, style.Default.DPI)),
 	})
 	if err != nil {
 		panic(err)

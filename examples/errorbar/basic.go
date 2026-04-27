@@ -29,7 +29,7 @@ func main() {
 	lineWidth := 2.0
 	errorWidth := 1.2
 	errorCap := 6.0 * 72.0 / 100.0
-	pointSize := 4.5
+	pointSize := core.ScatterAreaFromRadius(4.5, 100.0)
 	edgeWidth := 0.0
 
 	ax.SetTitle("Error Bars")

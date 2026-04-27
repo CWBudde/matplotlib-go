@@ -1391,8 +1391,7 @@ func linspace(min, max float64, n int) []float64 {
 }
 
 func ss(radiusPx float64) float64 {
-	radiusPt := radiusPx * 72.0 / 100.0
-	return math.Pi * radiusPt * radiusPt
+	return core.ScatterAreaFromRadius(radiusPx, 100.0)
 }
 
 func capsize(points float64) float64 {

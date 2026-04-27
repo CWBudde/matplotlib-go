@@ -23,7 +23,7 @@ func main() {
 
 	// Keep this example intentionally small: one scatter call, matching the
 	// Python reference used for visual comparisons.
-	size := 8.0
+	size := core.ScatterAreaFromRadius(8.0, 100.0)
 	edgeWidth := 0.0
 	ax.Scatter(
 		[]float64{2, 4, 6, 8, 3, 7},
