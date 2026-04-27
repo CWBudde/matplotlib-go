@@ -252,6 +252,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Units/converter support similar to Matplotlib's `units` machinery
 - [x] Example coverage for dates, units, and category plots
 - [x] Golden/parity coverage for dates, units, and category plots
+- [x] Tighten web-demo units parity for Matplotlib-style bar sticky baselines, default bar margins, daily date ticks, and rotated tick anchoring
 
 ### 2.12 ⚪ Architecture Gates for Axes/Transforms
 

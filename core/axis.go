@@ -543,7 +543,9 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		}
 
 		if style.Rotation != 0 && rotRen != nil {
-			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout), fontSize, style.Rotation*math.Pi/180.0, a.Color, ctx.RC.FontKey)
+			hAlign, vAlign := resolvedTickLabelLayoutAlignments(a.Side, style, isXAxis)
+			angle := style.Rotation * math.Pi / 180.0
+			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout, hAlign, vAlign, angle), fontSize, angle, a.Color, ctx.RC.FontKey)
 			continue
 		}
 
@@ -1273,17 +1275,34 @@ func tickLabelLeftOffsetForRightAxis(hAlign TextAlign, layout singleLineTextLayo
 	}
 }
 
-func tickLabelRotationAnchor(origin geom.Pt, layout singleLineTextLayout) geom.Pt {
-	left := origin.X
-	if layout.HaveInkBounds {
-		left += layout.InkBounds.X
+func tickLabelRotationAnchor(origin geom.Pt, layout singleLineTextLayout, hAlign TextAlign, vAlign textLayoutVerticalAlign, angle float64) geom.Pt {
+	alignmentAnchor := geom.Pt{
+		X: origin.X + textHorizontalOriginOffset(layout, hAlign),
+		Y: origin.Y - textBaselineOffset(layout, vAlign),
 	}
-	width := tickLabelWidth(layout)
-	top := origin.Y + layout.InkBounds.Y
-	if !layout.HaveInkBounds {
-		top = origin.Y - layout.Ascent
+	pivot := tickLabelBottomCenterOffset(layout)
+	desired := geom.Pt{
+		X: textHorizontalOriginOffset(layout, hAlign),
+		Y: -textBaselineOffset(layout, vAlign),
 	}
-	return geom.Pt{X: left + width/2, Y: top + tickLabelHeight(layout)}
+	dx := desired.X - pivot.X
+	dy := desired.Y - pivot.Y
+	cosA := math.Cos(-angle)
+	sinA := math.Sin(-angle)
+	return geom.Pt{
+		X: alignmentAnchor.X - (dx*cosA - dy*sinA),
+		Y: alignmentAnchor.Y - (dx*sinA + dy*cosA),
+	}
+}
+
+func tickLabelBottomCenterOffset(layout singleLineTextLayout) geom.Pt {
+	if layout.HaveInkBounds && layout.InkBounds.W > 0 && layout.InkBounds.H > 0 {
+		return geom.Pt{
+			X: layout.InkBounds.X + layout.InkBounds.W/2,
+			Y: layout.InkBounds.Y + layout.InkBounds.H,
+		}
+	}
+	return geom.Pt{X: layout.Width / 2, Y: layout.Descent}
 }
 
 func tickLabelWidth(layout singleLineTextLayout) float64 {

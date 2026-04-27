@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"testing"
 
 	"matplotlib-go/internal/geom"
@@ -1195,7 +1196,8 @@ func TestAxis_DrawTickLabels_UsesRotatedDrawerWhenRequested(t *testing.T) {
 		X: tickPos.X - (1 + 5.0/2.0),
 		Y: tickPos.Y + labelPad + 8,
 	}
-	want := geom.Pt{X: origin.X + 1 + 5.0/2.0, Y: origin.Y - 8 + 10}
+	layout := measureSingleLineTextLayout(&r, "2", tickLabelFontSize(axis, ctx), ctx.RC.FontKey)
+	want := tickLabelRotationAnchor(origin, layout, TextAlignCenter, textLayoutVAlignTop, math.Pi/4)
 	if r.rotatedAnchors[0] != want {
 		t.Fatalf("rotated tick label anchor = %+v, want %+v", r.rotatedAnchors[0], want)
 	}
