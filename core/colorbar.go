@@ -2,6 +2,7 @@ package core
 
 import (
 	"image"
+	"math"
 
 	matcolor "matplotlib-go/color"
 	"matplotlib-go/internal/geom"
@@ -12,6 +13,7 @@ import (
 type ColorbarOptions struct {
 	Width    float64
 	Padding  float64
+	Aspect   float64
 	Label    string
 	Colormap *string
 	VMin     *float64
@@ -27,6 +29,12 @@ type Colorbar struct {
 	z           float64
 }
 
+const (
+	defaultColorbarFraction = 0.15
+	defaultColorbarPadding  = 0.05
+	defaultColorbarAspect   = 20.0
+)
+
 // AddColorbar creates a dedicated axes to the right of a plot and populates it
 // with a colorbar derived from a scalar-mappable artist.
 func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...ColorbarOptions) *Axes {
@@ -34,19 +42,11 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 		return nil
 	}
 
-	cfg := ColorbarOptions{
-		Width:   parent.RectFraction.W() * 0.15,
-		Padding: parent.RectFraction.W() * 0.05,
-	}
+	cfg := ColorbarOptions{}
 	if len(opts) > 0 {
 		cfg = opts[0]
-		if cfg.Width <= 0 {
-			cfg.Width = parent.RectFraction.W() * 0.15
-		}
-		if cfg.Padding <= 0 {
-			cfg.Padding = parent.RectFraction.W() * 0.05
-		}
 	}
+	cfg.Aspect = resolvedColorbarAspect(cfg.Aspect)
 
 	mapping := mappable.ScalarMap().Resolved()
 	cmap := mapping.Colormap
@@ -66,14 +66,16 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	}
 
 	base := parent.RectFraction
-	parent.RectFraction = colorbarParentRect(base, cfg.Width, cfg.Padding)
+	width := resolvedColorbarWidth(f, base, cfg.Width, cfg.Aspect)
+	padding := resolvedColorbarPadding(base, cfg.Padding)
+	parent.RectFraction = colorbarParentRect(base, width, padding)
 	rect := geom.Rect{
 		Min: geom.Pt{
-			X: parent.RectFraction.Max.X + cfg.Padding,
+			X: parent.RectFraction.Max.X + padding,
 			Y: parent.RectFraction.Min.Y,
 		},
 		Max: geom.Pt{
-			X: parent.RectFraction.Max.X + cfg.Padding + cfg.Width,
+			X: parent.RectFraction.Max.X + padding + width,
 			Y: parent.RectFraction.Max.Y,
 		},
 	}
@@ -85,6 +87,7 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	ax.colorbarParent = parent
 	ax.colorbarWidth = cfg.Width
 	ax.colorbarPadding = cfg.Padding
+	ax.colorbarAspect = cfg.Aspect
 	ax.colorbarBase = base
 	ax.ShowFrame = false
 	ax.SetXLim(0, 1)
@@ -119,6 +122,35 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	})
 
 	return ax
+}
+
+func resolvedColorbarPadding(base geom.Rect, padding float64) float64 {
+	if padding > 0 {
+		return padding
+	}
+	return base.W() * defaultColorbarPadding
+}
+
+func resolvedColorbarAspect(aspect float64) float64 {
+	if aspect > 0 {
+		return aspect
+	}
+	return defaultColorbarAspect
+}
+
+func resolvedColorbarWidth(fig *Figure, base geom.Rect, width, aspect float64) float64 {
+	if width > 0 {
+		return width
+	}
+	fractionWidth := base.W() * defaultColorbarFraction
+	if fig == nil || fig.SizePx.X <= 0 || fig.SizePx.Y <= 0 || aspect <= 0 {
+		return fractionWidth
+	}
+	aspectWidth := base.H() * fig.SizePx.Y / (aspect * fig.SizePx.X)
+	if aspectWidth <= 0 {
+		return fractionWidth
+	}
+	return math.Min(fractionWidth, aspectWidth)
 }
 
 func colorbarParentRect(base geom.Rect, width, padding float64) geom.Rect {

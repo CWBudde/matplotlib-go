@@ -1694,10 +1694,8 @@ func renderFigureLabelsComposition() image.Image {
 
 func renderColorbarComposition() image.Image {
 	fig := core.NewFigure(1000, 700)
-	ax := fig.AddAxes(geom.Rect{
-		Min: geom.Pt{X: 0.052, Y: 0.066},
-		Max: geom.Pt{X: 0.846, Y: 0.963},
-	})
+	fig.ConstrainedLayout()
+	ax := fig.AddSubplot(1, 1, 1)
 
 	const (
 		rows = 80
@@ -1715,18 +1713,26 @@ func renderColorbarComposition() image.Image {
 	}
 
 	cmap := "inferno"
-	img := ax.Image(data, core.ImageOptions{Colormap: &cmap})
+	xMin := 0.0
+	xMax := float64(cols)
+	yMin := 0.0
+	yMax := float64(rows)
+	img := ax.Image(data, core.ImageOptions{
+		Colormap: &cmap,
+		XMin:     &xMin,
+		XMax:     &xMax,
+		YMin:     &yMin,
+		YMax:     &yMax,
+		Origin:   core.ImageOriginLower,
+	})
 	ax.SetTitle("Heatmap with Colorbar")
 	ax.SetXLabel("x")
 	ax.SetYLabel("y")
 	ax.SetXLim(0, cols)
 	ax.SetYLim(0, rows)
+	ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0, 20, 40, 60, 80}}
 	addReferenceXYGrid(ax)
-	fig.AddColorbar(ax, img, core.ColorbarOptions{
-		Width:   0.030,
-		Padding: 0.054,
-		Label:   "Intensity",
-	})
+	fig.AddColorbar(ax, img, core.ColorbarOptions{Label: "Intensity"})
 
 	r, err := agg.New(1000, 700, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {

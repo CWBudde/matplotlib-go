@@ -360,6 +360,7 @@ type Axes struct {
 	colorbarParent  *Axes
 	colorbarWidth   float64
 	colorbarPadding float64
+	colorbarAspect  float64
 	colorbarBase    geom.Rect
 }
 

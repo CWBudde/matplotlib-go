@@ -23,10 +23,19 @@ func TestFigureAddColorbarConfiguresAxes(t *testing.T) {
 		t.Fatal("expected colorbar axes")
 	}
 
-	if got, want := ax.RectFraction.Max.X, 0.78-(0.78-0.10)*0.20; !floatApprox(got, want, 1e-12) {
+	base := geom.Rect{
+		Min: geom.Pt{X: 0.10, Y: 0.12},
+		Max: geom.Pt{X: 0.78, Y: 0.88},
+	}
+	wantWidth := resolvedColorbarWidth(fig, base, 0, defaultColorbarAspect)
+	wantPadding := resolvedColorbarPadding(base, 0)
+	if got, want := ax.RectFraction.Max.X, base.Max.X-wantWidth-wantPadding; !floatApprox(got, want, 1e-12) {
 		t.Fatalf("expected parent to reserve colorbar space: got right=%v want %v", got, want)
 	}
-	if got, want := cbAx.RectFraction.Max.X, 0.78; !floatApprox(got, want, 1e-12) {
+	if got, want := cbAx.RectFraction.W(), wantWidth; !floatApprox(got, want, 1e-12) {
+		t.Fatalf("expected colorbar width to follow default aspect: got %v want %v", got, want)
+	}
+	if got, want := cbAx.RectFraction.Max.X, base.Max.X; !floatApprox(got, want, 1e-12) {
 		t.Fatalf("expected colorbar to occupy reserved right edge: got right=%v want %v", got, want)
 	}
 	if cbAx.RectFraction.Min.X <= ax.RectFraction.Max.X {

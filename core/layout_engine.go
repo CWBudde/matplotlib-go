@@ -377,11 +377,14 @@ func figureColorbarMarginsPx(fig *Figure, _ render.Renderer, vp geom.Rect, engin
 		if ax == nil || ax.colorbarParent == nil {
 			continue
 		}
-		width := (ax.colorbarWidth + ax.colorbarPadding) * vp.W()
-		if width <= 0 {
+		base := ax.colorbarBase
+		if ax.colorbarParent.subplotSpec != nil {
+			base = ax.colorbarParent.RectFraction
+		}
+		if resolvedColorbarWidth(fig, base, ax.colorbarWidth, resolvedColorbarAspect(ax.colorbarAspect)) <= 0 {
 			continue
 		}
-		margin.right = math.Max(margin.right, width+pad+pointsToPixels(fig.RC, 21))
+		margin.right = math.Max(margin.right, pad+pointsToPixels(fig.RC, 21))
 	}
 	return margin
 }
@@ -432,18 +435,12 @@ func syncColorbarAxes(fig *Figure) {
 			continue
 		}
 		parent := ax.colorbarParent
-		padding := ax.colorbarPadding
-		if padding <= 0 {
-			padding = 0.02
-		}
-		width := ax.colorbarWidth
-		if width <= 0 {
-			width = 0.035
-		}
 		base := ax.colorbarBase
 		if parent.subplotSpec != nil {
 			base = parent.RectFraction
 		}
+		padding := resolvedColorbarPadding(base, ax.colorbarPadding)
+		width := resolvedColorbarWidth(fig, base, ax.colorbarWidth, resolvedColorbarAspect(ax.colorbarAspect))
 		parent.RectFraction = colorbarParentRect(base, width, padding)
 		ax.RectFraction = geom.Rect{
 			Min: geom.Pt{

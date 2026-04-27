@@ -46,8 +46,10 @@ func main() {
 	ax.SetXLim(0, cols)
 	ax.SetYLim(0, rows)
 	ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0, 20, 40, 60, 80}}
-	ax.AddXGrid()
-	ax.AddYGrid()
+	for _, grid := range []*core.Grid{ax.AddXGrid(), ax.AddYGrid()} {
+		grid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
+		grid.LineWidth = 0.5
+	}
 
 	fig.AddColorbar(ax, img, core.ColorbarOptions{Label: "Intensity"})
 
