@@ -377,14 +377,11 @@ func figureColorbarMarginsPx(fig *Figure, _ render.Renderer, vp geom.Rect, engin
 		if ax == nil || ax.colorbarParent == nil {
 			continue
 		}
-		base := ax.colorbarBase
-		if ax.colorbarParent.subplotSpec != nil {
-			base = ax.colorbarParent.RectFraction
-		}
+		base := colorbarLayoutBase(ax.colorbarParent, ax)
 		if resolvedColorbarWidth(fig, base, ax.colorbarWidth, resolvedColorbarAspect(ax.colorbarAspect)) <= 0 {
 			continue
 		}
-		margin.right = math.Max(margin.right, pad+pointsToPixels(fig.RC, 21))
+		margin.right = math.Max(margin.right, pad+pointsToPixels(fig.RC, 40))
 	}
 	return margin
 }
@@ -396,7 +393,7 @@ func layoutPadPx(fig *Figure, engine LayoutEngine) float64 {
 	}
 	switch engine {
 	case LayoutEngineConstrained:
-		return pointsToPixels(rc, 8)
+		return pointsToPixels(rc, 0)
 	case LayoutEngineTight:
 		return pointsToPixels(rc, 4)
 	default:
@@ -435,10 +432,7 @@ func syncColorbarAxes(fig *Figure) {
 			continue
 		}
 		parent := ax.colorbarParent
-		base := ax.colorbarBase
-		if parent.subplotSpec != nil {
-			base = parent.RectFraction
-		}
+		base := colorbarLayoutBase(parent, ax)
 		padding := resolvedColorbarPadding(base, ax.colorbarPadding)
 		width := resolvedColorbarWidth(fig, base, ax.colorbarWidth, resolvedColorbarAspect(ax.colorbarAspect))
 		parent.RectFraction = colorbarParentRect(base, width, padding)
@@ -453,6 +447,26 @@ func syncColorbarAxes(fig *Figure) {
 			},
 		}
 	}
+}
+
+func colorbarLayoutBase(parent, colorbar *Axes) geom.Rect {
+	if colorbar == nil {
+		return geom.Rect{}
+	}
+	base := colorbar.colorbarBase
+	if parent == nil || parent.subplotSpec == nil {
+		return base
+	}
+	if colorbar.RectFraction.W() > 0 && colorbar.RectFraction.Min.X > parent.RectFraction.Max.X {
+		return geom.Rect{
+			Min: parent.RectFraction.Min,
+			Max: geom.Pt{
+				X: colorbar.RectFraction.Max.X,
+				Y: parent.RectFraction.Max.Y,
+			},
+		}
+	}
+	return parent.RectFraction
 }
 
 func axesByManagedGrid(fig *Figure) map[*GridSpec][]*Axes {

@@ -31,7 +31,7 @@ type Colorbar struct {
 
 const (
 	defaultColorbarFraction = 0.15
-	defaultColorbarPadding  = 0.05
+	defaultColorbarPadding  = 0.06
 	defaultColorbarAspect   = 20.0
 )
 
