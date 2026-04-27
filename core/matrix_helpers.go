@@ -18,6 +18,17 @@ type MatShowOptions struct {
 	Label        string
 }
 
+// ImShowOptions configures Axes.ImShow.
+type ImShowOptions struct {
+	Colormap *string
+	VMin     *float64
+	VMax     *float64
+	Alpha    *float64
+	Aspect   string
+	Origin   ImageOrigin
+	Label    string
+}
+
 // SpyOptions configures Axes.Spy.
 type SpyOptions struct {
 	Precision  float64
@@ -121,6 +132,75 @@ func (a *Axes) MatShow(data [][]float64, opts ...MatShowOptions) *Image2D {
 	applyMatrixAxisPresentation(a)
 	if boolValue(cfg.IntegerTicks, true) {
 		applyMatrixTicks(a, rows, cols)
+	}
+	return img
+}
+
+// ImShow renders a matrix with Matplotlib imshow-style image extents,
+// centered pixel coordinates, equal aspect, and the primary x-axis at bottom.
+func (a *Axes) ImShow(data [][]float64, opts ...ImShowOptions) *Image2D {
+	rows, cols, ok := finiteMatrixSize(data)
+	if !ok {
+		return nil
+	}
+
+	cfg := ImShowOptions{
+		Aspect: "equal",
+		Origin: ImageOriginUpper,
+	}
+	if len(opts) > 0 {
+		opt := opts[0]
+		if opt.Colormap != nil {
+			cfg.Colormap = opt.Colormap
+		}
+		if opt.VMin != nil {
+			cfg.VMin = opt.VMin
+		}
+		if opt.VMax != nil {
+			cfg.VMax = opt.VMax
+		}
+		if opt.Alpha != nil {
+			cfg.Alpha = opt.Alpha
+		}
+		if opt.Aspect != "" {
+			cfg.Aspect = opt.Aspect
+		}
+		cfg.Origin = opt.Origin
+		if opt.Label != "" {
+			cfg.Label = opt.Label
+		}
+	}
+
+	xMin := -0.5
+	xMax := float64(cols) - 0.5
+	yMin := -0.5
+	yMax := float64(rows) - 0.5
+	img := a.Image(data, ImageOptions{
+		Colormap: cfg.Colormap,
+		VMin:     cfg.VMin,
+		VMax:     cfg.VMax,
+		Alpha:    cfg.Alpha,
+		XMin:     &xMin,
+		XMax:     &xMax,
+		YMin:     &yMin,
+		YMax:     &yMax,
+		Origin:   cfg.Origin,
+		Label:    cfg.Label,
+	})
+	if img == nil {
+		return nil
+	}
+
+	if cfg.Aspect != "" {
+		_ = a.SetAspect(cfg.Aspect)
+	}
+	a.SetXLim(xMin, xMax)
+	a.SetYLim(yMin, yMax)
+	if cfg.Origin == ImageOriginUpper && !a.YInverted() {
+		a.InvertY()
+	}
+	if cfg.Origin == ImageOriginLower && a.YInverted() {
+		a.InvertY()
 	}
 	return img
 }

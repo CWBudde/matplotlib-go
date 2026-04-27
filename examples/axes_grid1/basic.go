@@ -21,12 +21,10 @@ func main() {
 		2,
 		geom.Rect{
 			Min: geom.Pt{X: 0.06, Y: 0.12},
-			Max: geom.Pt{X: 0.58, Y: 0.88},
+			Max: geom.Pt{X: 0.60, Y: 0.88},
 		},
-		core.WithAxesDividerHorizontalSpace(0.03),
-		core.WithAxesDividerVerticalSpace(0.04),
-		core.WithAxesDividerWidthScales(1.2, 1),
-		core.WithAxesDividerHeightScales(1, 1.1),
+		core.WithAxesDividerHorizontalSpace(0.18/11.0),
+		core.WithAxesDividerVerticalSpace(0.20/7.2),
 	)
 	if grid == nil {
 		fmt.Println("image grid creation failed")
@@ -39,7 +37,7 @@ func main() {
 			ax.SetTitle(fmt.Sprintf("Tile %d,%d", row+1, col+1))
 			// Use the same deterministic phase formula as the Python reference
 			// so each tile differs without needing external image assets.
-			ax.MatShow(surface(24, 24, float64(row*2+col)))
+			ax.ImShow(surface(24, 24, float64(row*2+col)))
 			ax.AddAnchoredText("image grid", core.AnchoredTextOptions{
 				Location: core.LegendLowerRight,
 			})
@@ -72,7 +70,7 @@ func main() {
 	}
 	for _, channel := range channels {
 		channel.ax.SetTitle(channel.title)
-		channel.ax.MatShow(channelSurface(28, 28, channel.phase), core.MatShowOptions{
+		channel.ax.ImShow(channelSurface(28, 28, channel.phase), core.ImShowOptions{
 			Colormap: &channel.cmap,
 		})
 		channel.ax.XAxis.Locator = core.FixedLocator{TicksList: []float64{0, 10, 20}}

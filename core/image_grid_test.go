@@ -61,6 +61,40 @@ func TestNewImageGridRespectsWidthAndHeightRatios(t *testing.T) {
 	assertRectApproxTol(t, grid.At(0, 1).RectFraction, geom.Rect{Min: geom.Pt{X: 0.30000000000000004, Y: 0.36666666666666664}, Max: geom.Pt{X: 0.9, Y: 0.9}}, 1e-12)
 }
 
+func TestNewImageGridPacksEqualAspectCells(t *testing.T) {
+	fig := NewFigure(1100, 720)
+	grid := fig.NewImageGrid(
+		2,
+		2,
+		geom.Rect{
+			Min: geom.Pt{X: 0.06, Y: 0.12},
+			Max: geom.Pt{X: 0.60, Y: 0.88},
+		},
+		WithAxesDividerHorizontalSpace(0.18/11.0),
+		WithAxesDividerVerticalSpace(0.20/7.2),
+	)
+	if grid == nil {
+		t.Fatal("NewImageGrid returned nil")
+	}
+
+	assertRectApproxTol(t, grid.At(0, 0).RectFraction, geom.Rect{Min: geom.Pt{X: 0.08218181818181818, Y: 0.5138888888888888}, Max: geom.Pt{X: 0.32181818181818184, Y: 0.88}}, 1e-12)
+	assertRectApproxTol(t, grid.At(0, 1).RectFraction, geom.Rect{Min: geom.Pt{X: 0.3381818181818182, Y: 0.5138888888888888}, Max: geom.Pt{X: 0.5778181818181818, Y: 0.88}}, 1e-12)
+	assertRectApproxTol(t, grid.At(1, 0).RectFraction, geom.Rect{Min: geom.Pt{X: 0.08218181818181818, Y: 0.12}, Max: geom.Pt{X: 0.32181818181818184, Y: 0.4861111111111111}}, 1e-12)
+
+	if grid.At(0, 0).XAxis.ShowLabels {
+		t.Fatal("top row x labels should be hidden for ImageGrid label_mode=L parity")
+	}
+	if !grid.At(1, 0).XAxis.ShowLabels {
+		t.Fatal("bottom row x labels should remain visible for ImageGrid label_mode=L parity")
+	}
+	if grid.At(0, 1).YAxis.ShowLabels {
+		t.Fatal("non-left-column y labels should be hidden for ImageGrid label_mode=L parity")
+	}
+	if !grid.At(0, 0).YAxis.ShowLabels {
+		t.Fatal("left-column y labels should remain visible for ImageGrid label_mode=L parity")
+	}
+}
+
 func TestNewRGBAxesCreatesSharedScales(t *testing.T) {
 	fig := NewFigure(1000, 1000)
 	grid := fig.NewRGBAxes(

@@ -308,8 +308,8 @@ func renderAxesGrid1Showcase() image.Image {
 		2,
 		2,
 		geom.Rect{
-			Min: geom.Pt{X: 0.0765, Y: 0.12},
-			Max: geom.Pt{X: 0.5835, Y: 0.88},
+			Min: geom.Pt{X: 0.06, Y: 0.12},
+			Max: geom.Pt{X: 0.60, Y: 0.88},
 		},
 		core.WithAxesDividerHorizontalSpace(0.18/11.0),
 		core.WithAxesDividerVerticalSpace(0.20/7.2),
@@ -322,13 +322,7 @@ func renderAxesGrid1Showcase() image.Image {
 		for col := range 2 {
 			ax := grid.At(row, col)
 			ax.SetTitle("Tile " + string(rune('1'+row)) + "," + string(rune('1'+col)))
-			ax.MatShow(parityGridSurface(24, 24, float64(row*2+col)))
-			if row == 0 {
-				ax.XAxis.ShowLabels = false
-			}
-			if col > 0 {
-				ax.YAxis.ShowLabels = false
-			}
+			ax.ImShow(parityGridSurface(24, 24, float64(row*2+col)))
 			ax.AddAnchoredText("image grid", core.AnchoredTextOptions{
 				Location:        core.LegendLowerRight,
 				Locator:         core.NewAnchoredOffsetLocator(core.LegendLowerRight, 3, 1, 3),
@@ -377,7 +371,7 @@ func renderAxesGrid1Showcase() image.Image {
 		channel.ax.XAxis.Locator = core.FixedLocator{TicksList: []float64{0, 10, 20}}
 		channel.ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0, 10, 20}}
 		cmap := channel.cmap
-		channel.ax.MatShow(parityChannelSurface(28, 28, idx), core.MatShowOptions{
+		channel.ax.ImShow(parityChannelSurface(28, 28, idx), core.ImShowOptions{
 			Colormap: &cmap,
 		})
 	}

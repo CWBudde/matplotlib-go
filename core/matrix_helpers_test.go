@@ -46,6 +46,34 @@ func TestAxesMatShowConfiguresMatrixView(t *testing.T) {
 	}
 }
 
+func TestAxesImShowKeepsBottomXAxis(t *testing.T) {
+	fig := NewFigure(400, 300)
+	ax := fig.AddAxes(unitRect())
+
+	img := ax.ImShow([][]float64{
+		{1, 2, 3},
+		{4, 5, 6},
+	})
+	if img == nil {
+		t.Fatal("ImShow() returned nil")
+	}
+	if img.Origin != ImageOriginUpper {
+		t.Fatalf("image origin = %v, want %v", img.Origin, ImageOriginUpper)
+	}
+	if img.XMin != -0.5 || img.XMax != 2.5 || img.YMin != -0.5 || img.YMax != 1.5 {
+		t.Fatalf("image extent = [%v,%v]x[%v,%v], want [-0.5,2.5]x[-0.5,1.5]", img.XMin, img.XMax, img.YMin, img.YMax)
+	}
+	if !ax.YInverted() {
+		t.Fatal("ImShow() with upper origin should invert the y-axis")
+	}
+	if ax.XAxis == nil || !ax.XAxis.ShowTicks || !ax.XAxis.ShowLabels {
+		t.Fatal("ImShow() should keep bottom x ticks and labels visible")
+	}
+	if ax.XAxisTop != nil {
+		t.Fatal("ImShow() should not create a top x-axis")
+	}
+}
+
 func TestAxesSpySupportsMarkerAndImageModes(t *testing.T) {
 	data := [][]float64{
 		{0, 1, 0},

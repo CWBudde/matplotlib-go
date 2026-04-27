@@ -16,6 +16,7 @@ type AxesDivider struct {
 	vSpace      float64
 	widthScale  []float64
 	heightScale []float64
+	cellAspect  float64
 }
 
 type AxesDividerOption func(*AxesDivider)
@@ -54,6 +55,18 @@ func WithAxesDividerHeightScales(scales ...float64) AxesDividerOption {
 	}
 }
 
+// WithAxesDividerCellAspect constrains grid cells to the requested
+// height/width ratio in physical pixels, centering the packed grid.
+func WithAxesDividerCellAspect(aspect float64) AxesDividerOption {
+	return func(d *AxesDivider) {
+		if aspect <= 0 {
+			d.cellAspect = 0
+			return
+		}
+		d.cellAspect = aspect
+	}
+}
+
 // NewAxesDivider creates a light-weight layout helper for structured axes tiling.
 func (f *Figure) NewAxesDivider(rect geom.Rect, rows, cols int, opts ...AxesDividerOption) *AxesDivider {
 	if f == nil || rows <= 0 || cols <= 0 || rect.W() <= 0 || rect.H() <= 0 {
@@ -82,14 +95,15 @@ func (d *AxesDivider) axisRect(row, col int) (geom.Rect, bool) {
 	widths := normalizedRatios(d.widthScale, d.cols)
 	heights := normalizedRatios(d.heightScale, d.rows)
 
-	usableW := d.rect.W() - d.hSpace*float64(d.cols-1)
-	usableH := d.rect.H() - d.vSpace*float64(d.rows-1)
+	layoutRect := d.aspectAdjustedRect()
+	usableW := layoutRect.W() - d.hSpace*float64(d.cols-1)
+	usableH := layoutRect.H() - d.vSpace*float64(d.rows-1)
 	if usableW < 0 || usableH < 0 {
 		return geom.Rect{}, false
 	}
 
-	xCur := d.rect.Min.X + accumulate(widths[:col], col)*usableW + d.hSpace*float64(col)
-	maxY := d.rect.Max.Y - accumulate(heights[:row], row)*usableH - d.vSpace*float64(row)
+	xCur := layoutRect.Min.X + accumulate(widths[:col], col)*usableW + d.hSpace*float64(col)
+	maxY := layoutRect.Max.Y - accumulate(heights[:row], row)*usableH - d.vSpace*float64(row)
 	w := widths[col] * usableW
 	h := heights[row] * usableH
 	return geom.Rect{
@@ -114,6 +128,50 @@ func (d *AxesDivider) AddAxesProjection(row, col int, projection string, opts ..
 		return nil, fmt.Errorf("axes cell (%d, %d) out of grid bounds", row, col)
 	}
 	return d.figure.AddAxesProjection(rect, projection, opts...)
+}
+
+func (d *AxesDivider) aspectAdjustedRect() geom.Rect {
+	if d == nil || d.figure == nil || d.cellAspect <= 0 || d.rows <= 0 || d.cols <= 0 {
+		if d == nil {
+			return geom.Rect{}
+		}
+		return d.rect
+	}
+
+	gapW := d.hSpace * float64(d.cols-1)
+	gapH := d.vSpace * float64(d.rows-1)
+	usableW := d.rect.W() - gapW
+	usableH := d.rect.H() - gapH
+	if usableW <= 0 || usableH <= 0 || d.figure.SizePx.X <= 0 || d.figure.SizePx.Y <= 0 {
+		return d.rect
+	}
+
+	target := d.cellAspect * float64(d.rows) / float64(d.cols)
+	usableWPx := usableW * d.figure.SizePx.X
+	usableHPx := usableH * d.figure.SizePx.Y
+	current := usableHPx / usableWPx
+	if current == target {
+		return d.rect
+	}
+
+	out := d.rect
+	if current > target {
+		newUsableHPx := usableWPx * target
+		newUsableH := newUsableHPx / d.figure.SizePx.Y
+		newH := newUsableH + gapH
+		pad := (d.rect.H() - newH) / 2
+		out.Min.Y += pad
+		out.Max.Y -= pad
+		return out
+	}
+
+	newUsableWPx := usableHPx / target
+	newUsableW := newUsableWPx / d.figure.SizePx.X
+	newW := newUsableW + gapW
+	pad := (d.rect.W() - newW) / 2
+	out.Min.X += pad
+	out.Max.X -= pad
+	return out
 }
 
 // RGBAxes holds three synchronized axes intended for channel-wise RGB workflows.
@@ -165,7 +223,8 @@ type ImageGrid struct {
 
 // NewImageGrid creates an evenly spaced image-grid of axes over figure fractions.
 func (f *Figure) NewImageGrid(rows, cols int, rect geom.Rect, dividerOpts ...AxesDividerOption) *ImageGrid {
-	divider := f.NewAxesDivider(rect, rows, cols, dividerOpts...)
+	opts := append([]AxesDividerOption{WithAxesDividerCellAspect(1)}, dividerOpts...)
+	divider := f.NewAxesDivider(rect, rows, cols, opts...)
 	if divider == nil {
 		return nil
 	}
@@ -176,6 +235,12 @@ func (f *Figure) NewImageGrid(rows, cols int, rect geom.Rect, dividerOpts ...Axe
 			axes[row][col] = divider.AddAxes(row, col)
 			if axes[row][col] == nil {
 				return nil
+			}
+			if row < rows-1 && axes[row][col].XAxis != nil {
+				axes[row][col].XAxis.ShowLabels = false
+			}
+			if col > 0 && axes[row][col].YAxis != nil {
+				axes[row][col].YAxis.ShowLabels = false
 			}
 		}
 	}
