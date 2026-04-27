@@ -107,13 +107,12 @@ func main() {
 		sankeyAx.YAxis.ShowTicks = false
 		sankeyAx.YAxis.ShowLabels = false
 	}
-	builder := core.NewSankey(sankeyAx, core.SankeyOptions{
-		Center: geom.Pt{X: 0.18, Y: 0.5},
-	})
+	builder := core.NewSankey(sankeyAx, core.SankeyOptions{Scale: 0.16, Offset: 0.2})
 	builder.Add([]float64{-2, 3, 1.5}, core.SankeyAddOptions{
 		Labels:       []string{"Waste", "CPU", "Cache"},
 		Orientations: []int{-1, 1, 1},
 	})
+	builder.Finish()
 
 	r, _, err := backends.NewRendererFromEnv(backends.Config{
 		Width:      980,

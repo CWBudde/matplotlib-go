@@ -221,6 +221,56 @@ func TestSankeyBuilderCreatesDiagram(t *testing.T) {
 	}
 }
 
+func TestSankeyMatchesMatplotlibSingleDiagramGeometry(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+
+	builder := NewSankey(ax, SankeyOptions{Scale: 0.16, Offset: 0.2})
+	diagram := builder.Add([]float64{-2, 3, 1.5}, SankeyAddOptions{
+		Labels:       []string{"Waste", "CPU", "Cache"},
+		Orientations: []int{-1, 1, 1},
+	})
+	if diagram == nil || diagram.Patch == nil {
+		t.Fatal("expected sankey diagram patch")
+	}
+	builder.Finish()
+
+	wantTips := []geom.Pt{
+		{X: 0.66, Y: -0.5694289299236832},
+		{X: -0.74, Y: 0.4086160885174527},
+		{X: -1.35, Y: 0.5093080442587265},
+	}
+	for i, want := range wantTips {
+		if !floatApprox(diagram.Tips[i].X, want.X, 1e-12) || !floatApprox(diagram.Tips[i].Y, want.Y, 1e-12) {
+			t.Fatalf("tip %d = %+v, want %+v", i, diagram.Tips[i], want)
+		}
+		if diagram.Angles[i] != sankeyDown {
+			t.Fatalf("angle %d = %d, want DOWN", i, diagram.Angles[i])
+		}
+	}
+
+	bounds, ok := pathBounds(diagram.Patch.Path)
+	if !ok {
+		t.Fatal("expected path bounds")
+	}
+	if !floatApprox(bounds.Min.X, -1.47, 1e-12) ||
+		!floatApprox(bounds.Max.X, 0.85, 1e-12) ||
+		!floatApprox(bounds.Min.Y, -0.5694289299236832, 1e-12) ||
+		!floatApprox(bounds.Max.Y, 0.61, 1e-12) {
+		t.Fatalf("path bounds = %+v", bounds)
+	}
+
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	if !floatApprox(xMin, -1.87, 1e-12) || !floatApprox(xMax, 1.25, 1e-12) ||
+		!floatApprox(yMin, -1.1694289299236833, 1e-12) || !floatApprox(yMax, 1.1093080442587264, 1e-12) {
+		t.Fatalf("finished limits = x(%v, %v) y(%v, %v)", xMin, xMax, yMin, yMax)
+	}
+}
+
 type specialtyRecordingRenderer struct {
 	render.NullRenderer
 	pathCount int

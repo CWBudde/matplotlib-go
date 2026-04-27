@@ -24,6 +24,12 @@ func TestNewGoldenUpdateCommandIncludesFreetypeTag(t *testing.T) {
 	if !slices.Contains(cmd.Args, "-update-golden") {
 		t.Fatalf("Args missing -update-golden: %v", cmd.Args)
 	}
+	if !slices.Contains(cmd.Args, "-timeout") {
+		t.Fatalf("Args missing -timeout: %v", cmd.Args)
+	}
+	if !slices.Contains(cmd.Args, goldenUpdateTimeout.String()) {
+		t.Fatalf("Args missing timeout value %q: %v", goldenUpdateTimeout, cmd.Args)
+	}
 	if !slices.Contains(cmd.Args, "./test") {
 		t.Fatalf("Args missing ./test package: %v", cmd.Args)
 	}
@@ -134,6 +140,22 @@ func TestPageFooterUsesCacheBustingNavigationAfterRerender(t *testing.T) {
 	}
 	if strings.Contains(pageFooter, "window.location.reload();") {
 		t.Fatalf("pageFooter still uses plain reload after rerender")
+	}
+}
+
+func TestPageRerenderButtonsSeparateDisabledAndBusyCursors(t *testing.T) {
+	requiredSnippets := []string{
+		"button.rerender-btn:disabled { opacity: 0.6; cursor: not-allowed; }",
+		"button.rerender-btn.is-rerendering { cursor: wait; }",
+		"button.classList.toggle('is-rerendering', disabled);",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(pageHeader, snippet) && !strings.Contains(pageFooter, snippet) {
+			t.Fatalf("page markup missing rerender cursor snippet %q", snippet)
+		}
+	}
+	if strings.Contains(pageHeader, "button.rerender-btn:disabled { opacity: 0.6; cursor: wait; }") {
+		t.Fatalf("disabled rerender buttons still use wait cursor")
 	}
 }
 

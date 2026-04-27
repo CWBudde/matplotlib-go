@@ -1246,8 +1246,9 @@ func buildSpecialtyDemo(width, height int) *core.Figure {
 	sankeyAx := grid[1][2]
 	sankeyAx.SetTitle("Sankey")
 	hideAxes(sankeyAx)
-	builder := core.NewSankey(sankeyAx, core.SankeyOptions{Center: geom.Pt{X: 0.34, Y: 0.5}, Scale: 0.16, Offset: 0.2, PathLength: 0.32})
+	builder := core.NewSankey(sankeyAx, core.SankeyOptions{Scale: 0.16, Offset: 0.2})
 	builder.Add([]float64{-2, 3, 1.5}, core.SankeyAddOptions{Labels: []string{"Waste", "CPU", "Cache"}, Orientations: []int{-1, 1, 1}})
+	builder.Finish()
 	return fig
 }
 

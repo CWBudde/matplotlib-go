@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"flag"
@@ -19,12 +20,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 const goldenUpdateBuildTag = "freetype"
 const goldenUpdateOptionalVisualTestsEnv = "RUN_OPTIONAL_VISUAL_TESTS"
 const rerenderAllButtonPlaceholder = "__RERENDER_ALL_BUTTON__"
 const goldenUpdateRunPatternAll = "^Test.*_Golden$"
+const goldenUpdateTimeout = 5 * time.Minute
 
 type caseEntry struct {
 	Suite       string
@@ -226,7 +229,10 @@ func rerenderAllArtifacts(repoRoot string) error {
 }
 
 func runGoGoldenUpdate(repoRoot, runPattern string) error {
-	cmd := newGoldenUpdateCommand(repoRoot, runPattern)
+	ctx, cancel := context.WithTimeout(context.Background(), goldenUpdateTimeout)
+	defer cancel()
+
+	cmd := newGoldenUpdateCommandContext(ctx, repoRoot, runPattern)
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -236,6 +242,9 @@ func runGoGoldenUpdate(repoRoot, runPattern string) error {
 		msg := strings.TrimSpace(out.String())
 		if msg == "" {
 			msg = err.Error()
+		}
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("go test timed out after %s for %q: %s", goldenUpdateTimeout, runPattern, msg)
 		}
 		return fmt.Errorf("go test failed: %w: %s", err, msg)
 	}
@@ -249,13 +258,17 @@ func runGoGoldenUpdate(repoRoot, runPattern string) error {
 }
 
 func newGoldenUpdateCommand(repoRoot, runPattern string) *exec.Cmd {
-	args := []string{"test", "-tags", goldenUpdateBuildTag, "-count", "1"}
+	return newGoldenUpdateCommandContext(context.Background(), repoRoot, runPattern)
+}
+
+func newGoldenUpdateCommandContext(ctx context.Context, repoRoot, runPattern string) *exec.Cmd {
+	args := []string{"test", "-tags", goldenUpdateBuildTag, "-count", "1", "-timeout", goldenUpdateTimeout.String()}
 	if runPattern != "" {
 		args = append(args, "-run", runPattern)
 	}
 	args = append(args, "./test", "-update-golden")
 
-	cmd := exec.Command("go", args...)
+	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = repoRoot
 
 	cmd.Env = os.Environ()
@@ -1036,7 +1049,8 @@ body { background: #101216; color: #d7dce4; font-family: ui-monospace, SFMono-Re
 .empty-state { border: 1px dashed #425168; border-radius: 10px; padding: 24px; color: #93a1b5; background: #141922; }
 button.rerender-btn { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-family: inherit; font-size: 11px; }
 button.rerender-btn:hover { background: #273244; }
-button.rerender-btn:disabled { opacity: 0.6; cursor: wait; }
+button.rerender-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+button.rerender-btn.is-rerendering { cursor: wait; }
 code { color: #f4f7fb; }
 @media (max-width: 1400px) { .img-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 800px) { .img-grid { grid-template-columns: 1fr; } }
@@ -1260,6 +1274,7 @@ const pageFooter = `</div>
   function setRerenderButtonsDisabled(disabled) {
     document.querySelectorAll('.rerender-btn').forEach(function(button) {
       button.disabled = disabled;
+      button.classList.toggle('is-rerendering', disabled);
     });
   }
 
