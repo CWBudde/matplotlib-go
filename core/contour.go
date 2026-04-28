@@ -125,7 +125,7 @@ func (c *ContourSet) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 
 		if rotated, ok := r.(render.RotatedTextDrawer); ok {
 			layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey)
-			anchor := geom.Pt{X: displayPt.X, Y: displayPt.Y + layout.Height*0.5}
+			anchor := contourRotatedTextAnchor(displayPt, layout, label.Angle)
 			drawDisplayTextRotated(rotated, text, anchor, fontSize, label.Angle, color, ctx.RC.FontKey)
 			continue
 		}
@@ -872,7 +872,10 @@ func splitContourPolylineForLabel(data, screen []geom.Pt, labelIdx int, labelWid
 	p1, ok1 := contourInterpolateAtCPL(screen, cpls, angleEnd)
 	angle := 0.0
 	if ok0 && ok1 {
-		angle = normalizeLabelAngle(math.Atan2(p1.Y-p0.Y, p1.X-p0.X))
+		// Matplotlib contour labels use screen-space angles, but its display
+		// coordinate system has positive Y upward. Go renderers use top-left
+		// pixels, so flip Y before normalizing the label angle.
+		angle = normalizeLabelAngle(math.Atan2(-(p1.Y - p0.Y), p1.X-p0.X))
 	}
 
 	gapStart := center - labelWidth/2 - spacing
@@ -891,6 +894,22 @@ func splitContourPolylineForLabel(data, screen []geom.Pt, labelIdx int, labelWid
 		}
 	}
 	return angle, parts
+}
+
+func contourRotatedTextAnchor(center geom.Pt, layout singleLineTextLayout, angle float64) geom.Pt {
+	height := layout.Height
+	if layout.HaveInkBounds && layout.InkBounds.H > 0 {
+		height = layout.InkBounds.H
+	}
+	if height <= 0 {
+		return center
+	}
+
+	halfHeight := height * 0.5
+	return geom.Pt{
+		X: center.X + halfHeight*math.Sin(angle),
+		Y: center.Y + halfHeight*math.Cos(angle),
+	}
 }
 
 func contourCumulativeDisplayLengths(points []geom.Pt) []float64 {

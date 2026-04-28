@@ -1200,8 +1200,8 @@ func renderErrorBars() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Error Bars")
-	ax.XScale = transform.NewLinear(0, 7)
-	ax.YScale = transform.NewLinear(0, 6)
+	ax.SetXLim(0, 7)
+	ax.SetYLim(0, 6)
 
 	x := []float64{1, 2, 3, 4, 5, 6}
 	y := []float64{1.8, 2.5, 2.2, 3.1, 2.8, 3.7}
@@ -1214,23 +1214,22 @@ func renderErrorBars() image.Image {
 	lineWidth := 2.0
 	errorWidth := 1.2
 	pointSize := core.ScatterAreaFromRadius(4.5, style.Default.DPI)
+	edgeWidth := 0.0
 	errorCap := 6.0
 
 	ax.Plot(x, y, core.PlotOptions{
 		Color:     &lineColor,
 		LineWidth: &lineWidth,
-		Label:     "Trend",
 	})
 	ax.Scatter(x, y, core.ScatterOptions{
-		Color: &pointColor,
-		Size:  &pointSize,
-		Label: "Samples",
+		Color:     &pointColor,
+		Size:      &pointSize,
+		EdgeWidth: &edgeWidth,
 	})
 	ax.ErrorBar(x, y, xErr, yErr, core.ErrorBarOptions{
 		Color:     &black,
 		LineWidth: &errorWidth,
 		CapSize:   &errorCap,
-		Label:     "1σ Uncertainty",
 	})
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
@@ -2235,8 +2234,7 @@ func renderUnitsCustomConverter() image.Image {
 	ax.SetTitle("Custom Distance Units")
 	ax.SetXLabel("Distance")
 	ax.SetYLabel("Pace")
-	ax.AddXGrid()
-	ax.AddYGrid()
+	addReferenceXYGrid(ax)
 
 	distances := []testDistanceKM{5, 10, 21.1, 30, 42.2}
 	pace := []float64{6.4, 5.9, 5.3, 5.1, 5.4}

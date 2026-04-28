@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"testing"
 
 	"matplotlib-go/internal/geom"
@@ -199,6 +200,46 @@ func TestContourLabelsDrawOverlay(t *testing.T) {
 	DrawFigure(fig, &renderer)
 	if len(renderer.texts) == 0 {
 		t.Fatal("expected contour labels to be rendered")
+	}
+}
+
+func TestContourInlineLabelAngleUsesMatplotlibDisplayConvention(t *testing.T) {
+	screen := []geom.Pt{
+		{X: 0, Y: 10},
+		{X: 5, Y: 5},
+		{X: 10, Y: 0},
+	}
+	data := []geom.Pt{
+		{X: 0, Y: 0},
+		{X: 5, Y: 5},
+		{X: 10, Y: 10},
+	}
+
+	angle, parts := splitContourPolylineForLabel(data, screen, 1, 4, 0)
+	if len(parts) == 0 {
+		t.Fatal("expected split contour parts")
+	}
+	if !approx(angle, math.Pi/4, 1e-12) {
+		t.Fatalf("angle = %v, want %v", angle, math.Pi/4)
+	}
+}
+
+func TestContourRotatedTextAnchorKeepsCenterFixed(t *testing.T) {
+	center := geom.Pt{X: 100, Y: 200}
+	angle := math.Pi / 6
+	layout := singleLineTextLayout{
+		TextLineLayout: render.TextLineLayout{
+			Height: 12,
+		},
+	}
+
+	anchor := contourRotatedTextAnchor(center, layout, angle)
+	got := geom.Pt{
+		X: anchor.X - 6*math.Sin(angle),
+		Y: anchor.Y - 6*math.Cos(angle),
+	}
+	if !approx(got.X, center.X, 1e-12) || !approx(got.Y, center.Y, 1e-12) {
+		t.Fatalf("rotated center = %+v, want %+v", got, center)
 	}
 }
 

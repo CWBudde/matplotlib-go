@@ -171,12 +171,14 @@ func renderArraysShowcase() image.Image {
 	})
 	contourColor := render.Color{R: 0.14, G: 0.10, B: 0.16, A: 0.95}
 	contourWidth := 1.1
+	contourLabelSize := 10.0
 	meshAx.Contour(meshData, core.ContourOptions{
-		Color:      &contourColor,
-		LineWidth:  &contourWidth,
-		LevelCount: 6,
-		LabelLines: true,
-		LabelColor: &contourColor,
+		Color:         &contourColor,
+		LineWidth:     &contourWidth,
+		LevelCount:    6,
+		LabelLines:    true,
+		LabelColor:    &contourColor,
+		LabelFontSize: &contourLabelSize,
 	})
 
 	spyAx := fig.AddAxes(geom.Rect{

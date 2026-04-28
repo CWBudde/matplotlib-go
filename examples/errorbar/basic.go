@@ -23,12 +23,12 @@ func main() {
 	xErr := []float64{0.20, 0.25, 0.15, 0.22, 0.30, 0.18}
 	yErr := []float64{0.28, 0.20, 0.35, 0.24, 0.30, 0.22}
 
-	lineColor := render.Color{R: 0.12, G: 0.47, B: 0.71, A: 0.95}
-	pointColor := render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.95}
+	lineColor := render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1}
+	pointColor := render.Color{R: 0.17, G: 0.63, B: 0.17, A: 1}
 	errColor := render.Color{R: 0, G: 0, B: 0, A: 1}
 	lineWidth := 2.0
 	errorWidth := 1.2
-	errorCap := 6.0 * 72.0 / 100.0
+	errorCap := 6.0
 	pointSize := core.ScatterAreaFromRadius(4.5, 100.0)
 	edgeWidth := 0.0
 
