@@ -29,6 +29,7 @@ type TickLabelStyle struct {
 	Pad       float64
 	HAlign    TextAlign
 	VAlign    TextVerticalAlign
+	FontKey   string
 	AutoAlign bool
 }
 
@@ -514,6 +515,7 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 
 	fontSize := tickLabelFontSize(a, ctx)
 	style = normalizeTickLabelStyle(style)
+	fontKey := tickLabelFontKey(style, ctx)
 	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 
 	step := 0.0
@@ -535,7 +537,7 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 			continue
 		}
 
-		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
 
 		labelPos, ok := tickLabelOrigin(a, ctx, tickValue, layout, labelPadPx, style, isXAxis)
 		if !ok {
@@ -545,11 +547,11 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		if style.Rotation != 0 && rotRen != nil {
 			hAlign, vAlign := resolvedTickLabelLayoutAlignments(a.Side, style, isXAxis)
 			angle := style.Rotation * math.Pi / 180.0
-			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout, hAlign, vAlign, angle), fontSize, angle, a.Color, ctx.RC.FontKey)
+			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout, hAlign, vAlign, angle), fontSize, angle, a.Color, fontKey)
 			continue
 		}
 
-		drawDisplayText(textRen, label, labelPos, fontSize, a.Color, ctx.RC.FontKey)
+		drawDisplayText(textRen, label, labelPos, fontSize, a.Color, fontKey)
 	}
 }
 
@@ -564,6 +566,16 @@ func tickLabelFontSize(a *Axis, ctx *DrawContext) float64 {
 	default:
 		return ctx.RC.TickLabelSize("x")
 	}
+}
+
+func tickLabelFontKey(style TickLabelStyle, ctx *DrawContext) string {
+	if style.FontKey != "" {
+		return style.FontKey
+	}
+	if ctx == nil {
+		return ""
+	}
+	return ctx.RC.FontKey
 }
 
 func tickLabelPadPx(a *Axis, ctx *DrawContext) float64 {
@@ -995,18 +1007,20 @@ func (a *Axis) drawPolarThetaTickLabels(textRen render.TextDrawer, r render.Rend
 
 	center, radius := polarCenterAndRadius(ctx.Clip)
 	fontSize := tickLabelFontSize(a, ctx)
-	labelPadPx := tickLabelPadForSize(tickSize, normalizeTickLabelStyle(style), ctx)
+	style = normalizeTickLabelStyle(style)
+	fontKey := tickLabelFontKey(style, ctx)
+	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 
 	for i, tick := range ticks {
 		label := formatTickLabel(formatter, tick, i, ticks)
 		if label == "" {
 			continue
 		}
-		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
 		angle := polarAngleForTheta(ctx.Projection, ctx.DataToPixel.XScale, tick)
 		anchor := polarPixelPoint(center, radius+labelPadPx, angle)
 		hAlign, vAlign := polarTickLabelAlignments(angle)
-		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, ctx.RC.FontKey)
+		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, fontKey)
 	}
 }
 
@@ -1017,7 +1031,9 @@ func (a *Axis) drawPolarRadialTickLabels(textRen render.TextDrawer, r render.Ren
 
 	center, outerRadius := polarCenterAndRadius(ctx.Clip)
 	fontSize := tickLabelFontSize(a, ctx)
-	labelPadPx := tickLabelPadForSize(tickSize, normalizeTickLabelStyle(style), ctx)
+	style = normalizeTickLabelStyle(style)
+	fontKey := tickLabelFontKey(style, ctx)
+	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 	labelAngle := polarRadialLabelAngleForProjection(ctx.Projection)
 
 	for i, tick := range ticks {
@@ -1025,11 +1041,11 @@ func (a *Axis) drawPolarRadialTickLabels(textRen render.TextDrawer, r render.Ren
 		if label == "" {
 			continue
 		}
-		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
 		radius := outerRadius * ctx.DataToPixel.YScale.Fwd(tick)
 		anchor := polarPixelPoint(center, radius+labelPadPx, labelAngle)
 		hAlign, vAlign := polarTickLabelAlignments(labelAngle)
-		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, ctx.RC.FontKey)
+		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, fontKey)
 	}
 }
 
@@ -1103,7 +1119,9 @@ func (a *Axis) polarTickLabelBounds(r render.Renderer, ctx *DrawContext) (geom.R
 func (a *Axis) polarTickLabelBoundsForLevel(r render.Renderer, ctx *DrawContext, ticks []float64, formatter Formatter, style TickLabelStyle, tickSize float64) (geom.Rect, bool) {
 	center, outerRadius := polarCenterAndRadius(ctx.Clip)
 	fontSize := tickLabelFontSize(a, ctx)
-	labelPadPx := tickLabelPadForSize(tickSize, normalizeTickLabelStyle(style), ctx)
+	style = normalizeTickLabelStyle(style)
+	fontKey := tickLabelFontKey(style, ctx)
+	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 	labelAngle := polarRadialLabelAngleForProjection(ctx.Projection)
 
 	var (
@@ -1116,7 +1134,7 @@ func (a *Axis) polarTickLabelBoundsForLevel(r render.Renderer, ctx *DrawContext,
 		if label == "" {
 			continue
 		}
-		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
 
 		var (
 			anchor geom.Pt
@@ -1160,6 +1178,7 @@ func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks
 
 	fontSize := tickLabelFontSize(a, ctx)
 	style = normalizeTickLabelStyle(style)
+	fontKey := tickLabelFontKey(style, ctx)
 	labelPadPx := tickLabelPadForSize(tickSize, style, ctx)
 
 	var (
@@ -1181,7 +1200,7 @@ func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks
 			continue
 		}
 
-		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
 		origin, ok := tickLabelOrigin(a, ctx, tickValue, layout, labelPadPx, style, isXAxis)
 		if !ok {
 			continue
