@@ -341,6 +341,26 @@ func TestFillBetweenXPreservesColorAlphaWhenAlphaOmitted(t *testing.T) {
 	}
 }
 
+func TestFillBetweenAutoScalesYAndPreservesManualX(t *testing.T) {
+	ax := NewFigure(640, 360).AddAxes(geom.Rect{})
+	ax.SetXLim(0, 10)
+
+	ax.FillBetween(
+		[]float64{-100, 100},
+		[]float64{-50, 50},
+		[]float64{0, 0},
+	)
+
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	if xMin != 0 || xMax != 10 {
+		t.Fatalf("x limits = [%v, %v], want [0, 10]", xMin, xMax)
+	}
+	if !floatApprox(yMin, -55, 1e-12) || !floatApprox(yMax, 55, 1e-12) {
+		t.Fatalf("y limits = [%v, %v], want [-55, 55]", yMin, yMax)
+	}
+}
+
 func TestFill2D_EdgeColors(t *testing.T) {
 	// Test with edge colors and width
 	fill := &Fill2D{

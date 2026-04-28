@@ -302,6 +302,7 @@ func (a *Axes) FillBetweenX(y, x1, x2 []float64, opts ...FillOptions) *Fill2D {
 	}
 
 	a.Add(fill)
+	a.autoScaleIfEnabled(defaultAutoScaleMargin)
 	return fill
 }
 
@@ -364,6 +365,7 @@ func (a *Axes) FillBetweenPlot(x, y1, y2 []float64, opts ...FillOptions) *Fill2D
 	}
 
 	a.Add(fill)
+	a.autoScaleIfEnabled(defaultAutoScaleMargin)
 	return fill
 }
 
@@ -687,5 +689,6 @@ func (a *Axes) FillToBaselinePlot(x, y []float64, opts ...FillOptions) *Fill2D {
 	}
 
 	a.Add(fill)
+	a.autoScaleIfEnabled(defaultAutoScaleMargin)
 	return fill
 }
