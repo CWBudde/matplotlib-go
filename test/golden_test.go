@@ -19,7 +19,6 @@ import (
 	"matplotlib-go/render"
 	"matplotlib-go/style"
 	"matplotlib-go/test/imagecmp"
-	"matplotlib-go/transform"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "Update golden images instead of comparing")
@@ -329,8 +328,8 @@ func renderBasicLine() image.Image {
 		Max: geom.Pt{X: 0.95, Y: 0.9},
 	})
 	ax.SetTitle("Basic Line")
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(0, 1)
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 1)
 
 	line := &core.Line2D{
 		XY: []geom.Pt{
@@ -361,8 +360,8 @@ func renderJoinsCaps() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Line Joins and Caps")
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(0, 6)
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 6)
 
 	joinPath := []geom.Pt{
 		{X: 1, Y: 5}, {X: 3, Y: 5}, {X: 3, Y: 3}, {X: 5, Y: 3},
@@ -400,8 +399,8 @@ func renderDashes() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Dash Patterns")
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(0, 5)
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 5)
 
 	lines := []struct {
 		y      float64
@@ -474,8 +473,8 @@ func renderScatterMarkerTypes() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Scatter Marker Types")
-	ax.XScale = transform.NewLinear(0, 8)
-	ax.YScale = transform.NewLinear(0, 8)
+	ax.SetXLim(0, 8)
+	ax.SetYLim(0, 8)
 
 	markerTypes := []core.MarkerType{
 		core.MarkerCircle, core.MarkerSquare, core.MarkerTriangle,
@@ -523,8 +522,8 @@ func renderScatterAdvanced() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Advanced Scatter")
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(0, 10)
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 10)
 
 	points := []geom.Pt{
 		{X: 2, Y: 2},
@@ -587,8 +586,8 @@ func renderBarBasicScaffold(showTicks, showTickLabels, showTitle bool) image.Ima
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
-	ax.XScale = transform.NewLinear(0, 6)
-	ax.YScale = transform.NewLinear(0, 10)
+	ax.SetXLim(0, 6)
+	ax.SetYLim(0, 10)
 
 	ax.XAxis.ShowTicks = showTicks
 	ax.YAxis.ShowTicks = showTicks
@@ -631,8 +630,8 @@ func renderBarBasic() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Basic Bars")
-	ax.XScale = transform.NewLinear(0, 6)
-	ax.YScale = transform.NewLinear(0, 10)
+	ax.SetXLim(0, 6)
+	ax.SetYLim(0, 10)
 
 	bar := &core.Bar2D{
 		X:           []float64{1, 2, 3, 4, 5},
@@ -660,8 +659,8 @@ func renderBarHorizontal() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Horizontal Bars")
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(0, 6)
+	ax.SetXLim(0, 10)
+	ax.SetYLim(0, 6)
 
 	bar := &core.Bar2D{
 		X:           []float64{1, 2, 3, 4, 5},
@@ -689,8 +688,8 @@ func renderBarGrouped() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Grouped Bars")
-	ax.XScale = transform.NewLinear(0, 7)
-	ax.YScale = transform.NewLinear(0, 10)
+	ax.SetXLim(0, 7)
+	ax.SetYLim(0, 10)
 
 	bar1 := &core.Bar2D{
 		X:           []float64{1.2, 2.2, 3.2, 4.2, 5.2},
@@ -732,8 +731,8 @@ func renderFillBasic() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Fill to Baseline")
-	ax.XScale = transform.NewLinear(0, 10)
-	ax.YScale = transform.NewLinear(-1, 3)
+	ax.SetXLim(0, 10)
+	ax.SetYLim(-1, 3)
 
 	x := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	y := []float64{0.5, 1.8, 2.3, 1.2, 2.8, 1.9, 2.1, 1.5, 0.8}
@@ -764,8 +763,8 @@ func renderFillBetween() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Fill Between Curves")
-	ax.XScale = transform.NewLinear(0, 6.28)
-	ax.YScale = transform.NewLinear(-1.5, 1.5)
+	ax.SetXLim(0, 6.28)
+	ax.SetYLim(-1.5, 1.5)
 
 	n := 50
 	x := make([]float64, n)
@@ -808,8 +807,8 @@ func renderFillStacked() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Stacked Fills")
-	ax.XScale = transform.NewLinear(0, 8)
-	ax.YScale = transform.NewLinear(0, 8)
+	ax.SetXLim(0, 8)
+	ax.SetYLim(0, 8)
 
 	x := []float64{1, 2, 3, 4, 5, 6, 7}
 	layer1 := []float64{1, 1.5, 2, 1.8, 2.2, 1.9, 1.6}
@@ -1025,8 +1024,8 @@ func renderBoxPlotBasic() image.Image {
 		Min: geom.Pt{X: 0.1, Y: 0.1},
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
-	ax.XScale = transform.NewLinear(0, 4)
-	ax.YScale = transform.NewLinear(0, 10)
+	ax.SetXLim(0, 4)
+	ax.SetYLim(0, 10)
 	ax.SetTitle("Box Plots")
 	ax.SetXLabel("Group")
 	ax.SetYLabel("Value")
@@ -1167,8 +1166,8 @@ func renderMultiSeriesColorCycle() image.Image {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	})
 	ax.SetTitle("Color Cycle")
-	ax.XScale = transform.NewLinear(0, 2*math.Pi)
-	ax.YScale = transform.NewLinear(-1.2, 1.2)
+	ax.SetXLim(0, 2*math.Pi)
+	ax.SetYLim(-1.2, 1.2)
 
 	nPoints := 50
 	x := make([]float64, nPoints)
@@ -1176,13 +1175,17 @@ func renderMultiSeriesColorCycle() image.Image {
 		x[i] = 2 * math.Pi * float64(i) / float64(nPoints-1)
 	}
 
-	for freq := 1; freq <= 4; freq++ {
+	tab10 := color.Tab10
+	lineWidth := 2.0
+	for seriesIdx, freq := range []int{1, 2, 3, 4} {
 		y := make([]float64, nPoints)
-		for i := 0; i < nPoints; i++ {
-			y[i] = math.Sin(float64(freq) * x[i])
+		for j := 0; j < nPoints; j++ {
+			y[j] = math.Sin(float64(freq) * x[j])
 		}
-		label := fmt.Sprintf("f=%d", freq)
-		ax.Plot(x, y, core.PlotOptions{Label: label})
+		ax.Plot(x, y, core.PlotOptions{
+			Color:     &tab10[seriesIdx],
+			LineWidth: &lineWidth,
+		})
 	}
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
@@ -1247,8 +1250,8 @@ func renderImageHeatmap() image.Image {
 		Max: geom.Pt{X: 0.95, Y: 0.9},
 	})
 	ax.SetTitle("Image Heatmap")
-	ax.XScale = transform.NewLinear(0, 3)
-	ax.YScale = transform.NewLinear(0, 3)
+	ax.SetXLim(0, 3)
+	ax.SetYLim(0, 3)
 
 	data := [][]float64{
 		{0, 1, 2},
@@ -2897,7 +2900,7 @@ func renderPolarAxes() image.Image {
 	ax.SetTitle("Polar Axes")
 	ax.SetXLabel("theta")
 	ax.SetYLabel("radius")
-	ax.YScale = transform.NewLinear(0, 1.1)
+	ax.SetYLim(0, 1.1)
 
 	thetaGrid := ax.AddGrid(core.AxisBottom)
 	thetaGrid.Color = render.Color{R: 0.8, G: 0.82, B: 0.86, A: 1}

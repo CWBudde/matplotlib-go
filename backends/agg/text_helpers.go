@@ -4,6 +4,9 @@ import (
 	"errors"
 	"math"
 
+	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
+
 	agglib "github.com/cwbudde/agg_go"
 )
 
@@ -48,6 +51,59 @@ func measureLocalGSVTextWidth(text string, size float64) float64 {
 	return gsv.MeasureText(text)
 }
 
+func measureLocalGSVTextBounds(text string, size float64) (x, y, width, height float64, ok bool) {
+	if text == "" || size <= 0 {
+		return 0, 0, 0, 0, false
+	}
+
+	gsv := agglib.NewGSVText()
+	gsv.SetFlip(true)
+	gsv.SetSize(size, 0)
+	gsv.SetText(text)
+	gsv.SetStartPoint(0, 0)
+	gsv.Rewind(0)
+
+	var minX, minY, maxX, maxY float64
+	have := false
+	for {
+		vx, vy, cmd := gsv.Vertex()
+		switch cmd {
+		case agglib.GSVPathCmdStop:
+			if !have {
+				return 0, 0, 0, 0, false
+			}
+			return minX, minY, maxX - minX, maxY - minY, true
+		case agglib.GSVPathCmdMoveTo, agglib.GSVPathCmdLineTo:
+			if !have {
+				minX, maxX = vx, vx
+				minY, maxY = vy, vy
+				have = true
+				continue
+			}
+			minX = math.Min(minX, vx)
+			minY = math.Min(minY, vy)
+			maxX = math.Max(maxX, vx)
+			maxY = math.Max(maxY, vy)
+		}
+	}
+}
+
+func measureTextPathBounds(text string, size float64, fontPath string) (x, y, width, height float64, ok bool) {
+	path, ok := render.TextPath(text, geom.Pt{}, size, fontPath)
+	if !ok || len(path.V) == 0 {
+		return 0, 0, 0, 0, false
+	}
+	minX, minY := path.V[0].X, path.V[0].Y
+	maxX, maxY := minX, minY
+	for _, pt := range path.V[1:] {
+		minX = math.Min(minX, pt.X)
+		minY = math.Min(minY, pt.Y)
+		maxX = math.Max(maxX, pt.X)
+		maxY = math.Max(maxY, pt.Y)
+	}
+	return minX, minY, maxX - minX, maxY - minY, true
+}
+
 func (r *Renderer) configureOutlineFont(fontPath string, size float64) (*agglib.FreeTypeOutlineText, error) {
 	if fontPath == "" || size <= 0 {
 		return nil, errors.New("outline font is unavailable")
@@ -80,7 +136,7 @@ func appendLocalGSVText(ctx *aggSurface, x, y, size float64, text string) bool {
 	gsv.SetFlip(true)
 	gsv.SetSize(size, 0)
 	gsv.SetText(text)
-	gsv.SetStartPoint(float64(int(x)), float64(int(y)))
+	gsv.SetStartPoint(math.Round(x), math.Round(y))
 
 	ctx.BeginPath()
 	gsv.Rewind(0)

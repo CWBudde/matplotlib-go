@@ -1,6 +1,8 @@
 package core
 
 import (
+	"math"
+
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 	"matplotlib-go/style"
@@ -401,10 +403,16 @@ func (g *Grid) drawLine(r render.Renderer, ctx *DrawContext, tickValue float64, 
 		yMin, yMax := ctx.DataToPixel.YScale.Domain()
 		p1 = ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: yMin})
 		p2 = ctx.DataToPixel.Apply(geom.Pt{X: tickValue, Y: yMax})
+		x := math.Round(p1.X) + 0.5
+		p1.X = x
+		p2.X = x
 	} else {
 		xMin, xMax := ctx.DataToPixel.XScale.Domain()
 		p1 = ctx.DataToPixel.Apply(geom.Pt{X: xMin, Y: tickValue})
 		p2 = ctx.DataToPixel.Apply(geom.Pt{X: xMax, Y: tickValue})
+		y := math.Round(p1.Y) + 0.5
+		p1.Y = y
+		p2.Y = y
 	}
 
 	path := geom.Path{}

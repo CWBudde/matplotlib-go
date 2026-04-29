@@ -1205,7 +1205,8 @@ func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks
 		if !ok {
 			continue
 		}
-		inkRect, ok := textInkRect(origin, layout)
+		lineHeight := pointsToPixels(ctx.RC, fontSize)
+		inkRect, ok := tickLabelDisplayRect(a.Side, style, isXAxis, origin, layout, lineHeight)
 		if !ok {
 			continue
 		}
@@ -1228,6 +1229,99 @@ func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks
 	}
 
 	return union, have
+}
+
+func tickLabelDisplayRect(side AxisSide, style TickLabelStyle, isXAxis bool, origin geom.Pt, layout singleLineTextLayout, lineHeight float64) (geom.Rect, bool) {
+	if style.Rotation == 0 {
+		hAlign, vAlign := resolvedTickLabelLayoutAlignments(side, style, isXAxis)
+		anchor := geom.Pt{
+			X: origin.X + textHorizontalOriginOffset(layout, hAlign),
+			Y: origin.Y - textBaselineOffset(layout, vAlign),
+		}
+		return alignedTextLayoutRect(anchor, layout, hAlign, vAlign, lineHeight)
+	}
+
+	hAlign, vAlign := resolvedTickLabelLayoutAlignments(side, style, isXAxis)
+	angle := style.Rotation * math.Pi / 180.0
+	anchor := tickLabelRotationAnchor(origin, layout, hAlign, vAlign, angle)
+	unrotatedRect, ok := alignedTextLayoutRect(anchor, layout, TextAlignCenter, textLayoutVAlignBottom, lineHeight)
+	if !ok {
+		return geom.Rect{}, false
+	}
+	return rotatedRectBounds(unrotatedRect, anchor, -angle), true
+}
+
+func alignedTextLayoutRect(anchor geom.Pt, layout singleLineTextLayout, hAlign TextAlign, vAlign textLayoutVerticalAlign, lineHeight float64) (geom.Rect, bool) {
+	width := layout.Width
+	if width <= 0 && layout.HaveInkBounds {
+		width = layout.InkBounds.W
+	}
+	height := lineHeight
+	if height <= 0 {
+		height = layout.Height
+	}
+	if height <= 0 && layout.HaveInkBounds {
+		height = layout.InkBounds.H
+	}
+	if width <= 0 || height <= 0 {
+		return geom.Rect{}, false
+	}
+
+	var minX float64
+	switch hAlign {
+	case TextAlignLeft:
+		minX = anchor.X
+	case TextAlignRight:
+		minX = anchor.X - width
+	default:
+		minX = anchor.X - width/2
+	}
+
+	var minY float64
+	switch vAlign {
+	case textLayoutVAlignTop:
+		minY = anchor.Y
+	case textLayoutVAlignBottom:
+		minY = anchor.Y - height
+	case textLayoutVAlignCenter, textLayoutVAlignCenterBaseline:
+		minY = anchor.Y - height/2
+	default:
+		minY = anchor.Y - layout.Ascent
+	}
+
+	return geom.Rect{
+		Min: geom.Pt{X: minX, Y: minY},
+		Max: geom.Pt{X: minX + width, Y: minY + height},
+	}, true
+}
+
+func rotatedRectBounds(rect geom.Rect, anchor geom.Pt, angle float64) geom.Rect {
+	corners := []geom.Pt{
+		rect.Min,
+		{X: rect.Max.X, Y: rect.Min.Y},
+		rect.Max,
+		{X: rect.Min.X, Y: rect.Max.Y},
+	}
+	cosA := math.Cos(angle)
+	sinA := math.Sin(angle)
+	out := geom.Rect{Min: rotatePoint(corners[0], anchor, cosA, sinA), Max: rotatePoint(corners[0], anchor, cosA, sinA)}
+	for _, corner := range corners[1:] {
+		p := rotatePoint(corner, anchor, cosA, sinA)
+		out.Min.X = math.Min(out.Min.X, p.X)
+		out.Min.Y = math.Min(out.Min.Y, p.Y)
+		out.Max.X = math.Max(out.Max.X, p.X)
+		out.Max.Y = math.Max(out.Max.Y, p.Y)
+	}
+	return out
+}
+
+func rotatePoint(p, anchor geom.Pt, cosA, sinA float64) geom.Pt {
+	dx := p.X - anchor.X
+	dy := p.Y - anchor.Y
+	return geom.Pt{
+		X: anchor.X + dx*cosA - dy*sinA,
+		Y: anchor.Y + dx*sinA + dy*cosA,
+	}
 }
 
 func tickLabelCenterOffsetX(layout singleLineTextLayout) float64 {

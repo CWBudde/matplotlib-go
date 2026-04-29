@@ -117,7 +117,7 @@ func alignmentKey(side AxisSide, coord float64) axisAlignmentKey {
 }
 
 func titleTopExtent(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect) float64 {
-	extent := spinePixelY(AxisTop, px)
+	extent := px.Min.Y
 	for _, candidate := range []*Axis{ax.effectiveXAxis(), ax.effectiveTopAxis()} {
 		if candidate == nil || candidate.Side != AxisTop || !candidate.ShowLabels {
 			continue

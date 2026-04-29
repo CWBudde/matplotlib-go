@@ -1047,10 +1047,6 @@ func TestTickLabelPositionUsesFontHeightMetricsForBottomXAxis(t *testing.T) {
 	axis.Formatter = ScalarFormatter{Prec: 0}
 
 	var r axisLabelRecordingRenderer
-	r.useBounds = true
-	r.bounds = map[string]render.TextBounds{
-		"2": {X: 1, Y: -6, W: 5, H: 8},
-	}
 	r.useFontHeights = true
 	r.fontHeights = render.FontHeightMetrics{Ascent: 8, Descent: 2}
 
@@ -1071,8 +1067,9 @@ func TestTickLabelPositionUsesFontHeightMetricsForBottomXAxis(t *testing.T) {
 
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis, ctx)})
 	labelPad := tickLabelPadPx(axis, ctx)
+	layout := measureSingleLineTextLayout(&r, "2", tickLabelFontSize(axis, ctx), ctx.RC.FontKey)
 	want := geom.Pt{
-		X: tickPos.X - (1 + 5.0/2.0),
+		X: tickPos.X - layout.Width/2,
 		Y: tickPos.Y + labelPad + 8,
 	}
 	if r.origins[0] != want {
@@ -1200,6 +1197,39 @@ func TestAxis_DrawTickLabels_UsesRotatedDrawerWhenRequested(t *testing.T) {
 	want := tickLabelRotationAnchor(origin, layout, TextAlignCenter, textLayoutVAlignTop, math.Pi/4)
 	if r.rotatedAnchors[0] != want {
 		t.Fatalf("rotated tick label anchor = %+v, want %+v", r.rotatedAnchors[0], want)
+	}
+}
+
+func TestAxis_TickLabelBoundsIncludeRotatedLayout(t *testing.T) {
+	axis := NewXAxis()
+	axis.Locator = staticLocator{2}
+	axis.Formatter = FixedFormatter{Labels: []string{"rotated-label"}}
+
+	var r axisLabelRecordingRenderer
+	r.useBounds = true
+	r.bounds = map[string]render.TextBounds{
+		"rotated-label": {X: 0, Y: -10, W: 80, H: 10},
+	}
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	unrotated, ok := axisTickLabelBounds(axis, &r, ctx)
+	if !ok {
+		t.Fatal("expected unrotated tick label bounds")
+	}
+
+	axis.MajorLabelStyle = TickLabelStyle{Rotation: 45, AutoAlign: true}
+	rotated, ok := axisTickLabelBounds(axis, &r, ctx)
+	if !ok {
+		t.Fatal("expected rotated tick label bounds")
+	}
+
+	if rotated.Max.Y <= unrotated.Max.Y+10 {
+		t.Fatalf("rotated bounds did not include lower rotated layout: rotated=%+v unrotated=%+v", rotated, unrotated)
+	}
+	if rotated.Min.Y >= unrotated.Min.Y {
+		t.Fatalf("rotated bounds did not include upper rotated layout: rotated=%+v unrotated=%+v", rotated, unrotated)
 	}
 }
 

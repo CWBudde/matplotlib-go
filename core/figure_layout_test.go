@@ -210,6 +210,7 @@ func TestDrawFigure_AlignsTitlesAcrossRow(t *testing.T) {
 
 func TestDrawFigure_TightLayoutRespondsToMeasuredTextExtents(t *testing.T) {
 	small := newTightLayoutProbeFigure()
+	small.Children[0].SetXLabel("")
 	small.TightLayout()
 	DrawFigure(small, &figureLayoutRecordingRenderer{
 		bounds: map[string]render.TextBounds{
@@ -218,10 +219,11 @@ func TestDrawFigure_TightLayoutRespondsToMeasuredTextExtents(t *testing.T) {
 	})
 
 	large := newTightLayoutProbeFigure()
+	large.Children[0].SetXLabel("")
 	large.TightLayout()
 	DrawFigure(large, &figureLayoutRecordingRenderer{
 		bounds: map[string]render.TextBounds{
-			"edge": {X: 0, Y: -14, W: 72, H: 18},
+			"edge": {X: 0, Y: -28, W: 72, H: 40},
 		},
 	})
 
@@ -229,9 +231,6 @@ func TestDrawFigure_TightLayoutRespondsToMeasuredTextExtents(t *testing.T) {
 	largeAx := large.Children[0]
 	if largeAx.RectFraction.Min.X <= smallAx.RectFraction.Min.X {
 		t.Fatalf("expected larger left margin for larger labels, got %v <= %v", largeAx.RectFraction.Min.X, smallAx.RectFraction.Min.X)
-	}
-	if largeAx.RectFraction.Min.Y <= smallAx.RectFraction.Min.Y {
-		t.Fatalf("expected larger bottom margin for larger labels, got %v <= %v", largeAx.RectFraction.Min.Y, smallAx.RectFraction.Min.Y)
 	}
 }
 

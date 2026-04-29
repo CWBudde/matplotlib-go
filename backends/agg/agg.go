@@ -387,13 +387,27 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 		r.fallback = true
 		sizePx := r.fontPixelSize(font.size)
 		w = measureLocalGSVTextWidth(text, sizePx)
-		ascent = sizePx
-		descent = 0
+		if x, y, bw, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
+			w = math.Max(w, x+bw)
+			ascent = math.Max(0, -y)
+			descent = math.Max(0, y+h)
+		} else if _, y, _, h, ok := measureLocalGSVTextBounds(text, sizePx); ok {
+			ascent = math.Max(0, -y)
+			descent = math.Max(0, y+h)
+		} else {
+			ascent = sizePx
+			descent = 0
+		}
 	default:
 		sizePx := r.fontPixelSize(font.size)
 		w = measureLocalGSVTextWidth(text, sizePx)
-		ascent = sizePx
-		descent = 0
+		if _, y, _, h, ok := measureLocalGSVTextBounds(text, sizePx); ok {
+			ascent = math.Max(0, -y)
+			descent = math.Max(0, y+h)
+		} else {
+			ascent = sizePx
+			descent = 0
+		}
 	}
 
 	h := ascent + descent
@@ -429,12 +443,28 @@ func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) 
 	}
 
 	font := r.configureTextFont(size, fontKey)
+	if font.backend == textBackendGSV {
+		sizePx := r.fontPixelSize(font.size)
+		x, y, w, h, ok := measureLocalGSVTextBounds(text, sizePx)
+		if !ok {
+			return render.TextBounds{}, false
+		}
+		return render.TextBounds{X: x, Y: y, W: w, H: h}, true
+	}
 	if font.backend != textBackendRaster {
 		return render.TextBounds{}, false
 	}
 	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
 		r.fallback = true
-		return render.TextBounds{}, false
+		sizePx := r.fontPixelSize(font.size)
+		if x, y, w, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
+			return render.TextBounds{X: x, Y: y, W: w, H: h}, true
+		}
+		x, y, w, h, ok := measureLocalGSVTextBounds(text, sizePx)
+		if !ok {
+			return render.TextBounds{}, false
+		}
+		return render.TextBounds{X: x, Y: y, W: w, H: h}, true
 	}
 
 	x, y, w, h := r.ctx.TextBounds(text)
@@ -456,6 +486,16 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 	}
 
 	font := r.configureTextFont(size, fontKey)
+	if font.backend == textBackendGSV {
+		sizePx := r.fontPixelSize(font.size)
+		if _, y, _, h, ok := measureLocalGSVTextBounds("lp", sizePx); ok {
+			return render.FontHeightMetrics{
+				Ascent:  math.Max(0, -y),
+				Descent: math.Max(0, y+h),
+			}, true
+		}
+		return render.FontHeightMetrics{}, false
+	}
 	if font.backend != textBackendRaster {
 		return render.FontHeightMetrics{}, false
 	}
@@ -469,6 +509,19 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 	}
 	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
 		r.fallback = true
+		sizePx := r.fontPixelSize(font.size)
+		if _, y, _, h, ok := measureTextPathBounds("lp", sizePx, font.fontPath); ok {
+			return render.FontHeightMetrics{
+				Ascent:  math.Max(0, -y),
+				Descent: math.Max(0, y+h),
+			}, true
+		}
+		if _, y, _, h, ok := measureLocalGSVTextBounds("lp", sizePx); ok {
+			return render.FontHeightMetrics{
+				Ascent:  math.Max(0, -y),
+				Descent: math.Max(0, y+h),
+			}, true
+		}
 		return render.FontHeightMetrics{}, false
 	}
 
