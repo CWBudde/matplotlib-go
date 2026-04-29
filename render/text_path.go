@@ -2,6 +2,7 @@ package render
 
 import (
 	"errors"
+	"math"
 	"os"
 	"sync"
 	"unicode/utf8"
@@ -65,7 +66,7 @@ func textPathFromFont(f *sfnt.Font, text string, origin geom.Pt, size float64) (
 		return geom.Path{}, errors.New("invalid text path input")
 	}
 
-	ppem := fixed.Int26_6(size * 64)
+	ppem := fixed.Int26_6(math.Round(size * 64))
 	var buf sfnt.Buffer
 	var out geom.Path
 	penX := origin.X
@@ -109,21 +110,25 @@ func textPathFromFont(f *sfnt.Font, text string, origin geom.Pt, size float64) (
 
 func textRunsPath(runs []FontRun, origin geom.Pt, size float64) (geom.Path, bool) {
 	var out geom.Path
-	penX := origin.X
 	ok := false
-	for _, run := range runs {
-		fontData, err := loadTextPathFont(run.Face.Path)
+	layout, haveLayout := LayoutTextGlyphRuns(runs, origin, size)
+	if !haveLayout {
+		return geom.Path{}, false
+	}
+	ppem := fixed.Int26_6(math.Round(size * 64))
+	var buf sfnt.Buffer
+	for _, glyph := range layout.Glyphs {
+		fontData, err := loadTextPathFont(glyph.Face.Path)
 		if err != nil {
 			return geom.Path{}, false
 		}
-		runPath, advance, err := textPathAndAdvanceFromFont(fontData, run.Text, geom.Pt{X: penX, Y: origin.Y}, size)
+		segments, err := fontData.LoadGlyph(&buf, glyph.GlyphIndex, ppem, nil)
 		if err != nil {
 			return geom.Path{}, false
 		}
-		out.C = append(out.C, runPath.C...)
-		out.V = append(out.V, runPath.V...)
-		penX += advance
-		ok = ok || len(runPath.C) > 0
+		before := len(out.C)
+		appendGlyphSegments(&out, segments, glyph.Origin)
+		ok = ok || len(out.C) > before
 	}
 	return out, ok
 }
@@ -133,7 +138,7 @@ func textPathAndAdvanceFromFont(f *sfnt.Font, text string, origin geom.Pt, size 
 		return geom.Path{}, 0, errors.New("invalid text path input")
 	}
 
-	ppem := fixed.Int26_6(size * 64)
+	ppem := fixed.Int26_6(math.Round(size * 64))
 	var buf sfnt.Buffer
 	var out geom.Path
 	penX := origin.X

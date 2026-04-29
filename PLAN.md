@@ -704,6 +704,23 @@ Current slice landed:
 - [ ] Replace unconditional image no-filter/no-resample behavior with rc/image artist interpolation policy.
 - [ ] Split "simple renderer fallback" tests from "AGG-native parity" tests so fallback behavior does not mask missing backend features.
 
+### 8.1F AGG Text Kerning and Glyph Layout Parity
+
+**Goal:** fix visible kerning/layout mismatches such as `Tr` and `Te` by aligning the Go text pipeline with upstream Matplotlib's shaped FreeType glyph layout.
+
+- [x] Add targeted parity fixtures for kerning-sensitive strings (`Tr`, `Te`, `To`, `Ta`, `AV`, `WA`, `Yo`) at multiple font sizes and DPI values.
+- [ ] Compare Go AGG raster text metrics, Go text-path metrics, and upstream Matplotlib `RendererAgg.get_text_width_height_descent` for the same font file and hinting mode.
+- [x] Audit and normalize kerning units across all Go text paths:
+  - [x] `backends/agg` raster text now measures and draws through shared `sfnt.Kern`/glyph-origin layout instead of `x/image/font.DrawString` / `font.MeasureString`
+  - [x] `render.TextPath` glyph-outline placement now consumes the same shared glyph-origin layout
+  - [x] AGG `FreeTypeOutlineText` fallback is no longer the primary rotated-text path when a font file can be resolved
+  - [ ] AGG native text context fallback
+- [x] Avoid relying on `opentype.Face.Kern` if its returned adjustment is not scaled to the active pixel size; use a shared glyph layout helper that calls `sfnt.Kern` with the same ppem as glyph advances.
+- [x] Make raster text drawing consume explicit glyph positions instead of drawing whole strings when kerning, ligatures, or fallback font runs are active.
+- [x] Add tests that fail when a kerned pair's rendered advance diverges from the text-path advance beyond a small tolerance.
+- [x] Ensure hinting mode and DPI are included in the measurement/layout cache key so kerning does not drift between measuring and drawing; there is currently no text-measurement/layout cache, and the parsed-font caches stay independent of size, DPI, and hinting.
+- [x] Document the remaining difference between pair kerning and full shaping until the 8.1C shaping layer lands: 8.1F fixes Latin pair kerning and shared glyph origins; full libraqm-style shaping, ligatures, bidi, combining marks, and feature/language handling remain tracked in 8.1C.
+
 ### 8.2 Font Manager and Text Layout
 
 - [x] Real font discovery/cache and `FontProperties`-style selection instead of a fixed fallback story

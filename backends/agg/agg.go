@@ -454,9 +454,12 @@ func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) 
 	if font.backend != textBackendRaster {
 		return render.TextBounds{}, false
 	}
+	sizePx := r.fontPixelSize(font.size)
+	if layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, sizePx, font.fontPath); ok {
+		return layout.Bounds, true
+	}
 	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
 		r.fallback = true
-		sizePx := r.fontPixelSize(font.size)
 		if x, y, w, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
 			return render.TextBounds{X: x, Y: y, W: w, H: h}, true
 		}
@@ -614,15 +617,15 @@ func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle floa
 
 	if font.fontPath != "" {
 		sizePx := r.fontPixelSize(font.size)
+		if r.drawTextPathFallback(text, origin, sizePx, textColor, font.fontPath) {
+			return
+		}
 		if face, err := r.configureOutlineFont(font.fontPath, sizePx); err == nil {
 			r.ctx.SetFillColor(renderColorToAGG(textColor))
 			r.ctx.SetStrokeColor(renderColorToAGG(textColor))
 			if drawTrueTypeOutlineText(r.ctx, face, origin.X, origin.Y, text) {
 				return
 			}
-		}
-		if r.drawTextPathFallback(text, origin, sizePx, textColor, font.fontPath) {
-			return
 		}
 		r.fallback = true
 	}

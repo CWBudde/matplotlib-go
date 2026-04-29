@@ -74,6 +74,58 @@ func TestRasterTextWidthTracksRendererDPI(t *testing.T) {
 	}
 }
 
+func TestRasterTextKerningMatchesSharedGlyphLayout(t *testing.T) {
+	r := mustNew(t, 260, 120)
+
+	for _, dpi := range []uint{72, 96, 144} {
+		r.SetResolution(dpi)
+		for _, size := range []float64{12, 24, 72} {
+			for _, text := range []string{"Tr", "Te", "To", "Ta", "AV", "WA", "Yo"} {
+				t.Run(text, func(t *testing.T) {
+					metrics := r.MeasureText(text, size, "")
+					layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), r.fontPath)
+					if !ok {
+						t.Fatalf("LayoutTextGlyphs(%q) failed", text)
+					}
+					if math.Abs(metrics.W-quantize(layout.Advance)) > 1e-6 {
+						t.Fatalf("MeasureText(%q).W=%v, layout advance=%v glyphs=%+v", text, metrics.W, layout.Advance, layout.Glyphs)
+					}
+					first := r.MeasureText(text[:1], size, "").W
+					second := r.MeasureText(text[1:], size, "").W
+					if layout.Glyphs[1].Kern < -0.5 && metrics.W >= first+second-0.5 {
+						t.Fatalf("kerned pair %q should be narrower than separate glyphs: pair=%v singles=%v kern=%v", text, metrics.W, first+second, layout.Glyphs[1].Kern)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestRasterTextBoundsMatchSharedGlyphLayout(t *testing.T) {
+	r := mustNew(t, 260, 120)
+	r.SetResolution(96)
+
+	for _, text := range []string{"Tr", "Te", "AV"} {
+		t.Run(text, func(t *testing.T) {
+			const size = 48.0
+			bounds, ok := r.MeasureTextBounds(text, size, "")
+			if !ok {
+				t.Fatalf("MeasureTextBounds(%q) failed", text)
+			}
+			layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), r.fontPath)
+			if !ok {
+				t.Fatalf("LayoutTextGlyphs(%q) failed", text)
+			}
+			if math.Abs(bounds.X-layout.Bounds.X) > 1e-6 ||
+				math.Abs(bounds.Y-layout.Bounds.Y) > 1e-6 ||
+				math.Abs(bounds.W-layout.Bounds.W) > 1e-6 ||
+				math.Abs(bounds.H-layout.Bounds.H) > 1e-6 {
+				t.Fatalf("bounds mismatch for %q: renderer=%+v layout=%+v", text, bounds, layout.Bounds)
+			}
+		})
+	}
+}
+
 func TestMeasureTextUsesStableFontLineMetrics(t *testing.T) {
 	r := mustNew(t, 200, 100)
 
