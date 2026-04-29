@@ -20,6 +20,11 @@ func init() {
 			backends.TextShaping,
 			backends.FontHinting,
 		},
+		FallbackCapabilities: []backends.Capability{
+			backends.MarkerBatch,
+			backends.PathCollectionBatch,
+			backends.QuadMeshBatch,
+		},
 		SaveFormats: map[string]backends.SaveHandler{
 			".png": backends.SavePNG,
 		},

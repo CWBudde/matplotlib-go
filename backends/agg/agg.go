@@ -75,6 +75,10 @@ var _ render.TextBounder = (*Renderer)(nil)
 var _ render.TextFontMetricer = (*Renderer)(nil)
 var _ render.TextPather = (*Renderer)(nil)
 var _ render.ImageTransformer = (*Renderer)(nil)
+var _ render.MarkerDrawer = (*Renderer)(nil)
+var _ render.PathCollectionDrawer = (*Renderer)(nil)
+var _ render.QuadMeshDrawer = (*Renderer)(nil)
+var _ render.GouraudTriangleDrawer = (*Renderer)(nil)
 var _ render.PNGExporter = (*Renderer)(nil)
 
 // New creates a new AGG renderer with the specified dimensions and background color.
@@ -348,6 +352,81 @@ func (r *Renderer) ImageTransformed(img render.Image, _ geom.Rect, affine geom.A
 		affine.F,
 	)
 	_ = agg.DrawImageTransformed(aggImg, transform)
+}
+
+// DrawMarkers renders one marker path at many display-space offsets.
+func (r *Renderer) DrawMarkers(batch render.MarkerBatch) bool {
+	if len(batch.Marker.C) == 0 || len(batch.Items) == 0 {
+		return false
+	}
+	for _, item := range batch.Items {
+		path := transformMarkerPath(batch.Marker, item.Transform, item.Offset)
+		if len(path.C) == 0 {
+			continue
+		}
+		paint := item.Paint
+		r.Path(path, &paint)
+	}
+	return true
+}
+
+// DrawPathCollection renders a display-space path collection.
+func (r *Renderer) DrawPathCollection(batch render.PathCollectionBatch) bool {
+	if len(batch.Items) == 0 {
+		return false
+	}
+	for _, item := range batch.Items {
+		if len(item.Path.C) == 0 {
+			continue
+		}
+		paint := item.Paint
+		r.Path(item.Path, &paint)
+	}
+	return true
+}
+
+// DrawQuadMesh renders pcolor/pcolormesh-style quadrilateral cells.
+func (r *Renderer) DrawQuadMesh(batch render.QuadMeshBatch) bool {
+	if len(batch.Cells) == 0 {
+		return false
+	}
+	for _, cell := range batch.Cells {
+		path := geom.Path{}
+		path.MoveTo(cell.Quad[0])
+		path.LineTo(cell.Quad[1])
+		path.LineTo(cell.Quad[2])
+		path.LineTo(cell.Quad[3])
+		path.Close()
+		paint := render.Paint{
+			Fill:      cell.Face,
+			Stroke:    cell.Edge,
+			LineWidth: cell.LineWidth,
+			LineJoin:  render.JoinMiter,
+			LineCap:   render.CapButt,
+			Dashes:    append([]float64(nil), cell.Dashes...),
+		}
+		if paint.LineWidth <= 0 || paint.Stroke.A <= 0 {
+			paint.Stroke = render.Color{}
+			paint.LineWidth = 0
+		}
+		if paint.Fill.A <= 0 {
+			paint.Fill = render.Color{}
+		}
+		r.Path(path, &paint)
+	}
+	return true
+}
+
+// DrawGouraudTriangles renders interpolated-color triangles directly into the
+// AGG surface buffer.
+func (r *Renderer) DrawGouraudTriangles(batch render.GouraudTriangleBatch) bool {
+	if len(batch.Triangles) == 0 || r.ctx == nil || r.ctx.image == nil {
+		return false
+	}
+	for _, tri := range batch.Triangles {
+		r.drawGouraudTriangle(tri)
+	}
+	return true
 }
 
 // GlyphRun draws a run of glyphs.
@@ -700,6 +779,137 @@ func (r *Renderer) SavePNG(path string) error {
 	}
 	defer file.Close()
 	return png.Encode(file, img)
+}
+
+func transformMarkerPath(path geom.Path, affine geom.Affine, offset geom.Pt) geom.Path {
+	if len(path.C) == 0 {
+		return geom.Path{}
+	}
+	out := geom.Path{
+		C: append([]geom.Cmd(nil), path.C...),
+		V: make([]geom.Pt, len(path.V)),
+	}
+	for i, pt := range path.V {
+		pt = affine.Apply(pt)
+		out.V[i] = geom.Pt{X: pt.X + offset.X, Y: pt.Y + offset.Y}
+	}
+	return out
+}
+
+func (r *Renderer) drawGouraudTriangle(tri render.GouraudTriangle) {
+	img := r.ctx.image
+	if img == nil || img.Width() <= 0 || img.Height() <= 0 {
+		return
+	}
+
+	minX := int(math.Floor(math.Min(tri.P[0].X, math.Min(tri.P[1].X, tri.P[2].X))))
+	maxX := int(math.Ceil(math.Max(tri.P[0].X, math.Max(tri.P[1].X, tri.P[2].X))))
+	minY := int(math.Floor(math.Min(tri.P[0].Y, math.Min(tri.P[1].Y, tri.P[2].Y))))
+	maxY := int(math.Ceil(math.Max(tri.P[0].Y, math.Max(tri.P[1].Y, tri.P[2].Y))))
+
+	clipMinX, clipMinY := 0, 0
+	clipMaxX, clipMaxY := img.Width()-1, img.Height()-1
+	if r.clipRect != nil {
+		clipMinX = maxInt(clipMinX, int(math.Floor(r.clipRect.Min.X)))
+		clipMinY = maxInt(clipMinY, int(math.Floor(r.clipRect.Min.Y)))
+		clipMaxX = minInt(clipMaxX, int(math.Ceil(r.clipRect.Max.X))-1)
+		clipMaxY = minInt(clipMaxY, int(math.Ceil(r.clipRect.Max.Y))-1)
+	}
+	minX = maxInt(minX, clipMinX)
+	minY = maxInt(minY, clipMinY)
+	maxX = minInt(maxX, clipMaxX)
+	maxY = minInt(maxY, clipMaxY)
+	if minX > maxX || minY > maxY {
+		return
+	}
+
+	area := edgeFunction(tri.P[0], tri.P[1], tri.P[2])
+	if area == 0 || math.IsNaN(area) || math.IsInf(area, 0) {
+		return
+	}
+
+	stride := img.Stride()
+	if stride <= 0 {
+		return
+	}
+	for y := minY; y <= maxY; y++ {
+		for x := minX; x <= maxX; x++ {
+			p := geom.Pt{X: float64(x) + 0.5, Y: float64(y) + 0.5}
+			w0 := edgeFunction(tri.P[1], tri.P[2], p) / area
+			w1 := edgeFunction(tri.P[2], tri.P[0], p) / area
+			w2 := edgeFunction(tri.P[0], tri.P[1], p) / area
+			if w0 < 0 || w1 < 0 || w2 < 0 {
+				continue
+			}
+			src := interpolateColor(tri.Color[0], tri.Color[1], tri.Color[2], w0, w1, w2)
+			if src.A <= 0 {
+				continue
+			}
+			off := y*stride + x*4
+			if off < 0 || off+3 >= len(img.Data) {
+				continue
+			}
+			blendPixelRGBA(img.Data[off:off+4], src)
+		}
+	}
+}
+
+func edgeFunction(a, b, c geom.Pt) float64 {
+	return (c.X-a.X)*(b.Y-a.Y) - (c.Y-a.Y)*(b.X-a.X)
+}
+
+func interpolateColor(c0, c1, c2 render.Color, w0, w1, w2 float64) render.Color {
+	return render.Color{
+		R: c0.R*w0 + c1.R*w1 + c2.R*w2,
+		G: c0.G*w0 + c1.G*w1 + c2.G*w2,
+		B: c0.B*w0 + c1.B*w1 + c2.B*w2,
+		A: c0.A*w0 + c1.A*w1 + c2.A*w2,
+	}
+}
+
+func blendPixelRGBA(dst []uint8, src render.Color) {
+	sa := clamp01(src.A)
+	if sa <= 0 {
+		return
+	}
+	sr := clamp01(src.R)
+	sg := clamp01(src.G)
+	sb := clamp01(src.B)
+	if sa >= 1 {
+		dst[0] = uint8(math.Round(sr * 255))
+		dst[1] = uint8(math.Round(sg * 255))
+		dst[2] = uint8(math.Round(sb * 255))
+		dst[3] = 255
+		return
+	}
+
+	da := float64(dst[3]) / 255
+	dr := float64(dst[0]) / 255
+	dg := float64(dst[1]) / 255
+	db := float64(dst[2]) / 255
+	outA := sa + da*(1-sa)
+	if outA <= 0 {
+		dst[0], dst[1], dst[2], dst[3] = 0, 0, 0, 0
+		return
+	}
+	dst[0] = uint8(math.Round(((sr*sa + dr*da*(1-sa)) / outA) * 255))
+	dst[1] = uint8(math.Round(((sg*sa + dg*da*(1-sa)) / outA) * 255))
+	dst[2] = uint8(math.Round(((sb*sa + db*da*(1-sa)) / outA) * 255))
+	dst[3] = uint8(math.Round(outA * 255))
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // renderColorToAGG converts a normalized render.Color to AGG's 8-bit SRGBA

@@ -37,6 +37,84 @@ func TestPathCollectionDrawAndBounds(t *testing.T) {
 	}
 }
 
+type batchRecordingRenderer struct {
+	recordingRenderer
+	markerBatches         []render.MarkerBatch
+	pathCollectionBatches []render.PathCollectionBatch
+	quadMeshBatches       []render.QuadMeshBatch
+	returnNative          bool
+}
+
+func (r *batchRecordingRenderer) DrawMarkers(batch render.MarkerBatch) bool {
+	r.markerBatches = append(r.markerBatches, batch)
+	return r.returnNative
+}
+
+func (r *batchRecordingRenderer) DrawPathCollection(batch render.PathCollectionBatch) bool {
+	r.pathCollectionBatches = append(r.pathCollectionBatches, batch)
+	return r.returnNative
+}
+
+func (r *batchRecordingRenderer) DrawQuadMesh(batch render.QuadMeshBatch) bool {
+	r.quadMeshBatches = append(r.quadMeshBatches, batch)
+	return r.returnNative
+}
+
+func TestPathCollectionUsesMarkerBatchWhenAvailable(t *testing.T) {
+	pc := &PathCollection{
+		Collection:    Collection{Alpha: 0.8},
+		Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
+		Offsets:       []geom.Pt{{X: 1, Y: 2}, {X: 4, Y: 5}},
+		Sizes:         []float64{2, 3},
+		PathInDisplay: true,
+		FaceColor:     render.Color{R: 1, A: 1},
+		EdgeColor:     render.Color{A: 1},
+		EdgeWidth:     1,
+	}
+
+	r := &batchRecordingRenderer{returnNative: true}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.markerBatches) != 1 {
+		t.Fatalf("marker batches = %d, want 1", len(r.markerBatches))
+	}
+	if len(r.pathCalls) != 0 || len(r.pathCollectionBatches) != 0 {
+		t.Fatalf("expected marker native path only, pathCalls=%d pathCollectionBatches=%d", len(r.pathCalls), len(r.pathCollectionBatches))
+	}
+	items := r.markerBatches[0].Items
+	if len(items) != 2 {
+		t.Fatalf("marker items = %d, want 2", len(items))
+	}
+	if items[0].Offset != (geom.Pt{X: 60, Y: 430}) {
+		t.Fatalf("first marker display offset = %+v", items[0].Offset)
+	}
+	if items[1].Transform.A != 3 || items[1].Transform.D != 3 {
+		t.Fatalf("second marker transform = %+v", items[1].Transform)
+	}
+}
+
+func TestPathCollectionFallsBackWhenMarkerBatchDeclines(t *testing.T) {
+	pc := &PathCollection{
+		Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
+		Offsets:       []geom.Pt{{X: 1, Y: 2}, {X: 4, Y: 5}},
+		PathInDisplay: true,
+		FaceColor:     render.Color{R: 1, A: 1},
+	}
+
+	r := &batchRecordingRenderer{returnNative: false}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.markerBatches) != 1 {
+		t.Fatalf("marker batches = %d, want attempted native marker batch", len(r.markerBatches))
+	}
+	if len(r.pathCollectionBatches) != 1 {
+		t.Fatalf("path collection batches = %d, want attempted native path collection", len(r.pathCollectionBatches))
+	}
+	if len(r.pathCalls) != 2 {
+		t.Fatalf("fallback path calls = %d, want 2", len(r.pathCalls))
+	}
+}
+
 func TestLineCollectionLegendEntry(t *testing.T) {
 	fig := NewFigure(800, 600)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
@@ -88,6 +166,77 @@ func TestQuadMeshDrawsEachCell(t *testing.T) {
 	want := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 2, Y: 2}}
 	if bounds != want {
 		t.Fatalf("bounds = %+v, want %+v", bounds, want)
+	}
+}
+
+func TestPatchCollectionUsesPathCollectionBatchWhenAvailable(t *testing.T) {
+	pc := &PatchCollection{
+		Collection: Collection{Alpha: 0.5},
+		Paths: []geom.Path{
+			patchRectPath(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 1, Y: 1}}),
+			patchRectPath(geom.Rect{Min: geom.Pt{X: 1, Y: 1}, Max: geom.Pt{X: 2, Y: 2}}),
+		},
+		FaceColor: render.Color{R: 0.2, A: 1},
+		EdgeColor: render.Color{A: 1},
+		EdgeWidth: 1,
+	}
+
+	r := &batchRecordingRenderer{returnNative: true}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.pathCollectionBatches) != 1 {
+		t.Fatalf("path collection batches = %d, want 1", len(r.pathCollectionBatches))
+	}
+	if len(r.pathCollectionBatches[0].Items) != 2 {
+		t.Fatalf("batch items = %d, want 2", len(r.pathCollectionBatches[0].Items))
+	}
+	if len(r.pathCalls) != 0 {
+		t.Fatalf("fallback path calls = %d, want 0", len(r.pathCalls))
+	}
+}
+
+func TestPatchCollectionWithHatchKeepsFallbackPath(t *testing.T) {
+	pc := &PatchCollection{
+		Paths: []geom.Path{
+			patchRectPath(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 1, Y: 1}}),
+		},
+		FaceColor:  render.Color{R: 0.2, A: 1},
+		Hatch:      "/",
+		HatchColor: render.Color{A: 1},
+		HatchWidth: 1,
+	}
+
+	r := &batchRecordingRenderer{returnNative: true}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.pathCollectionBatches) != 0 {
+		t.Fatal("hatched patch collection should not use path collection batch yet")
+	}
+	if len(r.pathCalls) == 0 {
+		t.Fatal("hatched patch collection should draw via fallback path calls")
+	}
+}
+
+func TestQuadMeshUsesNativeBatchWhenAvailable(t *testing.T) {
+	mesh := &QuadMesh{
+		PatchCollection: PatchCollection{
+			FaceColor: render.Color{R: 1, A: 1},
+		},
+		XEdges: []float64{0, 1, 2},
+		YEdges: []float64{0, 1, 2},
+	}
+
+	r := &batchRecordingRenderer{returnNative: true}
+	mesh.Draw(r, createTestDrawContext())
+
+	if len(r.quadMeshBatches) != 1 {
+		t.Fatalf("quad mesh batches = %d, want 1", len(r.quadMeshBatches))
+	}
+	if len(r.quadMeshBatches[0].Cells) != 4 {
+		t.Fatalf("quad mesh cells = %d, want 4", len(r.quadMeshBatches[0].Cells))
+	}
+	if len(r.pathCalls) != 0 {
+		t.Fatalf("fallback path calls = %d, want 0", len(r.pathCalls))
 	}
 }
 

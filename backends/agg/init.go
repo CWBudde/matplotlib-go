@@ -14,6 +14,10 @@ func init() {
 			backends.SubPixel,
 			backends.TextShaping,
 			backends.FontHinting,
+			backends.MarkerBatch,
+			backends.PathCollectionBatch,
+			backends.QuadMeshBatch,
+			backends.GouraudTriangleBatch,
 		},
 		SaveFormats: map[string]backends.SaveHandler{
 			".png": backends.SavePNG,

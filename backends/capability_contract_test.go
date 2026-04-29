@@ -37,24 +37,56 @@ func (r *capabilityRendererWithPNG) SavePNG(_ string) error {
 
 func (r *capabilityRendererWithPNG) ImageTransformed(_ render.Image, _ geom.Rect, _ geom.Affine) {}
 
+type capabilityRendererWithBatches struct {
+	capabilityRendererWithPNG
+}
+
+func (r *capabilityRendererWithBatches) DrawMarkers(_ render.MarkerBatch) bool {
+	return true
+}
+
+func (r *capabilityRendererWithBatches) DrawPathCollection(_ render.PathCollectionBatch) bool {
+	return true
+}
+
+func (r *capabilityRendererWithBatches) DrawQuadMesh(_ render.QuadMeshBatch) bool {
+	return true
+}
+
+func (r *capabilityRendererWithBatches) DrawGouraudTriangles(_ render.GouraudTriangleBatch) bool {
+	return true
+}
+
 func TestSupportsRendererCapability(t *testing.T) {
 	reg := NewRegistry()
 	reg.Register(Backend("contract"), &BackendInfo{
 		Name:         "Contract Backend",
 		Available:    true,
-		Capabilities: []Capability{TextShaping, FontHinting, VectorOutput},
-		Factory:      func(Config) (render.Renderer, error) { return &capabilityRendererWithPNG{}, nil },
+		Capabilities: []Capability{TextShaping, FontHinting, VectorOutput, MarkerBatch, PathCollectionBatch, QuadMeshBatch, GouraudTriangleBatch},
+		Factory:      func(Config) (render.Renderer, error) { return &capabilityRendererWithBatches{}, nil },
 	})
 	withDefaultRegistry(t, reg)
 
-	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, TextShaping) {
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, TextShaping) {
 		t.Fatal("expected TextShaping capability to be supported")
 	}
-	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, FontHinting) {
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, FontHinting) {
 		t.Fatal("expected FontHinting capability to be supported")
 	}
-	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, VectorOutput) {
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, VectorOutput) {
 		t.Fatal("expected VectorOutput capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, MarkerBatch) {
+		t.Fatal("expected MarkerBatch capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, PathCollectionBatch) {
+		t.Fatal("expected PathCollectionBatch capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, QuadMeshBatch) {
+		t.Fatal("expected QuadMeshBatch capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, GouraudTriangleBatch) {
+		t.Fatal("expected GouraudTriangleBatch capability to be supported")
 	}
 
 	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, TextShaping) {
@@ -66,8 +98,38 @@ func TestSupportsRendererCapability(t *testing.T) {
 	if SupportsRendererCapability(Backend("contract"), &capabilityRendererWithFontMetrics{}, VectorOutput) {
 		t.Fatal("expected VectorOutput capability to be unsupported without export interface")
 	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, MarkerBatch) {
+		t.Fatal("expected MarkerBatch capability to be unsupported without batch interface")
+	}
 	if SupportsRendererCapability(Backend("contract"), nil, TextShaping) {
 		t.Fatal("expected nil renderer to be unsupported")
+	}
+}
+
+func TestRendererCapabilityStatusDistinguishesFallback(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(Backend("native"), &BackendInfo{
+		Name:         "Native Backend",
+		Available:    true,
+		Capabilities: []Capability{MarkerBatch},
+		Factory:      func(Config) (render.Renderer, error) { return &capabilityRendererWithBatches{}, nil },
+	})
+	reg.Register(Backend("fallback"), &BackendInfo{
+		Name:                 "Fallback Backend",
+		Available:            true,
+		FallbackCapabilities: []Capability{MarkerBatch},
+		Factory:              func(Config) (render.Renderer, error) { return &capabilityRendererBase{}, nil },
+	})
+	withDefaultRegistry(t, reg)
+
+	if got := RendererCapabilityStatus(Backend("native"), &capabilityRendererWithBatches{}, MarkerBatch); got != CapabilityNative {
+		t.Fatalf("native status = %s, want %s", got, CapabilityNative)
+	}
+	if got := RendererCapabilityStatus(Backend("fallback"), &capabilityRendererBase{}, MarkerBatch); got != CapabilityFallback {
+		t.Fatalf("fallback status = %s, want %s", got, CapabilityFallback)
+	}
+	if got := RendererCapabilityStatus(Backend("native"), &capabilityRendererBase{}, MarkerBatch); got != CapabilityUnsupported {
+		t.Fatalf("unsupported status = %s, want %s", got, CapabilityUnsupported)
 	}
 }
 
@@ -100,4 +162,3 @@ func TestVerifyRendererCapabilities(t *testing.T) {
 		t.Fatal("expected VerifyRendererCapabilities(nil renderer) to fail")
 	}
 }
-

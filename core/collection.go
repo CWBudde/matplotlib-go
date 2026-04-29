@@ -147,6 +147,12 @@ func (c *PathCollection) Draw(r render.Renderer, ctx *DrawContext) {
 	if c == nil || r == nil || ctx == nil {
 		return
 	}
+	if c.drawMarkers(r, ctx) {
+		return
+	}
+	if c.drawPathCollection(r, ctx) {
+		return
+	}
 	for i := 0; i < c.itemCount(); i++ {
 		base := c.pathAt(i)
 		if len(base.C) == 0 {
@@ -170,17 +176,7 @@ func (c *PathCollection) Draw(r render.Renderer, ctx *DrawContext) {
 			continue
 		}
 
-		paint := render.Paint{
-			Fill:      fill,
-			Stroke:    edge,
-			LineWidth: width,
-			LineJoin:  render.JoinRound,
-			LineCap:   render.CapRound,
-		}
-		if width <= 0 || edge.A <= 0 {
-			paint.Stroke = render.Color{}
-			paint.LineWidth = 0
-		}
+		paint := collectionPaint(fill, edge, width, render.JoinRound, render.CapRound, nil)
 		r.Path(path, &paint)
 	}
 }
@@ -309,6 +305,9 @@ func (c *PatchCollection) Draw(r render.Renderer, ctx *DrawContext) {
 	if c == nil || r == nil || ctx == nil {
 		return
 	}
+	if c.drawPathCollection(r, ctx) {
+		return
+	}
 	for i, path := range c.Paths {
 		if len(path.C) == 0 {
 			continue
@@ -402,6 +401,9 @@ func (m *QuadMesh) Draw(r render.Renderer, ctx *DrawContext) {
 	if m == nil {
 		return
 	}
+	if m.drawQuadMesh(r, ctx) {
+		return
+	}
 	m.asPatchCollection().Draw(r, ctx)
 }
 
@@ -492,6 +494,210 @@ func (c *FillBetweenPolyCollection) asPatchCollection() *PatchCollection {
 	patches := c.PatchCollection
 	patches.Paths = paths
 	return &patches
+}
+
+func (c *PathCollection) drawMarkers(r render.Renderer, ctx *DrawContext) bool {
+	drawer, ok := r.(render.MarkerDrawer)
+	if !ok || c == nil || ctx == nil || !c.PathInDisplay || len(c.Path.C) == 0 || len(c.Paths) > 0 {
+		return false
+	}
+
+	count := c.itemCount()
+	if count == 0 {
+		return false
+	}
+	batch := render.MarkerBatch{
+		Marker: c.Path,
+		Items:  make([]render.MarkerItem, 0, count),
+	}
+	tr := ctx.TransformFor(c.Coords)
+	for i := 0; i < count; i++ {
+		fill := c.faceColorAt(i)
+		edge := c.edgeColorAt(i)
+		width := c.edgeWidthAt(i)
+		if c.LineOnly {
+			if edge.A <= 0 {
+				edge = fill
+			}
+			fill.A = 0
+		}
+		if fill.A <= 0 && (width <= 0 || edge.A <= 0) {
+			continue
+		}
+		offset := c.offsetAt(i)
+		if tr != nil {
+			offset = tr.Apply(offset)
+		}
+		scale := c.sizeAt(i)
+		batch.Items = append(batch.Items, render.MarkerItem{
+			Offset:      offset,
+			Transform:   geom.Affine{A: scale, D: scale},
+			Paint:       collectionPaint(fill, edge, width, render.JoinRound, render.CapRound, nil),
+			Antialiased: true,
+		})
+	}
+	if len(batch.Items) == 0 {
+		return false
+	}
+	return drawer.DrawMarkers(batch)
+}
+
+func (c *PathCollection) drawPathCollection(r render.Renderer, ctx *DrawContext) bool {
+	drawer, ok := r.(render.PathCollectionDrawer)
+	if !ok || c == nil || ctx == nil {
+		return false
+	}
+
+	count := c.itemCount()
+	if count == 0 {
+		return false
+	}
+	batch := render.PathCollectionBatch{Items: make([]render.PathCollectionItem, 0, count)}
+	for i := 0; i < count; i++ {
+		base := c.pathAt(i)
+		if len(base.C) == 0 {
+			continue
+		}
+		path := c.displayPathAt(ctx, i, base)
+		if len(path.C) == 0 {
+			continue
+		}
+
+		fill := c.faceColorAt(i)
+		edge := c.edgeColorAt(i)
+		width := c.edgeWidthAt(i)
+		if c.LineOnly {
+			if edge.A <= 0 {
+				edge = fill
+			}
+			fill.A = 0
+		}
+		if fill.A <= 0 && (width <= 0 || edge.A <= 0) {
+			continue
+		}
+		batch.Items = append(batch.Items, render.PathCollectionItem{
+			Path:        path,
+			Paint:       collectionPaint(fill, edge, width, render.JoinRound, render.CapRound, nil),
+			Antialiased: true,
+		})
+	}
+	if len(batch.Items) == 0 {
+		return false
+	}
+	return drawer.DrawPathCollection(batch)
+}
+
+func (c *PatchCollection) drawPathCollection(r render.Renderer, ctx *DrawContext) bool {
+	drawer, ok := r.(render.PathCollectionDrawer)
+	if !ok || c == nil || ctx == nil || len(c.Paths) == 0 || c.hasHatches() {
+		return false
+	}
+
+	batch := render.PathCollectionBatch{Items: make([]render.PathCollectionItem, 0, len(c.Paths))}
+	for i, path := range c.Paths {
+		if len(path.C) == 0 {
+			continue
+		}
+		path = buildDisplayPath(ctx, c.Coords, path, geom.Identity())
+		fill := patchAlphaColor(colorAt(c.FaceColor, c.FaceColors, i), c.alphaValue())
+		edge := patchAlphaColor(colorAt(c.EdgeColor, c.EdgeColors, i), c.alphaValue())
+		width := widthAt(c.EdgeWidth, c.EdgeWidths, i)
+		lineJoin := c.LineJoin
+		if lineJoin == 0 {
+			lineJoin = render.JoinMiter
+		}
+		lineCap := c.LineCap
+		if lineCap == 0 {
+			lineCap = render.CapButt
+		}
+		if fill.A <= 0 && (width <= 0 || edge.A <= 0) {
+			continue
+		}
+		batch.Items = append(batch.Items, render.PathCollectionItem{
+			Path:        path,
+			Paint:       collectionPaint(fill, edge, width, lineJoin, lineCap, nil),
+			Antialiased: true,
+		})
+	}
+	if len(batch.Items) == 0 {
+		return false
+	}
+	return drawer.DrawPathCollection(batch)
+}
+
+func (m *QuadMesh) drawQuadMesh(r render.Renderer, ctx *DrawContext) bool {
+	drawer, ok := r.(render.QuadMeshDrawer)
+	if !ok || m == nil || ctx == nil || len(m.XEdges) < 2 || len(m.YEdges) < 2 || m.hasHatches() {
+		return false
+	}
+
+	cellCount := (len(m.XEdges) - 1) * (len(m.YEdges) - 1)
+	batch := render.QuadMeshBatch{Cells: make([]render.QuadMeshCell, 0, cellCount)}
+	idx := 0
+	for yi := 0; yi+1 < len(m.YEdges); yi++ {
+		for xi := 0; xi+1 < len(m.XEdges); xi++ {
+			local := [4]geom.Pt{
+				{X: m.XEdges[xi], Y: m.YEdges[yi]},
+				{X: m.XEdges[xi+1], Y: m.YEdges[yi]},
+				{X: m.XEdges[xi+1], Y: m.YEdges[yi+1]},
+				{X: m.XEdges[xi], Y: m.YEdges[yi+1]},
+			}
+			var quad [4]geom.Pt
+			tr := ctx.TransformFor(m.Coords)
+			for i, pt := range local {
+				if tr != nil {
+					pt = tr.Apply(pt)
+				}
+				quad[i] = pt
+			}
+			face := patchAlphaColor(colorAt(m.FaceColor, m.FaceColors, idx), m.alphaValue())
+			edge := patchAlphaColor(colorAt(m.EdgeColor, m.EdgeColors, idx), m.alphaValue())
+			width := widthAt(m.EdgeWidth, m.EdgeWidths, idx)
+			if face.A > 0 || (width > 0 && edge.A > 0) {
+				batch.Cells = append(batch.Cells, render.QuadMeshCell{
+					Quad:        quad,
+					Face:        face,
+					Edge:        edge,
+					LineWidth:   width,
+					Antialiased: true,
+				})
+			}
+			idx++
+		}
+	}
+	if len(batch.Cells) == 0 {
+		return false
+	}
+	return drawer.DrawQuadMesh(batch)
+}
+
+func (c *PatchCollection) hasHatches() bool {
+	if c == nil {
+		return false
+	}
+	if c.Hatch != "" || c.HatchColor.A > 0 || c.HatchWidth > 0 {
+		return true
+	}
+	return len(c.Hatches) > 0 || len(c.HatchColors) > 0 || len(c.HatchWidths) > 0
+}
+
+func collectionPaint(fill, edge render.Color, width float64, join render.LineJoin, cap render.LineCap, dashes []float64) render.Paint {
+	paint := render.Paint{
+		Fill:      fill,
+		Stroke:    edge,
+		LineWidth: width,
+		LineJoin:  join,
+		LineCap:   cap,
+		Dashes:    append([]float64(nil), dashes...),
+	}
+	if width <= 0 || edge.A <= 0 {
+		paint.Stroke = render.Color{}
+		paint.LineWidth = 0
+	}
+	if fill.A <= 0 {
+		paint.Fill = render.Color{}
+	}
+	return paint
 }
 
 func fillBetweenPolygon(x, y1, y2 []float64, baseline float64, orientation FillOrientation) []geom.Pt {

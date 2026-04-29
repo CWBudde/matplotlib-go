@@ -13,6 +13,11 @@ func init() {
 		Capabilities: []backends.Capability{
 			backends.AntiAliasing, // Basic AA via vector rasterizer
 		},
+		FallbackCapabilities: []backends.Capability{
+			backends.MarkerBatch,
+			backends.PathCollectionBatch,
+			backends.QuadMeshBatch,
+		},
 		SaveFormats: map[string]backends.SaveHandler{
 			".png": backends.SavePNG,
 		},

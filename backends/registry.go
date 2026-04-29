@@ -40,6 +40,22 @@ const (
 	VectorOutput Capability = "vectoroutput"
 	TextShaping  Capability = "textshaping"
 	FontHinting  Capability = "fonthinting"
+
+	// Batch drawing capabilities
+	MarkerBatch          Capability = "markerbatch"
+	PathCollectionBatch  Capability = "pathcollectionbatch"
+	QuadMeshBatch        Capability = "quadmeshbatch"
+	GouraudTriangleBatch Capability = "gouraudtrianglebatch"
+)
+
+// CapabilityStatus reports whether a backend capability is unavailable,
+// available only through renderer-neutral fallback, or implemented natively.
+type CapabilityStatus string
+
+const (
+	CapabilityUnsupported CapabilityStatus = "unsupported"
+	CapabilityFallback    CapabilityStatus = "fallback"
+	CapabilityNative      CapabilityStatus = "native"
 )
 
 // capabilityRuntimeChecks ties selected capabilities to concrete renderer interfaces.
@@ -56,6 +72,22 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 		_, hasPNG := r.(render.PNGExporter)
 		_, hasSVG := r.(render.SVGExporter)
 		return hasPNG || hasSVG
+	},
+	MarkerBatch: func(r render.Renderer) bool {
+		_, ok := r.(render.MarkerDrawer)
+		return ok
+	},
+	PathCollectionBatch: func(r render.Renderer) bool {
+		_, ok := r.(render.PathCollectionDrawer)
+		return ok
+	},
+	QuadMeshBatch: func(r render.Renderer) bool {
+		_, ok := r.(render.QuadMeshDrawer)
+		return ok
+	},
+	GouraudTriangleBatch: func(r render.Renderer) bool {
+		_, ok := r.(render.GouraudTriangleDrawer)
+		return ok
 	},
 }
 
@@ -99,14 +131,15 @@ type ManagerFactory func(config Config, fig *canvas.Figure) (canvas.FigureManage
 
 // BackendInfo describes a backend's capabilities and factory.
 type BackendInfo struct {
-	Name           string
-	Description    string
-	Capabilities   []Capability
-	SaveFormats    map[string]SaveHandler
-	Factory        Factory
-	CanvasFactory  CanvasFactory
-	ManagerFactory ManagerFactory
-	Available      bool // Whether dependencies are available
+	Name                 string
+	Description          string
+	Capabilities         []Capability
+	FallbackCapabilities []Capability
+	SaveFormats          map[string]SaveHandler
+	Factory              Factory
+	CanvasFactory        CanvasFactory
+	ManagerFactory       ManagerFactory
+	Available            bool // Whether dependencies are available
 }
 
 // SaveHandler writes output in a specific file format using the renderer.
@@ -199,7 +232,26 @@ func (r *Registry) HasCapability(backend Backend, capability Capability) bool {
 		return false
 	}
 
-	for _, c := range info.Capabilities {
+	return info.hasCapability(capability)
+}
+
+func (i *BackendInfo) hasCapability(capability Capability) bool {
+	if i == nil {
+		return false
+	}
+	for _, c := range i.Capabilities {
+		if c == capability {
+			return true
+		}
+	}
+	return false
+}
+
+func (i *BackendInfo) hasFallbackCapability(capability Capability) bool {
+	if i == nil {
+		return false
+	}
+	for _, c := range i.FallbackCapabilities {
 		if c == capability {
 			return true
 		}
@@ -222,6 +274,22 @@ func (r *Registry) SupportsRendererCapability(backend Backend, renderer render.R
 		return true
 	}
 	return check(renderer)
+}
+
+// RendererCapabilityStatus reports unsupported/fallback/native support for a
+// capability on a concrete renderer.
+func (r *Registry) RendererCapabilityStatus(backend Backend, renderer render.Renderer, capability Capability) CapabilityStatus {
+	info, ok := r.Get(backend)
+	if !ok || renderer == nil {
+		return CapabilityUnsupported
+	}
+	if r.SupportsRendererCapability(backend, renderer, capability) {
+		return CapabilityNative
+	}
+	if info.hasFallbackCapability(capability) {
+		return CapabilityFallback
+	}
+	return CapabilityUnsupported
 }
 
 // VerifyRendererCapabilities ensures a renderer satisfies all capability-backed contracts
@@ -308,6 +376,12 @@ func HasCapability(backend Backend, capability Capability) bool {
 // support, including runtime feature checks for interface-based capabilities.
 func SupportsRendererCapability(backend Backend, renderer render.Renderer, capability Capability) bool {
 	return DefaultRegistry.SupportsRendererCapability(backend, renderer, capability)
+}
+
+// RendererCapabilityStatus reports unsupported/fallback/native support using
+// the default registry.
+func RendererCapabilityStatus(backend Backend, renderer render.Renderer, capability Capability) CapabilityStatus {
+	return DefaultRegistry.RendererCapabilityStatus(backend, renderer, capability)
 }
 
 // VerifyRendererCapabilities checks that the renderer satisfies all capability-backed

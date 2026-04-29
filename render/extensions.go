@@ -49,6 +49,90 @@ type ImageTransformer interface {
 	ImageTransformed(img Image, dst geom.Rect, transform geom.Affine)
 }
 
+// MarkerItem is one positioned marker instance in a repeated marker batch.
+// Transform is applied to Marker first, then Offset is added in display space.
+type MarkerItem struct {
+	Offset      geom.Pt
+	Transform   geom.Affine
+	Paint       Paint
+	Antialiased bool
+}
+
+// MarkerBatch describes one marker path rendered at many display-space
+// positions.
+type MarkerBatch struct {
+	Marker geom.Path
+	Items  []MarkerItem
+}
+
+// MarkerDrawer is implemented by renderers with a native repeated-marker path.
+type MarkerDrawer interface {
+	DrawMarkers(batch MarkerBatch) bool
+}
+
+// PathCollectionItem is one display-space path with its paint state.
+type PathCollectionItem struct {
+	Path        geom.Path
+	Paint       Paint
+	Hatch       string
+	HatchColor  Color
+	HatchWidth  float64
+	Antialiased bool
+}
+
+// PathCollectionBatch describes many display-space paths rendered as one
+// collection operation.
+type PathCollectionBatch struct {
+	Items []PathCollectionItem
+}
+
+// PathCollectionDrawer is implemented by renderers with a native collection
+// path.
+type PathCollectionDrawer interface {
+	DrawPathCollection(batch PathCollectionBatch) bool
+}
+
+// QuadMeshCell is one display-space quadrilateral cell.
+type QuadMeshCell struct {
+	Quad        [4]geom.Pt
+	Face        Color
+	Edge        Color
+	LineWidth   float64
+	Dashes      []float64
+	Hatch       string
+	HatchColor  Color
+	HatchWidth  float64
+	Antialiased bool
+}
+
+// QuadMeshBatch describes pcolor/pcolormesh-style quadrilateral cells.
+type QuadMeshBatch struct {
+	Cells []QuadMeshCell
+}
+
+// QuadMeshDrawer is implemented by renderers with a native quad mesh path.
+type QuadMeshDrawer interface {
+	DrawQuadMesh(batch QuadMeshBatch) bool
+}
+
+// GouraudTriangle describes one triangle with per-vertex display-space colors.
+type GouraudTriangle struct {
+	P     [3]geom.Pt
+	Color [3]Color
+}
+
+// GouraudTriangleBatch describes interpolated-color triangles.
+type GouraudTriangleBatch struct {
+	Triangles   []GouraudTriangle
+	Antialiased bool
+}
+
+// GouraudTriangleDrawer is implemented by renderers with native Gouraud
+// triangle shading.
+type GouraudTriangleDrawer interface {
+	DrawGouraudTriangles(batch GouraudTriangleBatch) bool
+}
+
 // PNGExporter is implemented by renderers that can export their output to PNG.
 type PNGExporter interface {
 	SavePNG(path string) error
