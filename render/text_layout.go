@@ -71,6 +71,9 @@ func MeasureTextLineLayout(r Renderer, text string, size float64, fontKey string
 // ActualTextVerticalExtents returns the run-specific ascent/descent, preferring
 // ink bounds when the renderer can provide them.
 func ActualTextVerticalExtents(metrics TextMetrics, bounds TextBounds, haveBounds bool) (ascent, descent float64) {
+	if metrics.Ascent > 0 || metrics.Descent > 0 {
+		return max0(metrics.Ascent), max0(metrics.Descent)
+	}
 	if haveBounds {
 		ascent = max0(-bounds.Y)
 		descent = max0(bounds.Y + bounds.H)

@@ -84,8 +84,8 @@ func (r *Renderer) measureRasterText(text, fontPath string, size float64) (rende
 	descent := quantize(float64(metrics.Descent.Ceil()))
 	height := quantize(float64(metrics.Height.Ceil()))
 	if fontHeights, ok := rasterFontHeightMetrics(fontPath, size, r.resolution); ok {
-		ascent = fontHeights.ascent
-		descent = fontHeights.descent
+		ascent = math.Max(math.Ceil(fontHeights.ascent), math.Max(0, -layout.Bounds.Y))
+		descent = math.Max(math.Floor(fontHeights.descent), math.Max(0, layout.Bounds.Y+layout.Bounds.H))
 		height = ascent + descent
 	}
 	return render.TextMetrics{

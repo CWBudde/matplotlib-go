@@ -48,8 +48,8 @@ func TestMeasureTextLineLayoutCombinesInkAndFontMetrics(t *testing.T) {
 	if !layout.HaveInkBounds || layout.Width != 30 {
 		t.Fatalf("layout bounds/width = %+v", layout)
 	}
-	if layout.RunAscent != 6 || layout.RunDescent != 2 {
-		t.Fatalf("run extents = %v/%v, want 6/2", layout.RunAscent, layout.RunDescent)
+	if layout.RunAscent != 7 || layout.RunDescent != 2 {
+		t.Fatalf("run extents = %v/%v, want 7/2", layout.RunAscent, layout.RunDescent)
 	}
 	if layout.Ascent != 9 || layout.Descent != 3 || layout.Height != 12 || layout.LineGap != 2 {
 		t.Fatalf("font extents = %+v", layout)
