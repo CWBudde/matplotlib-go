@@ -380,10 +380,6 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 		if metrics, ok := r.measureRasterText(text, font.fontPath, font.size); ok {
 			return metrics
 		}
-		if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err == nil {
-			w, ascent, descent = r.ctx.TextMetrics(text)
-			break
-		}
 		r.fallback = true
 		sizePx := r.fontPixelSize(font.size)
 		w = measureLocalGSVTextWidth(text, sizePx)
@@ -458,19 +454,14 @@ func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) 
 	if layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, sizePx, font.fontPath); ok {
 		return layout.Bounds, true
 	}
-	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
-		r.fallback = true
-		if x, y, w, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
-			return render.TextBounds{X: x, Y: y, W: w, H: h}, true
-		}
-		x, y, w, h, ok := measureLocalGSVTextBounds(text, sizePx)
-		if !ok {
-			return render.TextBounds{}, false
-		}
+	r.fallback = true
+	if x, y, w, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
 		return render.TextBounds{X: x, Y: y, W: w, H: h}, true
 	}
-
-	x, y, w, h := r.ctx.TextBounds(text)
+	x, y, w, h, ok := measureLocalGSVTextBounds(text, sizePx)
+	if !ok {
+		return render.TextBounds{}, false
+	}
 	return render.TextBounds{X: x, Y: y, W: w, H: h}, true
 }
 
@@ -566,12 +557,6 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 	switch font.backend {
 	case textBackendRaster:
 		if r.drawRasterText(text, font.fontPath, origin, font.size, textColor) {
-			return
-		}
-		if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err == nil {
-			r.ctx.SetFillColor(renderColorToAGG(textColor))
-			r.ctx.SetStrokeColor(renderColorToAGG(textColor))
-			r.ctx.DrawText(text, origin.X, origin.Y)
 			return
 		}
 		sizePx := r.fontPixelSize(font.size)

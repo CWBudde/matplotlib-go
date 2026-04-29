@@ -4,7 +4,11 @@ package agg
 
 import (
 	"bytes"
+	"encoding/json"
 	"math"
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"matplotlib-go/internal/geom"
@@ -126,6 +130,45 @@ func TestRasterTextBoundsMatchSharedGlyphLayout(t *testing.T) {
 	}
 }
 
+func TestKerningMetricsMatchMatplotlibRendererAgg(t *testing.T) {
+	r := mustNew(t, 260, 120)
+	if r.fontPath == "" {
+		t.Fatal("expected DejaVu Sans font path to be configured")
+	}
+
+	cases := []mplTextMetricCase{}
+	for _, dpi := range []uint{72, 96, 144} {
+		for _, size := range []float64{12, 24, 72} {
+			for _, text := range []string{"Tr", "Te", "To", "Ta", "AV", "WA", "Yo"} {
+				cases = append(cases, mplTextMetricCase{Text: text, Size: size, DPI: dpi})
+			}
+		}
+	}
+
+	mplMetrics := runMatplotlibTextMetrics(t, r.fontPath, cases)
+	if len(mplMetrics) != len(cases) {
+		t.Fatalf("matplotlib returned %d metrics, want %d", len(mplMetrics), len(cases))
+	}
+
+	for i, tc := range cases {
+		tc := tc
+		mpl := mplMetrics[i]
+		t.Run(tc.name(), func(t *testing.T) {
+			r.SetResolution(tc.DPI)
+			goMetrics := r.MeasureText(tc.Text, tc.Size, "")
+			goBounds, ok := r.MeasureTextBounds(tc.Text, tc.Size, "")
+			if !ok {
+				t.Fatalf("MeasureTextBounds(%q) failed", tc.Text)
+			}
+
+			goDescent := math.Max(0, goBounds.Y+goBounds.H)
+			assertClose(t, "advance", goMetrics.W, mpl.Width, 1.0)
+			assertClose(t, "ink height", goBounds.H, mpl.Height, 1.5)
+			assertClose(t, "ink descent", goDescent, mpl.Descent, 1.5)
+		})
+	}
+}
+
 func TestMeasureTextUsesStableFontLineMetrics(t *testing.T) {
 	r := mustNew(t, 200, 100)
 
@@ -148,6 +191,98 @@ func TestMeasureTextUsesStableFontLineMetrics(t *testing.T) {
 	if fontHeights.LineGap < 0 {
 		t.Fatalf("unexpected negative line gap: %+v", fontHeights)
 	}
+}
+
+type mplTextMetricCase struct {
+	Text string  `json:"text"`
+	Size float64 `json:"size"`
+	DPI  uint    `json:"dpi"`
+}
+
+func (c mplTextMetricCase) name() string {
+	return c.Text + "_" + strings.TrimRight(strings.TrimRight(jsonFloat(c.Size), "0"), ".") + "pt_" + jsonUint(c.DPI) + "dpi"
+}
+
+type mplTextMetric struct {
+	Width   float64 `json:"width"`
+	Height  float64 `json:"height"`
+	Descent float64 `json:"descent"`
+}
+
+func runMatplotlibTextMetrics(t *testing.T, fontPath string, cases []mplTextMetricCase) []mplTextMetric {
+	t.Helper()
+
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 unavailable; skipping Matplotlib RendererAgg text metric parity test")
+	}
+
+	payload, err := json.Marshal(cases)
+	if err != nil {
+		t.Fatalf("marshal metric cases: %v", err)
+	}
+
+	script := `
+import json
+import sys
+
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib as mpl
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+    from matplotlib.font_manager import FontProperties
+except Exception as exc:
+    print(f"matplotlib import failed: {exc}", file=sys.stderr)
+    sys.exit(78)
+
+font_path = sys.argv[1]
+cases = json.loads(sys.argv[2])
+out = []
+with mpl.rc_context({"text.hinting": "no_hinting"}):
+    for case in cases:
+        fig = Figure(figsize=(2, 2), dpi=case["dpi"])
+        canvas = FigureCanvasAgg(fig)
+        renderer = canvas.get_renderer()
+        prop = FontProperties(fname=font_path, size=case["size"])
+        width, height, descent = renderer.get_text_width_height_descent(case["text"], prop, False)
+        out.append({"width": width, "height": height, "descent": descent})
+print(json.dumps(out))
+`
+
+	cmd := exec.Command(python, "-c", script, fontPath, string(payload))
+	cmd.Env = append(os.Environ(), "MPLCONFIGDIR="+t.TempDir())
+	out, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 78 {
+			t.Skip(strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		t.Fatalf("run Matplotlib RendererAgg text metric helper: %v", err)
+	}
+
+	var metrics []mplTextMetric
+	if err := json.Unmarshal(out, &metrics); err != nil {
+		t.Fatalf("decode Matplotlib text metrics: %v\n%s", err, out)
+	}
+	return metrics
+}
+
+func assertClose(t *testing.T, name string, got, want, tol float64) {
+	t.Helper()
+	if math.Abs(got-want) > tol {
+		t.Fatalf("%s mismatch: got=%v want=%v tolerance=%v", name, got, want, tol)
+	}
+}
+
+func jsonFloat(v float64) string {
+	data, _ := json.Marshal(v)
+	return string(data)
+}
+
+func jsonUint(v uint) string {
+	data, _ := json.Marshal(v)
+	return string(data)
 }
 
 func TestTrailingSpaceDoesNotRenderDuplicateGlyph(t *testing.T) {
