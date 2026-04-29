@@ -166,17 +166,22 @@ func measuredGridOptions(fig *Figure, r render.Renderer, vp geom.Rect, grid *Gri
 		bottomMargins[ax.subplotSpec.rowEnd-1] = math.Max(bottomMargins[ax.subplotSpec.rowEnd-1], padding.bottom)
 	}
 
-	outerPad := layoutPadPx(fig, fig.layoutEngine)
-	innerPad := outerPad
+	outerPadX := layoutPadPx(fig, fig.layoutEngine)
+	outerPadY := outerPadX
+	if fig.layoutEngine == LayoutEngineConstrained {
+		outerPadY = constrainedLayoutPadPx(fig)
+	}
+	innerPadX := outerPadX
+	innerPadY := outerPadY
 	global := figureLayoutMarginsPx(fig, r, vp, fig.layoutEngine)
 	if !gridCoversWholeFigure(grid) {
 		global = figureMargin{}
 	}
 
-	leftPx := leftMargins[0] + outerPad + global.left
-	rightPx := rightMargins[len(rightMargins)-1] + outerPad + global.right
-	topPx := topMargins[0] + outerPad + global.top
-	bottomPx := bottomMargins[len(bottomMargins)-1] + outerPad + global.bottom
+	leftPx := leftMargins[0] + outerPadX + global.left
+	rightPx := rightMargins[len(rightMargins)-1] + outerPadX + global.right
+	topPx := topMargins[0] + outerPadY + global.top
+	bottomPx := bottomMargins[len(bottomMargins)-1] + outerPadY + global.bottom
 
 	opts.Left = clamp01(leftPx / parentPx.W())
 	opts.Right = clamp01(1 - rightPx/parentPx.W())
@@ -195,11 +200,17 @@ func measuredGridOptions(fig *Figure, r render.Renderer, vp geom.Rect, grid *Gri
 
 	maxGapX := 0.0
 	for col := 0; col < len(leftMargins)-1; col++ {
-		maxGapX = math.Max(maxGapX, rightMargins[col]+leftMargins[col+1]+innerPad)
+		maxGapX = math.Max(maxGapX, rightMargins[col]+leftMargins[col+1]+innerPadX)
+	}
+	if fig.layoutEngine == LayoutEngineConstrained && grid.nCols > 1 {
+		maxGapX = math.Max(maxGapX, constrainedLayoutDefaultSpacePx(parentPx.W(), grid.nCols))
 	}
 	maxGapY := 0.0
 	for row := 0; row < len(topMargins)-1; row++ {
-		maxGapY = math.Max(maxGapY, bottomMargins[row]+topMargins[row+1]+innerPad)
+		maxGapY = math.Max(maxGapY, bottomMargins[row]+topMargins[row+1]+innerPadY)
+	}
+	if fig.layoutEngine == LayoutEngineConstrained && grid.nRows > 1 {
+		maxGapY = math.Max(maxGapY, constrainedLayoutDefaultSpacePx(parentPx.H(), grid.nRows))
 	}
 
 	if grid.nCols > 1 {
@@ -399,6 +410,24 @@ func layoutPadPx(fig *Figure, engine LayoutEngine) float64 {
 	default:
 		return 0
 	}
+}
+
+func constrainedLayoutPadPx(fig *Figure) float64 {
+	if fig == nil {
+		return 0
+	}
+	rc := fig.RC
+	if rc.DPI <= 0 {
+		rc = style.CurrentDefaults()
+	}
+	return pointsToPixels(rc, 3)
+}
+
+func constrainedLayoutDefaultSpacePx(parentSpanPx float64, cells int) float64 {
+	if parentSpanPx <= 0 || cells <= 0 {
+		return 0
+	}
+	return parentSpanPx * 0.02 / float64(cells)
 }
 
 func capLayoutGap(gap, inner float64, count int) float64 {

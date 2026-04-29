@@ -624,6 +624,86 @@ Current slice landed:
 - [ ] Pattern fills, gradients, and richer alpha compositing
 - [ ] Path effects and other post-stroke/post-fill rendering passes
 
+### 8.1A AGG Backend Parity: RendererAgg Surface
+
+**Goal:** close the architectural gap between the current compact Go renderer and upstream Matplotlib's AGG renderer without forcing every backend to expose the full AGG surface.
+
+- [ ] Add optional renderer capability interfaces for AGG-style batch primitives:
+  - [ ] `draw_markers` equivalent for marker paths rendered at many positions with cached scanlines
+  - [ ] `draw_path_collection` equivalent with per-item transforms, offsets, face/edge colors, linewidths, dashes, hatches, and antialiasing flags
+  - [ ] `draw_quad_mesh` equivalent for pcolor/pcolormesh-style meshes
+  - [ ] `draw_gouraud_triangles` equivalent for interpolated triangle shading
+- [ ] Keep the small `render.Renderer` interface as the portable baseline, but route high-volume artists through capability checks instead of decomposing everything into one path call per primitive.
+- [ ] Extend backend capability reporting so tests can distinguish "not supported", "fallback supported", and "native AGG parity path supported".
+- [ ] Add parity fixtures that exercise large scatter/collection, quad mesh, Gouraud triangle, and mixed face/edge collection cases against `third_party/matplotlib`.
+
+### 8.1B AGG Backend Parity: Clip, Path, and Raster Pipeline
+
+**Goal:** replace `Agg2D` convenience-only drawing with a backend-owned raster pipeline where Matplotlib depends on low-level AGG behavior.
+
+- [ ] Implement path clipping in `backends/agg` using an alpha-mask/clippath model comparable to upstream `RendererAgg::render_clippath`.
+- [ ] Cache transformed clip paths and invalidate the cache by path identity/content plus transform.
+- [ ] Make projected/non-rectangular axes clipping use real path clips instead of relying on `ClipPath` no-op behavior.
+- [ ] Add a Matplotlib-like path pipeline before rasterization:
+  - [ ] transform into display coordinates with y-axis orientation handled in one place
+  - [ ] remove or split on NaN/Inf vertices
+  - [ ] cull paths outside the figure when safe
+  - [ ] snap paths with linewidth-aware pixel alignment
+  - [ ] simplify paths using a configurable threshold
+  - [ ] chunk very large paths and surface actionable overflow/error messages
+- [ ] Replace global `1e-6` coordinate quantization as the primary parity mechanism with explicit path snapping and simplification policy.
+- [ ] Add antialiasing control to path rendering instead of assuming one backend-wide behavior.
+- [ ] Move AGG hatching from `core` polygon-clipped stroke generation toward backend-native hatch pattern buffers with repeat wrapping, hatch linewidth, hatch color, and clippath interaction.
+- [ ] Expand `render.Paint`/draw-state or a backend-side graphics context to cover Matplotlib GC fields currently absent from `Paint`: antialiasing, snap mode, hatch path/color/linewidth, sketch parameters, forced alpha, and clip path transform.
+
+### 8.1C AGG Backend Parity: Text, Glyphs, MathText, and TeX
+
+**Goal:** make text a shaped glyph pipeline rather than a set of fallback string-drawing paths.
+
+- [ ] Implement AGG `GlyphRun` rendering instead of leaving it as a no-op.
+- [ ] Add a backend-independent shaping layer for OpenType features, ligatures, combining marks, bidi text, script-aware glyph selection, glyph IDs, advances, and offsets.
+- [ ] Route `DrawText`, `DrawTextRotated`, `TextPath`, and measurement through the same shaped run model so raster text, path text, and bounds agree.
+- [ ] Replace `lastFontKey`/`MeasureText` priming with explicit font properties or text draw context passed through the renderer-facing API.
+- [ ] Replace the temp-file DejaVu bootstrap with a font-resource strategy that can use embedded fonts, shipped fonts, and system fonts without leaking backend policy into draw calls.
+- [ ] Remove the GSV fallback as a normal parity path; keep it only as an explicit emergency fallback with test coverage and diagnostics.
+- [ ] Replace character-by-character vertical text with rotated/shaped glyph output where Matplotlib would rotate a text run.
+- [ ] Match Matplotlib's glyph image compositing model for antialiased and mono glyph bitmaps, including color alpha application and clipping.
+- [ ] Broaden MathText parity beyond the lightweight parser:
+  - [ ] compare parser/layout behavior directly against upstream `MathTextParser('path')`
+  - [ ] support missing grammar, stretchy delimiters, spacing/control semantics, boxes, and font style interactions
+  - [ ] render MathText glyphs and boxes through the same shaped glyph/path pipeline
+- [ ] Complete `usetex` integration for AGG:
+  - [ ] external TeX/DVI/dvipng pipeline and artifact cache
+  - [ ] error reporting and reproducible invalidation
+  - [ ] raster/vector import of TeX output back into AGG rendering
+  - [ ] parity tests for rotated TeX, boxes/rules, and font/package coordination
+
+### 8.1D AGG Backend Parity: Images, Effects, and Buffer Management
+
+**Goal:** support the AGG image/effects features Matplotlib relies on for complex artists and interactive redraw.
+
+- [ ] Implement AGG image clipping through the same clipbox/clippath mask path used by vector primitives.
+- [ ] Add image interpolation/resampling controls instead of hard-coding `NoFilter`/`NoResample`.
+- [ ] Preserve image alpha and GC alpha semantics in the backend instead of pre-flattening policy in callers.
+- [ ] Make transformed images handle affine orientation, clipping, and interpolation consistently with upstream AGG behavior.
+- [ ] Add a safe fallback policy for image transforms only when a backend genuinely lacks the capability, and expose that limitation in backend capability tests.
+- [ ] Add `copy_from_bbox` / `restore_region`-style buffer region APIs for blitting, animation, and interactive redraw.
+- [ ] Add `start_filter` / `stop_filter`-style offscreen filter rendering for path effects and post-processing passes.
+- [ ] Add direct buffer access/export tests for RGBA/ARGB ordering, clearing, and background alpha semantics.
+
+### 8.1E AGG Workaround and Oversimplification Paydown
+
+**Goal:** remove current compatibility shortcuts once native AGG parity paths exist.
+
+- [ ] Retire `ClipPath` no-op behavior in AGG and add regression tests for polar/geo/projection frames.
+- [ ] Move hatch clipping out of `core` once backend-native hatching lands, keeping only renderer-neutral hatch style metadata in artists.
+- [ ] Remove text draw state resets as a hidden correctness dependency by isolating text, path, and stroke state in the AGG surface.
+- [ ] Replace `lastFontKey` side state with explicit text/font context propagation from artists through renderer calls.
+- [ ] Replace rune-by-rune text path generation with shaped glyph-outline generation.
+- [ ] Replace character-stacked vertical text with rotated text runs where applicable.
+- [ ] Replace unconditional image no-filter/no-resample behavior with rc/image artist interpolation policy.
+- [ ] Split "simple renderer fallback" tests from "AGG-native parity" tests so fallback behavior does not mask missing backend features.
+
 ### 8.2 Font Manager and Text Layout
 
 - [x] Real font discovery/cache and `FontProperties`-style selection instead of a fixed fallback story
