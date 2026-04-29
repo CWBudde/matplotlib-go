@@ -94,13 +94,34 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 // Config holds backend-specific configuration options.
 type Config struct {
 	// Common options
-	Width      int
-	Height     int
-	Background render.Color
-	DPI        float64
+	Width       int
+	Height      int
+	Background  render.Color
+	DPI         float64
+	Transparent bool
 
 	// Backend-specific options (use type assertion)
 	Options interface{}
+}
+
+func (c Config) withDefaults() Config {
+	if c.DPI == 0 {
+		c.DPI = 72
+	}
+	if !c.Transparent {
+		c.Background = normalizeBackground(c.Background)
+	}
+	return c
+}
+
+func normalizeBackground(c render.Color) render.Color {
+	if c == (render.Color{}) {
+		return render.Color{R: 1, G: 1, B: 1, A: 1}
+	}
+	if c.A == 0 && (c.R != 0 || c.G != 0 || c.B != 0) {
+		c.A = 1
+	}
+	return c
 }
 
 // GoBasicConfig holds GoBasic-specific options.
@@ -222,7 +243,7 @@ func (r *Registry) Create(backend Backend, config Config) (render.Renderer, erro
 		return nil, fmt.Errorf("backend %s is not available (missing dependencies?)", backend)
 	}
 
-	return info.Factory(config)
+	return info.Factory(config.withDefaults())
 }
 
 // HasCapability checks if a backend supports a capability.

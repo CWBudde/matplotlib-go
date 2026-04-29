@@ -72,6 +72,10 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "arrays_showcase", render: renderArraysShowcase, minPSNR: 30.0, maxMeanAbs: 10.0},
 	{name: "axisartist_showcase", render: renderAxisArtistShowcase, minPSNR: 28.0, maxMeanAbs: 12.0},
 	{name: "axes_grid1_showcase", render: renderAxesGrid1Showcase, minPSNR: 28.0, maxMeanAbs: 12.0},
+	{name: "rendereragg_large_scatter", render: renderRendererAggLargeScatter, minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "rendereragg_mixed_collection", render: renderRendererAggMixedCollection, minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "rendereragg_quad_mesh", render: renderRendererAggQuadMesh, minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "rendereragg_gouraud_triangles", render: renderRendererAggGouraudTriangles, minPSNR: 25.0, maxMeanAbs: 18.0},
 }
 
 func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {

@@ -635,13 +635,14 @@ Current slice landed:
   - [x] `draw_gouraud_triangles` equivalent for interpolated triangle shading
 - [x] Keep the small `render.Renderer` interface as the portable baseline, but route high-volume artists through capability checks instead of decomposing everything into one path call per primitive.
 - [x] Extend backend capability reporting so tests can distinguish "not supported", "fallback supported", and "native AGG parity path supported".
-- [ ] Add parity fixtures that exercise large scatter/collection, quad mesh, Gouraud triangle, and mixed face/edge collection cases against `third_party/matplotlib`.
+- [x] Add parity fixtures that exercise large scatter/collection, quad mesh, Gouraud triangle, and mixed face/edge collection cases against `third_party/matplotlib`.
 
 **Progress notes:**
 
 - Added `render.MarkerDrawer`, `render.PathCollectionDrawer`, `render.QuadMeshDrawer`, and `render.GouraudTriangleDrawer` optional interfaces; AGG implements all four, while GoBasic/SVG/Skia report renderer-neutral fallback support for decomposable collection batches.
 - Routed `PathCollection`, hatch-free `PatchCollection`, and hatch-free `QuadMesh` through native batch checks before falling back to existing per-path drawing.
 - Added backend capability status reporting (`unsupported`, `fallback`, `native`) plus unit coverage for core routing, AGG batch output, and Gouraud color interpolation.
+- Added Go golden and Matplotlib reference fixtures for `rendereragg_large_scatter`, `rendereragg_mixed_collection`, `rendereragg_quad_mesh`, and `rendereragg_gouraud_triangles`.
 - Kept hatch-native AGG rendering, cached marker scanlines, and full Matplotlib path/raster pipeline behavior in Phase 8.1B/E as planned.
 
 ### 8.1B AGG Backend Parity: Clip, Path, and Raster Pipeline

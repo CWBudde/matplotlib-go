@@ -23,6 +23,13 @@ func testRendererFactory(renderer render.Renderer, err error) Factory {
 	}
 }
 
+func captureConfigFactory(renderer render.Renderer, captured *Config) Factory {
+	return func(config Config) (render.Renderer, error) {
+		*captured = config
+		return renderer, nil
+	}
+}
+
 func TestHasAllCapabilities(t *testing.T) {
 	reg := NewRegistry()
 	reg.Register(Backend("capable"), &BackendInfo{
@@ -64,7 +71,7 @@ func TestResolveBackend(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		choice    string
+		choice   string
 		required []Capability
 		want     Backend
 		wantErr  string
@@ -159,6 +166,66 @@ func TestDefaultBackendAndSimpleConfig(t *testing.T) {
 	}
 	if cfg.DPI != 72.0 {
 		t.Fatalf("SimpleConfig DPI = %v, want 72", cfg.DPI)
+	}
+}
+
+func TestCreateNormalizesBackgroundDefaults(t *testing.T) {
+	reg := NewRegistry()
+	var captured Config
+	reg.Register(Backend("capture"), &BackendInfo{
+		Name:      "Capture",
+		Available: true,
+		Factory:   captureConfigFactory(&render.NullRenderer{}, &captured),
+	})
+
+	if _, err := reg.Create(Backend("capture"), Config{Width: 10, Height: 5}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if got, want := captured.Background, (render.Color{R: 1, G: 1, B: 1, A: 1}); got != want {
+		t.Fatalf("zero background normalized to %+v, want %+v", got, want)
+	}
+	if captured.DPI != 72 {
+		t.Fatalf("zero DPI normalized to %v, want 72", captured.DPI)
+	}
+
+	if _, err := reg.Create(Backend("capture"), Config{
+		Width:      10,
+		Height:     5,
+		Background: render.Color{R: 1, G: 1, B: 1},
+	}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if got, want := captured.Background, (render.Color{R: 1, G: 1, B: 1, A: 1}); got != want {
+		t.Fatalf("white background without alpha normalized to %+v, want %+v", got, want)
+	}
+
+	explicit := render.Color{R: 0.2, G: 0.3, B: 0.4, A: 0.5}
+	if _, err := reg.Create(Backend("capture"), Config{
+		Width:      10,
+		Height:     5,
+		Background: explicit,
+		DPI:        144,
+	}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if captured.Background != explicit {
+		t.Fatalf("explicit background = %+v, want %+v", captured.Background, explicit)
+	}
+	if captured.DPI != 144 {
+		t.Fatalf("explicit DPI = %v, want 144", captured.DPI)
+	}
+
+	transparent := render.Color{R: 1, G: 1, B: 1, A: 0}
+	if _, err := reg.Create(Backend("capture"), Config{
+		Width:       10,
+		Height:      5,
+		Background:  transparent,
+		Transparent: true,
+	}); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if captured.Background != transparent {
+		t.Fatalf("transparent background = %+v, want %+v", captured.Background, transparent)
 	}
 }
 

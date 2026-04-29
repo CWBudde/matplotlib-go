@@ -199,6 +199,18 @@ func TestMpl_AxisArtistShowcase(t *testing.T) {
 func TestMpl_AxesGrid1Showcase(t *testing.T) {
 	runMplTest(t, "axes_grid1_showcase", renderAxesGrid1Showcase)
 }
-func TestMpl_ErrorBars(t *testing.T)     { runMplTest(t, "errorbar_basic", renderErrorBars) }
-func TestMpl_TitleStrict(t *testing.T)   { runMplTest(t, "title_strict", renderTitleStrict) }
-func TestMpl_ImageHeatmap(t *testing.T)  { runMplTest(t, "image_heatmap", renderImageHeatmap) }
+func TestMpl_RendererAggLargeScatter(t *testing.T) {
+	runMplTest(t, "rendereragg_large_scatter", renderRendererAggLargeScatter)
+}
+func TestMpl_RendererAggMixedCollection(t *testing.T) {
+	runMplTest(t, "rendereragg_mixed_collection", renderRendererAggMixedCollection)
+}
+func TestMpl_RendererAggQuadMesh(t *testing.T) {
+	runMplTest(t, "rendereragg_quad_mesh", renderRendererAggQuadMesh)
+}
+func TestMpl_RendererAggGouraudTriangles(t *testing.T) {
+	runMplTest(t, "rendereragg_gouraud_triangles", renderRendererAggGouraudTriangles)
+}
+func TestMpl_ErrorBars(t *testing.T)    { runMplTest(t, "errorbar_basic", renderErrorBars) }
+func TestMpl_TitleStrict(t *testing.T)  { runMplTest(t, "title_strict", renderTitleStrict) }
+func TestMpl_ImageHeatmap(t *testing.T) { runMplTest(t, "image_heatmap", renderImageHeatmap) }

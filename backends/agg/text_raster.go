@@ -136,6 +136,18 @@ func (r *Renderer) drawRasterText(text, fontPath string, origin geom.Pt, size fl
 		return false
 	}
 
+	rawLeft := origin.X + float64(minX)
+	rawTop := origin.Y - float64(metrics.Ascent.Ceil())
+	topLeft := geom.Pt{
+		X: math.Floor(rawLeft),
+		Y: math.Floor(rawTop),
+	}
+	width = int(math.Ceil(origin.X+float64(maxX))) - int(topLeft.X)
+	height = int(math.Ceil(rawTop+float64(height))) - int(topLeft.Y)
+	if width <= 0 || height <= 0 {
+		return false
+	}
+
 	src := image.NewRGBA(image.Rect(0, 0, width, height))
 	uniform := image.NewUniform(renderColorToRGBA(textColor))
 	for _, glyph := range layout.Glyphs {
@@ -148,8 +160,8 @@ func (r *Renderer) drawRasterText(text, fontPath string, origin geom.Pt, size fl
 			return false
 		}
 		dot := fixed.Point26_6{
-			X: fixed.Int26_6(math.Round((glyph.Origin.X - float64(minX)) * 64.0)),
-			Y: fixed.I(metrics.Ascent.Ceil()),
+			X: fixed.Int26_6(math.Round((origin.X + glyph.Origin.X - topLeft.X) * 64.0)),
+			Y: fixed.Int26_6(math.Round((origin.Y - topLeft.Y) * 64.0)),
 		}
 		dr, mask, maskp, _, ok := face.Glyph(dot, glyph.Rune)
 		if !ok || dr.Empty() {
@@ -163,10 +175,6 @@ func (r *Renderer) drawRasterText(text, fontPath string, origin geom.Pt, size fl
 		return false
 	}
 
-	topLeft := geom.Pt{
-		X: float64(int(origin.X)) + float64(minX),
-		Y: float64(int(origin.Y - float64(metrics.Ascent.Ceil()))),
-	}
 	return r.ctx.DrawImageScaled(img, topLeft.X, topLeft.Y, float64(width), float64(height)) == nil
 }
 
