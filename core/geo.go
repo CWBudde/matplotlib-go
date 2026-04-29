@@ -329,9 +329,9 @@ func formatGeoDegreeLabel(rad float64) string {
 		deg = math.Round(deg)
 	}
 	if approx(deg, 0, 1e-9) {
-		return "0°"
+		return "0"
 	}
-	return fmt.Sprintf("%.0f°", deg)
+	return fmt.Sprintf("%.0f", deg)
 }
 
 func clamp(v, lo, hi float64) float64 {
