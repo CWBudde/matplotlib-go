@@ -38,11 +38,11 @@ type CheckButtonsOptions struct {
 
 // RadioButtonsOptions configures a RadioButtons widget artist.
 type RadioButtonsOptions struct {
-	FaceColor  render.Color
-	EdgeColor  render.Color
-	TextColor  render.Color
-	DotColor   render.Color
-	FontSize   float64
+	FaceColor render.Color
+	EdgeColor render.Color
+	TextColor render.Color
+	DotColor  render.Color
+	FontSize  float64
 }
 
 // TextBoxOptions configures a TextBox widget artist.
@@ -95,14 +95,14 @@ type CheckButtons struct {
 
 // RadioButtons draws a static radio-button control.
 type RadioButtons struct {
-	Labels     []string
-	Active     int
-	FaceColor  render.Color
-	EdgeColor  render.Color
-	TextColor  render.Color
-	DotColor   render.Color
-	FontSize   float64
-	z          float64
+	Labels    []string
+	Active    int
+	FaceColor render.Color
+	EdgeColor render.Color
+	TextColor render.Color
+	DotColor  render.Color
+	FontSize  float64
+	z         float64
 }
 
 // TextBox draws a static text-entry control.
@@ -225,14 +225,14 @@ func (a *Axes) RadioButtons(labels []string, active int, opts ...RadioButtonsOpt
 	}
 	prepareWidgetAxes(a)
 	w := &RadioButtons{
-		Labels:     append([]string(nil), labels...),
-		Active:     clampInt(active, 0, len(labels)-1),
-		FaceColor:  cfg.FaceColor,
-		EdgeColor:  cfg.EdgeColor,
-		TextColor:  cfg.TextColor,
-		DotColor:   cfg.DotColor,
-		FontSize:   cfg.FontSize,
-		z:          1200,
+		Labels:    append([]string(nil), labels...),
+		Active:    clampInt(active, 0, len(labels)-1),
+		FaceColor: cfg.FaceColor,
+		EdgeColor: cfg.EdgeColor,
+		TextColor: cfg.TextColor,
+		DotColor:  cfg.DotColor,
+		FontSize:  cfg.FontSize,
+		z:         1200,
 	}
 	a.Add(w)
 	return w

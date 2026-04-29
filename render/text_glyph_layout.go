@@ -6,7 +6,6 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
-
 	"matplotlib-go/internal/geom"
 )
 

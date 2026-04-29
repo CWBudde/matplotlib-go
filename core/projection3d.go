@@ -41,4 +41,3 @@ func (p *axes3DProjection) ConfigureAxes(ax *Axes) {
 func (p *axes3DProjection) DataToAxes(*Axes) transform.T {
 	return nil
 }
-

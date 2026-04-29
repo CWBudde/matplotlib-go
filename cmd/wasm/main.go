@@ -13,8 +13,10 @@ import (
 	"matplotlib-go/internal/webdemo"
 )
 
-var callbacks []js.Func
-var currentManager plotcanvas.FigureManager
+var (
+	callbacks      []js.Func
+	currentManager plotcanvas.FigureManager
+)
 
 type wasmCallback func(js.Value, []js.Value) any
 

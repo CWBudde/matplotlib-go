@@ -33,7 +33,10 @@ async function init() {
       const response = await fetch("main.wasm");
       const bytes = await response.arrayBuffer();
       result = await WebAssembly.instantiate(bytes, go.importObject);
-      console.warn("instantiateStreaming failed, fell back to ArrayBuffer", streamError);
+      console.warn(
+        "instantiateStreaming failed, fell back to ArrayBuffer",
+        streamError,
+      );
     }
 
     monitorRuntime(go.run(result.instance));

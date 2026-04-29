@@ -16,12 +16,13 @@
 
 body {
   margin: 0;
-  font-family:
-    "IBM Plex Sans",
-    "Segoe UI",
-    sans-serif;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(31, 111, 235, 0.1), transparent 28%),
+    radial-gradient(
+      circle at top left,
+      rgba(31, 111, 235, 0.1),
+      transparent 28%
+    ),
     linear-gradient(180deg, #f8fbfc 0%, var(--page-bg) 100%);
   color: var(--ink-strong);
 }
@@ -109,7 +110,11 @@ button {
   padding: 12px 14px;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--accent) 0%,
+    var(--accent-strong) 100%
+  );
   cursor: pointer;
 }
 

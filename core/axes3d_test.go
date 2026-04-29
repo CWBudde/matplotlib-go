@@ -147,8 +147,8 @@ func TestAxes3DTrisurfCreatesSegments(t *testing.T) {
 	}
 
 	tri := Triangulation{
-		X:        []float64{0, 1, 1, 0},
-		Y:        []float64{0, 0, 1, 1},
+		X:         []float64{0, 1, 1, 0},
+		Y:         []float64{0, 0, 1, 1},
 		Triangles: [][3]int{{0, 1, 2}, {0, 2, 3}},
 	}
 	collection := ax.Trisurf(tri, []float64{0, 1, 2, 3})

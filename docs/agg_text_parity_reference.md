@@ -92,9 +92,9 @@ vertical placement.
 Tick label transforms are sourced from:
 
 - x tick labels:
-  [/tmp/matplotlib/lib/matplotlib/axes/_base.py:999](/tmp/matplotlib/lib/matplotlib/axes/_base.py:999)
+  [/tmp/matplotlib/lib/matplotlib/axes/\_base.py:999](/tmp/matplotlib/lib/matplotlib/axes/_base.py:999)
 - y tick labels:
-  [/tmp/matplotlib/lib/matplotlib/axes/_base.py:1081](/tmp/matplotlib/lib/matplotlib/axes/_base.py:1081)
+  [/tmp/matplotlib/lib/matplotlib/axes/\_base.py:1081](/tmp/matplotlib/lib/matplotlib/axes/_base.py:1081)
 - tick label artist setup:
   [/tmp/matplotlib/lib/matplotlib/axis.py:392](/tmp/matplotlib/lib/matplotlib/axis.py:392)
   and

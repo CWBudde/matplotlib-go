@@ -137,7 +137,7 @@ func TestScatter2D_SizeUsesMatplotlibAreaSemantics(t *testing.T) {
 
 func TestScatterAreaFromRadius(t *testing.T) {
 	got := ScatterAreaFromRadius(8, 100)
-	want := math.Pi * math.Pow(8*72.0/100.0, 2)
+	want := math.Pi * 8 * 72.0 / 100.0 * (8 * 72.0 / 100.0)
 	if math.Abs(got-want) > 1e-12 {
 		t.Fatalf("ScatterAreaFromRadius(8, 100) = %v, want %v", got, want)
 	}

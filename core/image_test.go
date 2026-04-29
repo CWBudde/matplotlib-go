@@ -267,10 +267,12 @@ func (r *imageSpyRenderer) ClipRect(geom.Rect)    {}
 func (r *imageSpyRenderer) ClipPath(geom.Path)    {}
 func (r *imageSpyRenderer) Path(geom.Path, *render.Paint) {
 }
+
 func (r *imageSpyRenderer) Image(_ render.Image, dst geom.Rect) {
 	r.imageCalls++
 	r.lastDst = dst
 }
+
 func (r *imageSpyRenderer) ImageTransformed(_ render.Image, dst geom.Rect, t geom.Affine) {
 	r.transformedCalls++
 	r.lastDst = dst
@@ -296,6 +298,7 @@ func (r *imageSpyNoTransformRenderer) Path(geom.Path, *render.Paint) {
 func (r *imageSpyNoTransformRenderer) Image(_ render.Image, dst geom.Rect) { r.imageCalls++; _ = dst }
 func (r *imageSpyNoTransformRenderer) GlyphRun(render.GlyphRun, render.Color) {
 }
+
 func (r *imageSpyNoTransformRenderer) MeasureText(string, float64, string) render.TextMetrics {
 	return render.TextMetrics{}
 }

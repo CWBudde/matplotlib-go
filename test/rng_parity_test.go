@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"math"
 	"math/rand/v2"
-	"matplotlib-go/core"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"matplotlib-go/core"
 )
 
 type rngDebugPayload struct {

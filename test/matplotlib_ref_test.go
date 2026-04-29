@@ -158,21 +158,27 @@ func TestMpl_BoxPlotBasic(t *testing.T)   { runMplTest(t, "boxplot_basic", rende
 func TestMpl_AxesTopRightInverted(t *testing.T) {
 	runMplTest(t, "axes_top_right_inverted", renderAxesTopRightInverted)
 }
+
 func TestMpl_AxesControlSurface(t *testing.T) {
 	runMplTest(t, "axes_control_surface", renderAxesControlSurface)
 }
+
 func TestMpl_TransformCoordinates(t *testing.T) {
 	runMplTest(t, "transform_coordinates", renderTransformCoordinates)
 }
+
 func TestMpl_GridSpecComposition(t *testing.T) {
 	runMplTest(t, "gridspec_composition", renderGridSpecComposition)
 }
+
 func TestMpl_FigureLabelsComposition(t *testing.T) {
 	runMplTest(t, "figure_labels_composition", renderFigureLabelsComposition)
 }
+
 func TestMpl_ColorbarComposition(t *testing.T) {
 	runMplTest(t, "colorbar_composition", renderColorbarComposition)
 }
+
 func TestMpl_AnnotationComposition(t *testing.T) {
 	runMplTest(t, "annotation_composition", renderAnnotationComposition)
 }
@@ -190,24 +196,31 @@ func TestMpl_PolarAxes(t *testing.T)     { runMplTest(t, "polar_axes", renderPol
 func TestMpl_UnstructuredShowcase(t *testing.T) {
 	runMplTest(t, "unstructured_showcase", renderUnstructuredShowcase)
 }
+
 func TestMpl_ArraysShowcase(t *testing.T) {
 	runMplTest(t, "arrays_showcase", renderArraysShowcase)
 }
+
 func TestMpl_AxisArtistShowcase(t *testing.T) {
 	runMplTest(t, "axisartist_showcase", renderAxisArtistShowcase)
 }
+
 func TestMpl_AxesGrid1Showcase(t *testing.T) {
 	runMplTest(t, "axes_grid1_showcase", renderAxesGrid1Showcase)
 }
+
 func TestMpl_RendererAggLargeScatter(t *testing.T) {
 	runMplTest(t, "rendereragg_large_scatter", renderRendererAggLargeScatter)
 }
+
 func TestMpl_RendererAggMixedCollection(t *testing.T) {
 	runMplTest(t, "rendereragg_mixed_collection", renderRendererAggMixedCollection)
 }
+
 func TestMpl_RendererAggQuadMesh(t *testing.T) {
 	runMplTest(t, "rendereragg_quad_mesh", renderRendererAggQuadMesh)
 }
+
 func TestMpl_RendererAggGouraudTriangles(t *testing.T) {
 	runMplTest(t, "rendereragg_gouraud_triangles", renderRendererAggGouraudTriangles)
 }

@@ -11,7 +11,7 @@ import "matplotlib-go/internal/geom"
 type Invalidation uint8
 
 const (
-	InvalidNone Invalidation = 0
+	InvalidNone   Invalidation = 0
 	InvalidAffine Invalidation = 1 << iota
 	InvalidNonAffine
 )

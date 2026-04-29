@@ -13,11 +13,10 @@ import (
 	"os"
 	"sync"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
-
 	"codeberg.org/go-fonts/dejavu/dejavusans"
 	agglib "github.com/cwbudde/agg_go"
+	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
 )
 
 // dejaVuFontPath holds the path to the extracted DejaVu Sans TTF, initialised once.
@@ -77,21 +76,23 @@ type clipMaskKey struct {
 	hash   uint64
 }
 
-var _ render.Renderer = (*Renderer)(nil)
-var _ render.DPIAware = (*Renderer)(nil)
-var _ render.TextDrawer = (*Renderer)(nil)
-var _ render.RotatedTextDrawer = (*Renderer)(nil)
-var _ render.VerticalTextDrawer = (*Renderer)(nil)
-var _ render.TextBounder = (*Renderer)(nil)
-var _ render.TextFontMetricer = (*Renderer)(nil)
-var _ render.TextPather = (*Renderer)(nil)
-var _ render.ImageTransformer = (*Renderer)(nil)
-var _ render.MarkerDrawer = (*Renderer)(nil)
-var _ render.PathCollectionDrawer = (*Renderer)(nil)
-var _ render.QuadMeshDrawer = (*Renderer)(nil)
-var _ render.GouraudTriangleDrawer = (*Renderer)(nil)
-var _ render.NativeHatcher = (*Renderer)(nil)
-var _ render.PNGExporter = (*Renderer)(nil)
+var (
+	_ render.Renderer              = (*Renderer)(nil)
+	_ render.DPIAware              = (*Renderer)(nil)
+	_ render.TextDrawer            = (*Renderer)(nil)
+	_ render.RotatedTextDrawer     = (*Renderer)(nil)
+	_ render.VerticalTextDrawer    = (*Renderer)(nil)
+	_ render.TextBounder           = (*Renderer)(nil)
+	_ render.TextFontMetricer      = (*Renderer)(nil)
+	_ render.TextPather            = (*Renderer)(nil)
+	_ render.ImageTransformer      = (*Renderer)(nil)
+	_ render.MarkerDrawer          = (*Renderer)(nil)
+	_ render.PathCollectionDrawer  = (*Renderer)(nil)
+	_ render.QuadMeshDrawer        = (*Renderer)(nil)
+	_ render.GouraudTriangleDrawer = (*Renderer)(nil)
+	_ render.NativeHatcher         = (*Renderer)(nil)
+	_ render.PNGExporter           = (*Renderer)(nil)
+)
 
 // New creates a new AGG renderer with the specified dimensions and background color.
 // Returns an error if width or height are not positive.

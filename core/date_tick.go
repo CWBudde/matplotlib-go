@@ -120,12 +120,12 @@ func chooseDateTickInterval(minTime, maxTime time.Time, targetCount int) dateTic
 	}
 
 	intervals := map[string][]int{
-		"year":   []int{1, 2, 4, 5, 10, 20, 40, 50, 100, 200, 400, 500, 1000, 2000, 4000, 5000, 10000},
-		"month":  []int{1, 2, 3, 4, 6},
-		"day":    []int{1, 2, 4, 7, 14},
-		"hour":   []int{1, 2, 3, 4, 6, 12},
-		"minute": []int{1, 5, 10, 15, 30},
-		"second": []int{1, 5, 10, 15, 30},
+		"year":   {1, 2, 4, 5, 10, 20, 40, 50, 100, 200, 400, 500, 1000, 2000, 4000, 5000, 10000},
+		"month":  {1, 2, 3, 4, 6},
+		"day":    {1, 2, 4, 7, 14},
+		"hour":   {1, 2, 3, 4, 6, 12},
+		"minute": {1, 5, 10, 15, 30},
+		"second": {1, 5, 10, 15, 30},
 	}
 
 	for _, candidate := range candidates {

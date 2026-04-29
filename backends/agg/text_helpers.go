@@ -4,10 +4,9 @@ import (
 	"errors"
 	"math"
 
+	agglib "github.com/cwbudde/agg_go"
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
-
-	agglib "github.com/cwbudde/agg_go"
 )
 
 type textBackend uint8

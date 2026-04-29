@@ -23,11 +23,13 @@ import (
 	"time"
 )
 
-const goldenUpdateBuildTag = "freetype"
-const goldenUpdateOptionalVisualTestsEnv = "RUN_OPTIONAL_VISUAL_TESTS"
-const rerenderAllButtonPlaceholder = "__RERENDER_ALL_BUTTON__"
-const goldenUpdateRunPatternAll = "^Test.*_Golden$"
-const goldenUpdateTimeout = 5 * time.Minute
+const (
+	goldenUpdateBuildTag               = "freetype"
+	goldenUpdateOptionalVisualTestsEnv = "RUN_OPTIONAL_VISUAL_TESTS"
+	rerenderAllButtonPlaceholder       = "__RERENDER_ALL_BUTTON__"
+	goldenUpdateRunPatternAll          = "^Test.*_Golden$"
+	goldenUpdateTimeout                = 5 * time.Minute
+)
 
 type caseEntry struct {
 	Suite       string

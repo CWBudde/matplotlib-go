@@ -22,7 +22,7 @@ func TestSupportedMPLStyleKeysReturnSortedCopy(t *testing.T) {
 
 func TestMPLStyleParamsApplySupportedKeysAndReportUnsupported(t *testing.T) {
 	params := Params{
-		"figure.dpi":       "144",
+		"figure.dpi":         "144",
 		"unsupported.option": "value",
 	}
 	rc, report, err := applyMPLStyleParams(Default, params)

@@ -15,8 +15,10 @@ import (
 
 // quantizationEpsilon is the precision limit for float values to ensure determinism.
 // All floating point coordinates and measurements are snapped to this precision.
-const quantizationEpsilon = 1e-6
-const defaultFontHeight = 13.0
+const (
+	quantizationEpsilon = 1e-6
+	defaultFontHeight   = 13.0
+)
 
 // quantize snaps a float64 value to quantizationEpsilon precision to eliminate
 // tiny differences that could lead to cross-platform rendering variations.
@@ -71,9 +73,11 @@ type Renderer struct {
 	resolution  uint
 }
 
-var _ render.Renderer = (*Renderer)(nil)
-var _ render.DPIAware = (*Renderer)(nil)
-var _ render.TextPather = (*Renderer)(nil)
+var (
+	_ render.Renderer   = (*Renderer)(nil)
+	_ render.DPIAware   = (*Renderer)(nil)
+	_ render.TextPather = (*Renderer)(nil)
+)
 
 // New creates a new GoBasic renderer with the specified dimensions and background color.
 func New(w, h int, bg render.Color) *Renderer {

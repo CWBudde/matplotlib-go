@@ -12,15 +12,15 @@ import (
 )
 
 type headlessCanvas struct {
-	mu         sync.Mutex
-	figure     *canvas.Figure
-	backend    Backend
-	config     Config
-	factory    Factory
-	renderer   render.Renderer
-	dispatcher canvas.Dispatcher
+	mu          sync.Mutex
+	figure      *canvas.Figure
+	backend     Backend
+	config      Config
+	factory     Factory
+	renderer    render.Renderer
+	dispatcher  canvas.Dispatcher
 	pendingDraw bool
-	closed     bool
+	closed      bool
 }
 
 type defaultManager struct {

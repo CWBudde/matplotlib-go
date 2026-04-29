@@ -12,7 +12,6 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
-
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 )

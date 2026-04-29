@@ -20,8 +20,10 @@ import (
 	"matplotlib-go/render"
 )
 
-const quantizationGrid = 1e-6
-const defaultFontHeight = 13.0
+const (
+	quantizationGrid  = 1e-6
+	defaultFontHeight = 13.0
+)
 
 type state struct {
 	clipRect *geom.Rect
@@ -65,13 +67,15 @@ type Renderer struct {
 	lastFontKey string
 }
 
-var _ render.Renderer = (*Renderer)(nil)
-var _ render.DPIAware = (*Renderer)(nil)
-var _ render.TextDrawer = (*Renderer)(nil)
-var _ render.RotatedTextDrawer = (*Renderer)(nil)
-var _ render.VerticalTextDrawer = (*Renderer)(nil)
-var _ render.TextPather = (*Renderer)(nil)
-var _ render.SVGExporter = (*Renderer)(nil)
+var (
+	_ render.Renderer           = (*Renderer)(nil)
+	_ render.DPIAware           = (*Renderer)(nil)
+	_ render.TextDrawer         = (*Renderer)(nil)
+	_ render.RotatedTextDrawer  = (*Renderer)(nil)
+	_ render.VerticalTextDrawer = (*Renderer)(nil)
+	_ render.TextPather         = (*Renderer)(nil)
+	_ render.SVGExporter        = (*Renderer)(nil)
+)
 
 // New creates a new SVG renderer with the specified dimensions and background color.
 func New(w, h int, bg render.Color) (*Renderer, error) {

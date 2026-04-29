@@ -365,9 +365,10 @@ func resolveFontWithFCMatchExact(family string, props FontProperties) string {
 
 func fcMatchPatterns(family string, props FontProperties) []string {
 	style := "Regular"
-	if props.Style == FontStyleItalic {
+	switch props.Style {
+	case FontStyleItalic:
 		style = "Italic"
-	} else if props.Style == FontStyleOblique {
+	case FontStyleOblique:
 		style = "Oblique"
 	}
 	return []string{
