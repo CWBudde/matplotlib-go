@@ -649,20 +649,27 @@ Current slice landed:
 
 **Goal:** replace `Agg2D` convenience-only drawing with a backend-owned raster pipeline where Matplotlib depends on low-level AGG behavior.
 
-- [ ] Implement path clipping in `backends/agg` using an alpha-mask/clippath model comparable to upstream `RendererAgg::render_clippath`.
-- [ ] Cache transformed clip paths and invalidate the cache by path identity/content plus transform.
-- [ ] Make projected/non-rectangular axes clipping use real path clips instead of relying on `ClipPath` no-op behavior.
+- [x] Implement path clipping in `backends/agg` using an alpha-mask/clippath model comparable to upstream `RendererAgg::render_clippath`.
+- [x] Cache transformed clip paths and invalidate the cache by path identity/content plus transform.
+- [x] Make projected/non-rectangular axes clipping use real path clips instead of relying on `ClipPath` no-op behavior.
 - [ ] Add a Matplotlib-like path pipeline before rasterization:
-  - [ ] transform into display coordinates with y-axis orientation handled in one place
-  - [ ] remove or split on NaN/Inf vertices
-  - [ ] cull paths outside the figure when safe
-  - [ ] snap paths with linewidth-aware pixel alignment
-  - [ ] simplify paths using a configurable threshold
-  - [ ] chunk very large paths and surface actionable overflow/error messages
+  - [x] transform into display coordinates with y-axis orientation handled in one place
+  - [x] remove or split on NaN/Inf vertices
+  - [x] cull paths outside the figure when safe
+  - [x] snap paths with linewidth-aware pixel alignment
+  - [x] simplify paths using a configurable threshold
+  - [x] chunk very large paths and surface actionable overflow/error messages
 - [ ] Replace global `1e-6` coordinate quantization as the primary parity mechanism with explicit path snapping and simplification policy.
 - [ ] Add antialiasing control to path rendering instead of assuming one backend-wide behavior.
 - [ ] Move AGG hatching from `core` polygon-clipped stroke generation toward backend-native hatch pattern buffers with repeat wrapping, hatch linewidth, hatch color, and clippath interaction.
 - [ ] Expand `render.Paint`/draw-state or a backend-side graphics context to cover Matplotlib GC fields currently absent from `Paint`: antialiasing, snap mode, hatch path/color/linewidth, sketch parameters, forced alpha, and clip path transform.
+
+**Progress notes:**
+
+- Added AGG-owned clip path state with alpha-mask rasterization, content-keyed mask caching, and save/restore integration.
+- Routed AGG path, image, transformed image, text helper, and Gouraud batch drawing through the mask-composite path whenever a non-rectangular clip is active.
+- Added focused unit coverage for clipped path drawing, clipped raster images, cache creation, and restored clip state.
+- Added an AGG-local path preprocessing pipeline with finite-vertex cleanup, visible-area culling, Matplotlib-style snap modes, opt-in line simplification, and chunked stroke rendering for very large open line paths.
 
 ### 8.1C AGG Backend Parity: Text, Glyphs, MathText, and TeX
 

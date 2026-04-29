@@ -57,6 +57,28 @@ func TestLegendDrawRendersLabelsAndSamples(t *testing.T) {
 	}
 }
 
+func TestLegendDefaultsMatchMatplotlibSpacing(t *testing.T) {
+	fig := NewFigure(800, 600)
+	legend := fig.AddLegend()
+	fontPx := pointsToPixels(fig.RC, fig.RC.LegendSize())
+
+	if !floatApprox(legend.Padding, 0.4*fontPx, 1e-9) {
+		t.Fatalf("legend padding = %v, want %v", legend.Padding, 0.4*fontPx)
+	}
+	if !floatApprox(legend.Inset, 0.5*fontPx, 1e-9) {
+		t.Fatalf("legend inset = %v, want %v", legend.Inset, 0.5*fontPx)
+	}
+	if !floatApprox(legend.SampleWidth, 2.0*fontPx, 1e-9) {
+		t.Fatalf("legend sample width = %v, want %v", legend.SampleWidth, 2.0*fontPx)
+	}
+	if !floatApprox(legend.SampleTextGap, 0.8*fontPx, 1e-9) {
+		t.Fatalf("legend sample-text gap = %v, want %v", legend.SampleTextGap, 0.8*fontPx)
+	}
+	if legend.CornerRadius <= 0 {
+		t.Fatalf("legend corner radius = %v, want rounded Matplotlib fancybox", legend.CornerRadius)
+	}
+}
+
 type legendRecordingRenderer struct {
 	render.NullRenderer
 	pathCount int

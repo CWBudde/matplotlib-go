@@ -180,7 +180,7 @@ func drawFigureArtists(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 	stackOffsets := initialFigureArtistStackOffsets(fig, r, ctx)
 	for _, art := range fig.Artists {
 		artCtx := *ctx
-		if loc, ok := figureArtistLocation(art); ok {
+		if loc, ok := figureArtistLocation(art); ok && !figureArtistUsesFigureCoordinates(art) {
 			offset := stackOffsets[loc]
 			artCtx.Clip = insetFigureArtistClip(ctx.Clip, loc, offset)
 			if box, hasBox := figureArtistBoxRect(art, r, &artCtx); hasBox {
@@ -192,6 +192,21 @@ func drawFigureArtists(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 			overlay.DrawOverlay(r, &artCtx)
 		}
 	}
+}
+
+func figureArtistUsesFigureCoordinates(art Artist) bool {
+	var locator AnchoredBoxLocator
+	switch a := art.(type) {
+	case *Legend:
+		locator = a.Locator
+	case *AnchoredTextBox:
+		locator = a.Locator
+	}
+	if locator == nil {
+		return false
+	}
+	_, ok := locator.(figureCoordinateBoxLocator)
+	return ok
 }
 
 func initialFigureArtistStackOffsets(fig *Figure, r render.Renderer, ctx *DrawContext) map[LegendLocation]float64 {

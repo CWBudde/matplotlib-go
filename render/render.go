@@ -9,13 +9,58 @@ import (
 
 // Paint configures drawing style for paths.
 type Paint struct {
-	LineWidth  float64
-	LineJoin   LineJoin
-	LineCap    LineCap
-	MiterLimit float64
-	Stroke     Color
-	Fill       Color
-	Dashes     []float64 // on/off pairs, in user space units
+	LineWidth         float64
+	LineJoin          LineJoin
+	LineCap           LineCap
+	MiterLimit        float64
+	Stroke            Color
+	Fill              Color
+	Dashes            []float64 // on/off pairs, in user space units
+	Antialias         AntialiasMode
+	Snap              SnapMode // path snapping policy; zero preserves existing unsnapped behavior
+	Simplify          bool     // simplify line-only paths before rasterization
+	SimplifyThreshold float64  // simplification tolerance in display pixels
+	MaxChunkVertices  int      // split very large stroke-only line paths; <=0 uses backend default
+	Hatch             string
+	HatchColor        Color
+	HatchLineWidth    float64
+	HatchSpacing      float64
+	Sketch            SketchParams
+	ForceAlpha        bool
+	Alpha             float64
+	ClipPathTransform geom.Affine
+	HasClipPathTrans  bool
+}
+
+// AntialiasMode controls path antialiasing behavior.
+type AntialiasMode uint8
+
+const (
+	AntialiasDefault AntialiasMode = iota
+	AntialiasOn
+	AntialiasOff
+)
+
+// SnapMode controls whether path vertices are aligned to device pixels.
+type SnapMode uint8
+
+const (
+	// SnapOff disables path snapping.
+	SnapOff SnapMode = iota
+	// SnapAuto snaps simple horizontal/vertical paths, matching Matplotlib's
+	// default path snap mode when callers opt into it.
+	SnapAuto
+	// SnapOn forces snapping for all path vertices.
+	SnapOn
+)
+
+// SketchParams describes Matplotlib-style sketch/jitter rendering.
+//
+// Backends may ignore this until they implement a sketch pass.
+type SketchParams struct {
+	Scale      float64
+	Length     float64
+	Randomness float64
 }
 
 // LineJoin controls how path joins are rendered.

@@ -72,12 +72,13 @@ type MarkerDrawer interface {
 
 // PathCollectionItem is one display-space path with its paint state.
 type PathCollectionItem struct {
-	Path        geom.Path
-	Paint       Paint
-	Hatch       string
-	HatchColor  Color
-	HatchWidth  float64
-	Antialiased bool
+	Path         geom.Path
+	Paint        Paint
+	Hatch        string
+	HatchColor   Color
+	HatchWidth   float64
+	HatchSpacing float64
+	Antialiased  bool
 }
 
 // PathCollectionBatch describes many display-space paths rendered as one
@@ -92,17 +93,24 @@ type PathCollectionDrawer interface {
 	DrawPathCollection(batch PathCollectionBatch) bool
 }
 
+// NativeHatcher is implemented by renderers that consume Paint hatch metadata
+// directly during Path rendering.
+type NativeHatcher interface {
+	SupportsNativeHatch() bool
+}
+
 // QuadMeshCell is one display-space quadrilateral cell.
 type QuadMeshCell struct {
-	Quad        [4]geom.Pt
-	Face        Color
-	Edge        Color
-	LineWidth   float64
-	Dashes      []float64
-	Hatch       string
-	HatchColor  Color
-	HatchWidth  float64
-	Antialiased bool
+	Quad         [4]geom.Pt
+	Face         Color
+	Edge         Color
+	LineWidth    float64
+	Dashes       []float64
+	Hatch        string
+	HatchColor   Color
+	HatchWidth   float64
+	HatchSpacing float64
+	Antialiased  bool
 }
 
 // QuadMeshBatch describes pcolor/pcolormesh-style quadrilateral cells.

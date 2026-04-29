@@ -1641,16 +1641,21 @@ func configureCompositionTicks(ax *core.Axes, xTicks, yTicks []float64, yFormat 
 
 func renderFigureLabelsComposition() image.Image {
 	fig := core.NewFigure(1100, 720)
-	fig.SetSuptitle("Shared-Axis Figure Labels")
-	fig.SetSupXLabel("time [s]")
-	fig.SetSupYLabel("amplitude")
-
 	grid := fig.Subplots(
 		2,
 		2,
 		core.WithSubplotPadding(0.083, 0.996, 0.0986, 0.9333),
 		core.WithSubplotSpacing(0.067, 0.100),
 	)
+	fig.SetSuptitle("Shared-Axis Figure Labels")
+	fig.SetSupXLabel("time [s]")
+	fig.SetSupYLabel("amplitude")
+
+	textBox := &core.TextBBoxOptions{
+		FaceColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+		EdgeColor: render.Color{R: 0.5, G: 0.5, B: 0.5, A: 1},
+	}
+
 	for row := range grid {
 		for col, ax := range grid[row] {
 			x := make([]float64, 180)
@@ -1673,33 +1678,27 @@ func renderFigureLabelsComposition() image.Image {
 		}
 	}
 
-	grid[0][0].AddAnchoredText("upper-left\nnote", core.AnchoredTextOptions{
-		Locator: core.RelativeAnchoredBoxLocator{
-			X: 0.005, Y: 0.055,
-			HAlign: core.BoxAlignLeft,
-			VAlign: core.BoxAlignTop,
-		},
+	grid[0][0].Text(0.02, 0.92, "upper-left\nnote", core.TextOptions{
+		Coords: core.Coords(core.CoordAxes),
+		VAlign: core.TextVAlignTop,
+		BBox:   textBox,
 	})
-	grid[1][1].AddAnchoredText("lower-right", core.AnchoredTextOptions{
-		Locator: core.RelativeAnchoredBoxLocator{
-			X: 0.99, Y: 0.955,
-			HAlign: core.BoxAlignRight,
-			VAlign: core.BoxAlignBottom,
-		},
+	grid[1][1].Text(0.98, 0.08, "lower-right", core.TextOptions{
+		Coords: core.Coords(core.CoordAxes),
+		HAlign: core.TextAlignRight,
+		VAlign: core.TextVAlignBottom,
+		BBox:   textBox,
 	})
-	fig.AddAnchoredText("Figure note", core.AnchoredTextOptions{
-		Location: core.LegendUpperRight,
-		Locator: core.RelativeAnchoredBoxLocator{
-			X: 0.988, Y: 0.02,
-			HAlign: core.BoxAlignRight,
-			VAlign: core.BoxAlignTop,
-		},
+	fig.Text(0.985, 0.94, "Figure note", core.TextOptions{
+		HAlign: core.TextAlignRight,
+		VAlign: core.TextVAlignTop,
+		BBox:   textBox,
 	})
 	legend := fig.AddLegend()
-	legend.SetLocator(core.RelativeAnchoredBoxLocator{
-		X: 0.99, Y: 0.03,
-		HAlign: core.BoxAlignRight,
-		VAlign: core.BoxAlignTop,
+	legend.SetLocator(core.BBoxToAnchorLocator{
+		X:        0.99,
+		Y:        0.90,
+		Location: core.LegendUpperRight,
 	})
 
 	r, err := agg.New(1100, 720, render.Color{R: 1, G: 1, B: 1, A: 1})

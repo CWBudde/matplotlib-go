@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"matplotlib-go/internal/geom"
+	"matplotlib-go/render"
 )
 
 func TestAddMollweideAxesConfiguresProjection(t *testing.T) {
@@ -113,5 +114,82 @@ func TestMollweideFrameAndGridUseSampledCurves(t *testing.T) {
 	}
 	if !foundFrame {
 		t.Fatal("expected closed oval frame path")
+	}
+}
+
+func TestMollweideDefaultsUseMatplotlibGeoTickLabels(t *testing.T) {
+	fig := NewFigure(400, 240)
+	ax, err := fig.AddAxesProjection(unitRect(), "mollweide")
+	if err != nil {
+		t.Fatalf("AddAxesProjection(mollweide): %v", err)
+	}
+
+	xTicks := ax.XAxis.Locator.Ticks(-math.Pi, math.Pi, 8)
+	yTicks := ax.YAxis.Locator.Ticks(-math.Pi/2, math.Pi/2, 8)
+	if got, want := len(xTicks), 11; got != want {
+		t.Fatalf("longitude tick count = %d, want %d", got, want)
+	}
+	if got, want := len(yTicks), 11; got != want {
+		t.Fatalf("latitude tick count = %d, want %d", got, want)
+	}
+	if got := formatTickLabel(ax.XAxis.Formatter, xTicks[0], 0, xTicks); got != "-150°" {
+		t.Fatalf("first longitude label = %q, want -150°", got)
+	}
+	if got := formatTickLabel(ax.YAxis.Formatter, yTicks[len(yTicks)-1], len(yTicks)-1, yTicks); got != "75°" {
+		t.Fatalf("last latitude label = %q, want 75°", got)
+	}
+}
+
+func TestMollweideXAxisTickLabelsUseGeoTextTransform(t *testing.T) {
+	fig := NewFigure(400, 240)
+	ax, err := fig.AddAxesProjection(unitRect(), "mollweide")
+	if err != nil {
+		t.Fatalf("AddAxesProjection(mollweide): %v", err)
+	}
+	ax.XAxis.Locator = FixedLocator{TicksList: []float64{0}}
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	r := &axisLabelRecordingRenderer{}
+
+	ax.XAxis.DrawTickLabels(r, ctx)
+
+	if got, want := r.texts, []string{"0°"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("x tick labels = %v, want %v", got, want)
+	}
+	pos := ctx.DataToPixel.Apply(geom.Pt{X: 0, Y: 0})
+	layout := measureSingleLineTextLayout(r, "0°", tickLabelFontSize(ax.XAxis, ctx), ctx.RC.FontKey)
+	want := alignedSingleLineOrigin(
+		geom.Pt{X: pos.X, Y: pos.Y - geoXAxisLabelPadPx},
+		layout,
+		TextAlignCenter,
+		textLayoutVAlignBottom,
+	)
+	if got := r.origins[0]; !approx(got.X, want.X, 1e-9) || !approx(got.Y, want.Y, 1e-9) {
+		t.Fatalf("center x tick label origin = %+v, want %+v", got, want)
+	}
+}
+
+func TestMollweideGridPreservesConfiguredRGBA(t *testing.T) {
+	fig := NewFigure(400, 240)
+	ax, err := fig.AddAxesProjection(unitRect(), "mollweide")
+	if err != nil {
+		t.Fatalf("AddAxesProjection(mollweide): %v", err)
+	}
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	grid := NewGrid(AxisBottom)
+	grid.Locator = FixedLocator{TicksList: []float64{0}}
+	grid.Color = render.Color{R: 0.78, G: 0.80, B: 0.84, A: 0.55}
+	grid.LineWidth = 0.8
+
+	r := &recordingRenderer{}
+	grid.Draw(r, ctx)
+
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("grid path call count = %d, want 1", len(r.pathCalls))
+	}
+	if got, want := r.pathCalls[0].paint.Stroke, grid.Color; got != want {
+		t.Fatalf("grid stroke color = %+v, want %+v", got, want)
+	}
+	if got, want := r.pathCalls[0].paint.LineWidth, grid.LineWidth; got != want {
+		t.Fatalf("grid line width = %v, want %v", got, want)
 	}
 }

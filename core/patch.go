@@ -224,24 +224,42 @@ func (p *Patch) drawStyledPath(r render.Renderer, fillPath, strokePath geom.Path
 	faceColor := p.resolvedFaceColor()
 	edgeColor := p.resolvedEdgeColor()
 	hasEdge := p.EdgeWidth > 0 && edgeColor.A > 0
+	nativeHatch := false
+	if hatcher, ok := r.(render.NativeHatcher); ok {
+		nativeHatch = hatcher.SupportsNativeHatch()
+	}
 
 	if len(fillPath.C) > 0 {
 		paint := render.Paint{Fill: faceColor}
+		if nativeHatch && p.Hatch != "" {
+			paint.Hatch = p.Hatch
+			paint.HatchColor = p.resolvedHatchColor()
+			paint.HatchLineWidth = p.resolvedHatchWidth()
+			paint.HatchSpacing = p.resolvedHatchSpacing()
+		}
 		combinedStroke := len(strokePath.C) == 0 && hasEdge
 		if combinedStroke {
 			if p.Hatch == "" {
 				paint = p.strokePaint(edgeColor)
 				paint.Fill = faceColor
+			} else if nativeHatch {
+				paint.Stroke = edgeColor
+				paint.LineWidth = p.EdgeWidth
+				paint.LineJoin = p.LineJoin
+				paint.LineCap = p.LineCap
+				paint.Dashes = append([]float64(nil), p.Dashes...)
 			}
 		}
-		if faceColor.A > 0 || combinedStroke {
+		if faceColor.A > 0 || combinedStroke || (nativeHatch && p.Hatch != "") {
 			r.Path(fillPath, &paint)
 		}
 	}
 
 	if len(fillPath.C) > 0 && p.Hatch != "" {
-		p.drawHatch(r, fillPath)
-		if len(strokePath.C) == 0 && hasEdge {
+		if !nativeHatch {
+			p.drawHatch(r, fillPath)
+		}
+		if !nativeHatch && len(strokePath.C) == 0 && hasEdge {
 			paint := p.strokePaint(edgeColor)
 			r.Path(fillPath, &paint)
 		}

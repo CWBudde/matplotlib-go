@@ -151,6 +151,14 @@ func (s *aggSurface) SetMiterLimit(limit float64) {
 	s.painter.MiterLimit(limit)
 }
 
+func (s *aggSurface) SetAntiAliasGamma(gamma float64) {
+	s.painter.AntiAliasGamma(gamma)
+}
+
+func (s *aggSurface) GetAntiAliasGamma() float64 {
+	return s.painter.GetAntiAliasGamma()
+}
+
 func (s *aggSurface) ClearDashes() {
 	s.painter.RemoveAllDashes()
 }

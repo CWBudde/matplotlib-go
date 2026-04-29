@@ -1,6 +1,10 @@
 package render
 
-import "testing"
+import (
+	"testing"
+
+	"matplotlib-go/internal/geom"
+)
 
 func TestGraphicsContextEffectivePaintAppliesAlpha(t *testing.T) {
 	gc := NewGraphicsContext()
@@ -19,4 +23,40 @@ func TestGraphicsContextEffectivePaintAppliesAlpha(t *testing.T) {
 	if gc.Paint.Dashes[0] == 99 {
 		t.Fatal("EffectivePaint reused mutable dash backing storage")
 	}
+}
+
+func TestGraphicsContextEffectivePaintCarriesRendererState(t *testing.T) {
+	gc := NewGraphicsContext().
+		WithAntialias(AntialiasOff).
+		WithSnap(SnapAuto).
+		WithHatch("/", Color{R: 1, A: 0.5}, 2).
+		WithHatchSpacing(12).
+		WithSketch(SketchParams{Scale: 1, Length: 2, Randomness: 3}).
+		WithForcedAlpha(0.25).
+		WithClipPathTransform(geomIdentity())
+	gc.Paint = Paint{
+		Stroke: Color{A: 1},
+		Fill:   Color{A: 1},
+	}
+
+	paint := gc.EffectivePaint()
+	if paint.Antialias != AntialiasOff || paint.Snap != SnapAuto {
+		t.Fatalf("effective paint lost antialias/snap state: %+v", paint)
+	}
+	if paint.Hatch != "/" || paint.HatchColor.R != 1 || paint.HatchLineWidth != 2 || paint.HatchSpacing != 12 {
+		t.Fatalf("effective paint lost hatch state: %+v", paint)
+	}
+	if paint.Sketch != (SketchParams{Scale: 1, Length: 2, Randomness: 3}) {
+		t.Fatalf("effective paint lost sketch state: %+v", paint.Sketch)
+	}
+	if !paint.ForceAlpha || paint.Stroke.A != 0.25 || paint.Fill.A != 0.25 {
+		t.Fatalf("effective paint did not force alpha: %+v", paint)
+	}
+	if !paint.HasClipPathTrans {
+		t.Fatalf("effective paint lost clip path transform: %+v", paint)
+	}
+}
+
+func geomIdentity() geom.Affine {
+	return geom.Affine{A: 1, D: 1}
 }

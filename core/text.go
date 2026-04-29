@@ -2,6 +2,7 @@ package core
 
 import (
 	"math"
+	"strings"
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -240,10 +241,77 @@ func (t *Text) drawText(r render.Renderer, ctx *DrawContext) {
 
 	fontSize := resolvedFontSize(t.FontSize, ctx)
 	anchor := transformedPoint(ctx, t.Coords, t.Position, t.OffsetX, t.OffsetY)
+	if strings.Contains(t.Content, "\n") {
+		t.drawMultilineText(r, textRen, ctx, anchor, fontSize)
+		return
+	}
 	layout := measureSingleLineTextLayout(r, t.Content, fontSize, ctx.RC.FontKey)
 	origin := alignedSingleLineOrigin(anchor, layout, t.HAlign, layoutVerticalAlign(t.VAlign, false))
 	drawTextBBox(r, origin, layout, t.BBox, ctx, fontSize)
 	drawDisplayText(textRen, t.Content, origin, fontSize, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey)
+}
+
+func (t *Text) drawMultilineText(r render.Renderer, textRen render.TextDrawer, ctx *DrawContext, anchor geom.Pt, fontSize float64) {
+	lines := strings.Split(t.Content, "\n")
+	layouts := make([]singleLineTextLayout, len(lines))
+	maxWidth := 0.0
+	for i, line := range lines {
+		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
+		maxWidth = math.Max(maxWidth, layouts[i].Width)
+	}
+
+	lineHeight := pointsToPixels(ctx.RC, fontSize)
+	lineGap := lineHeight * 0.2
+	lineAdvance := lineHeight + lineGap
+	blockHeight := lineHeight
+	if len(lines) > 1 {
+		blockHeight += lineAdvance * float64(len(lines)-1)
+	}
+
+	left := anchor.X
+	switch t.HAlign {
+	case TextAlignCenter:
+		left -= maxWidth / 2
+	case TextAlignRight:
+		left -= maxWidth
+	}
+
+	top := anchor.Y
+	switch layoutVerticalAlign(t.VAlign, false) {
+	case textLayoutVAlignCenter:
+		top -= blockHeight / 2
+	case textLayoutVAlignBottom:
+		top -= blockHeight
+	case textLayoutVAlignBaseline:
+		top -= layouts[0].Ascent
+	}
+
+	if t.BBox != nil {
+		drawMultilineTextBBox(r, geom.Rect{
+			Min: geom.Pt{X: left, Y: top},
+			Max: geom.Pt{X: left + maxWidth, Y: top + blockHeight},
+		}, t.BBox, ctx, fontSize)
+	}
+
+	textColor := resolvedTextColor(t.Color, ctx)
+	for i, line := range lines {
+		if line == "" {
+			continue
+		}
+		origin := geom.Pt{
+			X: left,
+			Y: top + lineAdvance*float64(i) + layouts[i].Ascent,
+		}
+		if layouts[i].Width < maxWidth {
+			switch t.HAlign {
+			case TextAlignCenter:
+				origin.X += (maxWidth - layouts[i].Width) / 2
+			case TextAlignRight:
+				origin.X += maxWidth - layouts[i].Width
+			}
+		}
+		drawDisplayText(textRen, line, origin, fontSize, textColor, ctx.RC.FontKey)
+	}
 }
 
 // Bounds returns an empty rect so labels do not affect autoscaling.
@@ -369,6 +437,26 @@ func drawTextBBox(r render.Renderer, origin geom.Pt, layout singleLineTextLayout
 	if !ok {
 		return
 	}
+	cfg := resolvedTextBBoxOptions(*opt, ctx, fontSize)
+	rect.Min.X -= cfg.Padding
+	rect.Min.Y -= cfg.Padding
+	rect.Max.X += cfg.Padding
+	rect.Max.Y += cfg.Padding
+
+	path := pixelRectPath(rect)
+	if cfg.CornerRadius > 0 {
+		path = roundedRectPath(rect, cfg.CornerRadius)
+	}
+	r.Path(path, &render.Paint{
+		Fill:      cfg.FaceColor,
+		Stroke:    cfg.EdgeColor,
+		LineWidth: cfg.LineWidth,
+		LineJoin:  render.JoinMiter,
+		LineCap:   render.CapButt,
+	})
+}
+
+func drawMultilineTextBBox(r render.Renderer, rect geom.Rect, opt *TextBBoxOptions, ctx *DrawContext, fontSize float64) {
 	cfg := resolvedTextBBoxOptions(*opt, ctx, fontSize)
 	rect.Min.X -= cfg.Padding
 	rect.Min.Y -= cfg.Padding

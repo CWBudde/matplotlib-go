@@ -13,6 +13,8 @@ const (
 	geoFrameSegments    = 160
 	geoGridSegments     = 75
 	geoLongitudeGridCap = 5 * math.Pi / 12
+	geoXAxisLabelPadPx  = 4.0
+	geoYAxisLabelPadPx  = 8.0
 )
 
 type geoProjection struct {
@@ -291,20 +293,34 @@ func geoAxisDomain(a *Axis, ctx *DrawContext) (minVal, maxVal float64, isXAxis b
 
 func geoTickLabelOrigin(a *Axis, ctx *DrawContext, tick float64, layout singleLineTextLayout) (geom.Pt, bool) {
 	switch a.Side {
-	case AxisBottom, AxisTop:
+	case AxisBottom:
 		pos := ctx.DataToPixel.Apply(geom.Pt{X: tick, Y: 0})
-		return alignedSingleLineOrigin(pos, layout, TextAlignCenter, textLayoutVAlignCenter), true
+		anchor := geom.Pt{X: pos.X, Y: pos.Y - geoXAxisLabelPadPx}
+		return alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignBottom), true
+	case AxisTop:
+		pos := ctx.DataToPixel.Apply(geom.Pt{X: tick, Y: 0})
+		anchor := geom.Pt{X: pos.X, Y: pos.Y + geoXAxisLabelPadPx}
+		return alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignTop), true
 	case AxisLeft:
-		pos := ctx.DataToPixel.Apply(geom.Pt{X: -math.Pi, Y: tick})
-		anchor := geom.Pt{X: pos.X - tickLabelPadPx(a, ctx), Y: pos.Y}
+		pos := geoLatitudeLabelPoint(ctx, -math.Pi, tick)
+		anchor := geom.Pt{X: pos.X - geoYAxisLabelPadPx, Y: pos.Y}
 		return alignedSingleLineOrigin(anchor, layout, TextAlignRight, textLayoutVAlignCenter), true
 	case AxisRight:
-		pos := ctx.DataToPixel.Apply(geom.Pt{X: math.Pi, Y: tick})
-		anchor := geom.Pt{X: pos.X + tickLabelPadPx(a, ctx), Y: pos.Y}
+		pos := geoLatitudeLabelPoint(ctx, math.Pi, tick)
+		anchor := geom.Pt{X: pos.X + geoYAxisLabelPadPx, Y: pos.Y}
 		return alignedSingleLineOrigin(anchor, layout, TextAlignLeft, textLayoutVAlignCenter), true
 	default:
 		return geom.Pt{}, false
 	}
+}
+
+func geoLatitudeLabelPoint(ctx *DrawContext, lon, lat float64) geom.Pt {
+	if ctx == nil {
+		return geom.Pt{}
+	}
+	axesPt := ctx.TransProjection().Apply(geom.Pt{X: lon, Y: lat})
+	axesPt.Y = 0.5 + (axesPt.Y-0.5)*1.1
+	return ctx.TransAxes().Apply(axesPt)
 }
 
 func formatGeoDegreeLabel(rad float64) string {
@@ -313,9 +329,9 @@ func formatGeoDegreeLabel(rad float64) string {
 		deg = math.Round(deg)
 	}
 	if approx(deg, 0, 1e-9) {
-		return "0"
+		return "0°"
 	}
-	return fmt.Sprintf("%.0f", deg)
+	return fmt.Sprintf("%.0f°", deg)
 }
 
 func clamp(v, lo, hi float64) float64 {

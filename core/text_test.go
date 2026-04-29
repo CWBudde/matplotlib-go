@@ -693,6 +693,43 @@ func TestTextBBoxDrawsBehindAxesAndFigureText(t *testing.T) {
 	}
 }
 
+func TestMultilineTextSplitsDrawsAndUsesBlockBBox(t *testing.T) {
+	fig := NewFigure(100, 100)
+	ax := fig.AddAxes(geom.Rect{Max: geom.Pt{X: 1, Y: 1}})
+	ax.XAxis.ShowSpine = false
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowSpine = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
+	ax.ShowFrame = false
+
+	ax.Text(0.1, 0.9, "top\nbottom", TextOptions{
+		Coords: Coords(CoordAxes),
+		VAlign: TextVAlignTop,
+		BBox: &TextBBoxOptions{
+			FaceColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+			EdgeColor: render.Color{R: 0.5, G: 0.5, B: 0.5, A: 1},
+		},
+	})
+
+	var r textRecordingRenderer
+	DrawFigure(fig, &r)
+
+	if len(r.texts) != 2 {
+		t.Fatalf("expected two text draws, got %d: %v", len(r.texts), r.texts)
+	}
+	if r.texts[0] != "top" || r.texts[1] != "bottom" {
+		t.Fatalf("unexpected multiline draw order: %v", r.texts)
+	}
+	if r.pathCount != 1 {
+		t.Fatalf("expected one multiline bbox path, got %d", r.pathCount)
+	}
+	if !(r.origins[1].Y > r.origins[0].Y) {
+		t.Fatalf("expected second line below first, got origins %v", r.origins)
+	}
+}
+
 func TestAxesLabelsDrawMathTextAccordingToExpressionScope(t *testing.T) {
 	fig := NewFigure(800, 600)
 	ax := fig.AddAxes(geom.Rect{

@@ -12,15 +12,21 @@ import (
 
 func main() {
 	fig := core.NewFigure(1100, 720)
-	fig.ConstrainedLayout()
+	grid := fig.Subplots(
+		2,
+		2,
+		core.WithSubplotPadding(0.083, 0.996, 0.0986, 0.9333),
+		core.WithSubplotSpacing(0.067, 0.100),
+	)
 	fig.SetSuptitle("Shared-Axis Figure Labels")
 	fig.SetSupXLabel("time [s]")
 	fig.SetSupYLabel("amplitude")
 
-	grid := fig.Subplots(2, 2)
+	textBox := &core.TextBBoxOptions{
+		FaceColor: render.Color{R: 1, G: 1, B: 1, A: 1},
+		EdgeColor: render.Color{R: 0.5, G: 0.5, B: 0.5, A: 1},
+	}
 
-	// Build four related panels so the figure-level title, labels, and legend
-	// have multiple axes to coordinate.
 	for row := range grid {
 		for col, ax := range grid[row] {
 			x := make([]float64, 180)
@@ -31,29 +37,47 @@ func main() {
 				y[i] = math.Sin(xv+float64(row)*0.5) * (1 + float64(col)*0.2)
 			}
 
+			lineWidth := 1.5 * fig.RC.DPI / 72.0
 			ax.Plot(x, y, core.PlotOptions{
-				Label: fmt.Sprintf("series %d", row*2+col+1),
+				LineWidth: &lineWidth,
+				Label:     fmt.Sprintf("series %d", row*2+col+1),
 			})
 			ax.SetTitle(fmt.Sprintf("Panel %d", row*2+col+1))
 			ax.SetXLabel("local x")
 			ax.SetYLabel("local y")
 			ax.SetXLim(0, 2*math.Pi)
 			ax.SetYLim(-1.6, 1.6)
-			ax.AddXGrid()
-			ax.AddYGrid()
+			xGrid := ax.AddGrid(core.AxisBottom)
+			xGrid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
+			xGrid.LineWidth = 0.5
+			yGrid := ax.AddGrid(core.AxisLeft)
+			yGrid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
+			yGrid.LineWidth = 0.5
 		}
 	}
 
-	// Place notes at both axes and figure scope to demonstrate anchored text in
-	// the same composition as the shared labels.
-	grid[0][0].AddAnchoredText("upper-left\nnote")
-	grid[1][1].AddAnchoredText("lower-right", core.AnchoredTextOptions{
-		Location: core.LegendLowerRight,
+	grid[0][0].Text(0.02, 0.92, "upper-left\nnote", core.TextOptions{
+		Coords: core.Coords(core.CoordAxes),
+		VAlign: core.TextVAlignTop,
+		BBox:   textBox,
 	})
-	fig.AddAnchoredText("Figure note", core.AnchoredTextOptions{
+	grid[1][1].Text(0.98, 0.08, "lower-right", core.TextOptions{
+		Coords: core.Coords(core.CoordAxes),
+		HAlign: core.TextAlignRight,
+		VAlign: core.TextVAlignBottom,
+		BBox:   textBox,
+	})
+	fig.Text(0.985, 0.94, "Figure note", core.TextOptions{
+		HAlign: core.TextAlignRight,
+		VAlign: core.TextVAlignTop,
+		BBox:   textBox,
+	})
+	legend := fig.AddLegend()
+	legend.SetLocator(core.BBoxToAnchorLocator{
+		X:        0.99,
+		Y:        0.90,
 		Location: core.LegendUpperRight,
 	})
-	fig.AddLegend()
 
 	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
 		Width:      1100,

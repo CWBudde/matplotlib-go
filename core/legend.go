@@ -1,8 +1,6 @@
 package core
 
 import (
-	"math"
-
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
 	"matplotlib-go/style"
@@ -83,21 +81,23 @@ func NewLegend(ax *Axes) *Legend {
 	if ax != nil {
 		rc = ax.resolvedRC()
 	}
+	fontSize := rc.LegendSize()
+	fontPx := pointsToPixels(rc, fontSize)
 	return &Legend{
 		Axes:            ax,
 		Location:        LegendUpperRight,
 		Locator:         nil,
-		Padding:         10,
-		Inset:           10,
-		RowGap:          6,
-		SampleWidth:     24,
-		SampleTextGap:   8,
-		CornerRadius:    0,
+		Padding:         0.4 * fontPx,
+		Inset:           0.5 * fontPx,
+		RowGap:          0.5 * fontPx,
+		SampleWidth:     2.0 * fontPx,
+		SampleTextGap:   0.8 * fontPx,
+		CornerRadius:    0.2 * fontPx,
 		BackgroundColor: rc.LegendBackground,
 		BorderColor:     rc.LegendBorderColor,
 		TextColor:       rc.LegendTextColor,
 		BorderWidth:     1,
-		FontSize:        rc.LegendSize(),
+		FontSize:        fontSize,
 		z:               1_000,
 	}
 }
@@ -108,21 +108,23 @@ func NewFigureLegend(fig *Figure) *Legend {
 	if fig != nil {
 		rc = fig.RC
 	}
+	fontSize := rc.LegendSize()
+	fontPx := pointsToPixels(rc, fontSize)
 	return &Legend{
 		Figure:          fig,
 		Location:        LegendUpperRight,
 		Locator:         nil,
-		Padding:         10,
-		Inset:           10,
-		RowGap:          6,
-		SampleWidth:     24,
-		SampleTextGap:   8,
-		CornerRadius:    0,
+		Padding:         0.4 * fontPx,
+		Inset:           0.5 * fontPx,
+		RowGap:          0.5 * fontPx,
+		SampleWidth:     2.0 * fontPx,
+		SampleTextGap:   0.8 * fontPx,
+		CornerRadius:    0.2 * fontPx,
 		BackgroundColor: rc.LegendBackground,
 		BorderColor:     rc.LegendBorderColor,
 		TextColor:       rc.LegendTextColor,
 		BorderWidth:     1,
-		FontSize:        rc.LegendSize(),
+		FontSize:        fontSize,
 		z:               1_000,
 	}
 }
@@ -173,11 +175,7 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 		if layout.Width > maxLabelWidth {
 			maxLabelWidth = layout.Width
 		}
-		rowHeight := math.Max(layout.Height, fontSize)
-		if rowHeight < 12 {
-			rowHeight = 12
-		}
-		rowHeights[i] = rowHeight
+		rowHeights[i] = legendRowHeight(layout, fontSize, ctx)
 	}
 
 	contentHeight := 0.0
@@ -192,7 +190,11 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 	boxHeight := l.Padding*2 + contentHeight
 	box := l.legendBoxRect(ctx.Clip, boxWidth, boxHeight)
 
-	r.Path(pixelRectPath(box), &render.Paint{
+	boxPath := pixelRectPath(box)
+	if l.CornerRadius > 0 {
+		boxPath = roundedRectPath(box, l.CornerRadius)
+	}
+	r.Path(boxPath, &render.Paint{
 		Fill:      l.BackgroundColor,
 		Stroke:    l.BorderColor,
 		LineWidth: l.BorderWidth,
@@ -275,11 +277,7 @@ func (l *Legend) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) 
 		if layout.Width > maxLabelWidth {
 			maxLabelWidth = layout.Width
 		}
-		rowHeight := math.Max(layout.Height, fontSize)
-		if rowHeight < 12 {
-			rowHeight = 12
-		}
-		contentHeight += rowHeight
+		contentHeight += legendRowHeight(layout, fontSize, ctx)
 	}
 	if len(entries) > 1 {
 		contentHeight += l.RowGap * float64(len(entries)-1)
@@ -288,6 +286,18 @@ func (l *Legend) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) 
 	boxWidth := l.Padding*2 + l.SampleWidth + l.SampleTextGap + maxLabelWidth
 	boxHeight := l.Padding*2 + contentHeight
 	return l.legendBoxRect(ctx.Clip, boxWidth, boxHeight), true
+}
+
+func legendRowHeight(layout singleLineTextLayout, fontSize float64, ctx *DrawContext) float64 {
+	fontPx := pointsToPixels(ctx.RC, fontSize)
+	rowHeight := layout.RunAscent + layout.RunDescent
+	if rowHeight < fontPx {
+		rowHeight = fontPx
+	}
+	if rowHeight <= 0 {
+		rowHeight = layout.Height
+	}
+	return rowHeight
 }
 
 func (l *Legend) collectEntries() []legendEntry {

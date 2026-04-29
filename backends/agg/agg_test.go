@@ -85,6 +85,75 @@ func TestSaveRestore(t *testing.T) {
 	_ = r.End()
 }
 
+func TestClipPathMasksPathDrawing(t *testing.T) {
+	r := mustNew(t, 100, 100)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}}
+	_ = r.Begin(viewport)
+
+	r.ClipPath(upperLeftTriangleClip())
+	r.Path(fullRectPath(100, 100), &render.Paint{
+		Fill: render.Color{R: 1, A: 1},
+	})
+	_ = r.End()
+
+	img := r.GetImage()
+	if got := img.RGBAAt(10, 10); got.R < 200 {
+		t.Fatalf("expected clipped-in pixel to be red, got %+v", got)
+	}
+	if got := img.RGBAAt(90, 90); got != (color.RGBA{R: 255, G: 255, B: 255, A: 255}) {
+		t.Fatalf("expected clipped-out pixel to remain white, got %+v", got)
+	}
+	if len(r.clipMaskMap) != 1 {
+		t.Fatalf("expected one cached clip mask, got %d", len(r.clipMaskMap))
+	}
+}
+
+func TestClipPathRestoreStopsMasking(t *testing.T) {
+	r := mustNew(t, 100, 100)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}}
+	_ = r.Begin(viewport)
+
+	r.Save()
+	r.ClipPath(upperLeftTriangleClip())
+	r.Path(fullRectPath(100, 100), &render.Paint{
+		Fill: render.Color{R: 1, A: 1},
+	})
+	r.Restore()
+	r.Path(fullRectPath(100, 100), &render.Paint{
+		Fill: render.Color{B: 1, A: 1},
+	})
+	_ = r.End()
+
+	if got := r.GetImage().RGBAAt(90, 90); got.B < 200 {
+		t.Fatalf("expected restored clip state to allow blue fill, got %+v", got)
+	}
+}
+
+func TestClipPathMasksImageDrawing(t *testing.T) {
+	r := mustNew(t, 100, 100)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}}
+	_ = r.Begin(viewport)
+
+	src := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			src.SetRGBA(x, y, color.RGBA{G: 255, A: 255})
+		}
+	}
+
+	r.ClipPath(upperLeftTriangleClip())
+	r.Image(render.NewImageData(src), geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 100, Y: 100}})
+	_ = r.End()
+
+	img := r.GetImage()
+	if got := img.RGBAAt(10, 10); got.G < 200 {
+		t.Fatalf("expected clipped-in image pixel to be green, got %+v", got)
+	}
+	if got := img.RGBAAt(90, 90); got != (color.RGBA{R: 255, G: 255, B: 255, A: 255}) {
+		t.Fatalf("expected clipped-out image pixel to remain white, got %+v", got)
+	}
+}
+
 func TestSaveRestoreUnderflow(t *testing.T) {
 	r := mustNew(t, 100, 100)
 	// Restore on empty stack should not panic
@@ -135,6 +204,178 @@ func TestPathFill(t *testing.T) {
 	if c.R < 200 {
 		t.Errorf("center pixel should be red, got R=%d", c.R)
 	}
+}
+
+func TestPathPipelineRemovesNonFiniteVertices(t *testing.T) {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 10, Y: 10})
+	p.LineTo(geom.Pt{X: math.NaN(), Y: 10})
+	p.LineTo(geom.Pt{X: 20, Y: 10})
+	p.LineTo(geom.Pt{X: 20, Y: 20})
+
+	got := removeNonFinitePathVertices(p)
+	if len(got.C) != 3 {
+		t.Fatalf("expected split two-command subpath after invalid segment, got commands %v", got.C)
+	}
+	if got.C[0] != geom.MoveTo || got.C[1] != geom.MoveTo || got.C[2] != geom.LineTo {
+		t.Fatalf("unexpected commands after NaN cleanup: %v", got.C)
+	}
+	if got.V[1] != (geom.Pt{X: 20, Y: 10}) {
+		t.Fatalf("expected next finite point to restart subpath, got vertices %v", got.V)
+	}
+}
+
+func TestPathPipelineCullsOutsideVisibleArea(t *testing.T) {
+	r := mustNew(t, 100, 100)
+	if err := r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 100, Y: 100}}); err != nil {
+		t.Fatal(err)
+	}
+	r.ClipRect(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 10, Y: 10}})
+
+	var outside geom.Path
+	outside.MoveTo(geom.Pt{X: 50, Y: 50})
+	outside.LineTo(geom.Pt{X: 60, Y: 50})
+	outside.LineTo(geom.Pt{X: 60, Y: 60})
+	outside.Close()
+
+	_, ok := r.preparePathForPaint(outside, &render.Paint{Fill: render.Color{A: 1}})
+	if ok {
+		t.Fatal("expected path entirely outside clip to be culled")
+	}
+	_ = r.End()
+}
+
+func TestPathPipelineSnapsWithLineWidthAwareAlignment(t *testing.T) {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 1.2, Y: 2.2})
+	p.LineTo(geom.Pt{X: 3.2, Y: 2.2})
+
+	if shouldSnapPath(p, &render.Paint{}) {
+		t.Fatal("zero-value paint should preserve existing unsnapped behavior")
+	}
+	if !shouldSnapPath(p, &render.Paint{Snap: render.SnapAuto}) {
+		t.Fatal("SnapAuto should snap simple horizontal paths")
+	}
+
+	odd := snapPath(p, &render.Paint{Snap: render.SnapOn, Stroke: render.Color{A: 1}, LineWidth: 1})
+	if odd.V[0] != (geom.Pt{X: 1.5, Y: 2.5}) || odd.V[1] != (geom.Pt{X: 3.5, Y: 2.5}) {
+		t.Fatalf("odd-width snap should center on half pixels, got %v", odd.V)
+	}
+
+	even := snapPath(p, &render.Paint{Snap: render.SnapOn, Stroke: render.Color{A: 1}, LineWidth: 2})
+	if even.V[0] != (geom.Pt{X: 1, Y: 2}) || even.V[1] != (geom.Pt{X: 3, Y: 2}) {
+		t.Fatalf("even-width snap should align to whole pixels, got %v", even.V)
+	}
+}
+
+func TestPathPipelineSimplifiesLinePaths(t *testing.T) {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 0, Y: 0})
+	p.LineTo(geom.Pt{X: 1, Y: 0.01})
+	p.LineTo(geom.Pt{X: 2, Y: -0.01})
+	p.LineTo(geom.Pt{X: 3, Y: 0})
+
+	got := simplifyLinePath(p, 0.05)
+	if len(got.V) != 2 {
+		t.Fatalf("expected near-collinear path to simplify to endpoints, got %v", got.V)
+	}
+	if got.V[0] != (geom.Pt{X: 0, Y: 0}) || got.V[1] != (geom.Pt{X: 3, Y: 0}) {
+		t.Fatalf("simplification should preserve endpoints, got %v", got.V)
+	}
+}
+
+func TestPathPipelineChunksLargeOpenLinePaths(t *testing.T) {
+	var p geom.Path
+	p.MoveTo(geom.Pt{})
+	for i := 1; i < 7; i++ {
+		p.LineTo(geom.Pt{X: float64(i)})
+	}
+
+	chunks := chunkStrokePath(p, 4)
+	if len(chunks) != 2 {
+		t.Fatalf("expected two chunks, got %d: %v", len(chunks), chunks)
+	}
+	if chunks[1].V[0] != chunks[0].V[len(chunks[0].V)-1] {
+		t.Fatalf("second chunk should restart at previous endpoint, got %v then %v", chunks[0].V, chunks[1].V)
+	}
+}
+
+func TestPathAntialiasModeRestoresGamma(t *testing.T) {
+	r := mustNew(t, 60, 60)
+	_ = r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 60, Y: 60}})
+	r.ctx.SetAntiAliasGamma(2)
+
+	r.Path(fullRectPath(40, 40), &render.Paint{
+		Fill:      render.Color{R: 1, A: 1},
+		Antialias: render.AntialiasOff,
+	})
+
+	if got := r.ctx.GetAntiAliasGamma(); got != 2 {
+		t.Fatalf("antialias mode should restore previous gamma, got %v", got)
+	}
+	_ = r.End()
+}
+
+func TestPathForcedAlphaOverridesPaintAlpha(t *testing.T) {
+	r := mustNew(t, 40, 40)
+	_ = r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 40, Y: 40}})
+
+	r.Path(fullRectPath(30, 30), &render.Paint{
+		Fill:       render.Color{R: 1, A: 1},
+		ForceAlpha: true,
+		Alpha:      0,
+	})
+	_ = r.End()
+
+	if got := r.GetImage().RGBAAt(10, 10); got != (color.RGBA{R: 255, G: 255, B: 255, A: 255}) {
+		t.Fatalf("forced transparent alpha should leave background unchanged, got %+v", got)
+	}
+}
+
+func TestNativeHatchDrawsWithinPathClip(t *testing.T) {
+	r := mustNew(t, 80, 80)
+	_ = r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 80, Y: 80}})
+
+	var rect geom.Path
+	rect.MoveTo(geom.Pt{X: 20, Y: 20})
+	rect.LineTo(geom.Pt{X: 60, Y: 20})
+	rect.LineTo(geom.Pt{X: 60, Y: 60})
+	rect.LineTo(geom.Pt{X: 20, Y: 60})
+	rect.Close()
+	r.Path(rect, &render.Paint{
+		Hatch:          "|",
+		HatchColor:     render.Color{A: 1},
+		HatchLineWidth: 1,
+		HatchSpacing:   8,
+	})
+	_ = r.End()
+
+	bounds, pixels, ok := inkBounds(r.GetImage(), color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	if !ok || pixels == 0 {
+		t.Fatal("expected hatch pixels to be drawn")
+	}
+	if bounds.Min.X < 19 || bounds.Min.Y < 19 || bounds.Max.X > 61 || bounds.Max.Y > 61 {
+		t.Fatalf("native hatch should be clipped to path bounds, got %+v", bounds)
+	}
+}
+
+func upperLeftTriangleClip() geom.Path {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 0, Y: 0})
+	p.LineTo(geom.Pt{X: 70, Y: 0})
+	p.LineTo(geom.Pt{X: 0, Y: 70})
+	p.Close()
+	return p
+}
+
+func fullRectPath(w, h float64) geom.Path {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 0, Y: 0})
+	p.LineTo(geom.Pt{X: w, Y: 0})
+	p.LineTo(geom.Pt{X: w, Y: h})
+	p.LineTo(geom.Pt{X: 0, Y: h})
+	p.Close()
+	return p
 }
 
 func TestMeasureText(t *testing.T) {

@@ -46,6 +46,28 @@ func TestAnchoredOffsetLocatorAppliesCornerAndPixelOffset(t *testing.T) {
 	}
 }
 
+func TestBBoxToAnchorLocatorUsesMatplotlibFigureFractions(t *testing.T) {
+	locator := BBoxToAnchorLocator{
+		X:        0.99,
+		Y:        0.90,
+		Location: LegendUpperRight,
+	}
+
+	rect := locator.RectWithInset(
+		geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 1100, Y: 720}},
+		104,
+		88,
+		7,
+	)
+
+	if rect != (geom.Rect{
+		Min: geom.Pt{X: 978, Y: 79},
+		Max: geom.Pt{X: 1082, Y: 167},
+	}) {
+		t.Fatalf("bbox_to_anchor locator rect = %+v", rect)
+	}
+}
+
 func TestAnchoredTextBoxBoxRectUsesLocator(t *testing.T) {
 	fig := NewFigure(800, 600)
 	ax := fig.AddAxes(unitRect())

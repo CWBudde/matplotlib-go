@@ -589,7 +589,14 @@ func (c *PathCollection) drawPathCollection(r render.Renderer, ctx *DrawContext)
 
 func (c *PatchCollection) drawPathCollection(r render.Renderer, ctx *DrawContext) bool {
 	drawer, ok := r.(render.PathCollectionDrawer)
-	if !ok || c == nil || ctx == nil || len(c.Paths) == 0 || c.hasHatches() {
+	if !ok || c == nil || ctx == nil || len(c.Paths) == 0 {
+		return false
+	}
+	nativeHatch := false
+	if hatcher, ok := r.(render.NativeHatcher); ok {
+		nativeHatch = hatcher.SupportsNativeHatch()
+	}
+	if c.hasHatches() && !nativeHatch {
 		return false
 	}
 
@@ -610,13 +617,20 @@ func (c *PatchCollection) drawPathCollection(r render.Renderer, ctx *DrawContext
 		if lineCap == 0 {
 			lineCap = render.CapButt
 		}
-		if fill.A <= 0 && (width <= 0 || edge.A <= 0) {
+		hatch := stringAt(c.Hatch, c.Hatches, i)
+		hatchColor := patchAlphaColor(colorAt(c.HatchColor, c.HatchColors, i), c.alphaValue())
+		hatchWidth := widthAt(c.HatchWidth, c.HatchWidths, i)
+		if fill.A <= 0 && (width <= 0 || edge.A <= 0) && (hatch == "" || hatchColor.A <= 0) {
 			continue
 		}
 		batch.Items = append(batch.Items, render.PathCollectionItem{
-			Path:        path,
-			Paint:       collectionPaint(fill, edge, width, lineJoin, lineCap, nil),
-			Antialiased: true,
+			Path:         path,
+			Paint:        collectionPaint(fill, edge, width, lineJoin, lineCap, nil),
+			Hatch:        hatch,
+			HatchColor:   hatchColor,
+			HatchWidth:   hatchWidth,
+			HatchSpacing: 32,
+			Antialiased:  true,
 		})
 	}
 	if len(batch.Items) == 0 {
@@ -627,7 +641,14 @@ func (c *PatchCollection) drawPathCollection(r render.Renderer, ctx *DrawContext
 
 func (m *QuadMesh) drawQuadMesh(r render.Renderer, ctx *DrawContext) bool {
 	drawer, ok := r.(render.QuadMeshDrawer)
-	if !ok || m == nil || ctx == nil || len(m.XEdges) < 2 || len(m.YEdges) < 2 || m.hasHatches() {
+	if !ok || m == nil || ctx == nil || len(m.XEdges) < 2 || len(m.YEdges) < 2 {
+		return false
+	}
+	nativeHatch := false
+	if hatcher, ok := r.(render.NativeHatcher); ok {
+		nativeHatch = hatcher.SupportsNativeHatch()
+	}
+	if m.hasHatches() && !nativeHatch {
 		return false
 	}
 
@@ -653,13 +674,20 @@ func (m *QuadMesh) drawQuadMesh(r render.Renderer, ctx *DrawContext) bool {
 			face := patchAlphaColor(colorAt(m.FaceColor, m.FaceColors, idx), m.alphaValue())
 			edge := patchAlphaColor(colorAt(m.EdgeColor, m.EdgeColors, idx), m.alphaValue())
 			width := widthAt(m.EdgeWidth, m.EdgeWidths, idx)
-			if face.A > 0 || (width > 0 && edge.A > 0) {
+			hatch := stringAt(m.Hatch, m.Hatches, idx)
+			hatchColor := patchAlphaColor(colorAt(m.HatchColor, m.HatchColors, idx), m.alphaValue())
+			hatchWidth := widthAt(m.HatchWidth, m.HatchWidths, idx)
+			if face.A > 0 || (width > 0 && edge.A > 0) || (hatch != "" && hatchColor.A > 0) {
 				batch.Cells = append(batch.Cells, render.QuadMeshCell{
-					Quad:        quad,
-					Face:        face,
-					Edge:        edge,
-					LineWidth:   width,
-					Antialiased: true,
+					Quad:         quad,
+					Face:         face,
+					Edge:         edge,
+					LineWidth:    width,
+					Hatch:        hatch,
+					HatchColor:   hatchColor,
+					HatchWidth:   hatchWidth,
+					HatchSpacing: 32,
+					Antialiased:  true,
 				})
 			}
 			idx++
