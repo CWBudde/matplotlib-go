@@ -667,14 +667,15 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 	if font.backend != textBackendRaster {
 		return render.FontHeightMetrics{}, false
 	}
-	if face, err := r.openRasterFace(font.fontPath, font.size); err == nil {
-		defer func() { _ = face.Close() }()
-		metrics := face.Metrics()
+
+	if metrics, ok := rasterFontHeightMetrics(font.fontPath, font.size, r.resolution); ok {
 		return render.FontHeightMetrics{
-			Ascent:  float64(metrics.Ascent.Ceil()),
-			Descent: float64(metrics.Descent.Ceil()),
+			Ascent:  metrics.ascent,
+			Descent: metrics.descent,
+			LineGap: metrics.lineGap,
 		}, true
 	}
+
 	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
 		r.fallback = true
 		sizePx := r.fontPixelSize(font.size)
@@ -701,6 +702,33 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 		Ascent:  metrics.ascent,
 		Descent: metrics.descent,
 		LineGap: metrics.lineGap,
+	}, true
+}
+
+func rasterFontHeightMetrics(fontPath string, size float64, resolution uint) (fontHeightMetrics, bool) {
+	if fontPath == "" || size <= 0 {
+		return fontHeightMetrics{}, false
+	}
+	dpi := float64(resolution)
+	if dpi <= 0 {
+		dpi = 72
+	}
+	resource, err := loadSFNTFont(fontPath)
+	if err != nil {
+		return fontHeightMetrics{}, false
+	}
+	scale, ok := sfntMetricScale(resource.data, size, dpi)
+	if !ok {
+		return fontHeightMetrics{}, false
+	}
+	ascent, descent, lineGap, ok := sfntTableHeightMetrics(resource.data, scale)
+	if !ok {
+		return fontHeightMetrics{}, false
+	}
+	return fontHeightMetrics{
+		ascent:  ascent,
+		descent: descent,
+		lineGap: lineGap,
 	}, true
 }
 

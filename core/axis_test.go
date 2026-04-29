@@ -1002,6 +1002,28 @@ func TestTickLabelPositionUsesBoundsForBottomXAxis(t *testing.T) {
 	}
 }
 
+func TestTickLabelPadMatchesMatplotlibOutsideTickPadding(t *testing.T) {
+	axis := NewXAxis()
+	axis.TickSize = 10
+
+	ctx := createTestDrawContext()
+	ctx.RC.DPI = 72
+
+	if got, want := tickLabelPadPx(axis, ctx), 13.5; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("outward tick label pad = %v, want %v", got, want)
+	}
+
+	axis.TickDirection = TickDirectionInOut
+	if got, want := tickLabelPadPx(axis, ctx), 8.5; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("inout tick label pad = %v, want %v", got, want)
+	}
+
+	axis.TickDirection = TickDirectionIn
+	if got, want := tickLabelPadPx(axis, ctx), 3.5; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("inward tick label pad = %v, want %v", got, want)
+	}
+}
+
 func TestTickLabelPositionUsesBoundsForLeftYAxis(t *testing.T) {
 	axis := NewYAxis()
 	axis.Locator = staticLocator{4}

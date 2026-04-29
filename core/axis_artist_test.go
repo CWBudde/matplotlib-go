@@ -20,7 +20,7 @@ func TestAxisSetTickDirectionControlsTickSegment(t *testing.T) {
 		t.Fatalf("expected one outward tick path, got %d", len(r.pathCalls))
 	}
 	outward := r.pathCalls[0].path.V
-	if !floatApprox(outward[0].Y, 450.5, 1e-9) || !floatApprox(outward[1].Y, 455.5, 1e-9) {
+	if !floatApprox(outward[0].Y, 450.5, 1e-9) || !floatApprox(outward[1].Y, 450.5+axis.TickSize, 1e-9) {
 		t.Fatalf("outward tick = %+v", outward)
 	}
 
@@ -30,7 +30,7 @@ func TestAxisSetTickDirectionControlsTickSegment(t *testing.T) {
 	}
 	axis.DrawTicks(&r, ctx)
 	inward := r.pathCalls[0].path.V
-	if !floatApprox(inward[0].Y, 450.5, 1e-9) || !floatApprox(inward[1].Y, 445.5, 1e-9) {
+	if !floatApprox(inward[0].Y, 450.5, 1e-9) || !floatApprox(inward[1].Y, 450.5-axis.TickSize, 1e-9) {
 		t.Fatalf("inward tick = %+v", inward)
 	}
 
@@ -40,7 +40,7 @@ func TestAxisSetTickDirectionControlsTickSegment(t *testing.T) {
 	}
 	axis.DrawTicks(&r, ctx)
 	inout := r.pathCalls[0].path.V
-	if !floatApprox(inout[0].Y, 448.0, 1e-9) || !floatApprox(inout[1].Y, 453.0, 1e-9) {
+	if !floatApprox(inout[0].Y, 450.5-axis.TickSize/2, 1e-9) || !floatApprox(inout[1].Y, 450.5+axis.TickSize/2, 1e-9) {
 		t.Fatalf("inout tick = %+v", inout)
 	}
 }

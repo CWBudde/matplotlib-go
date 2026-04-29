@@ -662,15 +662,16 @@ func renderBarHorizontal() image.Image {
 	ax.SetXLim(0, 10)
 	ax.SetYLim(0, 6)
 
-	bar := &core.Bar2D{
-		X:           []float64{1, 2, 3, 4, 5},
-		Heights:     []float64{3, 7, 2, 8, 5},
-		Width:       0.6,
-		Color:       render.Color{R: 0.8, G: 0.4, B: 0.2, A: 1},
-		Baseline:    0,
-		Orientation: core.BarHorizontal,
-	}
-	ax.Add(bar)
+	y := []float64{1, 2, 3, 4, 5}
+	widths := []float64{3, 7, 2, 8, 5}
+	height := 0.6
+	color := render.Color{R: 0.8, G: 0.4, B: 0.2, A: 1}
+	orientation := core.BarHorizontal
+	ax.Bar(y, widths, core.BarOptions{
+		Width:       &height,
+		Color:       &color,
+		Orientation: &orientation,
+	})
 
 	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
