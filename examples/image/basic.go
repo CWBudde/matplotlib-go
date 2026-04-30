@@ -29,14 +29,15 @@ func main() {
 	ax.SetXLim(0, 3)
 	ax.SetYLim(0, 3)
 	ax.Image(data, core.ImageOptions{
-		Colormap: &cmap,
-		VMin:     &vmin,
-		VMax:     &vmax,
-		XMin:     ptr(0.0),
-		XMax:     ptr(3.0),
-		YMin:     ptr(0.0),
-		YMax:     ptr(3.0),
-		Origin:   core.ImageOriginLower,
+		Colormap:      &cmap,
+		VMin:          &vmin,
+		VMax:          &vmax,
+		XMin:          ptr(0.0),
+		XMax:          ptr(3.0),
+		YMin:          ptr(0.0),
+		YMax:          ptr(3.0),
+		Origin:        core.ImageOriginLower,
+		Interpolation: ptr("bilinear"),
 	})
 
 	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
