@@ -355,14 +355,7 @@ func (r *Renderer) drawImageDirect(img render.Image, dst geom.Rect) {
 	agg := r.ctx
 	prevFilter := agg.GetImageFilter()
 	prevResample := agg.GetImageResample()
-	filter := agglib.NoFilter
-	if name := img.Interpolation(); name != "" {
-		if f, ok := parseInterpolationName(name); ok {
-			filter = f
-		}
-	}
-	agg.SetImageFilter(filter)
-	agg.SetImageResample(resampleForFilter(filter))
+	applyInterpolation(agg, img)
 	defer func() {
 		agg.SetImageFilter(prevFilter)
 		agg.SetImageResample(prevResample)
@@ -408,14 +401,7 @@ func (r *Renderer) drawImageTransformedDirect(img render.Image, affine geom.Affi
 	agg := r.ctx
 	prevFilter := agg.GetImageFilter()
 	prevResample := agg.GetImageResample()
-	filter := agglib.NoFilter
-	if name := img.Interpolation(); name != "" {
-		if f, ok := parseInterpolationName(name); ok {
-			filter = f
-		}
-	}
-	agg.SetImageFilter(filter)
-	agg.SetImageResample(resampleForFilter(filter))
+	applyInterpolation(agg, img)
 	defer func() {
 		agg.SetImageFilter(prevFilter)
 		agg.SetImageResample(prevResample)

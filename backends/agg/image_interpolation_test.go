@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image"
 	"image/color"
+	"image/png"
 	"os"
 	"testing"
 
@@ -67,7 +68,29 @@ func TestAggImage_NearestVsBilinear_DifferentBytes(t *testing.T) {
 func TestAggImage_EmptyInterpolationMatchesNearest(t *testing.T) {
 	pngNearest := renderUpscaledImage(t, "nearest")
 	pngEmpty := renderUpscaledImage(t, "")
-	if !bytes.Equal(pngNearest, pngEmpty) {
-		t.Fatal("empty Interpolation should produce the same output as 'nearest' (NoFilter)")
+
+	decoded := func(data []byte) *image.RGBA {
+		t.Helper()
+		img, err := png.Decode(bytes.NewReader(data))
+		if err != nil {
+			t.Fatalf("png.Decode: %v", err)
+		}
+		if r, ok := img.(*image.RGBA); ok {
+			return r
+		}
+		b := img.Bounds()
+		rgba := image.NewRGBA(b)
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				rgba.Set(x, y, img.At(x, y))
+			}
+		}
+		return rgba
+	}
+
+	a := decoded(pngNearest)
+	b := decoded(pngEmpty)
+	if !bytes.Equal(a.Pix, b.Pix) {
+		t.Fatal("empty Interpolation should produce the same pixels as 'nearest'")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	agglib "github.com/cwbudde/agg_go"
+	"matplotlib-go/render"
 )
 
 // parseInterpolationName maps a matplotlib-style interpolation string to an
@@ -52,4 +53,17 @@ func resampleForFilter(filter agglib.ImageFilter) agglib.ImageResample {
 		return agglib.NoResample
 	}
 	return agglib.ResampleAlways
+}
+
+// applyInterpolation configures the active AGG surface's filter and resample
+// state from img.Interpolation(). Empty / unrecognised names fall back to
+// NoFilter (nearest-neighbour). Caller is responsible for save/restore via
+// GetImageFilter/GetImageResample around the call.
+func applyInterpolation(s *aggSurface, img render.Image) {
+	filter := agglib.NoFilter
+	if f, ok := parseInterpolationName(img.Interpolation()); ok {
+		filter = f
+	}
+	s.SetImageFilter(filter)
+	s.SetImageResample(resampleForFilter(filter))
 }
