@@ -512,6 +512,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Focused unit coverage for the new Phase 6.5 artist families and the Sankey builder
 - [x] Combined specialty example: `examples/specialty/main.go`
 - [x] Golden and Matplotlib-reference parity fixtures for the new specialty artists
+- [x] Phase 6.5 parity hardening for the specialty artist fixture: Matplotlib-style tick density, table alignment/row labels, pie label distance, and reference-matched demo construction
 
 ### 6.6 Derived Image and Signal Helpers
 

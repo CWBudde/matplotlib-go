@@ -183,6 +183,49 @@ func TestAxesTableDrawsCellsAndText(t *testing.T) {
 	}
 }
 
+func TestAxesTableHonorsAlignmentPadding(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+
+	table := ax.Table(TableOptions{
+		CellText:  [][]string{{"L", "R"}},
+		RowLabels: []string{"row"},
+		ColLabels: []string{"C1", "C2"},
+		BBox:      geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 1, Y: 1}},
+		FontSize:  10,
+		CellLoc:   "left",
+		RowLoc:    "right",
+		ColLoc:    "center",
+	})
+	if table == nil {
+		t.Fatal("expected table artist")
+	}
+	if got := table.Cells[1][1].HAlign; got != TextAlignLeft {
+		t.Fatalf("data cell align = %v, want left", got)
+	}
+	if got := table.Cells[1][0].HAlign; got != TextAlignRight {
+		t.Fatalf("row label align = %v, want right", got)
+	}
+	if got := table.Cells[0][1].HAlign; got != TextAlignCenter {
+		t.Fatalf("column label align = %v, want center", got)
+	}
+
+	var renderer specialtyRecordingRenderer
+	table.Draw(&renderer, &DrawContext{
+		Clip: geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}},
+	})
+	origin, ok := renderer.textOrigins["L"]
+	if !ok {
+		t.Fatalf("expected data text draw, got %v", renderer.texts)
+	}
+	if !floatApprox(origin.X, 5, 1e-12) {
+		t.Fatalf("left-aligned data text origin x = %v, want 10%% cell padding at 5px", origin.X)
+	}
+}
+
 func TestSankeyBuilderCreatesDiagram(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{
@@ -273,16 +316,21 @@ func TestSankeyMatchesMatplotlibSingleDiagramGeometry(t *testing.T) {
 
 type specialtyRecordingRenderer struct {
 	render.NullRenderer
-	pathCount int
-	texts     []string
+	pathCount   int
+	texts       []string
+	textOrigins map[string]geom.Pt
 }
 
 func (r *specialtyRecordingRenderer) Path(_ geom.Path, _ *render.Paint) {
 	r.pathCount++
 }
 
-func (r *specialtyRecordingRenderer) DrawText(text string, _ geom.Pt, _ float64, _ render.Color) {
+func (r *specialtyRecordingRenderer) DrawText(text string, pt geom.Pt, _ float64, _ render.Color) {
 	r.texts = append(r.texts, text)
+	if r.textOrigins == nil {
+		r.textOrigins = map[string]geom.Pt{}
+	}
+	r.textOrigins[text] = pt
 }
 
 func (r *specialtyRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {

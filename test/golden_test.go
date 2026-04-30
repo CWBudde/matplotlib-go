@@ -2537,7 +2537,9 @@ func renderSpecialtyArtists() image.Image {
 	eventAx.SetTitle("Eventplot")
 	eventAx.SetXLim(0, 10)
 	eventAx.SetYLim(0.4, 3.6)
-	eventAx.AddXGrid()
+	eventGrid := eventAx.AddXGrid()
+	eventGrid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
+	eventGrid.LineWidth = 0.5
 	eventAx.Eventplot([][]float64{
 		{0.8, 1.4, 3.1, 4.6, 7.3},
 		{1.2, 2.9, 4.0, 6.4, 8.6},
@@ -2575,7 +2577,7 @@ func renderSpecialtyArtists() image.Image {
 		Labels:        []string{"Core", "I/O", "Render", "Docs"},
 		AutoPct:       "%.0f%%",
 		StartAngle:    90,
-		LabelDistance: 0.98,
+		LabelDistance: 1.08,
 		Explode:       []float64{0, 0.04, 0, 0.02},
 		Colors: []render.Color{
 			{R: 0.12, G: 0.47, B: 0.71, A: 1},
@@ -2594,7 +2596,9 @@ func renderSpecialtyArtists() image.Image {
 	violinAx.SetTitle("Violin")
 	violinAx.SetXLim(0.4, 3.6)
 	violinAx.SetYLim(0.8, 5.2)
-	violinAx.AddYGrid()
+	violinGrid := violinAx.AddYGrid()
+	violinGrid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
+	violinGrid.LineWidth = 0.5
 	violinBlue := render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1}
 	violinEdge := render.Color{R: 0.20, G: 0.20, B: 0.20, A: 1}
 	violinShowMeans := true
@@ -2634,6 +2638,7 @@ func renderSpecialtyArtists() image.Image {
 	}
 	tableAx.Table(core.TableOptions{
 		ColLabels: []string{"Metric", "Q1", "Q2"},
+		RowLabels: []string{"A", "B"},
 		CellText: [][]string{
 			{"Latency", "18ms", "14ms"},
 			{"Throughput", "220/s", "265/s"},
@@ -2648,34 +2653,8 @@ func renderSpecialtyArtists() image.Image {
 		HeaderFillColor: render.Color{R: 1, G: 1, B: 1, A: 1},
 		CellFillColor:   render.Color{R: 1, G: 1, B: 1, A: 1},
 		EdgeColor:       render.Color{R: 0, G: 0, B: 0, A: 1},
+		CellLoc:         "center",
 	})
-	rowLabelCells := []struct {
-		label string
-		y     float64
-	}{
-		{label: "A", y: 0.3933},
-		{label: "B", y: 0.1800},
-	}
-	for _, cell := range rowLabelCells {
-		tableAx.AddPatch(&core.Rectangle{
-			Patch: core.Patch{
-				FaceColor: render.Color{R: 1, G: 1, B: 1, A: 1},
-				EdgeColor: render.Color{R: 0, G: 0, B: 0, A: 1},
-				EdgeWidth: 1,
-			},
-			XY:     geom.Pt{X: 0, Y: cell.y},
-			Width:  0.04,
-			Height: 0.2133,
-			Coords: core.Coords(core.CoordAxes),
-		})
-		tableAx.Text(0.012, cell.y+0.10665, cell.label, core.TextOptions{
-			Coords:   core.Coords(core.CoordAxes),
-			HAlign:   core.TextAlignLeft,
-			VAlign:   core.TextVAlignMiddle,
-			FontSize: 10,
-			Color:    render.Color{R: 0, G: 0, B: 0, A: 1},
-		})
-	}
 
 	sankeyAx := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.73, Y: 0.08}, Max: geom.Pt{X: 0.98, Y: 0.45}})
 	sankeyAx.SetTitle("Sankey")

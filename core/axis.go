@@ -451,7 +451,7 @@ func (a *Axis) majorTickTargetCountForContext(ctx *DrawContext, isXAxis bool) in
 	}
 	lengthPx := ctx.Clip.H()
 	labelSize := ctx.RC.TickLabelSize("y")
-	labelAspect := 2.5
+	labelAspect := 2.0
 	if isXAxis {
 		lengthPx = ctx.Clip.W()
 		labelSize = ctx.RC.TickLabelSize("x")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 
 	"matplotlib-go/internal/geom"
 	"matplotlib-go/render"
@@ -134,6 +135,9 @@ type TableOptions struct {
 	CellFillColor   render.Color
 	EdgeColor       render.Color
 	LineWidth       float64
+	CellLoc         string
+	RowLoc          string
+	ColLoc          string
 }
 
 type tableCell struct {
@@ -141,6 +145,7 @@ type tableCell struct {
 	Fill     render.Color
 	IsHeader bool
 	Rect     geom.Rect
+	HAlign   TextAlign
 }
 
 // Table renders a simple grid of cells with optional row and column headers.
@@ -1536,6 +1541,9 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 		CellFillColor:   render.Color{R: 1, G: 1, B: 1, A: 1},
 		EdgeColor:       render.Color{R: 0, G: 0, B: 0, A: 1},
 		LineWidth:       1,
+		CellLoc:         "right",
+		RowLoc:          "left",
+		ColLoc:          "center",
 	}
 	if len(opts) > 0 {
 		cfg = opts[0]
@@ -1566,6 +1574,15 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 		if cfg.LineWidth <= 0 {
 			cfg.LineWidth = 1
 		}
+		if cfg.CellLoc == "" {
+			cfg.CellLoc = "right"
+		}
+		if cfg.RowLoc == "" {
+			cfg.RowLoc = "left"
+		}
+		if cfg.ColLoc == "" {
+			cfg.ColLoc = "center"
+		}
 	}
 
 	rows := len(cfg.CellText)
@@ -1593,14 +1610,18 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 		rowLabelW = tableRowLabelWidth(cfg.RowLabels, dataCellW)
 	}
 	cellH := cfg.BBox.H() / float64(gridRows)
+	cellAlign := tableTextAlign(cfg.CellLoc, TextAlignRight)
+	rowAlign := tableTextAlign(cfg.RowLoc, TextAlignLeft)
+	colAlign := tableTextAlign(cfg.ColLoc, TextAlignCenter)
 
 	cells := make([][]tableCell, gridRows)
 	for r := range gridRows {
 		cells[r] = make([]tableCell, gridCols)
 		for c := range gridCols {
 			cells[r][c] = tableCell{
-				Fill: cfg.CellFillColor,
-				Rect: tableCellRect(cfg.BBox, gridRows, cols, hasRowLabels, hasColLabels, rowLabelW, r, c),
+				Fill:   cfg.CellFillColor,
+				Rect:   tableCellRect(cfg.BBox, gridRows, cols, hasRowLabels, hasColLabels, rowLabelW, r, c),
+				HAlign: cellAlign,
 			}
 		}
 	}
@@ -1612,6 +1633,7 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 				Fill:     cfg.HeaderFillColor,
 				IsHeader: true,
 				Rect:     tableCellRect(cfg.BBox, gridRows, cols, hasRowLabels, hasColLabels, rowLabelW, 0, col),
+				HAlign:   colAlign,
 			}
 		}
 	}
@@ -1626,6 +1648,7 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 					Min: geom.Pt{X: cfg.BBox.Min.X - rowLabelW, Y: cfg.BBox.Max.Y - float64(row+1)*cellH},
 					Max: geom.Pt{X: cfg.BBox.Min.X, Y: cfg.BBox.Max.Y - float64(row)*cellH},
 				},
+				HAlign: rowAlign,
 			}
 		}
 	}
@@ -1638,9 +1661,10 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 			row := r + boolOffset(hasColLabels)
 			col := c + boolOffset(hasRowLabels)
 			cells[row][col] = tableCell{
-				Text: stringAt("", cfg.CellText[r], c),
-				Fill: fill,
-				Rect: tableCellRect(cfg.BBox, gridRows, cols, hasRowLabels, hasColLabels, rowLabelW, row, col),
+				Text:   stringAt("", cfg.CellText[r], c),
+				Fill:   fill,
+				Rect:   tableCellRect(cfg.BBox, gridRows, cols, hasRowLabels, hasColLabels, rowLabelW, row, col),
+				HAlign: cellAlign,
 			}
 		}
 	}
@@ -1658,6 +1682,19 @@ func (a *Axes) Table(opts ...TableOptions) *Table {
 	}
 	a.Add(table)
 	return table
+}
+
+func tableTextAlign(loc string, fallback TextAlign) TextAlign {
+	switch strings.ToLower(strings.TrimSpace(loc)) {
+	case "left":
+		return TextAlignLeft
+	case "center", "centre":
+		return TextAlignCenter
+	case "right":
+		return TextAlignRight
+	default:
+		return fallback
+	}
 }
 
 func tableRowLabelWidth(labels []string, dataCellW float64) float64 {
@@ -1704,6 +1741,20 @@ func tableCellRect(bbox geom.Rect, gridRows, dataCols int, hasRowLabels, hasColL
 	return geom.Rect{
 		Min: geom.Pt{X: x0, Y: y0},
 		Max: geom.Pt{X: x0 + cellW, Y: y1},
+	}
+}
+
+func tableTextAnchor(rect geom.Rect, align TextAlign) geom.Pt {
+	x := rect.Min.X + rect.W()/2
+	switch align {
+	case TextAlignLeft:
+		x = rect.Min.X + rect.W()*0.1
+	case TextAlignRight:
+		x = rect.Max.X - rect.W()*0.1
+	}
+	return geom.Pt{
+		X: x,
+		Y: rect.Min.Y + rect.H()/2,
 	}
 }
 
@@ -1772,16 +1823,13 @@ func (t *Table) Draw(r render.Renderer, ctx *DrawContext) {
 			if displayTextIsEmpty(text) {
 				continue
 			}
-			anchor := transformedPoint(ctx, t.Coords, geom.Pt{
-				X: cell.Rect.Min.X + cell.Rect.W()/2,
-				Y: cell.Rect.Min.Y + cell.Rect.H()/2,
-			}, 0, 0)
+			anchor := transformedPoint(ctx, t.Coords, tableTextAnchor(cell.Rect, cell.HAlign), 0, 0)
 			layout := measureSingleLineTextLayout(r, text, t.FontSize, ctx.RC.FontKey)
 			color := t.TextColor
 			if cell.IsHeader {
 				color = t.HeaderTextColor
 			}
-			drawDisplayText(textRen, text, alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignCenter), t.FontSize, color, ctx.RC.FontKey)
+			drawDisplayText(textRen, text, alignedSingleLineOrigin(anchor, layout, cell.HAlign, textLayoutVAlignCenter), t.FontSize, color, ctx.RC.FontKey)
 		}
 	}
 }
