@@ -94,8 +94,8 @@ func TestSaveFig_RejectsUnknownExtension(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown extension")
 	}
-	if !strings.Contains(err.Error(), "tiff") {
-		t.Fatalf("error should mention extension, got: %v", err)
+	if !strings.Contains(err.Error(), ".tiff") {
+		t.Fatalf("error should mention extension .tiff, got: %v", err)
 	}
 	if !strings.Contains(err.Error(), ".png") || !strings.Contains(err.Error(), ".svg") {
 		t.Fatalf("error should list supported extensions, got: %v", err)

@@ -19,18 +19,20 @@ var supportedSaveExtensions = map[string]func(*Figure, render.Renderer, string) 
 }
 
 // SaveFig draws the figure and writes it to path using the appropriate exporter
-// inferred from the file extension. Currently supports .png and .svg.
+// inferred from the file extension (e.g. .png, .svg).
 //
 // The renderer must implement the corresponding capability interface
 // (render.PNGExporter for .png, render.SVGExporter for .svg).
 func SaveFig(fig *Figure, r render.Renderer, path string) error {
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext == "" {
-		return fmt.Errorf("savefig: path %q has no extension; supported: %s", path, supportedExtensionsList())
+		supported := supportedExtensionsList()
+		return fmt.Errorf("savefig: path %q has no extension; supported: %s", path, supported)
 	}
 	handler, ok := supportedSaveExtensions[ext]
 	if !ok {
-		return fmt.Errorf("savefig: unsupported extension %q for %q; supported: %s", ext, path, supportedExtensionsList())
+		supported := supportedExtensionsList()
+		return fmt.Errorf("savefig: unsupported extension %q for %q; supported: %s", ext, path, supported)
 	}
 	return handler(fig, r, path)
 }
