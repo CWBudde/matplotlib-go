@@ -49,6 +49,11 @@ type ImageOptions struct {
 	RotationAnchorX *float64
 	RotationAnchorY *float64
 	Label           string
+	// Interpolation selects the filter used when resampling the image.
+	// An empty string (the default) lets the renderer choose its default
+	// (typically nearest-neighbor). Recognized values mirror matplotlib's
+	// imshow interpolation names (e.g. "nearest", "bilinear", "bicubic").
+	Interpolation *string
 }
 
 // Image2D renders scalar matrix data as an image/heatmap.
@@ -68,7 +73,10 @@ type Image2D struct {
 	RotateX  float64
 	RotateY  float64
 	Label    string
-	z        float64
+	// Interpolation is the resampling filter name (matplotlib imshow style).
+	// An empty string means the renderer's default.
+	Interpolation string
+	z             float64
 }
 
 // Bounds returns the image extent in data space.
@@ -174,23 +182,29 @@ func (a *Axes) Image(data [][]float64, opts ...ImageOptions) *Image2D {
 		}
 	}
 
+	interp := ""
+	if opt.Interpolation != nil {
+		interp = *opt.Interpolation
+	}
+
 	image := &Image2D{
-		Data:     data,
-		Colormap: cmap,
-		VMin:     vmin,
-		VMax:     vmax,
-		Alpha:    alpha,
-		XMin:     xMin,
-		XMax:     xMax,
-		YMin:     yMin,
-		YMax:     yMax,
-		Origin:   opt.Origin,
-		AngleDeg: angle,
-		RotateAt: anchor,
-		RotateX:  rotateX,
-		RotateY:  rotateY,
-		Label:    opt.Label,
-		z:        imageDefaultZ,
+		Data:          data,
+		Colormap:      cmap,
+		VMin:          vmin,
+		VMax:          vmax,
+		Alpha:         alpha,
+		XMin:          xMin,
+		XMax:          xMax,
+		YMin:          yMin,
+		YMax:          yMax,
+		Origin:        opt.Origin,
+		AngleDeg:      angle,
+		RotateAt:      anchor,
+		RotateX:       rotateX,
+		RotateY:       rotateY,
+		Label:         opt.Label,
+		Interpolation: interp,
+		z:             imageDefaultZ,
 	}
 	a.Add(image)
 	return image

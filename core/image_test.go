@@ -98,6 +98,29 @@ func TestAxesImage_CustomOptions(t *testing.T) {
 	}
 }
 
+func TestImage2D_InterpolationField(t *testing.T) {
+	bilinear := "bilinear"
+	ax := &Axes{}
+	img := ax.Image([][]float64{{0, 1}, {1, 0}}, ImageOptions{Interpolation: &bilinear})
+	if img == nil {
+		t.Fatal("Image returned nil")
+	}
+	if img.Interpolation != "bilinear" {
+		t.Fatalf("Interpolation = %q, want %q", img.Interpolation, "bilinear")
+	}
+}
+
+func TestImage2D_InterpolationDefaultsEmpty(t *testing.T) {
+	ax := &Axes{}
+	img := ax.Image([][]float64{{0, 1}}, ImageOptions{})
+	if img == nil {
+		t.Fatal("Image returned nil")
+	}
+	if img.Interpolation != "" {
+		t.Fatalf("default Interpolation = %q, want empty", img.Interpolation)
+	}
+}
+
 func TestImageRasterizeRejectsEmptyInputs(t *testing.T) {
 	if _, ok := (&Image2D{}).rasterize(); ok {
 		t.Fatal("expected empty image data to fail rasterization")
