@@ -38,6 +38,7 @@ func init() {
 	mustRegisterProjection("mollweide", func() Projection { return newMollweideProjection() })
 	mustRegisterProjection("hammer", func() Projection { return newHammerProjection() })
 	mustRegisterProjection("aitoff", func() Projection { return newAitoffProjection() })
+	mustRegisterProjection("lambert", func() Projection { return newLambertProjection() })
 	mustRegisterProjection("skewx", func() Projection { return newSkewXProjection() })
 	mustRegisterProjection("3d", func() Projection { return newAxes3DProjection() })
 	mustRegisterProjection("axes3d", func() Projection { return newAxes3DProjection() })
