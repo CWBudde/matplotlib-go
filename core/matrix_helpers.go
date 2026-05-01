@@ -36,6 +36,8 @@ type ImShowOptions struct {
 	// Interpolation selects the resampling filter (e.g. "nearest",
 	// "bilinear", "bicubic"). Empty defers to the renderer default.
 	Interpolation *string
+	// TODO(plan #3 task 3): add Norm Normalizer once log/symlog
+	// normalizers exist. Linear scaling is already covered by VMin/VMax.
 }
 
 // SpyOptions configures Axes.Spy.
