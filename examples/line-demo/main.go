@@ -46,7 +46,7 @@ func main() {
 		return
 	}
 
-	err := core.SavePNG(fig, r, "output.png")
+	err := core.SaveFig(fig, r, "output.png")
 	if err != nil {
 		fmt.Printf("PNG save failed: %v\n", err)
 	} else {

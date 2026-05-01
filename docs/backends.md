@@ -64,6 +64,11 @@ renderer, err := backends.Create(backend, config)
 
 // Use with figures
 err = core.SavePNG(fig, renderer, "output.png")
+
+// Or let SaveFig pick the exporter from the file extension:
+err = core.SaveFig(fig, renderer, "plot.png") // dispatches to SavePNG
+err = core.SaveFig(fig, renderer, "plot.svg") // dispatches to SaveSVG
+// Future formats (.pdf, .ps) will plug in via the same entry point.
 ```
 
 ## Backend Capabilities
