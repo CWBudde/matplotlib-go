@@ -36,6 +36,7 @@ func init() {
 	mustRegisterProjection("polar", func() Projection { return newPolarProjection() })
 	mustRegisterProjection("radar", func() Projection { return newRadarProjection() })
 	mustRegisterProjection("mollweide", func() Projection { return newMollweideProjection() })
+	mustRegisterProjection("hammer", func() Projection { return newHammerProjection() })
 	mustRegisterProjection("skewx", func() Projection { return newSkewXProjection() })
 	mustRegisterProjection("3d", func() Projection { return newAxes3DProjection() })
 	mustRegisterProjection("axes3d", func() Projection { return newAxes3DProjection() })
