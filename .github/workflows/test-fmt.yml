@@ -18,12 +18,21 @@ jobs:
           npm install -g prettier
           go install mvdan.cc/gofumpt@latest
           go install github.com/daixiang0/gci@latest
+      - name: Install treefmt
+        if: hashFiles('treefmt.toml') != ''
+        run: |
+          set -euo pipefail
+          version="$(curl -fsSL https://api.github.com/repos/numtide/treefmt/releases/latest | jq -r .tag_name)"
+          version="${version#v}"
+          tmpdir="$(mktemp -d)"
+          curl -fsSL "https://github.com/numtide/treefmt/releases/download/v${version}/treefmt_${version}_linux_amd64.tar.gz" \
+            | tar -xz -C "$tmpdir"
+          sudo install -m 0755 "$tmpdir/treefmt" /usr/local/bin/treefmt
+          treefmt --version
       - name: Check format
         run: |
           if [ -f treefmt.toml ]; then
-            curl -sSL https://github.com/treefmt/treefmt/releases/latest/download/treefmt-linux-amd64 -o /usr/local/bin/treefmt
-            chmod +x /usr/local/bin/treefmt
             treefmt --fail-on-change --allow-missing-formatter
           else
-            echo "treefmt.toml not found; skipping treefmt check"; exit 0
+            echo "treefmt.toml not found; skipping treefmt check"
           fi
