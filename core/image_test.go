@@ -98,6 +98,29 @@ func TestAxesImage_CustomOptions(t *testing.T) {
 	}
 }
 
+func TestImage2D_InterpolationField(t *testing.T) {
+	bilinear := "bilinear"
+	ax := &Axes{}
+	img := ax.Image([][]float64{{0, 1}, {1, 0}}, ImageOptions{Interpolation: &bilinear})
+	if img == nil {
+		t.Fatal("Image returned nil")
+	}
+	if img.Interpolation != "bilinear" {
+		t.Fatalf("Interpolation = %q, want %q", img.Interpolation, "bilinear")
+	}
+}
+
+func TestImage2D_InterpolationDefaultsEmpty(t *testing.T) {
+	ax := &Axes{}
+	img := ax.Image([][]float64{{0, 1}}, ImageOptions{})
+	if img == nil {
+		t.Fatal("Image returned nil")
+	}
+	if img.Interpolation != "" {
+		t.Fatalf("default Interpolation = %q, want empty", img.Interpolation)
+	}
+}
+
 func TestImageRasterizeRejectsEmptyInputs(t *testing.T) {
 	if _, ok := (&Image2D{}).rasterize(); ok {
 		t.Fatal("expected empty image data to fail rasterization")
@@ -244,6 +267,65 @@ func TestImage_DrawRotatedFallsBackToImage(t *testing.T) {
 	}
 }
 
+func TestImage2D_DrawPropagatesInterpolation(t *testing.T) {
+	bilinear := "bilinear"
+	ax := &Axes{}
+	img := ax.Image([][]float64{{0, 1}, {1, 0}}, ImageOptions{Interpolation: &bilinear})
+	if img == nil {
+		t.Fatal("Image returned nil")
+	}
+	img.XMax = 1
+	img.YMax = 1
+	img.Alpha = 1
+
+	rec := &imageSpyRenderer{}
+	ctx := createTestDrawContext()
+
+	if err := rec.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	img.Draw(rec, ctx)
+	if err := rec.End(); err != nil {
+		t.Fatalf("end: %v", err)
+	}
+
+	if rec.imageCalls != 1 {
+		t.Fatalf("imageCalls = %d, want 1", rec.imageCalls)
+	}
+	if rec.lastInterpolation != "bilinear" {
+		t.Fatalf("lastInterpolation = %q, want bilinear", rec.lastInterpolation)
+	}
+}
+
+func TestImage2D_DrawDefaultInterpolationEmpty(t *testing.T) {
+	ax := &Axes{}
+	img := ax.Image([][]float64{{0, 1}}, ImageOptions{})
+	if img == nil {
+		t.Fatal("Image returned nil")
+	}
+	img.XMax = 1
+	img.YMax = 1
+	img.Alpha = 1
+
+	rec := &imageSpyRenderer{}
+	ctx := createTestDrawContext()
+
+	if err := rec.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	img.Draw(rec, ctx)
+	if err := rec.End(); err != nil {
+		t.Fatalf("end: %v", err)
+	}
+
+	if rec.imageCalls != 1 {
+		t.Fatalf("imageCalls = %d, want 1", rec.imageCalls)
+	}
+	if rec.lastInterpolation != "" {
+		t.Fatalf("lastInterpolation = %q, want empty", rec.lastInterpolation)
+	}
+}
+
 func TestImage_DrawNilRendererDoesNothing(t *testing.T) {
 	i := &Image2D{
 		Data: [][]float64{{1}},
@@ -253,10 +335,11 @@ func TestImage_DrawNilRendererDoesNothing(t *testing.T) {
 }
 
 type imageSpyRenderer struct {
-	imageCalls       int
-	transformedCalls int
-	lastDst          geom.Rect
-	lastTransform    geom.Affine
+	imageCalls        int
+	transformedCalls  int
+	lastDst           geom.Rect
+	lastTransform     geom.Affine
+	lastInterpolation string
 }
 
 func (r *imageSpyRenderer) Begin(geom.Rect) error { return nil }
@@ -268,15 +351,21 @@ func (r *imageSpyRenderer) ClipPath(geom.Path)    {}
 func (r *imageSpyRenderer) Path(geom.Path, *render.Paint) {
 }
 
-func (r *imageSpyRenderer) Image(_ render.Image, dst geom.Rect) {
+func (r *imageSpyRenderer) Image(img render.Image, dst geom.Rect) {
 	r.imageCalls++
 	r.lastDst = dst
+	if img != nil {
+		r.lastInterpolation = img.Interpolation()
+	}
 }
 
-func (r *imageSpyRenderer) ImageTransformed(_ render.Image, dst geom.Rect, t geom.Affine) {
+func (r *imageSpyRenderer) ImageTransformed(img render.Image, dst geom.Rect, t geom.Affine) {
 	r.transformedCalls++
 	r.lastDst = dst
 	r.lastTransform = t
+	if img != nil {
+		r.lastInterpolation = img.Interpolation()
+	}
 }
 func (r *imageSpyRenderer) GlyphRun(render.GlyphRun, render.Color) {}
 func (r *imageSpyRenderer) MeasureText(string, float64, string) render.TextMetrics {

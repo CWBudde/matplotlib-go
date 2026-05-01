@@ -99,7 +99,9 @@ func (i *Image2D) rasterize() (render.Image, bool) {
 		}
 	}
 
-	return render.NewImageData(img), true
+	data := render.NewImageData(img)
+	data.SetInterpolation(i.Interpolation)
+	return data, true
 }
 
 func (i *Image2D) destinationRect(ctx *DrawContext) geom.Rect {

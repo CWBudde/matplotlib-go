@@ -1,6 +1,7 @@
 package render
 
 import (
+	"image"
 	"testing"
 
 	"matplotlib-go/internal/geom"
@@ -11,7 +12,8 @@ var _ Renderer = (*NullRenderer)(nil)
 
 type fakeImage struct{ w, h int }
 
-func (f fakeImage) Size() (int, int) { return f.w, f.h }
+func (f fakeImage) Size() (int, int)      { return f.w, f.h }
+func (f fakeImage) Interpolation() string { return "" }
 
 func TestNullRenderer_NoPanicAndStackBalance(t *testing.T) {
 	var r NullRenderer
@@ -84,5 +86,23 @@ func TestColorToPremultipliedRGBA(t *testing.T) {
 	r, g, b, a := c.ToPremultipliedRGBA()
 	if r != 46 || g != 107 || b != 138 || a != 153 {
 		t.Fatalf("ToPremultipliedRGBA() = (%d,%d,%d,%d), want (46,107,138,153)", r, g, b, a)
+	}
+}
+
+func TestImage_InterpolationIsPartOfInterface(t *testing.T) {
+	var img Image = fakeImage{w: 10, h: 5}
+	if img.Interpolation() != "" {
+		t.Fatalf("default Interpolation = %q, want empty", img.Interpolation())
+	}
+}
+
+func TestImageData_SetInterpolation(t *testing.T) {
+	img := NewImageData(image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	if img.Interpolation() != "" {
+		t.Fatalf("zero-value Interpolation = %q, want empty", img.Interpolation())
+	}
+	img.SetInterpolation("bilinear")
+	if img.Interpolation() != "bilinear" {
+		t.Fatalf("after SetInterpolation: %q, want bilinear", img.Interpolation())
 	}
 }

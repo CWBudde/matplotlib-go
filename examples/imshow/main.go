@@ -17,26 +17,22 @@ func main() {
 		Max: geom.Pt{X: 0.95, Y: 0.9},
 	})
 
-	// Small 3x3 matrix to make the image extent and orientation easy to inspect.
-	data := [][]float64{
-		{0, 1, 2},
-		{3, 4, 5},
-		{6, 7, 8},
+	const n = 64
+	data := make([][]float64, n)
+	for j := range n {
+		row := make([]float64, n)
+		for i := range n {
+			row[i] = float64(i*j) / float64(n*n)
+		}
+		data[j] = row
 	}
+
 	cmap := "viridis"
-	vmin, vmax := 0.0, 8.0
-	ax.SetTitle("Image Heatmap")
-	ax.SetXLim(0, 3)
-	ax.SetYLim(0, 3)
-	ax.Image(data, core.ImageOptions{
+	ax.SetTitle("ImShow with Extent + Bilinear Interpolation")
+	ax.ImShow(data, core.ImShowOptions{
 		Colormap:      &cmap,
-		VMin:          &vmin,
-		VMax:          &vmax,
-		XMin:          ptr(0.0),
-		XMax:          ptr(3.0),
-		YMin:          ptr(0.0),
-		YMax:          ptr(3.0),
-		Origin:        core.ImageOriginLower,
+		Aspect:        "equal",
+		Extent:        &[4]float64{-2, 2, -1, 1},
 		Interpolation: ptr("bilinear"),
 	})
 
@@ -51,11 +47,11 @@ func main() {
 		return
 	}
 
-	if err := core.SavePNG(fig, r, "image_heatmap.png"); err != nil {
+	if err := core.SavePNG(fig, r, "imshow_extent.png"); err != nil {
 		fmt.Printf("error saving PNG: %v\n", err)
 		return
 	}
-	fmt.Println("saved image_heatmap.png")
+	fmt.Println("saved imshow_extent.png")
 }
 
 func ptr[T any](v T) *T {

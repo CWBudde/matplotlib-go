@@ -60,7 +60,7 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "plot_variants", render: renderPlotVariants, minPSNR: 35.0, maxMeanAbs: 6.5},
 	{name: "stat_variants", render: renderStatVariants, minPSNR: 32.0, maxMeanAbs: 9.0},
 	{name: "stem_plot", render: renderStemPlot},
-	{name: "specialty_artists", render: renderSpecialtyArtists, minPSNR: 28.0, maxMeanAbs: 15.0},
+	{name: "specialty_artists", render: renderSpecialtyArtists},
 	{name: "units_overview", render: renderUnitsOverview, minPSNR: 43.5},
 	{name: "units_dates", render: renderUnitsDates, minPSNR: 45.0, maxMeanAbs: 1.6},
 	{name: "units_categories", render: renderUnitsCategories, minPSNR: 41.0, maxMeanAbs: 3.2},

@@ -508,6 +508,12 @@ func TestAxisMajorTickTargetUsesMatplotlibTickSpaceHeuristic(t *testing.T) {
 	if got, want := axis.majorTickTargetCountForContext(ctx, false), 9; got != want {
 		t.Fatalf("y tick target = %v, want %v", got, want)
 	}
+
+	shortY := *ctx
+	shortY.Clip.Max.Y = 180
+	if got, want := axis.majorTickTargetCountForContext(&shortY, false), 6; got != want {
+		t.Fatalf("short y tick target = %v, want %v", got, want)
+	}
 }
 
 func TestAxes_TickParamsAppliesLabelStyle(t *testing.T) {

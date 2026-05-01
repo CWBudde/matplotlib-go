@@ -33,6 +33,7 @@ func TestCatalogStable(t *testing.T) {
 		"polar",
 		"projections",
 		"subplots",
+		"radialforce",
 	}
 	if len(got) != len(wantIDs) {
 		t.Fatalf("Catalog() len = %d, want %d", len(got), len(wantIDs))

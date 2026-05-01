@@ -141,6 +141,9 @@ type TextBounds struct{ X, Y, W, H float64 }
 // Image is a minimal interface for raster images passed to renderers.
 type Image interface {
 	Size() (w, h int)
+	// Interpolation returns the resampling filter name (e.g. "bilinear",
+	// "bicubic"). Empty string means renderer default (typically nearest).
+	Interpolation() string
 }
 
 // RGBAImage is an optional renderer-facing image interface that exposes direct
@@ -155,7 +158,8 @@ type RGBAImage interface {
 // and RGBAImage. It is the primary raster type used by heatmaps and image
 // artists in this package.
 type ImageData struct {
-	rgba *image.RGBA
+	rgba          *image.RGBA
+	interpolation string
 }
 
 // NewImageData creates a new ImageData from an RGBA source image.
@@ -181,6 +185,22 @@ func (i *ImageData) RGBA() *image.RGBA {
 		return nil
 	}
 	return i.rgba
+}
+
+// Interpolation returns the resampling filter name (empty = renderer default).
+func (i *ImageData) Interpolation() string {
+	if i == nil {
+		return ""
+	}
+	return i.interpolation
+}
+
+// SetInterpolation sets the resampling filter name. Empty resets to default.
+func (i *ImageData) SetInterpolation(name string) {
+	if i == nil {
+		return
+	}
+	i.interpolation = name
 }
 
 // Renderer defines the core drawing verbs.

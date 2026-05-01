@@ -171,3 +171,45 @@ func unitRect() geom.Rect {
 		Max: geom.Pt{X: 0.9, Y: 0.9},
 	}
 }
+
+func TestImShow_ExtentOverridesCenteredPixelDefault(t *testing.T) {
+	fig := NewFigure(400, 300)
+	ax := fig.AddAxes(unitRect())
+	img := ax.ImShow([][]float64{{0, 1}, {2, 3}}, ImShowOptions{
+		Extent: &[4]float64{-2, 2, -1, 1},
+	})
+	if img == nil {
+		t.Fatal("ImShow returned nil")
+	}
+	if img.XMin != -2 || img.XMax != 2 || img.YMin != -1 || img.YMax != 1 {
+		t.Fatalf("extent = [%v,%v]x[%v,%v], want [-2,2]x[-1,1]",
+			img.XMin, img.XMax, img.YMin, img.YMax)
+	}
+}
+
+func TestImShow_ExtentDrivesAxesLimits(t *testing.T) {
+	fig := NewFigure(400, 300)
+	ax := fig.AddAxes(unitRect())
+	_ = ax.ImShow([][]float64{{0, 1}}, ImShowOptions{
+		Extent: &[4]float64{10, 20, 30, 40},
+	})
+	xMin, xMax := ax.XScale.Domain()
+	yMin, yMax := ax.YScale.Domain()
+	// Origin is upper by default → ImShow inverts Y, so domain comes back swapped.
+	if xMin != 10 || xMax != 20 {
+		t.Fatalf("x domain = [%v,%v], want [10,20]", xMin, xMax)
+	}
+	if !(yMin == 30 && yMax == 40) && !(yMin == 40 && yMax == 30) {
+		t.Fatalf("y domain = [%v,%v], want {30,40}", yMin, yMax)
+	}
+}
+
+func TestImShow_InterpolationPropagatesToImage(t *testing.T) {
+	fig := NewFigure(400, 300)
+	ax := fig.AddAxes(unitRect())
+	bilinear := "bilinear"
+	img := ax.ImShow([][]float64{{0, 1}}, ImShowOptions{Interpolation: &bilinear})
+	if img.Interpolation != "bilinear" {
+		t.Fatalf("Interpolation = %q, want %q", img.Interpolation, "bilinear")
+	}
+}

@@ -20,7 +20,8 @@ type sizeOnlyImage struct {
 	h int
 }
 
-func (i sizeOnlyImage) Size() (w, h int) { return i.w, i.h }
+func (i sizeOnlyImage) Size() (w, h int)      { return i.w, i.h }
+func (i sizeOnlyImage) Interpolation() string { return "" }
 
 func mustNewRenderer(t *testing.T) *Renderer {
 	t.Helper()

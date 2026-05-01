@@ -134,6 +134,11 @@ var descriptors = []Descriptor{
 		Title:       "Small Multiples",
 		Description: "A compact 2×2 subplot layout showing shared limits and styling.",
 	},
+	{
+		ID:          "radialforce",
+		Title:       "Radial Force Hysteresis",
+		Description: "Force-vs-diameter scatter mirroring radial-force test rigs (close and open branches with dash-dot grid).",
+	},
 }
 
 func Catalog() []Descriptor {
@@ -199,6 +204,8 @@ func Build(id string, width, height int) (*core.Figure, Descriptor, error) {
 			fig = buildProjectionsDemo(width, height)
 		case "subplots":
 			fig = buildSubplotsDemo(width, height)
+		case "radialforce":
+			fig = buildRadialforceDemo(width, height)
 		default:
 			return nil, Descriptor{}, fmt.Errorf("webdemo: unsupported demo %q", id)
 		}
@@ -1369,6 +1376,79 @@ func buildCompositionDemo(width, height int) *core.Figure {
 	}))
 	fig.Text(0.98, 0.02, "figure note", core.TextOptions{HAlign: core.TextAlignRight, VAlign: core.TextVAlignBottom, BBox: noteBox})
 	return fig
+}
+
+// buildRadialforceDemo mirrors the rf_niti_plot.py output style used by the
+// MeKo Radialforce-Plotter: two scatter branches (close and open) over a
+// diameter range with dash-dot grid lines and integer x ticks.
+func buildRadialforceDemo(width, height int) *core.Figure {
+	fig := core.NewFigure(width, height)
+	ax := fig.AddAxes(defaultAxesRect())
+	ax.SetTitle("Radial Force Hysteresis")
+	ax.SetXLabel("Diameter [mm]")
+	ax.SetYLabel("Radial Force [N]")
+
+	const (
+		dMin = 8.0
+		dMax = 16.0
+		n    = 81
+	)
+
+	closeD := linspace(dMax, dMin, n)
+	closeF := radialforceForce(closeD, 1.20, 0.30)
+	openD := linspace(dMin, dMax, n)
+	openF := radialforceForce(openD, 0.80, 0.10)
+
+	size := ss(2.5)
+	alpha := 0.85
+	closeMarker := core.MarkerCircle
+	openMarker := core.MarkerCircle
+	closeColor := render.Color{R: 0.16, G: 0.42, B: 0.82, A: 1}
+	openColor := render.Color{R: 0.93, G: 0.39, B: 0.26, A: 1}
+
+	ax.Scatter(closeD, closeF, core.ScatterOptions{
+		Color:  &closeColor,
+		Size:   &size,
+		Marker: &closeMarker,
+		Alpha:  &alpha,
+		Label:  "close",
+	})
+	ax.Scatter(openD, openF, core.ScatterOptions{
+		Color:  &openColor,
+		Size:   &size,
+		Marker: &openMarker,
+		Alpha:  &alpha,
+		Label:  "open",
+	})
+
+	ax.SetXLim(dMin-1, dMax)
+	ax.SetYLim(0, 18)
+
+	xTicks := make([]float64, 0, int(dMax-dMin+2))
+	for v := dMin - 1; v <= dMax; v++ {
+		xTicks = append(xTicks, v)
+	}
+	ax.XAxis.Locator = core.FixedLocator{TicksList: xTicks}
+
+	xGrid := ax.AddXGrid()
+	xGrid.Dashes = []float64{6.4, 1.6, 1.0, 1.6}
+	yGrid := ax.AddYGrid()
+	yGrid.Dashes = []float64{6.4, 1.6, 1.0, 1.6}
+
+	ax.AddLegend()
+	return fig
+}
+
+func radialforceForce(diameter []float64, scale, offset float64) []float64 {
+	out := make([]float64, len(diameter))
+	for i, d := range diameter {
+		delta := 16.0 - d
+		if delta < 0 {
+			delta = 0
+		}
+		out[i] = scale*math.Pow(delta, 1.4) + offset
+	}
+	return out
 }
 
 func defaultAxesRect() geom.Rect {

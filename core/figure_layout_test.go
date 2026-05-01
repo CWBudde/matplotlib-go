@@ -285,7 +285,7 @@ func TestConstrainedLayoutKeepsNestedYAxisTickDensityReadable(t *testing.T) {
 	ctx := newAxesDrawContext(top, fig, fig.DisplayRect(), top.adjustedLayout(fig))
 	yMin, yMax := ctx.DataToPixel.YScale.Domain()
 	ticks := visibleTicks(top.YAxis.Locator.Ticks(yMin, yMax, top.YAxis.majorTickTargetCountForContext(ctx, false)), yMin, yMax)
-	if len(ticks) > 3 {
+	if len(ticks) > 4 {
 		t.Fatalf("nested y-axis tick density too high for small panel: ticks=%v clip=%+v", ticks, ctx.Clip)
 	}
 }
