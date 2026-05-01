@@ -32,9 +32,12 @@ func (aitoffDataTransform) Apply(p geom.Pt) geom.Pt {
 	}
 	x := math.Cos(lat) * math.Sin(half) / sinc
 	y := math.Sin(lat) / sinc
-	// Aitoff's natural extents: x in [-π, π], y in [-π/2, π/2].
+	// Natural extents: x ∈ [−π/2, π/2] (equator endpoints) and
+	// y ∈ [−π/2, π/2] (poles). Both axes share the same scale so that
+	// the projection fills the axes box edge-to-edge, matching the
+	// matplotlib_go convention used for Mollweide and Hammer.
 	return geom.Pt{
-		X: 0.5 + x/(2*math.Pi),
+		X: 0.5 + x/math.Pi,
 		Y: 0.5 + y/math.Pi,
 	}
 }
