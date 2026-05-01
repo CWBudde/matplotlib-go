@@ -168,6 +168,16 @@ func TestMollweideXAxisTickLabelsUseGeoTextTransform(t *testing.T) {
 	}
 }
 
+func TestGeoProjection_CarriesNamedTransform(t *testing.T) {
+	p := newMollweideProjection()
+	if p.transform == nil {
+		t.Fatal("expected non-nil transform on geoProjection")
+	}
+	if _, ok := p.transform.(mollweideDataTransform); !ok {
+		t.Fatalf("transform = %T, want mollweideDataTransform", p.transform)
+	}
+}
+
 func TestMollweideGridPreservesConfiguredRGBA(t *testing.T) {
 	fig := NewFigure(400, 240)
 	ax, err := fig.AddAxesProjection(unitRect(), "mollweide")

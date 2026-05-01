@@ -18,11 +18,12 @@ const (
 )
 
 type geoProjection struct {
-	name string
+	name      string
+	transform transform.T
 }
 
 func newMollweideProjection() *geoProjection {
-	return &geoProjection{name: "mollweide"}
+	return &geoProjection{name: "mollweide", transform: mollweideDataTransform{}}
 }
 
 func isGeoProjection(proj Projection) bool {
@@ -78,7 +79,10 @@ func (p *geoProjection) ConfigureAxes(ax *Axes) {
 }
 
 func (p *geoProjection) DataToAxes(*Axes) transform.T {
-	return mollweideDataTransform{}
+	if p == nil || p.transform == nil {
+		return mollweideDataTransform{}
+	}
+	return p.transform
 }
 
 func (p *geoProjection) FramePath(clip geom.Rect) geom.Path {
