@@ -19,6 +19,9 @@ type MatShowOptions struct {
 }
 
 // ImShowOptions configures Axes.ImShow.
+//
+// Mirrors matplotlib.axes.Axes.imshow keyword arguments
+// (third_party/matplotlib/lib/matplotlib/axes/_axes.py:6149).
 type ImShowOptions struct {
 	Colormap *string
 	VMin     *float64
@@ -27,6 +30,14 @@ type ImShowOptions struct {
 	Aspect   string
 	Origin   ImageOrigin
 	Label    string
+	// Extent overrides the centered-pixel default with explicit
+	// (left, right, bottom, top) data coordinates.
+	Extent *[4]float64
+	// Interpolation selects the resampling filter (e.g. "nearest",
+	// "bilinear", "bicubic"). Empty defers to the renderer default.
+	Interpolation *string
+	// TODO(plan #3 task 3): add Norm Normalizer once log/symlog
+	// normalizers exist. Linear scaling is already covered by VMin/VMax.
 }
 
 // SpyOptions configures Axes.Spy.
@@ -169,23 +180,32 @@ func (a *Axes) ImShow(data [][]float64, opts ...ImShowOptions) *Image2D {
 		if opt.Label != "" {
 			cfg.Label = opt.Label
 		}
+		cfg.Extent = opt.Extent
+		cfg.Interpolation = opt.Interpolation
 	}
 
 	xMin := -0.5
 	xMax := float64(cols) - 0.5
 	yMin := -0.5
 	yMax := float64(rows) - 0.5
+	if cfg.Extent != nil {
+		xMin = cfg.Extent[0]
+		xMax = cfg.Extent[1]
+		yMin = cfg.Extent[2]
+		yMax = cfg.Extent[3]
+	}
 	img := a.Image(data, ImageOptions{
-		Colormap: cfg.Colormap,
-		VMin:     cfg.VMin,
-		VMax:     cfg.VMax,
-		Alpha:    cfg.Alpha,
-		XMin:     &xMin,
-		XMax:     &xMax,
-		YMin:     &yMin,
-		YMax:     &yMax,
-		Origin:   cfg.Origin,
-		Label:    cfg.Label,
+		Colormap:      cfg.Colormap,
+		VMin:          cfg.VMin,
+		VMax:          cfg.VMax,
+		Alpha:         cfg.Alpha,
+		XMin:          &xMin,
+		XMax:          &xMax,
+		YMin:          &yMin,
+		YMax:          &yMax,
+		Origin:        cfg.Origin,
+		Label:         cfg.Label,
+		Interpolation: cfg.Interpolation,
 	})
 	if img == nil {
 		return nil
