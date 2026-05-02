@@ -3,8 +3,8 @@ package canvas
 import (
 	"testing"
 
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 func TestResolveEventTarget(t *testing.T) {

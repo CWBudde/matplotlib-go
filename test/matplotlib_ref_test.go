@@ -23,7 +23,7 @@ import (
 	"sync"
 	"testing"
 
-	"matplotlib-go/test/imagecmp"
+	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 
 var updateMatplotlib = flag.Bool("update-matplotlib", false,

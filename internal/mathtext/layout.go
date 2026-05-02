@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 // Metrics is the renderer-neutral text measurement subset needed for MathText

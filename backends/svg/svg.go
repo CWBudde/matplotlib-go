@@ -14,10 +14,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
 )
 
 const (

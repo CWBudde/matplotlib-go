@@ -3,10 +3,10 @@ package backends
 import (
 	"testing"
 
-	"matplotlib-go/canvas"
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/canvas"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func TestNewManagerFallsBackToHeadlessCanvas(t *testing.T) {

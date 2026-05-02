@@ -1,8 +1,8 @@
 package canvas
 
 import (
-	"matplotlib-go/core"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // DrawFigure renders a figure through a renderer.

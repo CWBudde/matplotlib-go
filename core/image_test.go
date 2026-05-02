@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func TestAxesImage_DefaultOptions(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"matplotlib-go/color"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/color"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // MPLStyleIssue captures one ignored or unsupported rcParam entry.

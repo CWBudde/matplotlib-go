@@ -6,12 +6,12 @@ import (
 	"math"
 	"os"
 
-	"matplotlib-go/backends"
-	_ "matplotlib-go/backends/all"
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
-	"matplotlib-go/transform"
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/all"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 func main() {

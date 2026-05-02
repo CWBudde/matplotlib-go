@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func TestParseMPLStyleSubset(t *testing.T) {

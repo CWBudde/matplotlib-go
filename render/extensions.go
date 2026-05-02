@@ -1,6 +1,6 @@
 package render
 
-import "matplotlib-go/internal/geom"
+import "github.com/cwbudde/matplotlib-go/internal/geom"
 
 // DPIAware is implemented by renderers that adapt text/layout behavior to DPI.
 type DPIAware interface {

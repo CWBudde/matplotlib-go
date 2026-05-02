@@ -8,10 +8,10 @@ import (
 	"math"
 	"syscall/js"
 
-	"matplotlib-go/backends/gobasic"
-	plotcanvas "matplotlib-go/canvas"
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/backends/gobasic"
+	plotcanvas "github.com/cwbudde/matplotlib-go/canvas"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 type listener struct {

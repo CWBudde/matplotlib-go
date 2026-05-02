@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 func approx(a, b, eps float64) bool {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 const AutoBackend Backend = "auto"

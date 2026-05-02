@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // ButtonOptions configures a Button widget artist.

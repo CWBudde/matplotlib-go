@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/test/imagecmp"
-	"matplotlib-go/transform"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/test/imagecmp"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 const (

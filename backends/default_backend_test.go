@@ -3,9 +3,9 @@ package backends_test
 import (
 	"testing"
 
-	"matplotlib-go/backends"
-	_ "matplotlib-go/backends/agg"
-	_ "matplotlib-go/backends/gobasic"
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/agg"
+	_ "github.com/cwbudde/matplotlib-go/backends/gobasic"
 )
 
 func TestDefaultBackendPreference(t *testing.T) {

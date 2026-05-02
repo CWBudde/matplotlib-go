@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // EventOrientation controls whether eventplot lines are drawn vertically or horizontally.

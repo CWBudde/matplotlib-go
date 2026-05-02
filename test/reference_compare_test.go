@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"matplotlib-go/test/imagecmp"
+	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 
 const (

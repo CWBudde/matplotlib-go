@@ -3,7 +3,7 @@ package agg
 import (
 	"strings"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func resolveFontPath(family string) string {

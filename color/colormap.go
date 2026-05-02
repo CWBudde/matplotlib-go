@@ -4,7 +4,7 @@ import (
 	"math"
 	"strings"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // ColorStop defines a point in a piecewise-linear colormap.

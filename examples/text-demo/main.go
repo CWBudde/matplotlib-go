@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"matplotlib-go/backends"
-	_ "matplotlib-go/backends/all"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/all"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 type textRenderer interface {

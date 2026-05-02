@@ -3,7 +3,7 @@ package canvas
 import (
 	"testing"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 func TestFirstClassEventWrappersPreserveCanonicalTypes(t *testing.T) {

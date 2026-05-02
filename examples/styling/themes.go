@@ -8,11 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"matplotlib-go/backends"
-	_ "matplotlib-go/backends/all"
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/all"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 type themedExample struct {

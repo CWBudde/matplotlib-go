@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 func TestAddAxesUsesThemeDefaults(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func TestRegistry(t *testing.T) {

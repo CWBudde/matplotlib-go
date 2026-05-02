@@ -3,8 +3,8 @@ package style
 import (
 	"strings"
 
-	"matplotlib-go/color"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/color"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // RC holds global rendering defaults (rc-like configuration).

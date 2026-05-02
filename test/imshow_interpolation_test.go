@@ -4,10 +4,10 @@ import (
 	"image"
 	"testing"
 
-	"matplotlib-go/backends/agg"
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/backends/agg"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 const (

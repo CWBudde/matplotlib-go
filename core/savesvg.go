@@ -3,7 +3,7 @@ package core
 import (
 	"errors"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // SaveSVG saves a figure to an SVG file using the provided renderer.

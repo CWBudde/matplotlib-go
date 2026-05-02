@@ -3,7 +3,7 @@ package transform
 import (
 	"testing"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 func TestTransformNodeInvalidationPropagatesToDependents(t *testing.T) {

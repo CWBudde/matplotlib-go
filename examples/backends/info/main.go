@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"matplotlib-go/backends"
-	_ "matplotlib-go/backends/all"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/all"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func main() {

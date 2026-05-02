@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func TestGetColormap_UnknownFallsBackToViridis(t *testing.T) {

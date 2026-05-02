@@ -1,8 +1,8 @@
 package core
 
 import (
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // BarOrientation specifies the direction of bars.

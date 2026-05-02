@@ -3,10 +3,10 @@ package render
 import (
 	"math"
 
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
-	"matplotlib-go/internal/geom"
 )
 
 // TextGlyph is one positioned glyph from a laid-out text run.

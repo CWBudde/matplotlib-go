@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"matplotlib-go/canvas"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/canvas"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 type headlessCanvas struct {

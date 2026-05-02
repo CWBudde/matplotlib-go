@@ -3,7 +3,7 @@ package core
 import (
 	"math"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 // ImageOrigin selects how image rows map to the Y-axis direction.

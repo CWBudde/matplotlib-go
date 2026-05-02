@@ -6,11 +6,11 @@ import (
 	"sort"
 	"strings"
 
-	"matplotlib-go/color"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
-	"matplotlib-go/style"
-	"matplotlib-go/transform"
+	"github.com/cwbudde/matplotlib-go/color"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 // Artist is anything that can draw itself with a z-order and optional bounds.

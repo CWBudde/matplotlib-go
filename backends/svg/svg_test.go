@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"codeberg.org/go-fonts/dejavu/dejavusans"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 type sizeOnlyImage struct {

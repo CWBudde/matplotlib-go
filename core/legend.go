@@ -1,9 +1,9 @@
 package core
 
 import (
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 // LegendLocation controls where the legend box is anchored inside the axes.

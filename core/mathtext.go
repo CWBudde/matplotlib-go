@@ -4,9 +4,9 @@ import (
 	"math"
 	"strings"
 
-	"matplotlib-go/internal/geom"
-	mt "matplotlib-go/internal/mathtext"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	mt "github.com/cwbudde/matplotlib-go/internal/mathtext"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // MathTextLayoutRun is one text draw in a laid-out MathText expression.

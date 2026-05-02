@@ -5,9 +5,9 @@ import (
 	"image/color"
 	"math"
 
-	matcolor "matplotlib-go/color"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	matcolor "github.com/cwbudde/matplotlib-go/color"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // Draw renders the rasterized image through the renderer.

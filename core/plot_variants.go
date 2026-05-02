@@ -5,8 +5,8 @@ import (
 	"math"
 	"strings"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // StepWhere controls where step transitions happen between sample points.

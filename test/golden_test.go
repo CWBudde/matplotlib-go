@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"matplotlib-go/backends/agg"
-	"matplotlib-go/color"
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
-	"matplotlib-go/style"
-	"matplotlib-go/test/imagecmp"
+	"github.com/cwbudde/matplotlib-go/backends/agg"
+	"github.com/cwbudde/matplotlib-go/color"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "Update golden images instead of comparing")

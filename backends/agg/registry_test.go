@@ -3,7 +3,7 @@ package agg
 import (
 	"testing"
 
-	"matplotlib-go/backends"
+	"github.com/cwbudde/matplotlib-go/backends"
 )
 
 func TestAGGBackend_PopulatesSaveFormats(t *testing.T) {

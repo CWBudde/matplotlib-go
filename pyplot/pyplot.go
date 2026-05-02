@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"matplotlib-go/backends"
-	_ "matplotlib-go/backends/all"
-	"matplotlib-go/canvas"
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/all"
+	"github.com/cwbudde/matplotlib-go/canvas"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 const (

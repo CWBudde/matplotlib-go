@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // Params holds rcParam-style key/value overrides using Matplotlib-style names.

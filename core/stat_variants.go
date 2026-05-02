@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // StackPlotOptions configures Axes.StackPlot.

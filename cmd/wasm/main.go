@@ -8,9 +8,9 @@ import (
 	"runtime/debug"
 	"syscall/js"
 
-	plotcanvas "matplotlib-go/canvas"
-	wasmcanvas "matplotlib-go/canvas/wasm"
-	"matplotlib-go/internal/webdemo"
+	plotcanvas "github.com/cwbudde/matplotlib-go/canvas"
+	wasmcanvas "github.com/cwbudde/matplotlib-go/canvas/wasm"
+	"github.com/cwbudde/matplotlib-go/internal/webdemo"
 )
 
 var (

@@ -1,6 +1,6 @@
 package transform
 
-import "matplotlib-go/internal/geom"
+import "github.com/cwbudde/matplotlib-go/internal/geom"
 
 // Invalidation identifies which portion of a transform dependency is stale.
 //

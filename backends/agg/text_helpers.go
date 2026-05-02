@@ -5,8 +5,8 @@ import (
 	"math"
 
 	agglib "github.com/cwbudde/agg_go"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 type textBackend uint8

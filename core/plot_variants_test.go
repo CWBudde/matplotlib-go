@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func TestLine2D_PathPoints_StepStyles(t *testing.T) {

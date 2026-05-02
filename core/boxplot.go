@@ -4,8 +4,8 @@ import (
 	"math"
 	"sort"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // BoxPlot2D renders a single statistical box plot for one dataset.

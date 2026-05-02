@@ -3,9 +3,9 @@ package core
 import (
 	"math"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 // LayoutEngine controls draw-time subplot reflow.

@@ -1,4 +1,4 @@
-module matplotlib-go
+module github.com/cwbudde/matplotlib-go
 
 go 1.24.0
 

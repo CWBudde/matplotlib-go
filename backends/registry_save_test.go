@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"matplotlib-go/backends"
-	_ "matplotlib-go/backends/agg" // register AGG backend
-	_ "matplotlib-go/backends/svg" // register SVG backend
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/agg" // register AGG backend
+	_ "github.com/cwbudde/matplotlib-go/backends/svg" // register SVG backend
 )
 
 func TestRegistry_SaveViaExtension_PNG(t *testing.T) {

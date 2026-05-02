@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"matplotlib-go/core"
-	"matplotlib-go/pyplot"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/pyplot"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 func main() {

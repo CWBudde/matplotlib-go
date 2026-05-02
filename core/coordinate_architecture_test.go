@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/transform"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 func TestDrawContextCoordinateHelpersSupportBlendedNestedProjectionTransforms(t *testing.T) {

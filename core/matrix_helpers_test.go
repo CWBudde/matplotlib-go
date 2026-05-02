@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 func TestAxesMatShowConfiguresMatrixView(t *testing.T) {

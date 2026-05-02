@@ -1,8 +1,8 @@
 package gobasic
 
 import (
-	"matplotlib-go/backends"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/backends"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func init() {

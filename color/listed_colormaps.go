@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"io"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 const listedColormapSize = 256

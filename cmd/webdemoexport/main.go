@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"matplotlib-go/internal/webdemo"
+	"github.com/cwbudde/matplotlib-go/internal/webdemo"
 )
 
 func main() {

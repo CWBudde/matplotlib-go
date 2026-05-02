@@ -3,8 +3,8 @@ package core
 import (
 	"math"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // ErrorBar renders symmetric horizontal and/or vertical error bars for points.

@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 
-	"matplotlib-go/backends/agg"
-	"matplotlib-go/core"
-	"matplotlib-go/render"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/backends/agg"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 func main() {

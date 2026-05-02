@@ -1,8 +1,8 @@
 package core
 
 import (
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // FillOrientation controls whether the independent coordinate runs along x or y.

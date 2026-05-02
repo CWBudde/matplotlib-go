@@ -5,9 +5,9 @@ package skia
 import (
 	"errors"
 
-	"matplotlib-go/backends"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/backends"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // Stub implementation for when Skia is not available

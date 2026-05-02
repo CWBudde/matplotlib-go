@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func TestDefaults(t *testing.T) {

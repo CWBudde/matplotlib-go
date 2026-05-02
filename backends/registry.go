@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"matplotlib-go/canvas"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/canvas"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // Backend identifies a specific renderer implementation.

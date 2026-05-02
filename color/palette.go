@@ -1,6 +1,6 @@
 package color
 
-import "matplotlib-go/render"
+import "github.com/cwbudde/matplotlib-go/render"
 
 // Palette defines a set of colors for automatic cycling.
 type Palette []render.Color

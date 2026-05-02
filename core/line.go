@@ -1,8 +1,8 @@
 package core
 
 import (
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // LineDrawStyle controls how consecutive data points are connected.

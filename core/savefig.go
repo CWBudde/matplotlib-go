@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // supportedSaveExtensions is the registry of extensions handled by SaveFig.

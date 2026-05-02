@@ -3,8 +3,8 @@ package canvas
 import (
 	"sync/atomic"
 
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 // Figure aliases the plotting figure type for runtime-facing APIs.

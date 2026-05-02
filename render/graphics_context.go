@@ -1,8 +1,8 @@
 package render
 
 import (
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/transform"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 // GraphicsContext centralizes draw-state that Matplotlib keeps separate from

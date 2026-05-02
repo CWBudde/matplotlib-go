@@ -3,7 +3,7 @@ package svg
 import (
 	"testing"
 
-	"matplotlib-go/backends"
+	"github.com/cwbudde/matplotlib-go/backends"
 )
 
 func TestSVGBackend_PopulatesSaveFormats(t *testing.T) {

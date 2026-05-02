@@ -6,8 +6,8 @@ import (
 	"math"
 	"testing"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 var white = render.Color{R: 1, G: 1, B: 1, A: 1}

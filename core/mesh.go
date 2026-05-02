@@ -3,8 +3,8 @@ package core
 import (
 	"math"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // MeshOptions configures rectilinear mesh plots such as pcolor/pcolormesh.

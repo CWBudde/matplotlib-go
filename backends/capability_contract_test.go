@@ -3,8 +3,8 @@ package backends
 import (
 	"testing"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 type capabilityRendererBase struct {

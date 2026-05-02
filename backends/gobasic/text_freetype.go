@@ -12,10 +12,10 @@ import (
 	"codeberg.org/go-fonts/dejavu/dejavusans"
 	"codeberg.org/go-fonts/dejavu/dejavusansmono"
 	"codeberg.org/go-fonts/dejavu/dejavuserif"
+	"github.com/cwbudde/matplotlib-go/render"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
-	"matplotlib-go/render"
 )
 
 var (

@@ -3,8 +3,8 @@ package core
 import (
 	"fmt"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // Triangulation stores an unstructured triangular mesh.

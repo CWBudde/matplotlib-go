@@ -8,9 +8,9 @@ import (
 	"os"
 	"testing"
 
-	"matplotlib-go/backends"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/backends"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // renderUpscaledImage builds a tiny 2x2 checkerboard, hands it to an AGG

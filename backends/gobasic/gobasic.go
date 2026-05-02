@@ -8,9 +8,9 @@ import (
 	"math"
 	"os"
 
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 	"golang.org/x/image/vector"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
 )
 
 // quantizationEpsilon is the precision limit for float values to ensure determinism.

@@ -5,8 +5,8 @@ import (
 	"math"
 	"strings"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // AxisSide specifies which side of the plot area an axis is on.

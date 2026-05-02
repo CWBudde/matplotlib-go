@@ -1,6 +1,6 @@
 package transform
 
-import "matplotlib-go/internal/geom"
+import "github.com/cwbudde/matplotlib-go/internal/geom"
 
 // AxisTransform maps a single scalar coordinate and can invert it.
 type AxisTransform interface {

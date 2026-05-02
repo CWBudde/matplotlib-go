@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/core"
 )
 
 func TestCatalogStable(t *testing.T) {

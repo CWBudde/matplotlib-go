@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func TestNormalizeDisplayText_ReplacesBasicMathTokens(t *testing.T) {

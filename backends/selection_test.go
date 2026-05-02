@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func withDefaultRegistry(t *testing.T, reg *Registry) {

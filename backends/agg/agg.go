@@ -15,8 +15,8 @@ import (
 
 	"codeberg.org/go-fonts/dejavu/dejavusans"
 	agglib "github.com/cwbudde/agg_go"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // dejaVuFontPath holds the path to the extracted DejaVu Sans TTF, initialised once.

@@ -1,8 +1,8 @@
 package core
 
 import (
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // BarContainer groups the artist returned by a bar call with rectangle-like

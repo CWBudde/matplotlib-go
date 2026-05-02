@@ -3,7 +3,7 @@ package transform
 import (
 	"math"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 // T is a 2D transform that maps points and can be inverted.

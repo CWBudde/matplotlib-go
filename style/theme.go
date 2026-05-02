@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"matplotlib-go/color"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/color"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // Theme is a named stylesheet preset backed by a fully resolved RC.

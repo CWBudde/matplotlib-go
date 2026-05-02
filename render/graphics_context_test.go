@@ -3,7 +3,7 @@ package render
 import (
 	"testing"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 func TestGraphicsContextEffectivePaintAppliesAlpha(t *testing.T) {

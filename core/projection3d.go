@@ -1,6 +1,6 @@
 package core
 
-import "matplotlib-go/transform"
+import "github.com/cwbudde/matplotlib-go/transform"
 
 type axes3DProjection struct {
 	name string

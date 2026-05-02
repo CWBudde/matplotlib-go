@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // testPNGSVGRenderer is a minimal renderer that satisfies render.Renderer (via

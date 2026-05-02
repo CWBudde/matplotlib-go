@@ -4,8 +4,8 @@ import (
 	"math"
 	"sort"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // BinStrategy specifies how to automatically determine histogram bin count.

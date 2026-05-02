@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/core"
 )
 
 type rngDebugPayload struct {

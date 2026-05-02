@@ -4,7 +4,7 @@ import (
 	"errors"
 	"image"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 // Paint configures drawing style for paths.

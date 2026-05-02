@@ -4,9 +4,9 @@ import (
 	"math"
 	"sort"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
-	"matplotlib-go/transform"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 const (

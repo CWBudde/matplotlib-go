@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"matplotlib-go/canvas"
-	"matplotlib-go/core"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/canvas"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 func TestFigureRegistryTracksCurrentFigureAndAxes(t *testing.T) {

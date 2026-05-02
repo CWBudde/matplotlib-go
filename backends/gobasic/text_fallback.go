@@ -5,10 +5,10 @@ package gobasic
 import (
 	"image"
 
+	"github.com/cwbudde/matplotlib-go/render"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
-	"matplotlib-go/render"
 )
 
 func measureText(text string, size float64, _ string, dpi uint) render.TextMetrics {

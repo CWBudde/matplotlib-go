@@ -3,8 +3,8 @@ package core
 import (
 	"fmt"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 // GridSpecOption configures a GridSpec layout.

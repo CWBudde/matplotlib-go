@@ -3,8 +3,8 @@ package gobasic
 import (
 	"math"
 
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // strokeToPath converts a stroked path to a filled path that represents the stroke.

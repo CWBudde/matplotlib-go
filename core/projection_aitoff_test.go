@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 func TestAitoffForward_Origin(t *testing.T) {

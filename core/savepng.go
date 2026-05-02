@@ -3,7 +3,7 @@ package core
 import (
 	"errors"
 
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // SavePNG saves a figure to a PNG file using the provided renderer.

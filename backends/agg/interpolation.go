@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	agglib "github.com/cwbudde/agg_go"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // parseInterpolationName maps a matplotlib-style interpolation string to an

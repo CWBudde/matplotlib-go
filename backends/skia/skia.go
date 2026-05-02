@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"matplotlib-go/backends"
-	"matplotlib-go/internal/geom"
-	"matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/backends"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // Renderer implements render.Renderer using Skia graphics library.

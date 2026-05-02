@@ -3,7 +3,7 @@ package core
 import (
 	"math"
 
-	"matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
 
 // lambertDataTransform implements the Lambert azimuthal equal-area projection
