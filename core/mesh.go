@@ -3,7 +3,6 @@ package core
 import (
 	"math"
 
-	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
@@ -227,20 +226,6 @@ func meshAlpha(alpha *float64) float64 {
 		return 1
 	}
 	return clampOneToOne(*alpha)
-}
-
-func quadMeshCellCenters(xEdges, yEdges []float64) []geom.Pt {
-	centers := make([]geom.Pt, 0, max(0, (len(xEdges)-1)*(len(yEdges)-1)))
-	for yi := 0; yi+1 < len(yEdges); yi++ {
-		centerY := (yEdges[yi] + yEdges[yi+1]) * 0.5
-		for xi := 0; xi+1 < len(xEdges); xi++ {
-			centers = append(centers, geom.Pt{
-				X: (xEdges[xi] + xEdges[xi+1]) * 0.5,
-				Y: centerY,
-			})
-		}
-	}
-	return centers
 }
 
 func meshValueAverage(values []float64) float64 {

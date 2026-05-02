@@ -1,14 +1,12 @@
 package render
 
 import (
-	"errors"
 	"math"
 	"os"
 	"sync"
 	"unicode/utf8"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
-	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
@@ -60,53 +58,6 @@ func loadTextPathFont(path string) (*sfnt.Font, error) {
 	return parsed, nil
 }
 
-func textPathFromFont(f *sfnt.Font, text string, origin geom.Pt, size float64) (geom.Path, error) {
-	if f == nil || text == "" || size <= 0 {
-		return geom.Path{}, errors.New("invalid text path input")
-	}
-
-	ppem := fixed.Int26_6(math.Round(size * 64))
-	var buf sfnt.Buffer
-	var out geom.Path
-	penX := origin.X
-	var previous sfnt.GlyphIndex
-	havePrevious := false
-
-	for _, r := range text {
-		glyphIndex, err := f.GlyphIndex(&buf, r)
-		if err != nil {
-			return geom.Path{}, err
-		}
-		if glyphIndex == 0 {
-			havePrevious = false
-			continue
-		}
-
-		if havePrevious {
-			kern, err := f.Kern(&buf, previous, glyphIndex, ppem, font.HintingNone)
-			if err == nil {
-				penX += fixedToFloat(kern)
-			}
-		}
-
-		segments, err := f.LoadGlyph(&buf, glyphIndex, ppem, nil)
-		if err != nil {
-			return geom.Path{}, err
-		}
-		appendGlyphSegments(&out, segments, geom.Pt{X: penX, Y: origin.Y})
-
-		advance, err := f.GlyphAdvance(&buf, glyphIndex, ppem, font.HintingNone)
-		if err != nil {
-			return geom.Path{}, err
-		}
-		penX += fixedToFloat(advance)
-		previous = glyphIndex
-		havePrevious = true
-	}
-
-	return out, nil
-}
-
 func textRunsPath(runs []FontRun, origin geom.Pt, size float64) (geom.Path, bool) {
 	var out geom.Path
 	ok := false
@@ -130,54 +81,6 @@ func textRunsPath(runs []FontRun, origin geom.Pt, size float64) (geom.Path, bool
 		ok = ok || len(out.C) > before
 	}
 	return out, ok
-}
-
-func textPathAndAdvanceFromFont(f *sfnt.Font, text string, origin geom.Pt, size float64) (geom.Path, float64, error) {
-	if f == nil || text == "" || size <= 0 {
-		return geom.Path{}, 0, errors.New("invalid text path input")
-	}
-
-	ppem := fixed.Int26_6(math.Round(size * 64))
-	var buf sfnt.Buffer
-	var out geom.Path
-	penX := origin.X
-	startX := origin.X
-	var previous sfnt.GlyphIndex
-	havePrevious := false
-
-	for _, r := range text {
-		glyphIndex, err := f.GlyphIndex(&buf, r)
-		if err != nil {
-			return geom.Path{}, 0, err
-		}
-		if glyphIndex == 0 {
-			havePrevious = false
-			continue
-		}
-
-		if havePrevious {
-			kern, err := f.Kern(&buf, previous, glyphIndex, ppem, font.HintingNone)
-			if err == nil {
-				penX += fixedToFloat(kern)
-			}
-		}
-
-		segments, err := f.LoadGlyph(&buf, glyphIndex, ppem, nil)
-		if err != nil {
-			return geom.Path{}, 0, err
-		}
-		appendGlyphSegments(&out, segments, geom.Pt{X: penX, Y: origin.Y})
-
-		advance, err := f.GlyphAdvance(&buf, glyphIndex, ppem, font.HintingNone)
-		if err != nil {
-			return geom.Path{}, 0, err
-		}
-		penX += fixedToFloat(advance)
-		previous = glyphIndex
-		havePrevious = true
-	}
-
-	return out, penX - startX, nil
 }
 
 func fontFaceSupportsRune(face FontFace, r rune) bool {

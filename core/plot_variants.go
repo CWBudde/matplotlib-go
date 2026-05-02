@@ -808,13 +808,11 @@ func barLabelText(index int, labels []string, value float64, format string) stri
 }
 
 func barLabelPlacement(bar *Bar2D, index int, position string, padding float64) (TextOptions, float64, float64) {
-	anchorX := bar.X[index]
-	anchorY := bar.X[index]
 	height := bar.Heights[index]
 	baseline := bar.baselineAt(index)
 
 	if bar.Orientation == BarHorizontal {
-		anchorY = bar.X[index]
+		anchorY := bar.X[index]
 		if position == "center" {
 			return TextOptions{
 				HAlign: TextAlignCenter,
@@ -836,7 +834,7 @@ func barLabelPlacement(bar *Bar2D, index int, position string, padding float64) 
 		}, end, anchorY
 	}
 
-	anchorX = bar.X[index]
+	anchorX := bar.X[index]
 	if position == "center" {
 		return TextOptions{
 			HAlign: TextAlignCenter,

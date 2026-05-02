@@ -143,8 +143,8 @@ func (s *aggSurface) SetLineJoin(join agglib.LineJoin) {
 	s.painter.LineJoin(join)
 }
 
-func (s *aggSurface) SetLineCap(cap agglib.LineCap) {
-	s.painter.LineCap(cap)
+func (s *aggSurface) SetLineCap(lineCap agglib.LineCap) {
+	s.painter.LineCap(lineCap)
 }
 
 func (s *aggSurface) SetMiterLimit(limit float64) {

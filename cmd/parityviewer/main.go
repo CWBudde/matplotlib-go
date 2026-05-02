@@ -314,13 +314,6 @@ func testNameFromCaseName(name string) string {
 	return "Test" + b.String() + "_Golden"
 }
 
-func loadCases(useParity bool, parityDir, baselineDir, artifactDir, nameFilter, namePrefix string) (loadResult, error) {
-	if useParity {
-		return loadCasesFromParityDir(parityDir, nameFilter, namePrefix)
-	}
-	return loadCasesFromDirectories(baselineDir, artifactDir, nameFilter, namePrefix)
-}
-
 func loadCasesUnified(useParity, includeWebdemo bool, parityDir, baselineDir, artifactDir, webBaselineDir, webArtifactDir, nameFilter, namePrefix string) (loadResult, error) {
 	if useParity {
 		return loadCasesFromParityDir(parityDir, nameFilter, namePrefix)
@@ -346,7 +339,8 @@ func loadCasesUnified(useParity, includeWebdemo bool, parityDir, baselineDir, ar
 
 func printCases(w io.Writer, result loadResult) {
 	fmt.Fprintf(w, "found=%d skipped=%d\n", result.ComparedCount, result.SkippedCount)
-	for _, c := range result.Cases {
+	for i := range result.Cases {
+		c := &result.Cases[i]
 		fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\trmse=%.4f\tavg=%.4f\tmax=%d\tdiff_pixels=%d\tdiff_ratio=%.6f\tsize=%dx%d->%dx%d\n",
@@ -697,10 +691,10 @@ func rgbaAt(img *image.RGBA, x, y int) (uint8, uint8, uint8, uint8) {
 }
 
 func unionBounds(a, b image.Rectangle) image.Rectangle {
-	minX := min(a.Min.X, b.Min.X)
-	minY := min(a.Min.Y, b.Min.Y)
-	maxX := max(a.Max.X, b.Max.X)
-	maxY := max(a.Max.Y, b.Max.Y)
+	minX := minInt(a.Min.X, b.Min.X)
+	minY := minInt(a.Min.Y, b.Min.Y)
+	maxX := maxInt(a.Max.X, b.Max.X)
+	maxY := maxInt(a.Max.Y, b.Max.Y)
 	if maxX < minX {
 		maxX = minX
 	}
@@ -771,14 +765,14 @@ func clampAlpha(a uint8) uint8 {
 	return a
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-func max(a, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
@@ -841,7 +835,7 @@ func buildRerenderAllButton(opts viewOptions) string {
 		return `<button id="rerender-all-btn" class="rerender-btn" type="button">Re-render Artifacts</button>`
 	}
 	return fmt.Sprintf(
-		`<button id="rerender-all-btn" class="rerender-btn" type="button" disabled title="%s">Re-render Artifacts</button>`,
+		`<button id="rerender-all-btn" class="rerender-btn" type="button" disabled title=%q>Re-render Artifacts</button>`,
 		htmlEscape(opts.RerenderDisabledMsg),
 	)
 }

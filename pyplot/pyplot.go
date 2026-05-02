@@ -742,12 +742,10 @@ func newPNGRenderer(fig *core.Figure) (render.Renderer, error) {
 }
 
 func rendererConfig(fig *core.Figure) backends.Config {
-	width := DefaultFigureWidth
-	height := DefaultFigureHeight
 	defaults := style.CurrentDefaults()
 	background := defaults.FigureBackground()
 	dpi := defaults.DPI
-	width, height = defaults.DefaultFigureSizePx()
+	width, height := defaults.DefaultFigureSizePx()
 
 	if fig != nil {
 		if fig.SizePx.X > 0 {

@@ -11,7 +11,7 @@ type FontRun struct {
 // ResolveTextRuns resolves text into contiguous font runs. The first resolved
 // face is always the requested face; generic families are used only when that
 // face cannot represent a rune.
-func (m *FontManager) ResolveTextRuns(text string, fontKey string) ([]FontRun, bool) {
+func (m *FontManager) ResolveTextRuns(text, fontKey string) ([]FontRun, bool) {
 	if m == nil || text == "" {
 		return nil, false
 	}
@@ -40,7 +40,7 @@ func (m *FontManager) ResolveTextRuns(text string, fontKey string) ([]FontRun, b
 		currentText = currentText[:0]
 	}
 
-	for len(text) > 0 {
+	for text != "" {
 		r, n := utf8.DecodeRuneInString(text)
 		text = text[n:]
 

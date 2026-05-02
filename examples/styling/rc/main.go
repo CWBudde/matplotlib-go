@@ -71,7 +71,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("push rc context: %v", err)
 	}
-	defer restore()
 
 	pyplot.Figure()
 	ax = pyplot.GCA()
@@ -83,8 +82,10 @@ func main() {
 	pyplot.Plot(x, y, core.PlotOptions{Label: "sin(x)"})
 	pyplot.Legend()
 	if err := pyplot.Savefig(filepath.Join(*outputDir, "rc_context.png")); err != nil {
+		restore()
 		log.Fatalf("save rc_context.png: %v", err)
 	}
+	restore()
 }
 
 func linspace(start, end float64, n int) []float64 {

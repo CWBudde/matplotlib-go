@@ -443,7 +443,7 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 
 // DrawTextRotated renders text using Matplotlib-like anchor rotation. The
 // anchor is the bottom-center of the unrotated text box.
-func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size float64, angle float64, textColor render.Color) {
+func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
 	if text == "" || size <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
 		return
 	}
@@ -560,7 +560,7 @@ func (r *Renderer) drawBitmapScaled(src *image.RGBA, dstX, dstY, dstW, dstH int)
 	}
 }
 
-func (r *Renderer) drawBitmapRotated(src *image.RGBA, anchor geom.Pt, pivot geom.Pt, angle float64) {
+func (r *Renderer) drawBitmapRotated(src *image.RGBA, anchor, pivot geom.Pt, angle float64) {
 	if src == nil {
 		return
 	}
@@ -639,14 +639,6 @@ func (r *Renderer) drawBitmapRotated(src *image.RGBA, anchor geom.Pt, pivot geom
 			})
 		}
 	}
-}
-
-func (r *Renderer) textScale(size float64) float64 {
-	scale := size / defaultFontHeight
-	if size <= 0 || scale <= 0 {
-		return 0
-	}
-	return scale
 }
 
 func (r *Renderer) drawTargetRect(minX, minY, maxX, maxY int) (image.Rectangle, bool) {

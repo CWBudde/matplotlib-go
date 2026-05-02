@@ -380,10 +380,6 @@ func (a *Annotation) Bounds(*DrawContext) geom.Rect { return geom.Rect{} }
 // Z returns the annotation z-order.
 func (a *Annotation) Z() float64 { return a.z }
 
-func defaultTextColor(c render.Color) render.Color {
-	return resolvedTextColor(c, nil)
-}
-
 func resolvedTextColor(c render.Color, ctx *DrawContext) render.Color {
 	if c == (render.Color{}) {
 		if ctx != nil {
@@ -549,13 +545,6 @@ func alignedTextOrigin(anchor geom.Pt, metrics render.TextMetrics, hAlign TextAl
 	}
 
 	return origin
-}
-
-func textBounds(origin geom.Pt, metrics render.TextMetrics) geom.Rect {
-	return geom.Rect{
-		Min: geom.Pt{X: origin.X, Y: origin.Y - metrics.Ascent},
-		Max: geom.Pt{X: origin.X + metrics.W, Y: origin.Y + metrics.Descent},
-	}
 }
 
 func nearestPointOnRect(rect geom.Rect, pt geom.Pt) geom.Pt {

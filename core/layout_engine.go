@@ -139,10 +139,10 @@ func resolveMeasuredGridLayout(fig *Figure, r render.Renderer, vp geom.Rect, gri
 }
 
 func measuredGridOptions(fig *Figure, r render.Renderer, vp geom.Rect, grid *GridSpec, axes []*Axes, state map[*GridSpec]GridSpecOptions, alignment figureTextAlignment) GridSpecOptions {
-	opts := grid.options
 	if grid == nil {
-		return opts
+		return GridSpecOptions{}
 	}
+	opts := grid.options
 
 	parentRect := grid.parentRectForState(state)
 	parentPx := fractionRectToPixels(parentRect, vp)
@@ -332,50 +332,6 @@ func addFigureMargins(a, b figureMargin) figureMargin {
 		top:    a.top + b.top,
 		bottom: a.bottom + b.bottom,
 	}
-}
-
-func figureOverlayMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {
-	if fig == nil || len(fig.Artists) == 0 {
-		return figureMargin{}
-	}
-	pad := layoutPadPx(fig, engine)
-	margin := figureMargin{}
-	ctx := newFigureDrawContext(fig, vp)
-	stackedHeight := map[LegendLocation]float64{}
-
-	for _, art := range fig.Artists {
-		var (
-			box geom.Rect
-			ok  bool
-		)
-		switch a := art.(type) {
-		case *Legend:
-			box, ok = a.boxRect(r, ctx)
-		case *AnchoredTextBox:
-			box, ok = a.boxRect(r, ctx)
-		}
-		if !ok {
-			continue
-		}
-		loc, _ := figureArtistLocation(art)
-		width := box.W() + pad
-		height := box.H() + pad
-		stackedHeight[loc] += height
-		switch loc {
-		case LegendUpperLeft:
-			margin.left = math.Max(margin.left, width)
-		case LegendLowerLeft:
-			margin.left = math.Max(margin.left, width)
-		case LegendLowerRight:
-			margin.right = math.Max(margin.right, width)
-		default:
-			margin.right = math.Max(margin.right, width)
-		}
-	}
-
-	margin.top = math.Max(stackedHeight[LegendUpperLeft], stackedHeight[LegendUpperRight])
-	margin.bottom = math.Max(stackedHeight[LegendLowerLeft], stackedHeight[LegendLowerRight])
-	return margin
 }
 
 func figureColorbarMarginsPx(fig *Figure, _ render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {

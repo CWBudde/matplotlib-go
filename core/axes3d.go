@@ -509,8 +509,6 @@ func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *Lin
 			[]geom.Pt{p10, p11},
 			[]geom.Pt{p11, p01},
 			[]geom.Pt{p01, p00},
-		)
-		segments = append(segments,
 			[]geom.Pt{p00, q00},
 			[]geom.Pt{p10, q10},
 			[]geom.Pt{p11, q11},

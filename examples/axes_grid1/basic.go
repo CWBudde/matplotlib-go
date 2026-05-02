@@ -121,7 +121,7 @@ func surface(rows, cols int, phase float64) [][]float64 {
 	return values
 }
 
-func channelSurface(rows, cols int, phase int) [][]float64 {
+func channelSurface(rows, cols, phase int) [][]float64 {
 	values := make([][]float64, rows)
 	for y := range rows {
 		values[y] = make([]float64, cols)

@@ -78,11 +78,6 @@ func polarCenterAndRadius(clip geom.Rect) (geom.Pt, float64) {
 	}, size / 2
 }
 
-func polarAxesBackgroundPath(clip geom.Rect) geom.Path {
-	center, radius := polarCenterAndRadius(clip)
-	return polarCirclePath(center, radius)
-}
-
 func polarProjectionFramePath(proj Projection, clip geom.Rect) geom.Path {
 	center, radius := polarCenterAndRadius(clip)
 	if sides := radarFrameSidesForProjection(proj); sides >= 3 {

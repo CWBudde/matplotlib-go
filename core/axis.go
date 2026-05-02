@@ -760,13 +760,13 @@ func (a *Axis) SetTickDirection(direction string) error {
 }
 
 // SetLineStyle configures cap/join/dash styling for the axis spine and ticks.
-func (a *Axis) SetLineStyle(cap render.LineCap, join render.LineJoin, dashes ...float64) {
+func (a *Axis) SetLineStyle(lineCap render.LineCap, join render.LineJoin, dashes ...float64) {
 	if a == nil {
 		return
 	}
-	a.LineCap = cap
+	a.LineCap = lineCap
 	a.LineJoin = join
-	a.TickLineCap = cap
+	a.TickLineCap = lineCap
 	a.TickLineJoin = join
 	a.Dashes = styleCloneDashes(dashes)
 }
@@ -787,13 +787,6 @@ func (a *Axis) ResetSpinePosition() {
 	}
 	a.SpinePositionMode = AxisSpinePositionBoundary
 	a.SpinePosition = 0
-}
-
-func measureTextBounds(r render.Renderer, text string, size float64, fontKey string) (render.TextBounds, bool) {
-	if bounder, ok := r.(render.TextBounder); ok {
-		return bounder.MeasureTextBounds(text, size, fontKey)
-	}
-	return render.TextBounds{}, false
 }
 
 func textInkRect(origin geom.Pt, layout singleLineTextLayout) (geom.Rect, bool) {
@@ -1010,16 +1003,16 @@ func axisStrokePaint(a *Axis, forTicks bool) render.Paint {
 	if a == nil {
 		return render.Paint{}
 	}
-	cap := a.LineCap
+	lineCap := a.LineCap
 	join := a.LineJoin
 	if forTicks {
-		cap = a.TickLineCap
+		lineCap = a.TickLineCap
 		join = a.TickLineJoin
 	}
 	return render.Paint{
 		LineWidth: a.LineWidth,
 		Stroke:    a.Color,
-		LineCap:   cap,
+		LineCap:   lineCap,
 		LineJoin:  join,
 		Dashes:    styleCloneDashes(a.Dashes),
 	}
@@ -1441,20 +1434,6 @@ func tickLabelBottomCenterOffset(layout singleLineTextLayout) geom.Pt {
 		}
 	}
 	return geom.Pt{X: layout.Width / 2, Y: layout.Descent}
-}
-
-func tickLabelWidth(layout singleLineTextLayout) float64 {
-	if layout.HaveInkBounds && layout.InkBounds.W > 0 {
-		return layout.InkBounds.W
-	}
-	return layout.Width
-}
-
-func tickLabelHeight(layout singleLineTextLayout) float64 {
-	if layout.HaveInkBounds && layout.InkBounds.H > 0 {
-		return layout.InkBounds.H
-	}
-	return layout.Height
 }
 
 func resolvedTickLabelAlignments(side AxisSide, style TickLabelStyle, isXAxis bool) (TextAlign, TextVerticalAlign) {

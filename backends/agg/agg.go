@@ -423,7 +423,8 @@ func (r *Renderer) DrawMarkers(batch render.MarkerBatch) bool {
 	if len(batch.Marker.C) == 0 || len(batch.Items) == 0 {
 		return false
 	}
-	for _, item := range batch.Items {
+	for i := range batch.Items {
+		item := &batch.Items[i]
 		path := transformMarkerPath(batch.Marker, item.Transform, item.Offset)
 		if len(path.C) == 0 {
 			continue
@@ -442,7 +443,8 @@ func (r *Renderer) DrawPathCollection(batch render.PathCollectionBatch) bool {
 	if len(batch.Items) == 0 {
 		return false
 	}
-	for _, item := range batch.Items {
+	for i := range batch.Items {
+		item := &batch.Items[i]
 		if len(item.Path.C) == 0 {
 			continue
 		}
@@ -466,7 +468,8 @@ func (r *Renderer) DrawQuadMesh(batch render.QuadMeshBatch) bool {
 	if len(batch.Cells) == 0 {
 		return false
 	}
-	for _, cell := range batch.Cells {
+	for i := range batch.Cells {
+		cell := &batch.Cells[i]
 		path := geom.Path{}
 		path.MoveTo(cell.Quad[0])
 		path.LineTo(cell.Quad[1])
@@ -510,8 +513,8 @@ func (r *Renderer) DrawGouraudTriangles(batch render.GouraudTriangleBatch) bool 
 		return false
 	}
 	draw := func() {
-		for _, tri := range batch.Triangles {
-			r.drawGouraudTriangle(tri)
+		for i := range batch.Triangles {
+			r.drawGouraudTriangle(&batch.Triangles[i])
 		}
 	}
 	if r.hasClipPath() {
@@ -937,7 +940,10 @@ func transformMarkerPath(path geom.Path, affine geom.Affine, offset geom.Pt) geo
 	return out
 }
 
-func (r *Renderer) drawGouraudTriangle(tri render.GouraudTriangle) {
+func (r *Renderer) drawGouraudTriangle(tri *render.GouraudTriangle) {
+	if tri == nil {
+		return
+	}
 	img := r.ctx.image
 	if img == nil || img.Width() <= 0 || img.Height() <= 0 {
 		return

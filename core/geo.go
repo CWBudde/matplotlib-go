@@ -192,7 +192,6 @@ func drawGeoGridLine(r render.Renderer, ctx *DrawContext, axis AxisSide, tick fl
 		return
 	}
 	xMin, xMax := ctx.DataToPixel.XScale.Domain()
-	yMin, yMax := ctx.DataToPixel.YScale.Domain()
 	path := geom.Path{}
 
 	for i := 0; i <= geoGridSegments; i++ {
@@ -200,8 +199,8 @@ func drawGeoGridLine(r render.Renderer, ctx *DrawContext, axis AxisSide, tick fl
 		var data geom.Pt
 		switch axis {
 		case AxisBottom, AxisTop:
-			yMin = -geoLongitudeGridCap
-			yMax = geoLongitudeGridCap
+			yMin := -geoLongitudeGridCap
+			yMax := geoLongitudeGridCap
 			data = geom.Pt{X: tick, Y: yMin + (yMax-yMin)*t}
 		default:
 			data = geom.Pt{X: xMin + (xMax-xMin)*t, Y: tick}

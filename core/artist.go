@@ -1283,7 +1283,7 @@ func (a *Axes) TickParams(params TickParams) error {
 }
 
 // SetAxisLineStyle applies cap/join/dash styling to the selected axes.
-func (a *Axes) SetAxisLineStyle(spec string, cap render.LineCap, join render.LineJoin, dashes ...float64) error {
+func (a *Axes) SetAxisLineStyle(spec string, lineCap render.LineCap, join render.LineJoin, dashes ...float64) error {
 	if err := validateAxisSpec(spec); err != nil {
 		return err
 	}
@@ -1291,7 +1291,7 @@ func (a *Axes) SetAxisLineStyle(spec string, cap render.LineCap, join render.Lin
 		if axis == nil {
 			continue
 		}
-		axis.SetLineStyle(cap, join, dashes...)
+		axis.SetLineStyle(lineCap, join, dashes...)
 	}
 	return nil
 }
@@ -2027,18 +2027,6 @@ func rectWithAspect(r geom.Rect, target float64) geom.Rect {
 		r.Max.X -= pad
 	}
 	return r
-}
-
-// axesToPixel returns an affine mapping [0..1]^2 (axes space) -> pixel rect.
-// This maps axes coordinates to pixel coordinates with Y-flip for mathematical orientation:
-// - axes (0,0) -> pixel (px.Min.X, px.Max.Y) [bottom-left]
-// - axes (1,1) -> pixel (px.Max.X, px.Min.Y) [top-right]
-func axesToPixel(px geom.Rect) geom.Affine {
-	sx := px.W()
-	sy := -px.H() // Negative to flip Y-axis
-	tx := px.Min.X
-	ty := px.Max.Y // Start from bottom of pixel rect
-	return geom.Affine{A: sx, D: sy, E: tx, F: ty}
 }
 
 func cloneAxisForSide(src *Axis, side AxisSide) *Axis {

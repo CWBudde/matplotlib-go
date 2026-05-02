@@ -60,10 +60,10 @@ func ResolveScaleOptions(opts ...ScaleOption) ScaleOptions {
 	return cfg
 }
 
-func WithScaleDomain(min, max float64) ScaleOption {
+func WithScaleDomain(minVal, maxVal float64) ScaleOption {
 	return func(cfg *ScaleOptions) {
-		cfg.DomainMin = min
-		cfg.DomainMax = max
+		cfg.DomainMin = minVal
+		cfg.DomainMax = maxVal
 	}
 }
 
@@ -278,9 +278,9 @@ func NewSymLog(minVal, maxVal, base, linThresh, linearScale float64) SymLog {
 
 func (s SymLog) Domain() (float64, float64) { return s.Min, s.Max }
 
-func (s SymLog) WithDomain(min, max float64) Scale {
-	s.Min = min
-	s.Max = max
+func (s SymLog) WithDomain(minVal, maxVal float64) Scale {
+	s.Min = minVal
+	s.Max = maxVal
 	return s
 }
 
@@ -341,9 +341,9 @@ func NewAsinh(minVal, maxVal, linearWidth float64) Asinh {
 
 func (s Asinh) Domain() (float64, float64) { return s.Min, s.Max }
 
-func (s Asinh) WithDomain(min, max float64) Scale {
-	s.Min = min
-	s.Max = max
+func (s Asinh) WithDomain(minVal, maxVal float64) Scale {
+	s.Min = minVal
+	s.Max = maxVal
 	return s
 }
 
@@ -508,7 +508,7 @@ func normalizedMappedForward(minVal, maxVal float64, transform func(float64) (fl
 	return (vx - lo) / den
 }
 
-func normalizedMappedInverse(minVal, maxVal float64, transform func(float64) (float64, bool), inverse func(float64) (float64, bool), u float64) (float64, bool) {
+func normalizedMappedInverse(minVal, maxVal float64, transform, inverse func(float64) (float64, bool), u float64) (float64, bool) {
 	lo, ok := transform(minVal)
 	if !ok {
 		return minVal, false

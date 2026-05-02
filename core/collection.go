@@ -469,7 +469,7 @@ func (m *QuadMesh) asPatchCollection() *PatchCollection {
 	if m == nil {
 		return nil
 	}
-	paths := make([]geom.Path, 0, max(0, (len(m.XEdges)-1)*(len(m.YEdges)-1)))
+	paths := make([]geom.Path, 0, maxInt(0, (len(m.XEdges)-1)*(len(m.YEdges)-1)))
 	for yi := 0; yi+1 < len(m.YEdges); yi++ {
 		for xi := 0; xi+1 < len(m.XEdges); xi++ {
 			paths = append(paths, patchRectPath(geom.Rect{
@@ -765,7 +765,7 @@ func fillBetweenPoint(orientation FillOrientation, primary, dependent float64) g
 }
 
 func (c *PathCollection) itemCount() int {
-	count := max(len(c.Paths), len(c.Offsets))
+	count := maxInt(len(c.Paths), len(c.Offsets))
 	if count == 0 && len(c.Path.C) > 0 {
 		count = 1
 	}
@@ -896,7 +896,7 @@ func unionCollectionRect(a, b geom.Rect) geom.Rect {
 	}
 }
 
-func max(a, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}

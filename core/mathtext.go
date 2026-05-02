@@ -19,11 +19,6 @@ type MathTextLayoutRule = mt.MathTextLayoutRule
 // rules. Offsets and rectangles are relative to the expression baseline.
 type MathTextLayout = mt.MathTextLayout
 
-type displayTextSegment struct {
-	text   string
-	isMath bool
-}
-
 type mathTextMeasurer struct {
 	r render.Renderer
 }
@@ -73,19 +68,6 @@ func mathTextOptions() mt.Options {
 
 func normalizeDisplayText(text string) string {
 	return mt.NormalizeDisplay(text)
-}
-
-func normalizeMathText(text string) string {
-	return mt.Normalize(text)
-}
-
-func splitDisplayTextSegments(text string) ([]displayTextSegment, bool, bool) {
-	segments, hasMath, ok := mt.SplitDisplaySegments(text)
-	out := make([]displayTextSegment, len(segments))
-	for i, segment := range segments {
-		out[i] = displayTextSegment{text: segment.Text, isMath: segment.IsMath}
-	}
-	return out, hasMath, ok
 }
 
 func fullMathExpression(text string) (string, bool) {

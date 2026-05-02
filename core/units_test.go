@@ -99,24 +99,6 @@ func TestAxesBarUnits_HorizontalConfiguresCategoricalYAxis(t *testing.T) {
 	}
 }
 
-type distanceKM float64
-
-type distanceConverter struct{}
-
-func (distanceConverter) Convert(value any) (float64, error) {
-	v, ok := value.(distanceKM)
-	if !ok {
-		return 0, fmt.Errorf("unexpected value %T", value)
-	}
-	return float64(v), nil
-}
-
-func (distanceConverter) AxisInfo([]float64) AxisInfo {
-	return AxisInfo{
-		Formatter: FormatStrFormatter{Pattern: "%.1f km"},
-	}
-}
-
 type tripDistance float64
 
 type tripDistanceConverter struct{}

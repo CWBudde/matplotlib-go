@@ -111,7 +111,7 @@ func loadMatplotlibRNGDebugPayload(t *testing.T) rngDebugPayload {
 	return payload
 }
 
-func selectPythonCommand(t *testing.T, name string, script string, args ...string) *exec.Cmd {
+func selectPythonCommand(t *testing.T, name, script string, args ...string) *exec.Cmd {
 	t.Helper()
 	path, err := exec.LookPath(name)
 	if err != nil {
@@ -161,7 +161,7 @@ func pcgFloat64Samples(seed1, seed2 uint64, n int) []float64 {
 	return out
 }
 
-func checkHistogramRNGOrder(t *testing.T, uniforms []float64, normals []float64, mean, std float64, maxSamples int) {
+func checkHistogramRNGOrder(t *testing.T, uniforms, normals []float64, mean, std float64, maxSamples int) {
 	t.Helper()
 	if maxSamples <= 0 {
 		return
