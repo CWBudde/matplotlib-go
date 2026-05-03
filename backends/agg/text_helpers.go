@@ -3,6 +3,7 @@ package agg
 import (
 	"errors"
 	"math"
+	"strings"
 
 	agglib "github.com/cwbudde/agg_go"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -221,6 +222,9 @@ func (r *Renderer) resolveTextFontPath(fontKey string) string {
 }
 
 func (r *Renderer) resolveTextFontFace(fontKey string) render.FontFace {
+	if r.fontPath != "" && wantsDefaultDejaVuSans(fontKey) {
+		return render.FontFace{Path: r.fontPath, Family: "DejaVu Sans"}
+	}
 	if face, ok := resolveFontFace(fontKey); ok {
 		return face
 	}
@@ -231,4 +235,9 @@ func (r *Renderer) resolveTextFontFace(fontKey string) render.FontFace {
 		return face
 	}
 	return render.FontFace{}
+}
+
+func wantsDefaultDejaVuSans(fontKey string) bool {
+	fontKey = strings.TrimSpace(fontKey)
+	return fontKey == "" || strings.Contains(strings.ToLower(fontKey), "dejavu sans")
 }

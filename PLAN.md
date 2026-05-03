@@ -708,6 +708,11 @@ Current slice landed:
   - [ ] raster/vector import of TeX output back into AGG rendering
   - [ ] parity tests for rotated TeX, boxes/rules, and font/package coordination
 
+Latest text-parity note:
+- AGG now prefers the vendored Matplotlib `DejaVuSans.ttf` when present and draws unrotated raster text as individual glyph bitmap submissions instead of one packed run image.
+- `bar_basic_title` still has a residual text-coverage mismatch (`PSNR≈55 dB`, `MeanAbs≈0.20`); the fixed-rect axes/frame and example code are already on par, so the remaining gap is in glyph raster coverage and very small text-anchor differences.
+- `TestAggTextSingleBaselineDiagnostic` now compares the current Go `x/image/opentype` raster path against Matplotlib `force_autohint` (the reference default) and `no_hinting`. Fixed-baseline `"Basic Bars"` matches Matplotlib `no_hinting` much better (`MeanAbs≈0.024`, identical dark-pixel bounds) than `force_autohint` (`MeanAbs≈0.256`, Matplotlib has a shorter hinted bbox). Fixed-baseline `"0"` is closer to `force_autohint` (`MeanAbs≈0.056`) than `no_hinting`, but still has a 1px lower Go bottom edge. Setting the `agg_go` context force-autohint flag does not affect this diagnostic because normal unrotated text currently bypasses the `agg_go` FreeType font engine. Next split: add Matplotlib-compatible FreeType load flags or route current text through an `agg_go` glyph-mask path; separately preserve the tick-label baseline rounding investigation.
+
 ### 8.1D AGG Backend Parity: Images, Effects, and Buffer Management
 
 **Goal:** support the AGG image/effects features Matplotlib relies on for complex artists and interactive redraw.

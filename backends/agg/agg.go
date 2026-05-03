@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"codeberg.org/go-fonts/dejavu/dejavusans"
@@ -29,6 +30,11 @@ var (
 
 func loadFontPath() (string, error) {
 	fontOnce.Do(func() {
+		if path := localMatplotlibDejaVuSansPath(); path != "" {
+			fontPath = path
+			return
+		}
+
 		f, err := os.CreateTemp("", "matplotlib-go-*.ttf")
 		if err != nil {
 			fontErr = err
@@ -44,6 +50,25 @@ func loadFontPath() (string, error) {
 		fontPath = f.Name()
 	})
 	return fontPath, fontErr
+}
+
+func localMatplotlibDejaVuSansPath() string {
+	const rel = "third_party/matplotlib/lib/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf"
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		path := filepath.Join(wd, rel)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path
+		}
+		parent := filepath.Dir(wd)
+		if parent == wd {
+			return ""
+		}
+		wd = parent
+	}
 }
 
 // Renderer implements render.Renderer using the AGG rendering backend.

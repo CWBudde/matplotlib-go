@@ -124,51 +124,11 @@ func (r *Renderer) drawRasterText(text string, face render.FontFace, origin geom
 		return false
 	}
 
-	metrics := primaryFace.Metrics()
 	faces := map[string]font.Face{rasterFontCacheKey(face): primaryFace}
 	defer closeRasterFaces(faces, rasterFontCacheKey(face))
 
-	minX := 0
-	maxX := int(math.Ceil(layout.Advance))
-	for _, glyph := range layout.Glyphs {
-		glyphFace := glyph.Face
-		if rasterFontCacheKey(glyphFace) == "" {
-			glyphFace = face
-		}
-		face, err := r.rasterFaceForFace(faces, glyphFace, size)
-		if err != nil {
-			return false
-		}
-		bounds, _, ok := face.GlyphBounds(glyph.Rune)
-		if !ok {
-			continue
-		}
-		glyphMinX := int(math.Floor(glyph.Origin.X + float64(bounds.Min.X)/64.0))
-		glyphMaxX := int(math.Ceil(glyph.Origin.X + float64(bounds.Max.X)/64.0))
-		minX = min(minX, glyphMinX)
-		maxX = max(maxX, glyphMaxX)
-	}
-
-	width := maxX - minX
-	height := metrics.Height.Ceil()
-	if width <= 0 || height <= 0 {
-		return false
-	}
-
-	rawLeft := origin.X + float64(minX)
-	rawTop := origin.Y - float64(metrics.Ascent.Ceil())
-	topLeft := geom.Pt{
-		X: math.Floor(rawLeft),
-		Y: math.Floor(rawTop),
-	}
-	width = int(math.Ceil(origin.X+float64(maxX))) - int(topLeft.X)
-	height = int(math.Ceil(rawTop+float64(height))) - int(topLeft.Y)
-	if width <= 0 || height <= 0 {
-		return false
-	}
-
-	src := image.NewRGBA(image.Rect(0, 0, width, height))
 	uniform := image.NewUniform(renderColorToRGBA(textColor))
+	drewGlyph := false
 	for _, glyph := range layout.Glyphs {
 		glyphFace := glyph.Face
 		if rasterFontCacheKey(glyphFace) == "" {
@@ -179,22 +139,27 @@ func (r *Renderer) drawRasterText(text string, face render.FontFace, origin geom
 			return false
 		}
 		dot := fixed.Point26_6{
-			X: fixed.Int26_6(math.Round((origin.X + glyph.Origin.X - topLeft.X) * 64.0)),
-			Y: fixed.Int26_6(math.Round((origin.Y - topLeft.Y) * 64.0)),
+			X: fixed.Int26_6(math.Round((origin.X + glyph.Origin.X) * 64.0)),
+			Y: fixed.Int26_6(math.Round(origin.Y * 64.0)),
 		}
 		dr, mask, maskp, _, ok := face.Glyph(dot, glyph.Rune)
 		if !ok || dr.Empty() {
 			continue
 		}
-		draw.DrawMask(src, dr, uniform, image.Point{}, mask, maskp, draw.Over)
+
+		src := image.NewRGBA(image.Rect(0, 0, dr.Dx(), dr.Dy()))
+		draw.DrawMask(src, src.Bounds(), uniform, image.Point{}, mask, maskp, draw.Over)
+		img, err := agglib.NewImageFromStandardImage(src)
+		if err != nil {
+			return false
+		}
+		if err := r.ctx.DrawImageScaled(img, float64(dr.Min.X), float64(dr.Min.Y), float64(dr.Dx()), float64(dr.Dy())); err != nil {
+			return false
+		}
+		drewGlyph = true
 	}
 
-	img, err := agglib.NewImageFromStandardImage(src)
-	if err != nil {
-		return false
-	}
-
-	return r.ctx.DrawImageScaled(img, topLeft.X, topLeft.Y, float64(width), float64(height)) == nil
+	return drewGlyph || len(layout.Glyphs) == 0 || layout.Advance > 0
 }
 
 func (r *Renderer) rasterFaceForFace(faces map[string]font.Face, fontFace render.FontFace, size float64) (font.Face, error) {
