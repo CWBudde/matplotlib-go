@@ -183,6 +183,7 @@ func TestAggTextSingleBaselineDiagnostic(t *testing.T) {
 	if r.fontPath == "" {
 		t.Fatal("expected DejaVu Sans font path to be configured")
 	}
+	nativeFreetypeVersion := nativeFreetypeVersion()
 
 	cases := []aggTextBaselineCase{
 		{Name: "basic_bars", Text: "Basic Bars", Size: 12, X: 140, Y: 36, DPI: 100, Width: 420, Height: 120},
@@ -200,14 +201,19 @@ func TestAggTextSingleBaselineDiagnostic(t *testing.T) {
 				name        string
 				goForceAuto bool
 				mplHinting  string
+				native      bool
 			}{
 				{name: "current_vs_mpl_force_autohint", goForceAuto: false, mplHinting: "force_autohint"},
 				{name: "current_vs_mpl_no_hinting", goForceAuto: false, mplHinting: "no_hinting"},
 				{name: "forceauto_vs_mpl_force_autohint", goForceAuto: true, mplHinting: "force_autohint"},
+				{name: "native_vs_mpl_force_autohint", mplHinting: "force_autohint", native: true},
 			}
 			for _, variant := range variants {
 				goImg := renderAggTextBaseline(t, r.fontPath, tc, variant.goForceAuto)
-				mplImg, mplMetrics := runMatplotlibTextBaseline(t, r.fontPath, tc, variant.mplHinting)
+				if variant.native {
+					goImg = renderNativeFreetypeTextBaseline(t, r.fontPath, tc)
+				}
+				mplImg, mplMetrics, mplFreetypeVersion := runMatplotlibTextBaseline(t, r.fontPath, tc, variant.mplHinting)
 				diff := compareRGBA(goImg, mplImg, 0, 0)
 				best := bestIntegerOffset(goImg, mplImg, 2)
 				goBounds, goCount, _ := darkPixelBounds(goImg)
@@ -222,7 +228,7 @@ func TestAggTextSingleBaselineDiagnostic(t *testing.T) {
 				savePNG(t, diffPath, diffImage(goImg, mplImg))
 
 				t.Logf("%s artifacts: go=%s mpl=%s diff=%s", variant.name, goPath, mplPath, diffPath)
-				t.Logf("%s matplotlib metrics: width=%.3f height=%.3f descent=%.3f", variant.name, mplMetrics.Width, mplMetrics.Height, mplMetrics.Descent)
+				t.Logf("%s matplotlib metrics: width=%.3f height=%.3f descent=%.3f freetype=%s native_freetype=%s", variant.name, mplMetrics.Width, mplMetrics.Height, mplMetrics.Descent, mplFreetypeVersion, nativeFreetypeVersion)
 				t.Logf("%s dark bounds: go=%v count=%d mpl=%v count=%d", variant.name, goBounds, goCount, mplBounds, mplCount)
 				t.Logf("%s direct diff: mean_abs=%.4f max=%d psnr=%.2f differing=%d/%d", variant.name, diff.MeanAbs, diff.MaxAbs, diff.PSNR, diff.DifferingPixels, diff.TotalPixels)
 				t.Logf("%s best integer offset within +/-2px: dx=%d dy=%d mean_abs=%.4f max=%d psnr=%.2f differing=%d/%d", variant.name, best.DX, best.DY, best.MeanAbs, best.MaxAbs, best.PSNR, best.DifferingPixels, best.TotalPixels)
@@ -283,8 +289,9 @@ type aggTextBaselineCase struct {
 }
 
 type mplTextBaselineOutput struct {
-	PNG     string        `json:"png"`
-	Metrics mplTextMetric `json:"metrics"`
+	PNG             string        `json:"png"`
+	Metrics         mplTextMetric `json:"metrics"`
+	FreetypeVersion string        `json:"freetype_version"`
 }
 
 type imageDiffStats struct {
@@ -374,7 +381,32 @@ func renderAggTextBaseline(t *testing.T, fontPath string, tc aggTextBaselineCase
 	return r.GetImage()
 }
 
-func runMatplotlibTextBaseline(t *testing.T, fontPath string, tc aggTextBaselineCase, hinting string) (*image.RGBA, mplTextMetric) {
+func renderNativeFreetypeTextBaseline(t *testing.T, fontPath string, tc aggTextBaselineCase) *image.RGBA {
+	t.Helper()
+
+	r := mustNew(t, tc.Width, tc.Height)
+	r.SetResolution(tc.DPI)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: float64(tc.Width), Y: float64(tc.Height)}}
+	if err := r.Begin(viewport); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+	ok := r.drawNativeFreetypeText(
+		tc.Text,
+		render.FontFace{Path: fontPath, Family: "DejaVu Sans"},
+		geom.Pt{X: tc.X, Y: tc.Y},
+		tc.Size,
+		render.Color{R: 0, G: 0, B: 0, A: 1},
+	)
+	if err := r.End(); err != nil {
+		t.Fatalf("End failed: %v", err)
+	}
+	if !ok {
+		t.Fatalf("native FreeType diagnostic render failed for %q", tc.Text)
+	}
+	return r.GetImage()
+}
+
+func runMatplotlibTextBaseline(t *testing.T, fontPath string, tc aggTextBaselineCase, hinting string) (*image.RGBA, mplTextMetric, string) {
 	t.Helper()
 
 	python, err := exec.LookPath("python3")
@@ -405,6 +437,7 @@ try:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib as mpl
+    import matplotlib.ft2font as ft2font
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
     from matplotlib.font_manager import FontProperties
@@ -433,6 +466,7 @@ with mpl.rc_context(rc_params):
     print(json.dumps({
         "png": base64.b64encode(buf.getvalue()).decode("ascii"),
         "metrics": {"width": width, "height": height, "descent": descent},
+        "freetype_version": ft2font.__freetype_version__,
     }))
 `
 
@@ -464,7 +498,7 @@ with mpl.rc_context(rc_params):
 			rgba.Set(x, y, img.At(x, y))
 		}
 	}
-	return rgba, result.Metrics
+	return rgba, result.Metrics, result.FreetypeVersion
 }
 
 func savePNG(t *testing.T, path string, img image.Image) {
