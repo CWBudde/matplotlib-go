@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"image/png"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/core"
@@ -134,6 +135,30 @@ func TestDefaultDemoIDAndValidDemoID(t *testing.T) {
 
 	if ValidDemoID("nope") {
 		t.Fatal(`ValidDemoID("nope") = true, want false`)
+	}
+}
+
+func TestSourceReturnsDemoBuilderSnippet(t *testing.T) {
+	for _, descriptor := range Catalog() {
+		source, got, err := Source(descriptor.ID)
+		if err != nil {
+			t.Fatalf("Source(%q) error = %v", descriptor.ID, err)
+		}
+		if got.ID != descriptor.ID {
+			t.Fatalf("Source(%q) descriptor ID = %q, want %q", descriptor.ID, got.ID, descriptor.ID)
+		}
+		if !strings.HasPrefix(source, "func build") {
+			t.Fatalf("Source(%q) does not start with a builder function: %.32q", descriptor.ID, source)
+		}
+		if !strings.Contains(source, "core.NewFigure") {
+			t.Fatalf("Source(%q) does not include figure construction", descriptor.ID)
+		}
+	}
+}
+
+func TestSourceRejectsUnknownDemo(t *testing.T) {
+	if _, _, err := Source("nope"); err == nil {
+		t.Fatal("Source() for unknown demo returned nil error")
 	}
 }
 

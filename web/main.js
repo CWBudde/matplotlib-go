@@ -14,6 +14,7 @@ let api;
 let runtimeExited = false;
 let runtimeExitMessage = buildRuntimeExitMessage();
 let currentDemoID = "";
+const sourceCache = new Map();
 
 async function init() {
   const canvas = document.getElementById("plotCanvas");
@@ -52,6 +53,12 @@ async function init() {
     document
       .getElementById("downloadBtn")
       .addEventListener("click", () => downloadCurrentPlot());
+    document
+      .getElementById("sourceBtn")
+      .addEventListener("click", () => toggleSourcePanel());
+    document
+      .getElementById("closeSourceBtn")
+      .addEventListener("click", () => hideSourcePanel());
     document
       .getElementById("demoSelector")
       .addEventListener("change", () => mountSelectedDemo());
@@ -136,6 +143,7 @@ function mountSelectedDemo() {
 
   updateStatus(`Rendering ${demoID}…`);
   setDownloadEnabled(false);
+  setSourceEnabled(false);
 
   const startedAt = performance.now();
   const result = api.mountDemo("plotCanvas", demoID, size.width, size.height);
@@ -149,6 +157,10 @@ function mountSelectedDemo() {
   document.getElementById("demoTitle").textContent = result.title;
   document.getElementById("demoDescription").textContent = result.description;
   setDownloadEnabled(true);
+  setSourceEnabled(true);
+  if (!document.getElementById("sourcePanel").hidden) {
+    showSourceForDemo(currentDemoID, false);
+  }
   updateStatus(
     `Rendered ${result.id} in ${elapsedMs.toFixed(1)} ms at ${result.width}×${result.height}`,
   );
@@ -190,6 +202,67 @@ function updateStatus(message) {
 
 function setDownloadEnabled(enabled) {
   document.getElementById("downloadBtn").disabled = !enabled;
+}
+
+function setSourceEnabled(enabled) {
+  document.getElementById("sourceBtn").disabled = !enabled;
+}
+
+function toggleSourcePanel() {
+  const panel = document.getElementById("sourcePanel");
+  if (panel.hidden) {
+    showSourceForDemo(currentDemoID, true);
+    return;
+  }
+  hideSourcePanel();
+}
+
+function showSourceForDemo(demoID, scrollIntoView) {
+  if (!demoID) {
+    return;
+  }
+
+  const source = loadDemoSource(demoID);
+  if (!source) {
+    return;
+  }
+
+  document.getElementById("sourceTitle").textContent = `Code for ${source.title}`;
+  document.getElementById("sourceCode").textContent = source.source;
+
+  const panel = document.getElementById("sourcePanel");
+  panel.hidden = false;
+
+  const button = document.getElementById("sourceBtn");
+  button.textContent = "Hide code";
+  button.setAttribute("aria-expanded", "true");
+
+  if (scrollIntoView) {
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function hideSourcePanel() {
+  document.getElementById("sourcePanel").hidden = true;
+
+  const button = document.getElementById("sourceBtn");
+  button.textContent = "View code";
+  button.setAttribute("aria-expanded", "false");
+}
+
+function loadDemoSource(demoID) {
+  if (sourceCache.has(demoID)) {
+    return sourceCache.get(demoID);
+  }
+
+  const result = api.demoSource(demoID);
+  if (result.error) {
+    updateStatus(result.error);
+    return null;
+  }
+
+  sourceCache.set(demoID, result);
+  return result;
 }
 
 init();

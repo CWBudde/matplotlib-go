@@ -28,6 +28,7 @@ func main() {
 		safeCallback("unmountDemo", errorResult, unmountDemo),
 		safeCallback("defaultDemoID", func(string) any { return webdemo.DefaultDemoID() }, defaultDemoID),
 		safeCallback("renderDemoPNG", errorResult, renderDemoPNG),
+		safeCallback("demoSource", errorResult, demoSource),
 	)
 
 	api := js.Global().Get("Object").New()
@@ -37,6 +38,7 @@ func main() {
 	api.Set("unmountDemo", callbacks[3])
 	api.Set("defaultDemoID", callbacks[4])
 	api.Set("renderDemoPNG", callbacks[5])
+	api.Set("demoSource", callbacks[6])
 	js.Global().Set("matplotlibGoWASM", api)
 	js.Global().Get("console").Call("log", "matplotlib-go wasm ready")
 
@@ -175,6 +177,28 @@ func renderDemoPNG(_ js.Value, args []js.Value) any {
 	result.Set("height", height)
 	result.Set("mimeType", "image/png")
 	result.Set("base64", base64.StdEncoding.EncodeToString(pngBytes))
+	return result
+}
+
+func demoSource(_ js.Value, args []js.Value) any {
+	result := js.Global().Get("Object").New()
+	id := webdemo.DefaultDemoID()
+
+	if len(args) > 0 && args[0].Type() == js.TypeString && webdemo.ValidDemoID(args[0].String()) {
+		id = args[0].String()
+	}
+
+	source, descriptor, err := webdemo.Source(id)
+	if err != nil {
+		result.Set("error", err.Error())
+		return result
+	}
+
+	result.Set("id", descriptor.ID)
+	result.Set("title", descriptor.Title)
+	result.Set("description", descriptor.Description)
+	result.Set("language", "go")
+	result.Set("source", source)
 	return result
 }
 

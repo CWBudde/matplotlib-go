@@ -30,6 +30,16 @@
           >
             Download PNG
           </button>
+          <button
+            id="sourceBtn"
+            class="secondary-button"
+            type="button"
+            aria-controls="sourcePanel"
+            aria-expanded="false"
+            disabled
+          >
+            View code
+          </button>
 
           <div class="meta-block">
             <h2 id="demoTitle">Loading…</h2>
@@ -52,6 +62,25 @@
             ></canvas>
           </div>
         </section>
+      </section>
+
+      <section
+        id="sourcePanel"
+        class="source-panel"
+        aria-labelledby="sourceTitle"
+        hidden
+      >
+        <div class="source-panel-header">
+          <h2 id="sourceTitle">Demo code</h2>
+          <button
+            id="closeSourceBtn"
+            class="secondary-button compact-button"
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+        <pre><code id="sourceCode"></code></pre>
       </section>
     </main>
 

@@ -1585,10 +1585,10 @@ func renderGridSpecComposition() image.Image {
 
 func applyMatplotlibGridSpecStyle(fig *core.Figure) {
 	fig.RC = style.Apply(fig.RC, style.WithFont("DejaVu Sans", 10))
-	fig.RC.TitleFontSize = 12 * fig.RC.DPI / 72
-	fig.RC.AxisLabelFontSize = 10 * fig.RC.DPI / 72
-	fig.RC.XTickLabelFontSize = 10 * fig.RC.DPI / 72
-	fig.RC.YTickLabelFontSize = 10 * fig.RC.DPI / 72
+	fig.RC.TitleFontSize = 12
+	fig.RC.AxisLabelFontSize = 10
+	fig.RC.XTickLabelFontSize = 10
+	fig.RC.YTickLabelFontSize = 10
 }
 
 func configureCompositionAxes(ax *core.Axes, title string, x, y []float64, c render.Color) {

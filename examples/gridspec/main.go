@@ -55,13 +55,13 @@ func main() {
 }
 
 func applyMatplotlibGridSpecStyle(fig *core.Figure) {
-	// Matplotlib's reference uses 100 DPI and DejaVu Sans; scale point sizes
-	// into renderer pixels for the Go RC values.
+	// Matplotlib's reference uses 100 DPI and DejaVu Sans. RC font sizes are
+	// point sizes; renderers convert them to device pixels at draw time.
 	fig.RC = style.Apply(fig.RC, style.WithFont("DejaVu Sans", 10))
-	fig.RC.TitleFontSize = 12 * fig.RC.DPI / 72
-	fig.RC.AxisLabelFontSize = 10 * fig.RC.DPI / 72
-	fig.RC.XTickLabelFontSize = 10 * fig.RC.DPI / 72
-	fig.RC.YTickLabelFontSize = 10 * fig.RC.DPI / 72
+	fig.RC.TitleFontSize = 12
+	fig.RC.AxisLabelFontSize = 10
+	fig.RC.XTickLabelFontSize = 10
+	fig.RC.YTickLabelFontSize = 10
 }
 
 func configureAxes(ax *core.Axes, title string, x, y []float64, c render.Color) {
