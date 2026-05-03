@@ -5,14 +5,24 @@ package wasm
 import (
 	"errors"
 	"fmt"
+	"image"
 	"math"
 	"syscall/js"
 
+	"github.com/cwbudde/matplotlib-go/backends/agg"
 	"github.com/cwbudde/matplotlib-go/backends/gobasic"
 	plotcanvas "github.com/cwbudde/matplotlib-go/canvas"
 	"github.com/cwbudde/matplotlib-go/core"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
 )
+
+type rasterRenderer interface {
+	render.Renderer
+	GetImage() *image.RGBA
+}
+
+type rasterRendererFactory func(w, h int, bg render.Color) (rasterRenderer, error)
 
 type listener struct {
 	target js.Value
@@ -30,6 +40,7 @@ type figureCanvas struct {
 	figure     *core.Figure
 	element    js.Value
 	context    js.Value
+	factory    rasterRendererFactory
 	dispatcher plotcanvas.Dispatcher
 	listeners  []listener
 	closed     bool
@@ -48,8 +59,19 @@ type axesHomeState struct {
 }
 
 func NewGoBasicManager(elementID string, fig *core.Figure) (plotcanvas.FigureManager, error) {
+	return newManager(elementID, fig, newGoBasicRenderer)
+}
+
+func NewAggManager(elementID string, fig *core.Figure) (plotcanvas.FigureManager, error) {
+	return newManager(elementID, fig, newAggRenderer)
+}
+
+func newManager(elementID string, fig *core.Figure, factory rasterRendererFactory) (plotcanvas.FigureManager, error) {
 	if fig == nil {
 		return nil, errors.New("canvas/wasm: nil figure")
+	}
+	if factory == nil {
+		return nil, errors.New("canvas/wasm: nil renderer factory")
 	}
 
 	document := js.Global().Get("document")
@@ -69,6 +91,7 @@ func NewGoBasicManager(elementID string, fig *core.Figure) (plotcanvas.FigureMan
 		figure:  fig,
 		element: element,
 		context: context,
+		factory: factory,
 	}
 	if tabIndex := element.Get("tabIndex"); tabIndex.IsUndefined() || tabIndex.Int() < 0 {
 		element.Set("tabIndex", 0)
@@ -100,6 +123,22 @@ func NewGoBasicManager(elementID string, fig *core.Figure) (plotcanvas.FigureMan
 	})
 
 	return m, nil
+}
+
+func newGoBasicRenderer(w, h int, bg render.Color) (rasterRenderer, error) {
+	r := gobasic.New(w, h, bg)
+	if r == nil {
+		return nil, errors.New("canvas/wasm: failed to create GoBasic renderer")
+	}
+	return r, nil
+}
+
+func newAggRenderer(w, h int, bg render.Color) (rasterRenderer, error) {
+	r, err := agg.New(w, h, bg)
+	if err != nil {
+		return nil, fmt.Errorf("canvas/wasm: create AGG renderer: %w", err)
+	}
+	return r, nil
 }
 
 func (m *manager) Canvas() plotcanvas.FigureCanvas { return m.canvas }
@@ -141,9 +180,9 @@ func (c *figureCanvas) Draw() error {
 	c.figure.SizePx.X = float64(cssWidth)
 	c.figure.SizePx.Y = float64(cssHeight)
 
-	renderer := gobasic.New(backingWidth, backingHeight, c.figure.RC.FigureBackground())
-	if renderer == nil {
-		return errors.New("canvas/wasm: failed to create GoBasic renderer")
+	renderer, err := c.factory(backingWidth, backingHeight, c.figure.RC.FigureBackground())
+	if err != nil {
+		return err
 	}
 	core.DrawFigure(c.figure, newScaledRenderer(renderer, pixelRatio))
 

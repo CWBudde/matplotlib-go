@@ -1,6 +1,7 @@
 package render
 
 import (
+	"errors"
 	"math"
 	"os"
 	"sync"
@@ -36,16 +37,28 @@ func TextPath(text string, origin geom.Pt, size float64, fontKey string) (geom.P
 }
 
 func loadTextPathFont(path string) (*sfnt.Font, error) {
+	return loadTextPathFontFace(FontFace{Path: path})
+}
+
+func loadTextPathFontFace(face FontFace) (*sfnt.Font, error) {
+	key := fontFaceCacheKey(face)
+	if key == "" {
+		return nil, errors.New("render: font face has no path or embedded data")
+	}
 	textPathFontCacheMu.RLock()
-	if cached, ok := textPathFontCache[path]; ok {
+	if cached, ok := textPathFontCache[key]; ok {
 		textPathFontCacheMu.RUnlock()
 		return cached, nil
 	}
 	textPathFontCacheMu.RUnlock()
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+	data := face.Data
+	if face.Path != "" {
+		var err error
+		data, err = os.ReadFile(face.Path)
+		if err != nil {
+			return nil, err
+		}
 	}
 	parsed, err := sfnt.Parse(data)
 	if err != nil {
@@ -53,7 +66,7 @@ func loadTextPathFont(path string) (*sfnt.Font, error) {
 	}
 
 	textPathFontCacheMu.Lock()
-	textPathFontCache[path] = parsed
+	textPathFontCache[key] = parsed
 	textPathFontCacheMu.Unlock()
 	return parsed, nil
 }
@@ -68,7 +81,7 @@ func textRunsPath(runs []FontRun, origin geom.Pt, size float64) (geom.Path, bool
 	ppem := fixed.Int26_6(math.Round(size * 64))
 	var buf sfnt.Buffer
 	for _, glyph := range layout.Glyphs {
-		fontData, err := loadTextPathFont(glyph.Face.Path)
+		fontData, err := loadTextPathFontFace(glyph.Face)
 		if err != nil {
 			return geom.Path{}, false
 		}
@@ -84,10 +97,10 @@ func textRunsPath(runs []FontRun, origin geom.Pt, size float64) (geom.Path, bool
 }
 
 func fontFaceSupportsRune(face FontFace, r rune) bool {
-	if face.Path == "" || r == utf8.RuneError {
+	if fontFaceCacheKey(face) == "" || r == utf8.RuneError {
 		return false
 	}
-	fontData, err := loadTextPathFont(face.Path)
+	fontData, err := loadTextPathFontFace(face)
 	if err != nil {
 		return false
 	}

@@ -11,8 +11,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/cwbudde/matplotlib-go/backends/agg"
 	"github.com/cwbudde/matplotlib-go/backends/gobasic"
 	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
 )
@@ -28,122 +30,54 @@ type Descriptor struct {
 	Description string
 }
 
-var descriptors = []Descriptor{
+type BackendDescriptor struct {
+	ID          string
+	Name        string
+	Description string
+}
+
+var descriptors = webDescriptorsFromCatalog()
+
+var backendDescriptors = []BackendDescriptor{
 	{
-		ID:          "lines",
-		Title:       "Signal Comparison",
-		Description: "Multiple line series with shared axes, legend, and grids.",
+		ID:          "gobasic",
+		Name:        "GoBasic",
+		Description: "Pure-Go raster backend used by the browser demo by default.",
 	},
 	{
-		ID:          "scatter",
-		Title:       "Scatter Clusters",
-		Description: "Three deterministic point clouds with marker and alpha styling.",
+		ID:          "agg",
+		Name:        "AGG",
+		Description: "Anti-Grain Geometry raster backend via github.com/cwbudde/agg_go.",
 	},
-	{
-		ID:          "bars",
-		Title:       "Grouped Revenue Bars",
-		Description: "Grouped bars with labels, grid lines, and category-style spacing.",
-	},
-	{
-		ID:          "fills",
-		Title:       "Filled Signals",
-		Description: "An area band between two curves with outline styling and a legend.",
-	},
-	{
-		ID:          "variants",
-		Title:       "Plot Variants",
-		Description: "Step, stairs, reference lines, spans, broken bars, and stacked bars.",
-	},
-	{
-		ID:          "axes",
-		Title:       "Axes, Scales, and Twins",
-		Description: "Minor ticks, top/right axes, aspect controls, log scale, twin axes, and secondary axes.",
-	},
-	{
-		ID:          "histogram",
-		Title:       "Latency Histogram",
-		Description: "A density-normalized histogram built from deterministic sample data.",
-	},
-	{
-		ID:          "statistics",
-		Title:       "Statistical Views",
-		Description: "Box plots, violin plots, empirical CDFs, and stack plots.",
-	},
-	{
-		ID:          "errorbars",
-		Title:       "Measured Trend With Error Bars",
-		Description: "Line, scatter, and symmetric uncertainty bars combined on one axes.",
-	},
-	{
-		ID:          "units",
-		Title:       "Dates and Categories",
-		Description: "Time-aware axes, categorical bars, and horizontal categorical bars.",
-	},
-	{
-		ID:          "heatmap",
-		Title:       "Heatmap Surface",
-		Description: "An image-based heatmap rendered through the plotting API.",
-	},
-	{
-		ID:          "matrix",
-		Title:       "Matrix Helpers",
-		Description: "MatShow, sparsity spy plots, annotated heatmaps, and colorbars.",
-	},
-	{
-		ID:          "mesh",
-		Title:       "Meshes and Contours",
-		Description: "PColorMesh, contour/contourf, Hist2D, triplot, tripcolor, and tricontour.",
-	},
-	{
-		ID:          "vectors",
-		Title:       "Vector Fields",
-		Description: "Quiver, quiver keys, barbs, streamplots, and grid-based vector input.",
-	},
-	{
-		ID:          "specialty",
-		Title:       "Specialty Artists",
-		Description: "Event plots, hexbin, pie charts, stem plots, tables, and Sankey-style flows.",
-	},
-	{
-		ID:          "patches",
-		Title:       "Patch Showcase",
-		Description: "Rectangle, circle, ellipse, polygon, and arrow patches with a legend.",
-	},
-	{
-		ID:          "annotations",
-		Title:       "Text and Annotations",
-		Description: "Data, axes, and figure coordinate text plus arrow annotations and anchored boxes.",
-	},
-	{
-		ID:          "composition",
-		Title:       "Figure Composition",
-		Description: "GridSpec spans, figure-level labels, figure legends, anchored text, and colorbars.",
-	},
-	{
-		ID:          "polar",
-		Title:       "Polar Wave",
-		Description: "A filled polar curve with custom radial and angular grid styling.",
-	},
-	{
-		ID:          "projections",
-		Title:       "Projections and Insets",
-		Description: "Mollweide geo projection plus a zoomed inset axes.",
-	},
-	{
-		ID:          "subplots",
-		Title:       "Small Multiples",
-		Description: "A compact 2×2 subplot layout showing shared limits and styling.",
-	},
-	{
-		ID:          "radialforce",
-		Title:       "Radial Force Hysteresis",
-		Description: "Force-vs-diameter scatter mirroring radial-force test rigs (close and open branches with dash-dot grid).",
-	},
+}
+
+type rasterRenderer interface {
+	render.Renderer
+	GetImage() *image.RGBA
+}
+
+func webDescriptorsFromCatalog() []Descriptor {
+	cases := examplecatalog.WebDemos()
+	out := make([]Descriptor, 0, len(cases))
+	for _, c := range cases {
+		out = append(out, Descriptor{
+			ID:          c.WebDemoID,
+			Title:       c.Title,
+			Description: c.Description,
+		})
+	}
+	return out
 }
 
 func Catalog() []Descriptor {
 	out := make([]Descriptor, len(descriptors))
 	copy(out, descriptors)
+	return out
+}
+
+func Backends() []BackendDescriptor {
+	out := make([]BackendDescriptor, len(backendDescriptors))
+	copy(out, backendDescriptors)
 	return out
 }
 
@@ -217,6 +151,10 @@ func Build(id string, width, height int) (*core.Figure, Descriptor, error) {
 }
 
 func Render(id string, width, height int) (*image.RGBA, Descriptor, error) {
+	return RenderWithBackend(id, DefaultBackendID(), width, height)
+}
+
+func RenderWithBackend(id, backendID string, width, height int) (*image.RGBA, Descriptor, error) {
 	fig, descriptor, err := Build(id, width, height)
 	if err != nil {
 		return nil, Descriptor{}, err
@@ -233,9 +171,9 @@ func Render(id string, width, height int) (*image.RGBA, Descriptor, error) {
 		}
 	}
 
-	r := gobasic.New(renderWidth, renderHeight, render.Color{R: 1, G: 1, B: 1, A: 1})
-	if r == nil {
-		return nil, Descriptor{}, errors.New("webdemo: failed to create gobasic renderer")
+	r, err := newRasterRenderer(backendID, renderWidth, renderHeight, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		return nil, Descriptor{}, err
 	}
 
 	core.DrawFigure(fig, r)
@@ -243,7 +181,11 @@ func Render(id string, width, height int) (*image.RGBA, Descriptor, error) {
 }
 
 func RenderPNG(id string, width, height int) ([]byte, Descriptor, error) {
-	img, descriptor, err := Render(id, width, height)
+	return RenderPNGWithBackend(id, DefaultBackendID(), width, height)
+}
+
+func RenderPNGWithBackend(id, backendID string, width, height int) ([]byte, Descriptor, error) {
+	img, descriptor, err := RenderWithBackend(id, backendID, width, height)
 	if err != nil {
 		return nil, Descriptor{}, err
 	}
@@ -259,10 +201,42 @@ func DefaultDemoID() string {
 	return descriptors[0].ID
 }
 
+func DefaultBackendID() string {
+	return backendDescriptors[0].ID
+}
+
 func ValidDemoID(id string) bool {
 	return slices.ContainsFunc(descriptors, func(descriptor Descriptor) bool {
 		return descriptor.ID == id
 	})
+}
+
+func ValidBackendID(id string) bool {
+	return slices.ContainsFunc(backendDescriptors, func(descriptor BackendDescriptor) bool {
+		return descriptor.ID == id
+	})
+}
+
+func newRasterRenderer(backendID string, width, height int, bg render.Color) (rasterRenderer, error) {
+	if backendID == "" {
+		backendID = DefaultBackendID()
+	}
+	switch backendID {
+	case "gobasic":
+		r := gobasic.New(width, height, bg)
+		if r == nil {
+			return nil, errors.New("webdemo: failed to create gobasic renderer")
+		}
+		return r, nil
+	case "agg":
+		r, err := agg.New(width, height, bg)
+		if err != nil {
+			return nil, fmt.Errorf("webdemo: create agg renderer: %w", err)
+		}
+		return r, nil
+	default:
+		return nil, fmt.Errorf("webdemo: unknown backend %q", backendID)
+	}
 }
 
 func buildLinesDemo(width, height int) *core.Figure {

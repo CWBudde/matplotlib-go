@@ -1,0 +1,96 @@
+package examplecatalog
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestCasesHaveStableUniqueIDs(t *testing.T) {
+	seen := map[string]bool{}
+	for _, c := range Cases() {
+		if c.ID == "" {
+			t.Fatal("catalog case has empty ID")
+		}
+		if seen[c.ID] {
+			t.Fatalf("duplicate catalog ID %q", c.ID)
+		}
+		seen[c.ID] = true
+		if c.Topic == "" {
+			t.Fatalf("%s has empty topic", c.ID)
+		}
+		if c.Title == "" {
+			t.Fatalf("%s has empty title", c.ID)
+		}
+		if c.Width <= 0 || c.Height <= 0 || c.DPI <= 0 {
+			t.Fatalf("%s dimensions/DPI = %dx%d @ %d", c.ID, c.Width, c.Height, c.DPI)
+		}
+	}
+}
+
+func TestCatalogReferencesCommittedParityImages(t *testing.T) {
+	root := repoRoot(t)
+	for _, c := range Cases() {
+		requireFile(t, filepath.Join(root, "testdata", "golden", c.ID+".png"))
+		requireFile(t, filepath.Join(root, "testdata", "matplotlib_ref", c.ID+".png"))
+	}
+}
+
+func TestCatalogSourcePathsExistWhenRecorded(t *testing.T) {
+	root := repoRoot(t)
+	for _, c := range Cases() {
+		if c.FixtureOnly {
+			if c.GoPath != "" || c.PythonPath != "" || c.WebDemoID != "" {
+				t.Fatalf("%s is fixture-only but has example/web-demo paths", c.ID)
+			}
+			continue
+		}
+		if c.GoPath != "" {
+			requireFile(t, filepath.Join(root, c.GoPath))
+		}
+		if c.PythonPath != "" {
+			requireFile(t, filepath.Join(root, c.PythonPath))
+		}
+	}
+}
+
+func TestWebDemosAreParityCasesWithReferences(t *testing.T) {
+	root := repoRoot(t)
+	seen := map[string]bool{}
+	for _, c := range WebDemos() {
+		if c.WebDemoID == "" {
+			t.Fatalf("%s has empty WebDemoID", c.ID)
+		}
+		if seen[c.WebDemoID] {
+			t.Fatalf("duplicate web demo ID %q", c.WebDemoID)
+		}
+		seen[c.WebDemoID] = true
+		if _, ok := Lookup(c.ID); !ok {
+			t.Fatalf("web demo %q does not resolve to a parity case", c.WebDemoID)
+		}
+		requireFile(t, filepath.Join(root, "test", "matplotlib_ref", "webdemos", c.WebDemoID+".py"))
+	}
+	if len(seen) < 8 {
+		t.Fatalf("web demo catalog has %d entries, want a curated but varied set", len(seen))
+	}
+}
+
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("resolve repo root: %v", err)
+	}
+	return root
+}
+
+func requireFile(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("missing %s: %v", path, err)
+	}
+	if info.IsDir() {
+		t.Fatalf("%s is a directory, want file", path)
+	}
+}

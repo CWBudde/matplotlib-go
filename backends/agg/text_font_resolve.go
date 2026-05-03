@@ -7,8 +7,23 @@ import (
 )
 
 func resolveFontPath(family string) string {
-	if strings.TrimSpace(family) == "" {
+	face, ok := resolveFontFace(family)
+	if !ok {
 		return ""
 	}
-	return render.DefaultFontManager().FindFontPath(family)
+	return face.Path
+}
+
+func resolveFontFace(family string) (render.FontFace, bool) {
+	if strings.TrimSpace(family) == "" {
+		family = "DejaVu Sans"
+	}
+	return render.DefaultFontManager().FindFont(render.ParseFontProperties(family))
+}
+
+func fontReference(face render.FontFace) string {
+	if face.Path != "" {
+		return face.Path
+	}
+	return face.Family
 }

@@ -5,9 +5,11 @@ import (
 	"errors"
 	"math"
 	"os"
+	"path/filepath"
 	"sync"
 
 	agglib "github.com/cwbudde/agg_go"
+	"github.com/cwbudde/matplotlib-go/render"
 	xfont "golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
@@ -346,13 +348,22 @@ func (s *aggSurface) fontHeightMetrics() (fontHeightMetrics, bool) {
 }
 
 func loadSFNTFont(path string) (*sfntFontResource, error) {
-	if cached, ok := sfntFontCache.Load(path); ok {
+	return loadSFNTFontFace(render.FontFace{Path: path})
+}
+
+func loadSFNTFontFace(face render.FontFace) (*sfntFontResource, error) {
+	key := sfntFontCacheKey(face)
+	if cached, ok := sfntFontCache.Load(key); ok {
 		return cached.(*sfntFontResource), nil
 	}
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+	data := face.Data
+	if face.Path != "" {
+		var err error
+		data, err = os.ReadFile(face.Path)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	fontData, err := sfnt.Parse(data)
@@ -360,8 +371,18 @@ func loadSFNTFont(path string) (*sfntFontResource, error) {
 		return nil, err
 	}
 
-	actual, _ := sfntFontCache.LoadOrStore(path, &sfntFontResource{font: fontData, data: data})
+	actual, _ := sfntFontCache.LoadOrStore(key, &sfntFontResource{font: fontData, data: data})
 	return actual.(*sfntFontResource), nil
+}
+
+func sfntFontCacheKey(face render.FontFace) string {
+	if face.Path != "" {
+		return "path:" + filepath.Clean(face.Path)
+	}
+	if face.Family != "" && len(face.Data) > 0 {
+		return "embedded:" + face.Family
+	}
+	return ""
 }
 
 func sfntMetricScale(data []byte, size, dpi float64) (float64, bool) {

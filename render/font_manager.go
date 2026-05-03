@@ -8,6 +8,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"codeberg.org/go-fonts/dejavu/dejavusans"
+	"codeberg.org/go-fonts/dejavu/dejavusansmono"
+	"codeberg.org/go-fonts/dejavu/dejavuserif"
 )
 
 const (
@@ -36,6 +40,7 @@ type FontProperties struct {
 // FontFace describes a discovered font file.
 type FontFace struct {
 	Path   string
+	Data   []byte
 	Family string
 	Style  FontStyle
 	Weight int
@@ -115,7 +120,7 @@ func (m *FontManager) FindFont(props FontProperties) (FontFace, bool) {
 	m.mu.RLock()
 	if cached, ok := m.cache[key]; ok {
 		m.mu.RUnlock()
-		return cached, cached.Path != ""
+		return cached, fontFaceCacheKey(cached) != ""
 	}
 	dirs := append([]string(nil), m.dirs...)
 	m.mu.RUnlock()
@@ -258,6 +263,9 @@ func findFontFace(props FontProperties, dirs []string) (FontFace, bool) {
 			if path := findFontInDirs(candidate, dirs); path != "" {
 				return FontFace{Path: path, Family: candidate, Style: props.Style, Weight: props.Weight}, true
 			}
+			if face, ok := embeddedFontFace(candidate, props); ok {
+				return face, true
+			}
 			if path := resolveFontWithFCMatchExact(candidate, props); path != "" {
 				return FontFace{Path: path, Family: candidate, Style: props.Style, Weight: props.Weight}, true
 			}
@@ -267,8 +275,53 @@ func findFontFace(props FontProperties, dirs []string) (FontFace, bool) {
 				return FontFace{Path: path, Family: family, Style: props.Style, Weight: props.Weight}, true
 			}
 		}
+		for _, candidate := range candidateFontFamilies(family) {
+			if face, ok := embeddedFontFace(candidate, props); ok {
+				return face, true
+			}
+		}
+		if face, ok := embeddedFontFace(family, props); ok {
+			return face, true
+		}
 	}
 	return FontFace{}, false
+}
+
+func embeddedFontFace(family string, props FontProperties) (FontFace, bool) {
+	var data []byte
+	var canonical string
+	switch normalizeFontFamilyName(family) {
+	case fontFamilySansSerif, "sans", "sansserif", "dejavusans":
+		data = dejavusans.TTF
+		canonical = "DejaVu Sans"
+	case fontFamilySerif, "dejavuserif":
+		data = dejavuserif.TTF
+		canonical = "DejaVu Serif"
+	case fontFamilyMonospace, "mono", "monospaced", "dejavusansmono":
+		data = dejavusansmono.TTF
+		canonical = "DejaVu Sans Mono"
+	default:
+		return FontFace{}, false
+	}
+	if len(data) == 0 {
+		return FontFace{}, false
+	}
+	return FontFace{
+		Data:   data,
+		Family: canonical,
+		Style:  props.Style,
+		Weight: props.Weight,
+	}, true
+}
+
+func fontFaceCacheKey(face FontFace) string {
+	if face.Path != "" {
+		return "path:" + filepath.Clean(face.Path)
+	}
+	if face.Family != "" {
+		return "embedded:" + normalizeFontFamilyName(face.Family)
+	}
+	return ""
 }
 
 func findFontInDirs(family string, dirs []string) string {

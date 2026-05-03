@@ -104,6 +104,33 @@ func TestFontManagerResolveTextRunsUsesRequestedFace(t *testing.T) {
 	}
 }
 
+func TestTextPathAndLayoutUseEmbeddedFontFace(t *testing.T) {
+	face, ok := embeddedFontFace("DejaVu Sans", FontProperties{Style: FontStyleNormal, Weight: 400})
+	if !ok {
+		t.Fatal("embeddedFontFace(DejaVu Sans) failed")
+	}
+
+	runs := []FontRun{{Text: "Ag", Face: face}}
+	layout, ok := LayoutTextGlyphRuns(runs, geom.Pt{}, 14)
+	if !ok {
+		t.Fatal("LayoutTextGlyphRuns with embedded face failed")
+	}
+	if len(layout.Glyphs) != 2 {
+		t.Fatalf("embedded layout glyph count = %d, want 2", len(layout.Glyphs))
+	}
+	if layout.Advance <= 0 {
+		t.Fatalf("embedded layout advance = %v, want > 0", layout.Advance)
+	}
+
+	path, ok := textRunsPath(runs, geom.Pt{}, 14)
+	if !ok {
+		t.Fatal("textRunsPath with embedded face failed")
+	}
+	if len(path.C) == 0 || len(path.V) == 0 {
+		t.Fatalf("embedded text path is empty: commands=%d vertices=%d", len(path.C), len(path.V))
+	}
+}
+
 func TestTextPathSkipsMissingFontsAndEmptyInputs(t *testing.T) {
 	if path, ok := TextPath("", geom.Pt{}, 12, "missing-font"); ok || len(path.C) != 0 {
 		t.Fatalf("empty text should not build a path: %+v, %v", path, ok)

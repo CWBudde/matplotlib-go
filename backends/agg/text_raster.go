@@ -1,11 +1,13 @@
 package agg
 
 import (
+	"errors"
 	"image"
 	"image/color"
 	"image/draw"
 	"math"
 	"os"
+	"path/filepath"
 	"sync"
 
 	agglib "github.com/cwbudde/agg_go"
@@ -21,17 +23,25 @@ var (
 	rasterFontCache   = map[string]*opentype.Font{}
 )
 
-func loadRasterFont(fontPath string) (*opentype.Font, error) {
+func loadRasterFont(face render.FontFace) (*opentype.Font, error) {
+	key := rasterFontCacheKey(face)
+	if key == "" {
+		return nil, errors.New("agg: raster font face has no path or data")
+	}
 	rasterFontCacheMu.RLock()
-	if cached, ok := rasterFontCache[fontPath]; ok {
+	if cached, ok := rasterFontCache[key]; ok {
 		rasterFontCacheMu.RUnlock()
 		return cached, nil
 	}
 	rasterFontCacheMu.RUnlock()
 
-	fontData, err := os.ReadFile(fontPath)
-	if err != nil {
-		return nil, err
+	fontData := face.Data
+	if face.Path != "" {
+		var err error
+		fontData, err = os.ReadFile(face.Path)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	parsed, err := opentype.Parse(fontData)
@@ -40,13 +50,13 @@ func loadRasterFont(fontPath string) (*opentype.Font, error) {
 	}
 
 	rasterFontCacheMu.Lock()
-	rasterFontCache[fontPath] = parsed
+	rasterFontCache[key] = parsed
 	rasterFontCacheMu.Unlock()
 	return parsed, nil
 }
 
-func (r *Renderer) openRasterFace(fontPath string, size float64) (font.Face, error) {
-	parsed, err := loadRasterFont(fontPath)
+func (r *Renderer) openRasterFace(face render.FontFace, size float64) (font.Face, error) {
+	parsed, err := loadRasterFont(face)
 	if err != nil {
 		return nil, err
 	}
@@ -63,29 +73,30 @@ func (r *Renderer) openRasterFace(fontPath string, size float64) (font.Face, err
 	})
 }
 
-func (r *Renderer) measureRasterText(text, fontPath string, size float64) (render.TextMetrics, bool) {
-	if text == "" || fontPath == "" || size <= 0 {
+func (r *Renderer) measureRasterText(text string, face render.FontFace, size float64) (render.TextMetrics, bool) {
+	fontKey := fontReference(face)
+	if text == "" || fontKey == "" || size <= 0 {
 		return render.TextMetrics{}, false
 	}
 
-	face, err := r.openRasterFace(fontPath, size)
+	fontFace, err := r.openRasterFace(face, size)
 	if err != nil {
 		return render.TextMetrics{}, false
 	}
-	defer func() { _ = face.Close() }()
+	defer func() { _ = fontFace.Close() }()
 
-	layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), fontPath)
+	layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), fontKey)
 	if !ok {
 		return render.TextMetrics{}, false
 	}
 
-	metrics := face.Metrics()
+	metrics := fontFace.Metrics()
 	ascent := quantize(float64(metrics.Ascent.Ceil()))
 	descent := quantize(float64(metrics.Descent.Ceil()))
 	height := quantize(float64(metrics.Height.Ceil()))
-	if fontHeights, ok := rasterFontHeightMetrics(fontPath, size, r.resolution); ok {
-		ascent = math.Max(math.Ceil(fontHeights.ascent), math.Max(0, -layout.Bounds.Y))
-		descent = math.Max(math.Floor(fontHeights.descent), math.Max(0, layout.Bounds.Y+layout.Bounds.H))
+	if fontHeights, ok := rasterFontHeightMetrics(face, size, r.resolution); ok {
+		ascent = math.Max(fontHeights.ascent, math.Max(0, -layout.Bounds.Y))
+		descent = math.Max(fontHeights.descent, math.Max(0, layout.Bounds.Y+layout.Bounds.H))
 		height = ascent + descent
 	}
 	return render.TextMetrics{
@@ -96,34 +107,35 @@ func (r *Renderer) measureRasterText(text, fontPath string, size float64) (rende
 	}, true
 }
 
-func (r *Renderer) drawRasterText(text, fontPath string, origin geom.Pt, size float64, textColor render.Color) bool {
-	if text == "" || fontPath == "" || size <= 0 {
+func (r *Renderer) drawRasterText(text string, face render.FontFace, origin geom.Pt, size float64, textColor render.Color) bool {
+	fontKey := fontReference(face)
+	if text == "" || fontKey == "" || size <= 0 {
 		return false
 	}
 
-	primaryFace, err := r.openRasterFace(fontPath, size)
+	primaryFace, err := r.openRasterFace(face, size)
 	if err != nil {
 		return false
 	}
 	defer func() { _ = primaryFace.Close() }()
 
-	layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), fontPath)
+	layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), fontKey)
 	if !ok {
 		return false
 	}
 
 	metrics := primaryFace.Metrics()
-	faces := map[string]font.Face{fontPath: primaryFace}
-	defer closeRasterFaces(faces, fontPath)
+	faces := map[string]font.Face{rasterFontCacheKey(face): primaryFace}
+	defer closeRasterFaces(faces, rasterFontCacheKey(face))
 
 	minX := 0
 	maxX := int(math.Ceil(layout.Advance))
 	for _, glyph := range layout.Glyphs {
-		facePath := glyph.Face.Path
-		if facePath == "" {
-			facePath = fontPath
+		glyphFace := glyph.Face
+		if rasterFontCacheKey(glyphFace) == "" {
+			glyphFace = face
 		}
-		face, err := r.rasterFaceForPath(faces, facePath, size)
+		face, err := r.rasterFaceForFace(faces, glyphFace, size)
 		if err != nil {
 			return false
 		}
@@ -158,11 +170,11 @@ func (r *Renderer) drawRasterText(text, fontPath string, origin geom.Pt, size fl
 	src := image.NewRGBA(image.Rect(0, 0, width, height))
 	uniform := image.NewUniform(renderColorToRGBA(textColor))
 	for _, glyph := range layout.Glyphs {
-		facePath := glyph.Face.Path
-		if facePath == "" {
-			facePath = fontPath
+		glyphFace := glyph.Face
+		if rasterFontCacheKey(glyphFace) == "" {
+			glyphFace = face
 		}
-		face, err := r.rasterFaceForPath(faces, facePath, size)
+		face, err := r.rasterFaceForFace(faces, glyphFace, size)
 		if err != nil {
 			return false
 		}
@@ -185,15 +197,16 @@ func (r *Renderer) drawRasterText(text, fontPath string, origin geom.Pt, size fl
 	return r.ctx.DrawImageScaled(img, topLeft.X, topLeft.Y, float64(width), float64(height)) == nil
 }
 
-func (r *Renderer) rasterFaceForPath(faces map[string]font.Face, fontPath string, size float64) (font.Face, error) {
-	if face := faces[fontPath]; face != nil {
+func (r *Renderer) rasterFaceForFace(faces map[string]font.Face, fontFace render.FontFace, size float64) (font.Face, error) {
+	key := rasterFontCacheKey(fontFace)
+	if face := faces[key]; face != nil {
 		return face, nil
 	}
-	face, err := r.openRasterFace(fontPath, size)
+	face, err := r.openRasterFace(fontFace, size)
 	if err != nil {
 		return nil, err
 	}
-	faces[fontPath] = face
+	faces[key] = face
 	return face, nil
 }
 
@@ -203,6 +216,16 @@ func closeRasterFaces(faces map[string]font.Face, keepPath string) {
 			_ = face.Close()
 		}
 	}
+}
+
+func rasterFontCacheKey(face render.FontFace) string {
+	if face.Path != "" {
+		return "path:" + filepath.Clean(face.Path)
+	}
+	if face.Family != "" && len(face.Data) > 0 {
+		return "embedded:" + face.Family
+	}
+	return ""
 }
 
 func renderColorToRGBA(c render.Color) color.RGBA {

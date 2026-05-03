@@ -13,28 +13,17 @@ import (
 func TestCatalogStable(t *testing.T) {
 	got := Catalog()
 	wantIDs := []string{
-		"lines",
-		"scatter",
-		"bars",
-		"fills",
-		"variants",
 		"axes",
-		"histogram",
-		"statistics",
-		"errorbars",
-		"units",
-		"heatmap",
-		"matrix",
-		"mesh",
-		"vectors",
-		"specialty",
-		"patches",
-		"annotations",
 		"composition",
+		"mesh",
+		"variants",
+		"statistics",
+		"specialty",
+		"units",
+		"vectors",
 		"polar",
 		"projections",
-		"subplots",
-		"radialforce",
+		"matrix",
 	}
 	if len(got) != len(wantIDs) {
 		t.Fatalf("Catalog() len = %d, want %d", len(got), len(wantIDs))
@@ -54,12 +43,12 @@ func TestCatalogStable(t *testing.T) {
 }
 
 func TestRenderProducesImage(t *testing.T) {
-	img, descriptor, err := Render("lines", 320, 180)
+	img, descriptor, err := Render("axes", 320, 180)
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
-	if descriptor.ID != "lines" {
-		t.Fatalf("Render() descriptor ID = %q, want %q", descriptor.ID, "lines")
+	if descriptor.ID != "axes" {
+		t.Fatalf("Render() descriptor ID = %q, want %q", descriptor.ID, "axes")
 	}
 	if img.Bounds().Dx() != 320 || img.Bounds().Dy() != 180 {
 		t.Fatalf("Render() bounds = %v, want 320x180", img.Bounds())
@@ -80,13 +69,48 @@ func TestRenderProducesImage(t *testing.T) {
 	}
 }
 
+func TestBackendsStable(t *testing.T) {
+	got := Backends()
+	wantIDs := []string{"gobasic", "agg"}
+	if len(got) != len(wantIDs) {
+		t.Fatalf("Backends() len = %d, want %d", len(got), len(wantIDs))
+	}
+
+	for i, want := range wantIDs {
+		if got[i].ID != want {
+			t.Fatalf("Backends()[%d].ID = %q, want %q", i, got[i].ID, want)
+		}
+		if got[i].Name == "" {
+			t.Fatalf("Backends()[%d].Name is empty", i)
+		}
+		if got[i].Description == "" {
+			t.Fatalf("Backends()[%d].Description is empty", i)
+		}
+	}
+}
+
+func TestRenderWithBackendProducesImage(t *testing.T) {
+	for _, backend := range Backends() {
+		img, descriptor, err := RenderWithBackend("axes", backend.ID, 320, 180)
+		if err != nil {
+			t.Fatalf("RenderWithBackend(%q) error = %v", backend.ID, err)
+		}
+		if descriptor.ID != "axes" {
+			t.Fatalf("RenderWithBackend(%q) descriptor ID = %q, want %q", backend.ID, descriptor.ID, "axes")
+		}
+		if img.Bounds().Dx() != 320 || img.Bounds().Dy() != 180 {
+			t.Fatalf("RenderWithBackend(%q) bounds = %v, want 320x180", backend.ID, img.Bounds())
+		}
+	}
+}
+
 func TestRenderPNGProducesPNGBytes(t *testing.T) {
-	pngBytes, descriptor, err := RenderPNG("lines", 320, 180)
+	pngBytes, descriptor, err := RenderPNG("axes", 320, 180)
 	if err != nil {
 		t.Fatalf("RenderPNG() error = %v", err)
 	}
-	if descriptor.ID != "lines" {
-		t.Fatalf("RenderPNG() descriptor ID = %q, want %q", descriptor.ID, "lines")
+	if descriptor.ID != "axes" {
+		t.Fatalf("RenderPNG() descriptor ID = %q, want %q", descriptor.ID, "axes")
 	}
 	if len(pngBytes) == 0 {
 		t.Fatal("RenderPNG() returned no bytes")
@@ -123,7 +147,7 @@ func TestBuildRejectsUnsupportedConfiguredDemo(t *testing.T) {
 }
 
 func TestDefaultDemoIDAndValidDemoID(t *testing.T) {
-	if got, want := DefaultDemoID(), "lines"; got != want {
+	if got, want := DefaultDemoID(), "axes"; got != want {
 		t.Fatalf("DefaultDemoID() = %q, want %q", got, want)
 	}
 
@@ -135,6 +159,22 @@ func TestDefaultDemoIDAndValidDemoID(t *testing.T) {
 
 	if ValidDemoID("nope") {
 		t.Fatal(`ValidDemoID("nope") = true, want false`)
+	}
+}
+
+func TestDefaultBackendIDAndValidBackendID(t *testing.T) {
+	if got, want := DefaultBackendID(), "gobasic"; got != want {
+		t.Fatalf("DefaultBackendID() = %q, want %q", got, want)
+	}
+
+	for _, descriptor := range Backends() {
+		if !ValidBackendID(descriptor.ID) {
+			t.Fatalf("ValidBackendID(%q) = false, want true", descriptor.ID)
+		}
+	}
+
+	if ValidBackendID("nope") {
+		t.Fatal(`ValidBackendID("nope") = true, want false`)
 	}
 }
 
@@ -448,6 +488,9 @@ func TestBuildEachDemoStructure(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		if !ValidDemoID(tc.id) {
+			continue
+		}
 		t.Run(tc.id, func(t *testing.T) {
 			fig, descriptor, err := Build(tc.id, tc.width, tc.height)
 			if err != nil {
@@ -507,12 +550,12 @@ func TestBuildEachDemoStructure(t *testing.T) {
 }
 
 func TestBuildUsesDefaultDimensions(t *testing.T) {
-	fig, descriptor, err := Build("lines", 0, -5)
+	fig, descriptor, err := Build("axes", 0, -5)
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
-	if descriptor.ID != "lines" {
-		t.Fatalf("descriptor.ID = %q, want %q", descriptor.ID, "lines")
+	if descriptor.ID != "axes" {
+		t.Fatalf("descriptor.ID = %q, want %q", descriptor.ID, "axes")
 	}
 	if got, want := fig.SizePx.X, float64(DefaultWidth); got != want {
 		t.Fatalf("fig.SizePx.X = %v, want %v", got, want)
@@ -611,12 +654,12 @@ func TestRenderEachDemoProducesImage(t *testing.T) {
 }
 
 func TestRenderUsesDefaultDimensions(t *testing.T) {
-	img, descriptor, err := Render("lines", 0, -1)
+	img, descriptor, err := Render(DefaultDemoID(), 0, -1)
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
-	if descriptor.ID != "lines" {
-		t.Fatalf("descriptor.ID = %q, want %q", descriptor.ID, "lines")
+	if descriptor.ID != "axes" {
+		t.Fatalf("descriptor.ID = %q, want %q", descriptor.ID, "axes")
 	}
 	if img.Bounds().Dx() != DefaultWidth || img.Bounds().Dy() != DefaultHeight {
 		t.Fatalf("Render() bounds = %v, want %dx%d", img.Bounds(), DefaultWidth, DefaultHeight)

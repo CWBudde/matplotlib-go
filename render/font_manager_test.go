@@ -58,6 +58,33 @@ func TestFontManagerScansAddedDirectories(t *testing.T) {
 	}
 }
 
+func TestEmbeddedFontFaceProvidesDefaultFamilies(t *testing.T) {
+	tests := []struct {
+		family string
+		want   string
+	}{
+		{family: "sans-serif", want: "DejaVu Sans"},
+		{family: "serif", want: "DejaVu Serif"},
+		{family: "monospace", want: "DejaVu Sans Mono"},
+	}
+
+	for _, tt := range tests {
+		face, ok := embeddedFontFace(tt.family, FontProperties{Style: FontStyleNormal, Weight: 400})
+		if !ok {
+			t.Fatalf("embeddedFontFace(%q) failed", tt.family)
+		}
+		if face.Family != tt.want {
+			t.Fatalf("embeddedFontFace(%q).Family = %q, want %q", tt.family, face.Family, tt.want)
+		}
+		if len(face.Data) == 0 {
+			t.Fatalf("embeddedFontFace(%q) returned no data", tt.family)
+		}
+		if face.Path != "" {
+			t.Fatalf("embeddedFontFace(%q).Path = %q, want empty", tt.family, face.Path)
+		}
+	}
+}
+
 func TestCSSFontFamilyVariants(t *testing.T) {
 	tests := map[string]string{
 		"serif":       "DejaVu Serif, serif",

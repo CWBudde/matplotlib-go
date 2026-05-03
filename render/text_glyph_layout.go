@@ -67,10 +67,11 @@ func LayoutTextGlyphRuns(runs []FontRun, origin geom.Pt, size float64) (TextGlyp
 	)
 
 	for _, run := range runs {
-		if run.Text == "" || run.Face.Path == "" {
+		faceKey := fontFaceCacheKey(run.Face)
+		if run.Text == "" || faceKey == "" {
 			continue
 		}
-		fontData, err := loadTextPathFont(run.Face.Path)
+		fontData, err := loadTextPathFontFace(run.Face)
 		if err != nil {
 			return TextGlyphLayout{}, false
 		}
@@ -88,7 +89,7 @@ func LayoutTextGlyphRuns(runs []FontRun, origin geom.Pt, size float64) (TextGlyp
 			}
 
 			kern := 0.0
-			if havePrevious && previousFace == run.Face.Path {
+			if havePrevious && previousFace == faceKey {
 				if k, err := fontData.Kern(&buf, previous, glyphIndex, ppem, font.HintingNone); err == nil {
 					kern = fixedToFloat(k)
 					penX += kern
@@ -132,7 +133,7 @@ func LayoutTextGlyphRuns(runs []FontRun, origin geom.Pt, size float64) (TextGlyp
 			})
 			penX += advanceFloat
 			previous = glyphIndex
-			previousFace = run.Face.Path
+			previousFace = faceKey
 			havePrevious = true
 			laidOutGlyphs = true
 		}

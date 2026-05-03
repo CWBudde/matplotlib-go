@@ -552,13 +552,14 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 	)
 	switch font.backend {
 	case textBackendRaster:
-		if metrics, ok := r.measureRasterText(text, font.fontPath, font.size); ok {
+		if metrics, ok := r.measureRasterText(text, font.face, font.size); ok {
 			return metrics
 		}
 		r.fallback = true
 		sizePx := r.fontPixelSize(font.size)
+		fontKey := fontReference(font.face)
 		w = measureLocalGSVTextWidth(text, sizePx)
-		if x, y, bw, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
+		if x, y, bw, h, ok := measureTextPathBounds(text, sizePx, fontKey); ok {
 			w = math.Max(w, x+bw)
 			ascent = math.Max(0, -y)
 			descent = math.Max(0, y+h)
@@ -626,11 +627,12 @@ func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) 
 		return render.TextBounds{}, false
 	}
 	sizePx := r.fontPixelSize(font.size)
-	if layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, sizePx, font.fontPath); ok {
+	fontKey = fontReference(font.face)
+	if layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, sizePx, fontKey); ok {
 		return layout.Bounds, true
 	}
 	r.fallback = true
-	if x, y, w, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
+	if x, y, w, h, ok := measureTextPathBounds(text, sizePx, fontKey); ok {
 		return render.TextBounds{X: x, Y: y, W: w, H: h}, true
 	}
 	x, y, w, h, ok := measureLocalGSVTextBounds(text, sizePx)
@@ -669,7 +671,7 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 		return render.FontHeightMetrics{}, false
 	}
 
-	if metrics, ok := rasterFontHeightMetrics(font.fontPath, font.size, r.resolution); ok {
+	if metrics, ok := rasterFontHeightMetrics(font.face, font.size, r.resolution); ok {
 		return render.FontHeightMetrics{
 			Ascent:  metrics.ascent,
 			Descent: metrics.descent,
@@ -680,7 +682,7 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
 		r.fallback = true
 		sizePx := r.fontPixelSize(font.size)
-		if _, y, _, h, ok := measureTextPathBounds("lp", sizePx, font.fontPath); ok {
+		if _, y, _, h, ok := measureTextPathBounds("lp", sizePx, fontReference(font.face)); ok {
 			return render.FontHeightMetrics{
 				Ascent:  math.Max(0, -y),
 				Descent: math.Max(0, y+h),
@@ -706,15 +708,15 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 	}, true
 }
 
-func rasterFontHeightMetrics(fontPath string, size float64, resolution uint) (fontHeightMetrics, bool) {
-	if fontPath == "" || size <= 0 {
+func rasterFontHeightMetrics(face render.FontFace, size float64, resolution uint) (fontHeightMetrics, bool) {
+	if fontReference(face) == "" || size <= 0 {
 		return fontHeightMetrics{}, false
 	}
 	dpi := float64(resolution)
 	if dpi <= 0 {
 		dpi = 72
 	}
-	resource, err := loadSFNTFont(fontPath)
+	resource, err := loadSFNTFontFace(face)
 	if err != nil {
 		return fontHeightMetrics{}, false
 	}
@@ -742,10 +744,10 @@ func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey s
 		fontKey = r.lastFontKey
 	}
 	font := r.configureTextFont(size, fontKey)
-	if font.fontPath == "" {
+	if fontReference(font.face) == "" {
 		return geom.Path{}, false
 	}
-	return render.TextPath(text, origin, r.fontPixelSize(size), font.fontPath)
+	return render.TextPath(text, origin, r.fontPixelSize(size), fontReference(font.face))
 }
 
 // DrawText renders text at the given position with the specified size and color.
@@ -769,11 +771,11 @@ func (r *Renderer) drawTextDirect(text string, origin geom.Pt, size float64, tex
 
 	switch font.backend {
 	case textBackendRaster:
-		if r.drawRasterText(text, font.fontPath, origin, font.size, textColor) {
+		if r.drawRasterText(text, font.face, origin, font.size, textColor) {
 			return
 		}
 		sizePx := r.fontPixelSize(font.size)
-		if r.drawTextPathFallback(text, origin, sizePx, textColor, font.fontPath) {
+		if r.drawTextPathFallback(text, origin, sizePx, textColor, fontReference(font.face)) {
 			return
 		}
 		r.fallback = true
@@ -823,16 +825,19 @@ func (r *Renderer) drawTextRotatedDirect(text string, anchor geom.Pt, size, angl
 	r.ctx.Rotate(-angle)
 	r.ctx.Translate(anchor.X, anchor.Y)
 
-	if font.fontPath != "" {
+	if fontReference(font.face) != "" {
 		sizePx := r.fontPixelSize(font.size)
-		if r.drawTextPathFallback(text, origin, sizePx, textColor, font.fontPath) {
+		fontKey := fontReference(font.face)
+		if r.drawTextPathFallback(text, origin, sizePx, textColor, fontKey) {
 			return
 		}
-		if face, err := r.configureOutlineFont(font.fontPath, sizePx); err == nil {
-			r.ctx.SetFillColor(renderColorToAGG(textColor))
-			r.ctx.SetStrokeColor(renderColorToAGG(textColor))
-			if drawTrueTypeOutlineText(r.ctx, face, origin.X, origin.Y, text) {
-				return
+		if font.fontPath != "" {
+			if face, err := r.configureOutlineFont(font.fontPath, sizePx); err == nil {
+				r.ctx.SetFillColor(renderColorToAGG(textColor))
+				r.ctx.SetStrokeColor(renderColorToAGG(textColor))
+				if drawTrueTypeOutlineText(r.ctx, face, origin.X, origin.Y, text) {
+					return
+				}
 			}
 		}
 		r.fallback = true

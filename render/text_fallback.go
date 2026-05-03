@@ -27,6 +27,7 @@ func (m *FontManager) ResolveTextRuns(text, fontKey string) ([]FontRun, bool) {
 	fallbacks := m.fallbackFaces(primary)
 	var runs []FontRun
 	var current FontFace
+	var currentKey string
 	var currentText []rune
 
 	flush := func() {
@@ -47,15 +48,17 @@ func (m *FontManager) ResolveTextRuns(text, fontKey string) ([]FontRun, bool) {
 		face := primary
 		if !fontFaceSupportsRune(primary, r) {
 			face = firstFaceSupportingRune(fallbacks, r)
-			if face.Path == "" {
+			if fontFaceCacheKey(face) == "" {
 				face = primary
 			}
 		}
 
-		if current.Path != "" && face.Path != current.Path {
+		faceKey := fontFaceCacheKey(face)
+		if currentKey != "" && faceKey != currentKey {
 			flush()
 		}
 		current = face
+		currentKey = faceKey
 		currentText = append(currentText, r)
 	}
 	flush()
@@ -65,16 +68,23 @@ func (m *FontManager) ResolveTextRuns(text, fontKey string) ([]FontRun, bool) {
 
 func (m *FontManager) fallbackFaces(primary FontFace) []FontFace {
 	var faces []FontFace
-	seen := map[string]struct{}{primary.Path: {}}
+	seen := map[string]struct{}{}
+	if key := fontFaceCacheKey(primary); key != "" {
+		seen[key] = struct{}{}
+	}
 	for _, family := range []string{fontFamilySansSerif, fontFamilySerif, fontFamilyMonospace} {
 		face, ok := m.FindFont(FontProperties{Families: []string{family}})
-		if !ok || face.Path == "" {
+		if !ok {
 			continue
 		}
-		if _, ok := seen[face.Path]; ok {
+		key := fontFaceCacheKey(face)
+		if key == "" {
 			continue
 		}
-		seen[face.Path] = struct{}{}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
 		faces = append(faces, face)
 	}
 	return faces

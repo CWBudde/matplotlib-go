@@ -523,6 +523,26 @@ type BoxPlotOptions struct {
 	Label        string        // series label for legend
 }
 
+// BoxPlotsOptions holds optional parameters for multi-series box plots.
+type BoxPlotsOptions struct {
+	Positions    []float64      // x positions for each box center
+	Width        *float64       // box width in data units
+	Colors       []render.Color // box fill colors, one per dataset
+	EdgeColor    *render.Color  // box outline color
+	MedianColor  *render.Color  // median line color
+	WhiskerColor *render.Color  // whisker and cap color
+	CapColor     *render.Color  // whisker cap color
+	FlierColor   *render.Color  // outlier marker color
+	EdgeWidth    *float64       // box outline width in pixels
+	WhiskerWidth *float64       // whisker line width in pixels
+	MedianWidth  *float64       // median line width in pixels
+	CapWidth     *float64       // cap length in data units
+	FlierSize    *float64       // outlier marker radius in pixels
+	Alpha        *float64       // alpha transparency
+	ShowFliers   *bool          // whether to draw outliers
+	Labels       []string       // series labels for legend
+}
+
 // BoxPlot creates a box plot from raw sample data with automatic color cycling.
 func (a *Axes) BoxPlot(data []float64, opts ...BoxPlotOptions) *BoxPlot2D {
 	if len(data) == 0 {
@@ -631,6 +651,54 @@ func (a *Axes) BoxPlot(data []float64, opts ...BoxPlotOptions) *BoxPlot2D {
 
 	a.Add(box)
 	return box
+}
+
+// BoxPlots creates a group of box plots from raw sample datasets.
+func (a *Axes) BoxPlots(datasets [][]float64, opts ...BoxPlotsOptions) []*BoxPlot2D {
+	if len(datasets) == 0 {
+		return nil
+	}
+
+	var opt BoxPlotsOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	boxes := make([]*BoxPlot2D, 0, len(datasets))
+	for i, data := range datasets {
+		position := float64(i + 1)
+		if i < len(opt.Positions) {
+			position = opt.Positions[i]
+		}
+
+		boxOpt := BoxPlotOptions{
+			Position:     &position,
+			Width:        opt.Width,
+			EdgeColor:    opt.EdgeColor,
+			MedianColor:  opt.MedianColor,
+			WhiskerColor: opt.WhiskerColor,
+			CapColor:     opt.CapColor,
+			FlierColor:   opt.FlierColor,
+			EdgeWidth:    opt.EdgeWidth,
+			WhiskerWidth: opt.WhiskerWidth,
+			MedianWidth:  opt.MedianWidth,
+			CapWidth:     opt.CapWidth,
+			FlierSize:    opt.FlierSize,
+			Alpha:        opt.Alpha,
+			ShowFliers:   opt.ShowFliers,
+		}
+		if i < len(opt.Colors) {
+			boxOpt.Color = &opt.Colors[i]
+		}
+		if i < len(opt.Labels) {
+			boxOpt.Label = opt.Labels[i]
+		}
+
+		if box := a.BoxPlot(data, boxOpt); box != nil {
+			boxes = append(boxes, box)
+		}
+	}
+	return boxes
 }
 
 // FillToBaselinePlot creates a fill from a curve to baseline with automatic color cycling.

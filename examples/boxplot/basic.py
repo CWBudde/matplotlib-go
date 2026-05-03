@@ -1,29 +1,20 @@
 #!/usr/bin/env python3
-"""Matplotlib reference counterpart for examples/boxplot/basic.go.
-
-The plot body lives in test/matplotlib_ref/plots/boxplot_basic.py so reference
-generation and the example counterpart use the same Python implementation.
-"""
+"""Matplotlib reference counterpart for examples/boxplot/basic.go."""
 
 from __future__ import annotations
 
 from pathlib import Path
-import argparse
-import sys
+import importlib.util
 
-ROOT = Path(__file__).resolve()
-while ROOT.name != "matplotlib-go" and ROOT.parent != ROOT:
-    ROOT = ROOT.parent
-sys.path.insert(0, str(ROOT))
+PLOT_PATH = Path(__file__).with_name("basic") / "plot.py"
+SPEC = importlib.util.spec_from_file_location("boxplot_basic_plot", PLOT_PATH)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError(f"could not load {PLOT_PATH}")
+MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
 
-from test.matplotlib_ref.plots.boxplot_basic import PLOT
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", default=str(Path.cwd()))
-    args = parser.parse_args()
-    PLOT(args.output_dir)
+PLOT = MODULE.PLOT
+main = MODULE.main
 
 
 if __name__ == "__main__":

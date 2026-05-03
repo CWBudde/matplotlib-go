@@ -91,6 +91,10 @@ body {
   color: var(--ink-soft);
 }
 
+.stacked-field-label {
+  margin-top: 14px;
+}
+
 select,
 button {
   width: 100%;
@@ -225,6 +229,32 @@ canvas {
   font-size: 0.88rem;
   line-height: 1.55;
   white-space: pre;
+}
+
+.tok-keyword {
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.tok-function {
+  color: #fcd34d;
+}
+
+.tok-builtin {
+  color: #c4b5fd;
+}
+
+.tok-string {
+  color: #86efac;
+}
+
+.tok-number {
+  color: #fca5a5;
+}
+
+.tok-comment {
+  color: #9ca3af;
+  font-style: italic;
 }
 
 @media (max-width: 980px) {

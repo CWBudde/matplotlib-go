@@ -31,6 +31,46 @@ func TestAxesStackPlot_CumulativeLayers(t *testing.T) {
 	assertFloatSlices(t, "second upper", fills[1].Y1, []float64{5, 7, 9})
 }
 
+func TestAxesBoxPlots_CreatesMultipleBoxes(t *testing.T) {
+	ax := NewFigure(640, 360).AddAxes(geom.Rect{})
+	width := 0.55
+	positions := []float64{1.5, 2.5}
+	colors := []render.Color{
+		{R: 0.25, G: 0.55, B: 0.82, A: 1},
+		{R: 0.80, G: 0.45, B: 0.20, A: 1},
+	}
+
+	boxes := ax.BoxPlots(
+		[][]float64{
+			{1, 2, 3},
+			{4, 5, 6},
+		},
+		BoxPlotsOptions{
+			Positions: positions,
+			Width:     &width,
+			Colors:    colors,
+		},
+	)
+
+	if len(boxes) != 2 {
+		t.Fatalf("got %d boxes, want 2", len(boxes))
+	}
+	if len(ax.Artists) != 2 {
+		t.Fatalf("got %d artists, want 2", len(ax.Artists))
+	}
+	for i, box := range boxes {
+		if box.Position != positions[i] {
+			t.Fatalf("box %d position = %v, want %v", i, box.Position, positions[i])
+		}
+		if box.Width != width {
+			t.Fatalf("box %d width = %v, want %v", i, box.Width, width)
+		}
+		if box.Color != colors[i] {
+			t.Fatalf("box %d color = %+v, want %+v", i, box.Color, colors[i])
+		}
+	}
+}
+
 func TestAxesECDF_ComputesSortedStepData(t *testing.T) {
 	ax := NewFigure(640, 360).AddAxes(geom.Rect{})
 

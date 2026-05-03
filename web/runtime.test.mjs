@@ -15,9 +15,11 @@ test("missingAPIMethods reports the required API surface in order", () => {
   };
 
   assert.deepEqual(missingAPIMethods(partialAPI), [
+    "listBackends",
     "mountDemo",
     "resizeDemo",
     "unmountDemo",
+    "defaultBackendID",
     "renderDemoPNG",
     "demoSource",
   ]);

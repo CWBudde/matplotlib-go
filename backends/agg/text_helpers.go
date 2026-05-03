@@ -19,6 +19,7 @@ const (
 
 type configuredTextFont struct {
 	backend  textBackend
+	face     render.FontFace
 	fontPath string
 	size     float64
 	fallback bool
@@ -28,10 +29,11 @@ func (r *Renderer) configureTextFont(size float64, fontKey string) configuredTex
 	if size <= 0 {
 		return configuredTextFont{}
 	}
-	if fontPath := r.resolveTextFontPath(fontKey); fontPath != "" {
+	if face := r.resolveTextFontFace(fontKey); fontReference(face) != "" {
 		return configuredTextFont{
 			backend:  textBackendRaster,
-			fontPath: fontPath,
+			face:     face,
+			fontPath: face.Path,
 			size:     size,
 		}
 	}
@@ -215,8 +217,18 @@ func appendFreeTypeOutlineText(ctx *aggSurface, text *agglib.FreeTypeOutlineText
 }
 
 func (r *Renderer) resolveTextFontPath(fontKey string) string {
-	if resolved := resolveFontPath(fontKey); resolved != "" {
-		return resolved
+	return r.resolveTextFontFace(fontKey).Path
+}
+
+func (r *Renderer) resolveTextFontFace(fontKey string) render.FontFace {
+	if face, ok := resolveFontFace(fontKey); ok {
+		return face
 	}
-	return r.fontPath
+	if r.fontPath != "" {
+		return render.FontFace{Path: r.fontPath, Family: "DejaVu Sans"}
+	}
+	if face, ok := resolveFontFace("DejaVu Sans"); ok {
+		return face
+	}
+	return render.FontFace{}
 }

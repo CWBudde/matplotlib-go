@@ -1,18 +1,22 @@
 # Python reference counterparts
 
 Human-readable Matplotlib counterparts live next to the Go examples where a
-matching reference plot exists. These scripts call the split reference modules
-under `test/matplotlib_ref/plots/`, so the example comparison code and golden
-reference generation stay in sync.
+matching reference plot exists. The shared catalog in
+`internal/examplecatalog` records the relationship between example sources,
+Go golden images, Matplotlib reference images, and the curated web demo subset.
 
-The canonical Matplotlib plot bodies are now split by plot name:
+Many older counterparts still call the split reference modules while the
+examples are being migrated into importable side-by-side Go/Python case
+directories:
 
 ```text
 test/matplotlib_ref/plots/<plot_name>.py
 ```
 
-`test/matplotlib_ref/generate.py` is only the batch CLI and RNG-debug
-dispatcher.
+For new or reshaped plotting examples, put the Go plot body and Python plot
+body beside each other and add the case to `internal/examplecatalog`. The Go
+runner should stay thin; parity fixes belong in core/rendering code, not in
+example-only workarounds.
 
 Run an individual counterpart, for example:
 

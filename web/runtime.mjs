@@ -1,9 +1,11 @@
 export const REQUIRED_API_METHODS = Object.freeze([
   "listDemos",
+  "listBackends",
   "mountDemo",
   "resizeDemo",
   "unmountDemo",
   "defaultDemoID",
+  "defaultBackendID",
   "renderDemoPNG",
   "demoSource",
 ]);

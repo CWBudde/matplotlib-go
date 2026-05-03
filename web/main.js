@@ -9,11 +9,79 @@ import {
 const go = new Go();
 const DEFAULT_WIDTH = 960;
 const DEFAULT_HEIGHT = 540;
+const GO_KEYWORDS = new Set([
+  "break",
+  "case",
+  "chan",
+  "const",
+  "continue",
+  "default",
+  "defer",
+  "else",
+  "fallthrough",
+  "for",
+  "func",
+  "go",
+  "goto",
+  "if",
+  "import",
+  "interface",
+  "map",
+  "package",
+  "range",
+  "return",
+  "select",
+  "struct",
+  "switch",
+  "type",
+  "var",
+]);
+const GO_PREDECLARED = new Set([
+  "append",
+  "bool",
+  "byte",
+  "cap",
+  "complex64",
+  "complex128",
+  "copy",
+  "delete",
+  "error",
+  "false",
+  "float32",
+  "float64",
+  "imag",
+  "int",
+  "int8",
+  "int16",
+  "int32",
+  "int64",
+  "iota",
+  "len",
+  "make",
+  "new",
+  "nil",
+  "panic",
+  "print",
+  "println",
+  "real",
+  "recover",
+  "rune",
+  "string",
+  "true",
+  "uint",
+  "uint8",
+  "uint16",
+  "uint32",
+  "uint64",
+  "uintptr",
+]);
 
 let api;
 let runtimeExited = false;
 let runtimeExitMessage = buildRuntimeExitMessage();
 let currentDemoID = "";
+let currentBackendID = "";
+const backendNames = new Map();
 const sourceCache = new Map();
 
 async function init() {
@@ -45,7 +113,9 @@ async function init() {
     ensureCompatibleAPI(api);
 
     const demos = api.listDemos();
+    const backends = api.listBackends();
     populateSelector(demos, api.defaultDemoID());
+    populateBackendSelector(backends, api.defaultBackendID());
 
     document
       .getElementById("renderBtn")
@@ -61,6 +131,9 @@ async function init() {
       .addEventListener("click", () => hideSourcePanel());
     document
       .getElementById("demoSelector")
+      .addEventListener("change", () => mountSelectedDemo());
+    document
+      .getElementById("backendSelector")
       .addEventListener("change", () => mountSelectedDemo());
 
     mountSelectedDemo();
@@ -131,6 +204,24 @@ function populateSelector(demos, selectedID) {
   }
 }
 
+function populateBackendSelector(backends, selectedID) {
+  const selector = document.getElementById("backendSelector");
+  selector.innerHTML = "";
+  backendNames.clear();
+
+  for (const backend of backends) {
+    const option = document.createElement("option");
+    option.value = backend.id;
+    option.textContent = backend.name;
+    option.title = backend.description;
+    if (backend.id === selectedID) {
+      option.selected = true;
+    }
+    selector.appendChild(option);
+    backendNames.set(backend.id, backend.name);
+  }
+}
+
 function mountSelectedDemo() {
   if (runtimeExited) {
     updateStatus(runtimeExitMessage);
@@ -139,14 +230,23 @@ function mountSelectedDemo() {
 
   const selector = document.getElementById("demoSelector");
   const demoID = selector.value || api.defaultDemoID();
+  const backendSelector = document.getElementById("backendSelector");
+  const backendID = backendSelector.value || api.defaultBackendID();
+  const backendName = backendNames.get(backendID) || backendID;
   const size = plotSize();
 
-  updateStatus(`Rendering ${demoID}…`);
+  updateStatus(`Rendering ${demoID} with ${backendName}…`);
   setDownloadEnabled(false);
   setSourceEnabled(false);
 
   const startedAt = performance.now();
-  const result = api.mountDemo("plotCanvas", demoID, size.width, size.height);
+  const result = api.mountDemo(
+    "plotCanvas",
+    demoID,
+    size.width,
+    size.height,
+    backendID,
+  );
   if (result.error) {
     updateStatus(result.error);
     return;
@@ -154,6 +254,7 @@ function mountSelectedDemo() {
   const elapsedMs = performance.now() - startedAt;
 
   currentDemoID = result.id;
+  currentBackendID = result.backendID || backendID;
   document.getElementById("demoTitle").textContent = result.title;
   document.getElementById("demoDescription").textContent = result.description;
   setDownloadEnabled(true);
@@ -162,7 +263,7 @@ function mountSelectedDemo() {
     showSourceForDemo(currentDemoID, false);
   }
   updateStatus(
-    `Rendered ${result.id} in ${elapsedMs.toFixed(1)} ms at ${result.width}×${result.height}`,
+    `Rendered ${result.id} with ${backendName} in ${elapsedMs.toFixed(1)} ms at ${result.width}×${result.height}`,
   );
 }
 
@@ -175,7 +276,7 @@ function plotSize() {
 
 function downloadCurrentPlot() {
   const canvas = document.getElementById("plotCanvas");
-  if (!canvas || !currentDemoID) {
+  if (!canvas || !currentDemoID || !currentBackendID) {
     return;
   }
 
@@ -188,7 +289,7 @@ function downloadCurrentPlot() {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.href = url;
-    link.download = `matplotlib-go-${currentDemoID}.png`;
+    link.download = `matplotlib-go-${currentDemoID}-${currentBackendID}.png`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -228,7 +329,9 @@ function showSourceForDemo(demoID, scrollIntoView) {
   }
 
   document.getElementById("sourceTitle").textContent = `Code for ${source.title}`;
-  document.getElementById("sourceCode").textContent = source.source;
+  document.getElementById("sourceCode").innerHTML = highlightGoSource(
+    source.source,
+  );
 
   const panel = document.getElementById("sourcePanel");
   panel.hidden = false;
@@ -263,6 +366,142 @@ function loadDemoSource(demoID) {
 
   sourceCache.set(demoID, result);
   return result;
+}
+
+function highlightGoSource(source) {
+  let html = "";
+  let index = 0;
+  let expectFunctionName = false;
+
+  while (index < source.length) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (char === "/" && next === "/") {
+      const end = source.indexOf("\n", index);
+      const tokenEnd = end === -1 ? source.length : end;
+      html += tokenSpan("comment", source.slice(index, tokenEnd));
+      index = tokenEnd;
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      const end = source.indexOf("*/", index + 2);
+      const tokenEnd = end === -1 ? source.length : end + 2;
+      html += tokenSpan("comment", source.slice(index, tokenEnd));
+      index = tokenEnd;
+      continue;
+    }
+
+    if (char === "`" || char === "\"" || char === "'") {
+      const tokenEnd = readStringEnd(source, index, char);
+      html += tokenSpan("string", source.slice(index, tokenEnd));
+      index = tokenEnd;
+      expectFunctionName = false;
+      continue;
+    }
+
+    if (isDigit(char)) {
+      const tokenEnd = readNumberEnd(source, index);
+      html += tokenSpan("number", source.slice(index, tokenEnd));
+      index = tokenEnd;
+      expectFunctionName = false;
+      continue;
+    }
+
+    if (isIdentifierStart(char)) {
+      const tokenEnd = readIdentifierEnd(source, index);
+      const token = source.slice(index, tokenEnd);
+      if (GO_KEYWORDS.has(token)) {
+        html += tokenSpan("keyword", token);
+        expectFunctionName = token === "func";
+      } else if (expectFunctionName && nextNonSpace(source, tokenEnd) === "(") {
+        html += tokenSpan("function", token);
+        expectFunctionName = false;
+      } else if (GO_PREDECLARED.has(token)) {
+        html += tokenSpan("builtin", token);
+        expectFunctionName = false;
+      } else {
+        html += escapeHTML(token);
+      }
+      index = tokenEnd;
+      continue;
+    }
+
+    html += escapeHTML(char);
+    if (!isWhitespace(char)) {
+      expectFunctionName = false;
+    }
+    index += 1;
+  }
+
+  return html;
+}
+
+function readStringEnd(source, start, quote) {
+  let index = start + 1;
+  while (index < source.length) {
+    if (quote !== "`" && source[index] === "\\") {
+      index += 2;
+      continue;
+    }
+    if (source[index] === quote) {
+      return index + 1;
+    }
+    index += 1;
+  }
+  return source.length;
+}
+
+function readNumberEnd(source, start) {
+  let index = start + 1;
+  while (index < source.length && /[0-9A-Fa-f_.xXoOpP]/.test(source[index])) {
+    index += 1;
+  }
+  return index;
+}
+
+function readIdentifierEnd(source, start) {
+  let index = start + 1;
+  while (index < source.length && isIdentifierPart(source[index])) {
+    index += 1;
+  }
+  return index;
+}
+
+function nextNonSpace(source, start) {
+  let index = start;
+  while (index < source.length && isWhitespace(source[index])) {
+    index += 1;
+  }
+  return source[index];
+}
+
+function isIdentifierStart(char) {
+  return /[A-Za-z_]/.test(char);
+}
+
+function isIdentifierPart(char) {
+  return /[A-Za-z0-9_]/.test(char);
+}
+
+function isDigit(char) {
+  return /[0-9]/.test(char);
+}
+
+function isWhitespace(char) {
+  return /\s/.test(char);
+}
+
+function tokenSpan(type, value) {
+  return `<span class="tok-${type}">${escapeHTML(value)}</span>`;
+}
+
+function escapeHTML(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 init();

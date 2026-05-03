@@ -10,6 +10,7 @@ import (
 
 	plotcanvas "github.com/cwbudde/matplotlib-go/canvas"
 	wasmcanvas "github.com/cwbudde/matplotlib-go/canvas/wasm"
+	"github.com/cwbudde/matplotlib-go/core"
 	"github.com/cwbudde/matplotlib-go/internal/webdemo"
 )
 
@@ -23,22 +24,26 @@ type wasmCallback func(js.Value, []js.Value) any
 func main() {
 	callbacks = append(callbacks,
 		safeCallback("listDemos", func(string) any { return js.Global().Get("Array").New() }, listDemos),
+		safeCallback("listBackends", func(string) any { return js.Global().Get("Array").New() }, listBackends),
 		safeCallback("mountDemo", errorResult, mountDemo),
 		safeCallback("resizeDemo", errorResult, resizeDemo),
 		safeCallback("unmountDemo", errorResult, unmountDemo),
 		safeCallback("defaultDemoID", func(string) any { return webdemo.DefaultDemoID() }, defaultDemoID),
+		safeCallback("defaultBackendID", func(string) any { return webdemo.DefaultBackendID() }, defaultBackendID),
 		safeCallback("renderDemoPNG", errorResult, renderDemoPNG),
 		safeCallback("demoSource", errorResult, demoSource),
 	)
 
 	api := js.Global().Get("Object").New()
 	api.Set("listDemos", callbacks[0])
-	api.Set("mountDemo", callbacks[1])
-	api.Set("resizeDemo", callbacks[2])
-	api.Set("unmountDemo", callbacks[3])
-	api.Set("defaultDemoID", callbacks[4])
-	api.Set("renderDemoPNG", callbacks[5])
-	api.Set("demoSource", callbacks[6])
+	api.Set("listBackends", callbacks[1])
+	api.Set("mountDemo", callbacks[2])
+	api.Set("resizeDemo", callbacks[3])
+	api.Set("unmountDemo", callbacks[4])
+	api.Set("defaultDemoID", callbacks[5])
+	api.Set("defaultBackendID", callbacks[6])
+	api.Set("renderDemoPNG", callbacks[7])
+	api.Set("demoSource", callbacks[8])
 	js.Global().Set("matplotlibGoWASM", api)
 	js.Global().Get("console").Call("log", "matplotlib-go wasm ready")
 
@@ -90,11 +95,24 @@ func listDemos(_ js.Value, _ []js.Value) any {
 	return result
 }
 
+func listBackends(_ js.Value, _ []js.Value) any {
+	result := js.Global().Get("Array").New()
+	for _, descriptor := range webdemo.Backends() {
+		item := js.Global().Get("Object").New()
+		item.Set("id", descriptor.ID)
+		item.Set("name", descriptor.Name)
+		item.Set("description", descriptor.Description)
+		result.Call("push", item)
+	}
+	return result
+}
+
 func mountDemo(_ js.Value, args []js.Value) any {
 	canvasID := "plotCanvas"
 	id := webdemo.DefaultDemoID()
 	width := webdemo.DefaultWidth
 	height := webdemo.DefaultHeight
+	backendID := webdemo.DefaultBackendID()
 
 	if len(args) > 0 && args[0].Type() == js.TypeString && args[0].String() != "" {
 		canvasID = args[0].String()
@@ -108,8 +126,11 @@ func mountDemo(_ js.Value, args []js.Value) any {
 	if len(args) > 3 && args[3].Type() == js.TypeNumber {
 		height = args[3].Int()
 	}
+	if len(args) > 4 && args[4].Type() == js.TypeString && webdemo.ValidBackendID(args[4].String()) {
+		backendID = args[4].String()
+	}
 
-	return loadDemo(canvasID, id, width, height)
+	return loadDemo(canvasID, id, backendID, width, height)
 }
 
 func resizeDemo(_ js.Value, args []js.Value) any {
@@ -148,11 +169,16 @@ func defaultDemoID(_ js.Value, _ []js.Value) any {
 	return webdemo.DefaultDemoID()
 }
 
+func defaultBackendID(_ js.Value, _ []js.Value) any {
+	return webdemo.DefaultBackendID()
+}
+
 func renderDemoPNG(_ js.Value, args []js.Value) any {
 	result := js.Global().Get("Object").New()
 	id := webdemo.DefaultDemoID()
 	width := webdemo.DefaultWidth
 	height := webdemo.DefaultHeight
+	backendID := webdemo.DefaultBackendID()
 
 	if len(args) > 0 && args[0].Type() == js.TypeString && webdemo.ValidDemoID(args[0].String()) {
 		id = args[0].String()
@@ -163,14 +189,18 @@ func renderDemoPNG(_ js.Value, args []js.Value) any {
 	if len(args) > 2 && args[2].Type() == js.TypeNumber {
 		height = args[2].Int()
 	}
+	if len(args) > 3 && args[3].Type() == js.TypeString && webdemo.ValidBackendID(args[3].String()) {
+		backendID = args[3].String()
+	}
 
-	pngBytes, descriptor, err := webdemo.RenderPNG(id, width, height)
+	pngBytes, descriptor, err := webdemo.RenderPNGWithBackend(id, backendID, width, height)
 	if err != nil {
 		result.Set("error", err.Error())
 		return result
 	}
 
 	result.Set("id", descriptor.ID)
+	result.Set("backendID", backendID)
 	result.Set("title", descriptor.Title)
 	result.Set("description", descriptor.Description)
 	result.Set("width", width)
@@ -202,7 +232,7 @@ func demoSource(_ js.Value, args []js.Value) any {
 	return result
 }
 
-func loadDemo(canvasID, id string, width, height int) any {
+func loadDemo(canvasID, id, backendID string, width, height int) any {
 	result := js.Global().Get("Object").New()
 
 	fig, descriptor, err := webdemo.Build(id, width, height)
@@ -212,9 +242,10 @@ func loadDemo(canvasID, id string, width, height int) any {
 	}
 	if currentManager != nil {
 		_ = currentManager.Close()
+		currentManager = nil
 	}
 
-	manager, err := wasmcanvas.NewGoBasicManager(canvasID, fig)
+	manager, err := newManager(canvasID, backendID, fig)
 	if err != nil {
 		result.Set("error", err.Error())
 		return result
@@ -226,9 +257,21 @@ func loadDemo(canvasID, id string, width, height int) any {
 	}
 
 	result.Set("id", descriptor.ID)
+	result.Set("backendID", backendID)
 	result.Set("title", descriptor.Title)
 	result.Set("description", descriptor.Description)
 	result.Set("width", width)
 	result.Set("height", height)
 	return result
+}
+
+func newManager(canvasID, backendID string, fig *core.Figure) (plotcanvas.FigureManager, error) {
+	switch backendID {
+	case "gobasic", "":
+		return wasmcanvas.NewGoBasicManager(canvasID, fig)
+	case "agg":
+		return wasmcanvas.NewAggManager(canvasID, fig)
+	default:
+		return nil, fmt.Errorf("matplotlib-go wasm: unknown backend %q", backendID)
+	}
 }

@@ -85,6 +85,18 @@ The following phases have reached "foundational parity enough to continue featur
 - ✅ Phase 6 (including sections 6.1–6.6)
 - ✅ Phase 7 core projection/toolkit scaffolding
 
+## ⚪ Example, Fixture, and Web Demo Catalog
+
+**Goal:** keep user examples, Go golden fixtures, Matplotlib references, and
+browser demos aligned around one catalog instead of separate hand-maintained
+lists.
+
+- [x] Add `internal/examplecatalog` as the shared metadata source for parity cases and the curated web demo subset.
+- [x] Reduce the browser demo catalog to high-signal showcase/composition cases selected from parity fixtures.
+- [x] Add catalog invariants for committed Go goldens, Matplotlib references, web-demo references, and reference-compare registration.
+- [x] Mark renderer/backend stress cases as fixture-only so they are excluded from human-example migration.
+- [ ] Continue migrating plot bodies into side-by-side importable Go/Python example directories so tests and examples share source directly.
+
 # ✅ Foundation (COMPLETED)
 
 **What we have working:**
