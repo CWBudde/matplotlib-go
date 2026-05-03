@@ -90,6 +90,40 @@ func TestLine2D_DefaultsToButtCaps(t *testing.T) {
 	}
 }
 
+func TestLine2D_SetDashesUsesMatplotlibUnits(t *testing.T) {
+	line := &Line2D{
+		XY: []geom.Pt{
+			{X: 0, Y: 0},
+			{X: 1, Y: 0},
+		},
+		W:   3.0,
+		Col: render.Color{A: 1},
+	}
+	line.SetDashes(10, 4)
+
+	r := &recordingRenderer{}
+	ctx := &DrawContext{
+		DataToPixel: Transform2D{
+			XScale:      transform.NewLinear(0, 1),
+			YScale:      transform.NewLinear(0, 1),
+			AxesToPixel: transform.NewAffine(geom.Identity()),
+		},
+		RC:   style.Default,
+		Clip: geom.Rect{},
+	}
+
+	line.Draw(r, ctx)
+
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("expected one Path call, got %d", len(r.pathCalls))
+	}
+	got := r.pathCalls[0].paint.Dashes
+	want := []float64{30, 12}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("paint dashes = %v, want %v", got, want)
+	}
+}
+
 func TestLine2D_SingletonData(t *testing.T) {
 	line := &Line2D{
 		XY:  []geom.Pt{{X: 5, Y: 0.5}}, // single point

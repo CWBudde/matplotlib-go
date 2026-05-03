@@ -15,15 +15,40 @@ const (
 	LineDrawStyleStepsPost
 )
 
+// DashUnits describes the unit system used by Line2D.Dashes.
+type DashUnits uint8
+
+const (
+	// DashUnitsPixels interprets Dashes as renderer pixel lengths. This keeps
+	// existing direct field assignments and backend-facing paint unchanged.
+	DashUnitsPixels DashUnits = iota
+	// DashUnitsMatplotlib interprets Dashes like Matplotlib Line2D.set_dashes:
+	// input lengths are in points and, with the default scale_dashes=True, are
+	// scaled by the line width before rasterization.
+	DashUnitsMatplotlib
+)
+
 // Line2D is a minimal polyline artist (stroke only).
 type Line2D struct {
 	XY        []geom.Pt     // data space points
 	W         float64       // stroke width (px for now)
 	Col       render.Color  // stroke color
 	Dashes    []float64     // dash pattern (on/off pairs)
+	DashUnits DashUnits     // unit system for Dashes
 	DrawStyle LineDrawStyle // optional step-style connection mode
 	Label     string        // series label for legend
 	z         float64       // z-order
+}
+
+// SetDashes sets the dash sequence using Matplotlib Line2D.set_dashes units.
+func (l *Line2D) SetDashes(seq ...float64) {
+	if len(seq) == 0 {
+		l.Dashes = nil
+		l.DashUnits = DashUnitsPixels
+		return
+	}
+	l.Dashes = append([]float64(nil), seq...)
+	l.DashUnits = DashUnitsMatplotlib
 }
 
 // Draw renders the line by transforming points to pixel space and drawing a path.
@@ -50,10 +75,23 @@ func (l *Line2D) Draw(r render.Renderer, ctx *DrawContext) {
 		LineCap:    render.CapButt,   // Default to butt caps
 		MiterLimit: 10.0,             // Standard miter limit
 		Stroke:     l.Col,
-		Dashes:     l.Dashes, // Use dash pattern if provided
+		Dashes:     lineDashesForPaint(l.Dashes, l.W, l.DashUnits),
 		Snap:       render.SnapAuto,
 	}
 	r.Path(p, &paint)
+}
+
+func lineDashesForPaint(dashes []float64, lineWidth float64, units DashUnits) []float64 {
+	if len(dashes) == 0 {
+		return nil
+	}
+	out := append([]float64(nil), dashes...)
+	if units == DashUnitsMatplotlib {
+		for i := range out {
+			out[i] *= lineWidth
+		}
+	}
+	return out
 }
 
 // Z returns the z-order for sorting.

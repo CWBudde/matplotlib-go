@@ -44,7 +44,7 @@ func Dashes() *core.Figure {
 			Col: spec.color,
 		}
 		if len(spec.pattern) > 0 {
-			line.Dashes = spec.pattern
+			line.SetDashes(spec.pattern...)
 		}
 		ax.Add(line)
 	}
