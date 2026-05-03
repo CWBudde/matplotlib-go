@@ -97,8 +97,8 @@ func TestColorbarDrawRendersGradientAndTickLabels(t *testing.T) {
 	var r colorbarRecordingRenderer
 	DrawFigure(fig, &r)
 
-	if r.imageCount < 2 {
-		t.Fatalf("expected heatmap image and colorbar image, got %d", r.imageCount)
+	if r.imageCount < 1 {
+		t.Fatalf("expected heatmap image, got %d", r.imageCount)
 	}
 	if r.pathCount == 0 {
 		t.Fatal("expected colorbar border/axes paths to be rendered")
@@ -108,19 +108,66 @@ func TestColorbarDrawRendersGradientAndTickLabels(t *testing.T) {
 	}
 }
 
+func TestColorbarDrawSnapsRangeLegendToPixels(t *testing.T) {
+	var r colorbarRecordingRenderer
+	clip := geom.Rect{
+		Min: geom.Pt{X: 10.4, Y: 20.6},
+		Max: geom.Pt{X: 42.6, Y: 80.2},
+	}
+
+	(&Colorbar{Colormap: "inferno", Alpha: 1, BorderColor: render.Color{A: 1}, BorderWidth: 1}).Draw(&r, &DrawContext{Clip: clip})
+
+	if len(r.imageRects) != 0 {
+		t.Fatalf("image rect count = %d, want 0", len(r.imageRects))
+	}
+	if len(r.paths) != 257 {
+		t.Fatalf("path count = %d, want 256 color cells plus outline", len(r.paths))
+	}
+	wantFirstCell := []geom.Pt{
+		{X: 10, Y: 80},
+		{X: 43, Y: 80},
+		{X: 43, Y: 81},
+		{X: 10, Y: 81},
+	}
+	for i, want := range wantFirstCell {
+		if !floatApprox(r.paths[0].V[i].X, want.X, 1e-12) || !floatApprox(r.paths[0].V[i].Y, want.Y, 1e-12) {
+			t.Fatalf("first cell vertex %d = %+v, want %+v", i, r.paths[0].V[i], want)
+		}
+	}
+	wantOutline := []geom.Pt{
+		{X: 10.5, Y: 21.5},
+		{X: 43.5, Y: 21.5},
+		{X: 43.5, Y: 80.5},
+		{X: 10.5, Y: 80.5},
+	}
+	outline := r.paths[len(r.paths)-1]
+	if len(outline.V) < len(wantOutline) {
+		t.Fatalf("outline vertices = %v, want at least %d", outline.V, len(wantOutline))
+	}
+	for i, want := range wantOutline {
+		if !floatApprox(outline.V[i].X, want.X, 1e-12) || !floatApprox(outline.V[i].Y, want.Y, 1e-12) {
+			t.Fatalf("outline vertex %d = %+v, want %+v", i, outline.V[i], want)
+		}
+	}
+}
+
 type colorbarRecordingRenderer struct {
 	render.NullRenderer
 	imageCount int
 	pathCount  int
 	texts      []string
+	imageRects []geom.Rect
+	paths      []geom.Path
 }
 
-func (r *colorbarRecordingRenderer) Image(_ render.Image, _ geom.Rect) {
+func (r *colorbarRecordingRenderer) Image(_ render.Image, dst geom.Rect) {
 	r.imageCount++
+	r.imageRects = append(r.imageRects, dst)
 }
 
-func (r *colorbarRecordingRenderer) Path(_ geom.Path, _ *render.Paint) {
+func (r *colorbarRecordingRenderer) Path(path geom.Path, _ *render.Paint) {
 	r.pathCount++
+	r.paths = append(r.paths, path)
 }
 
 func (r *colorbarRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {

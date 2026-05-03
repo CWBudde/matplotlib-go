@@ -1,7 +1,6 @@
 package core
 
 import (
-	"image"
 	"math"
 
 	matcolor "github.com/cwbudde/matplotlib-go/color"
@@ -116,8 +115,8 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	ax.Add(&Colorbar{
 		Colormap:    cmap,
 		Alpha:       1,
-		BorderColor: render.Color{R: 0.2, G: 0.2, B: 0.2, A: 0.9},
-		BorderWidth: 1,
+		BorderColor: f.RC.AxesEdgeColor,
+		BorderWidth: f.RC.AxisLineWidth,
 		z:           -10,
 	})
 
@@ -180,10 +179,7 @@ func (c *Colorbar) Draw(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	const (
-		gradientWidth  = 16
-		gradientHeight = 256
-	)
+	const gradientHeight = 256
 
 	cmap := matcolor.GetColormap(c.Colormap)
 	alpha := c.Alpha
@@ -191,27 +187,46 @@ func (c *Colorbar) Draw(r render.Renderer, ctx *DrawContext) {
 		alpha = 1
 	}
 
-	img := image.NewRGBA(image.Rect(0, 0, gradientWidth, gradientHeight))
-	for y := 0; y < gradientHeight; y++ {
-		t := 1.0
-		if gradientHeight > 1 {
-			t = 1 - float64(y)/float64(gradientHeight-1)
-		}
-		col := cmap.At(t)
-		col.A *= alpha
-		rgba := toRGBAColor(col)
-		for x := 0; x < gradientWidth; x++ {
-			img.Set(x, y, rgba)
-		}
+	outlinePath := pixelRectPath(ctx.Clip)
+	if snapped := snappedStrokeRectPath(ctx.Clip); len(snapped.C) > 0 {
+		outlinePath = snapped
 	}
 
-	r.Image(render.NewImageData(img), ctx.Clip)
-	r.Path(pixelRectPath(ctx.Clip), &render.Paint{
+	for i := 0; i < gradientHeight; i++ {
+		t := (float64(i) + 0.5) / float64(gradientHeight)
+		col := cmap.At(t)
+		col.A *= alpha
+
+		path := snappedFillRectPath(colorbarCellRect(ctx.Clip, i, gradientHeight))
+		if len(path.C) == 0 {
+			continue
+		}
+		r.Path(path, &render.Paint{
+			Fill:      col,
+			LineJoin:  render.JoinMiter,
+			LineCap:   render.CapButt,
+			Antialias: render.AntialiasDefault,
+		})
+	}
+
+	r.Path(outlinePath, &render.Paint{
 		Stroke:    c.BorderColor,
 		LineWidth: c.BorderWidth,
 		LineJoin:  render.JoinMiter,
 		LineCap:   render.CapButt,
 	})
+}
+
+func colorbarCellRect(clip geom.Rect, index, count int) geom.Rect {
+	if count <= 0 {
+		return geom.Rect{}
+	}
+	y0 := clip.Max.Y - clip.H()*float64(index+1)/float64(count)
+	y1 := clip.Max.Y - clip.H()*float64(index)/float64(count)
+	return geom.Rect{
+		Min: geom.Pt{X: clip.Min.X, Y: y0},
+		Max: geom.Pt{X: clip.Max.X, Y: y1},
+	}
 }
 
 // Bounds returns an empty rect so colorbars do not affect autoscaling.

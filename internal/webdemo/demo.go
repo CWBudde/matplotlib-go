@@ -846,16 +846,22 @@ func buildPlotVariantsDemo(width, height int) *core.Figure {
 func buildAxesDemo(width, height int) *core.Figure {
 	fig := core.NewFigure(width, height)
 
-	left := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.08, Y: 0.14}, Max: geom.Pt{X: 0.42, Y: 0.86}})
-	left.SetTitle("Top/Right + Equal Aspect")
-	left.SetXLabel("top x")
-	left.SetYLabel("right y")
-	left.SetXLim(-1, 5)
-	left.SetYLim(-1, 5)
+	left := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.08, Y: 0.14}, Max: geom.Pt{X: 0.42, Y: 0.84}})
+	left.SetTitle("Top/Right Axes and 0.1 Minor Ticks")
+	left.SetXLabel("x")
+	left.SetYLabel("y")
+	left.SetXLim(0, 5)
+	left.SetYLim(0, 5)
 	left.AddXGrid()
 	left.AddYGrid()
 	_ = left.SetXLabelPosition("top")
 	_ = left.SetYLabelPosition("right")
+	left.XAxis.Locator = core.MultipleLocator{Base: 1}
+	left.YAxis.Locator = core.MultipleLocator{Base: 1}
+	left.XAxis.Formatter = core.ScalarFormatter{Prec: 0}
+	left.YAxis.Formatter = core.ScalarFormatter{Prec: 0}
+	left.XAxis.MinorLocator = core.MultipleLocator{Base: 0.1}
+	left.YAxis.MinorLocator = core.MultipleLocator{Base: 0.1}
 	left.TopAxis().ShowLabels = true
 	left.TopAxis().ShowTicks = true
 	left.RightAxis().ShowLabels = true
@@ -866,42 +872,53 @@ func buildAxesDemo(width, height int) *core.Figure {
 	left.YAxis.ShowTicks = false
 	left.SetAxisEqual()
 	_ = left.SetBoxAspect(1)
-	_ = left.MinorticksOn("both")
-	left.Plot([]float64{-0.5, 0.8, 2.2, 4.2}, []float64{-0.2, 1.0, 2.1, 4.4}, core.PlotOptions{
+	left.Plot([]float64{0.2, 1.1, 2.2, 3.3, 4.5}, []float64{0.1, 1.0, 1.9, 3.1, 4.4}, core.PlotOptions{
 		Color:     &render.Color{R: 0.10, G: 0.32, B: 0.76, A: 1},
 		LineWidth: floatPtr(2),
 	})
-	left.Scatter([]float64{0, 1.5, 3.5, 4.5}, []float64{0, 1.8, 3.2, 4.6}, core.ScatterOptions{
+	left.Scatter([]float64{0.3, 1.5, 2.7, 4.0}, []float64{0.2, 1.4, 2.6, 3.9}, core.ScatterOptions{
 		Color:     &render.Color{R: 0.92, G: 0.48, B: 0.20, A: 0.92},
 		EdgeColor: &render.Color{R: 0.52, G: 0.22, B: 0.08, A: 1},
 		EdgeWidth: floatPtr(1),
 		Size:      floatPtr(ss(8)),
 	})
 
-	right := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.56, Y: 0.14}, Max: geom.Pt{X: 0.94, Y: 0.86}})
-	right.SetTitle("Log, Twin, Secondary")
-	right.SetXLabel("seconds")
-	right.SetYLabel("count")
-	right.SetXLim(0, 10)
+	right := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.56, Y: 0.14}, Max: geom.Pt{X: 0.94, Y: 0.82}})
+	right.SetTitle("Growth, Twin Rate, and Weeks")
+	right.SetXLabel("days")
+	right.SetYLabel("active accounts")
+	right.SetXLim(0, 28)
 	right.SetYLim(1, 100)
 	_ = right.SetYScale("log")
+	right.XAxis.Locator = core.MultipleLocator{Base: 4}
+	right.XAxis.Formatter = core.ScalarFormatter{Prec: 0}
+	right.YAxis.Formatter = core.ScalarFormatter{Prec: 0}
+	right.YAxis.MinorLocator = core.LogLocator{Base: 10, Minor: true, Subs: []float64{2, 3, 4, 5, 6, 7, 8, 9}}
 	right.AddXGrid()
 	right.AddYGrid()
-	right.Plot([]float64{0, 2, 4, 6, 8, 10}, []float64{2, 6, 9, 18, 40, 82}, core.PlotOptions{
+	right.Plot([]float64{0, 4, 8, 12, 16, 20, 24, 28}, []float64{1.5, 2.6, 4.8, 9.5, 18, 33, 61, 96}, core.PlotOptions{
 		Color:     &render.Color{R: 0.12, G: 0.45, B: 0.72, A: 1},
 		LineWidth: floatPtr(2),
-		Label:     "log series",
 	})
 	twin := right.TwinX()
 	twin.SetYLim(0, 100)
+	twin.SetYLabel("conversion rate (%)")
+	_ = twin.SetYLabelPosition("right")
 	twinLineColor := render.Color{R: 0.80, G: 0.22, B: 0.22, A: 1}
-	twin.Plot([]float64{0, 2, 4, 6, 8, 10}, []float64{10, 22, 38, 58, 81, 96}, core.PlotOptions{
+	twin.Plot([]float64{0, 4, 8, 12, 16, 20, 24, 28}, []float64{12, 18, 24, 35, 49, 61, 74, 88}, core.PlotOptions{
 		Color:     &twinLineColor,
 		LineWidth: floatPtr(1.8),
-		Label:     "twin",
 	})
-	_, _ = right.SecondaryXAxis(core.AxisTop, func(x float64) float64 { return x * 10 }, func(x float64) (float64, bool) { return x / 10, true })
-	right.AddLegend()
+	if axis := twin.RightAxis(); axis != nil {
+		axis.Color = twinLineColor
+	}
+	sec, _ := right.SecondaryXAxis(core.AxisTop, func(x float64) float64 { return x / 7 }, func(x float64) (float64, bool) { return x * 7, true })
+	if axis := sec.TopAxis(); axis != nil {
+		axis.Color = render.Color{R: 0.16, G: 0.42, B: 0.30, A: 1}
+		axis.Locator = core.MultipleLocator{Base: 1}
+		axis.Formatter = core.ScalarFormatter{Prec: 0}
+		axis.MinorLocator = nil
+	}
 	return fig
 }
 

@@ -178,6 +178,50 @@ func TestDefaultBackendIDAndValidBackendID(t *testing.T) {
 	}
 }
 
+func TestAxesDemoUsesReadableScales(t *testing.T) {
+	fig, descriptor, err := Build("axes", 960, 540)
+	if err != nil {
+		t.Fatalf("Build(axes) error = %v", err)
+	}
+	if descriptor.ID != "axes" {
+		t.Fatalf("descriptor.ID = %q, want axes", descriptor.ID)
+	}
+	if len(fig.Children) < 2 {
+		t.Fatalf("len(fig.Children) = %d, want at least 2", len(fig.Children))
+	}
+
+	left := fig.Children[0]
+	if got, want := left.Title, "Top/Right Axes and 0.1 Minor Ticks"; got != want {
+		t.Fatalf("left.Title = %q, want %q", got, want)
+	}
+	if got, want := left.XLabel, "x"; got != want {
+		t.Fatalf("left.XLabel = %q, want %q", got, want)
+	}
+	if got, want := left.YLabel, "y"; got != want {
+		t.Fatalf("left.YLabel = %q, want %q", got, want)
+	}
+	if loc, ok := left.XAxis.MinorLocator.(core.MultipleLocator); !ok || loc.Base != 0.1 {
+		t.Fatalf("left.XAxis.MinorLocator = %#v, want MultipleLocator{Base: 0.1}", left.XAxis.MinorLocator)
+	}
+	if loc, ok := left.YAxis.MinorLocator.(core.MultipleLocator); !ok || loc.Base != 0.1 {
+		t.Fatalf("left.YAxis.MinorLocator = %#v, want MultipleLocator{Base: 0.1}", left.YAxis.MinorLocator)
+	}
+
+	right := fig.Children[1]
+	if got, want := right.Title, "Growth, Twin Rate, and Weeks"; got != want {
+		t.Fatalf("right.Title = %q, want %q", got, want)
+	}
+	if got, want := right.XLabel, "days"; got != want {
+		t.Fatalf("right.XLabel = %q, want %q", got, want)
+	}
+	if got, want := right.YLabel, "active accounts"; got != want {
+		t.Fatalf("right.YLabel = %q, want %q", got, want)
+	}
+	if fmt, ok := right.YAxis.Formatter.(core.ScalarFormatter); !ok || fmt.Prec != 0 {
+		t.Fatalf("right.YAxis.Formatter = %#v, want ScalarFormatter{Prec: 0}", right.YAxis.Formatter)
+	}
+}
+
 func TestSourceReturnsDemoBuilderSnippet(t *testing.T) {
 	for _, descriptor := range Catalog() {
 		source, got, err := Source(descriptor.ID)

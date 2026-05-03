@@ -286,17 +286,19 @@ func yLabelBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, a
 		return geom.Rect{}, false
 	}
 	side := ax.effectiveYLabelSide()
-	layout := measureSingleLineTextLayout(r, ax.YLabel, axisLabelFontSize(ctx), ctx.RC.FontKey)
+	size := axisLabelFontSize(ctx)
+	layout := measureSingleLineTextLayout(r, ax.YLabel, size, ctx.RC.FontKey)
+	lineHeight := pointsToPixels(ctx.RC, size)
 	anchor := yLabelAnchorPoint(ax, r, ctx, px, side, alignment)
 	centerY := px.Min.Y + px.H()/2
 	if side == AxisRight {
 		return geom.Rect{
 			Min: geom.Pt{X: anchor.X, Y: centerY - layout.Width/2},
-			Max: geom.Pt{X: anchor.X + layout.Height, Y: centerY + layout.Width/2},
+			Max: geom.Pt{X: anchor.X + lineHeight, Y: centerY + layout.Width/2},
 		}, true
 	}
 	return geom.Rect{
-		Min: geom.Pt{X: anchor.X - layout.Height, Y: centerY - layout.Width/2},
+		Min: geom.Pt{X: anchor.X - lineHeight, Y: centerY - layout.Width/2},
 		Max: geom.Pt{X: anchor.X, Y: centerY + layout.Width/2},
 	}, true
 }
@@ -354,6 +356,7 @@ func figureColorbarMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engin
 			continue
 		}
 		padding := measureAxesDecorationPadding(ax, fig, r, vp, alignment)
+		padding.right += ax.effectiveRC(fig).AxisLineWidth
 		margin.right = math.Max(margin.right, padding.right)
 	}
 	return margin
