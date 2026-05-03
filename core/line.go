@@ -51,6 +51,7 @@ func (l *Line2D) Draw(r render.Renderer, ctx *DrawContext) {
 		MiterLimit: 10.0,             // Standard miter limit
 		Stroke:     l.Col,
 		Dashes:     l.Dashes, // Use dash pattern if provided
+		Snap:       render.SnapAuto,
 	}
 	r.Path(p, &paint)
 }

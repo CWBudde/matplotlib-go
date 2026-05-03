@@ -14,6 +14,7 @@ const (
 	LegendUpperLeft
 	LegendLowerRight
 	LegendLowerLeft
+	LegendBest
 )
 
 type legendEntryKind uint8
@@ -85,7 +86,7 @@ func NewLegend(ax *Axes) *Legend {
 	fontPx := pointsToPixels(rc, fontSize)
 	return &Legend{
 		Axes:            ax,
-		Location:        LegendUpperRight,
+		Location:        LegendBest,
 		Locator:         nil,
 		Padding:         0.4 * fontPx,
 		Inset:           0.5 * fontPx,
@@ -188,7 +189,7 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 
 	boxWidth := l.Padding*2 + l.SampleWidth + l.SampleTextGap + maxLabelWidth
 	boxHeight := l.Padding*2 + contentHeight
-	box := l.legendBoxRect(ctx.Clip, boxWidth, boxHeight)
+	box := l.legendBoxRect(ctx, boxWidth, boxHeight)
 
 	boxPath := pixelRectPath(box)
 	if l.CornerRadius > 0 {
@@ -285,7 +286,7 @@ func (l *Legend) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) 
 
 	boxWidth := l.Padding*2 + l.SampleWidth + l.SampleTextGap + maxLabelWidth
 	boxHeight := l.Padding*2 + contentHeight
-	return l.legendBoxRect(ctx.Clip, boxWidth, boxHeight), true
+	return l.legendBoxRect(ctx, boxWidth, boxHeight), true
 }
 
 func legendRowHeight(layout singleLineTextLayout, fontSize float64, ctx *DrawContext) float64 {
@@ -340,8 +341,86 @@ func collectLegendEntries(artists []Artist) []legendEntry {
 	return entries
 }
 
-func (l *Legend) legendBoxRect(clip geom.Rect, width, height float64) geom.Rect {
-	return resolveAnchoredBoxRect(l.Locator, clip, width, height, l.Location, l.Inset)
+func (l *Legend) legendBoxRect(ctx *DrawContext, width, height float64) geom.Rect {
+	if ctx == nil {
+		return geom.Rect{}
+	}
+	if l.Location == LegendBest && l.Locator == nil && l.Axes != nil {
+		return l.bestLegendBoxRect(ctx, width, height)
+	}
+	return resolveAnchoredBoxRect(l.Locator, ctx.Clip, width, height, l.Location, l.Inset)
+}
+
+func (l *Legend) bestLegendBoxRect(ctx *DrawContext, width, height float64) geom.Rect {
+	candidates := []LegendLocation{LegendUpperRight, LegendUpperLeft, LegendLowerLeft, LegendLowerRight}
+	points := l.legendAvoidancePoints(ctx)
+
+	best := anchoredBoxRect(ctx.Clip, width, height, candidates[0], l.Inset)
+	bestBadness := legendPlacementBadness(best, points)
+	if bestBadness == 0 {
+		return best
+	}
+
+	for _, location := range candidates[1:] {
+		box := anchoredBoxRect(ctx.Clip, width, height, location, l.Inset)
+		badness := legendPlacementBadness(box, points)
+		if badness == 0 {
+			return box
+		}
+		if badness < bestBadness {
+			best = box
+			bestBadness = badness
+		}
+	}
+	return best
+}
+
+func (l *Legend) legendAvoidancePoints(ctx *DrawContext) []geom.Pt {
+	if l == nil || l.Axes == nil || ctx == nil {
+		return nil
+	}
+	points := []geom.Pt{}
+	appendPoints := func(spec CoordinateSpec, pts []geom.Pt) {
+		tr := ctx.TransformFor(spec)
+		for _, pt := range pts {
+			if tr != nil {
+				pt = tr.Apply(pt)
+			}
+			points = append(points, pt)
+		}
+	}
+
+	for _, art := range l.Axes.Artists {
+		switch a := art.(type) {
+		case *Legend:
+			continue
+		case *Scatter2D:
+			appendPoints(Coords(CoordData), a.XY)
+		case *Line2D:
+			appendPoints(Coords(CoordData), a.pathPoints())
+		case *PathCollection:
+			appendPoints(a.Coords, a.Offsets)
+		case *LineCollection:
+			for _, segment := range a.Segments {
+				appendPoints(a.Coords, segment)
+			}
+		}
+	}
+	return points
+}
+
+func legendPlacementBadness(box geom.Rect, points []geom.Pt) int {
+	badness := 0
+	for _, pt := range points {
+		if pointInRect(pt, box) {
+			badness++
+		}
+	}
+	return badness
+}
+
+func pointInRect(pt geom.Pt, rect geom.Rect) bool {
+	return pt.X >= rect.Min.X && pt.X <= rect.Max.X && pt.Y >= rect.Min.Y && pt.Y <= rect.Max.Y
 }
 
 func (l *Legend) drawSample(r render.Renderer, entry legendEntry, sample geom.Rect) {

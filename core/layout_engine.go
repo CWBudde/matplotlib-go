@@ -180,6 +180,10 @@ func measuredGridOptions(fig *Figure, r render.Renderer, vp geom.Rect, grid *Gri
 
 	leftPx := leftMargins[0] + outerPadX + global.left
 	rightPx := rightMargins[len(rightMargins)-1] + outerPadX + global.right
+	if global.right > 0 && axesHaveColorbar(axes) {
+		// Colorbar margins already include Matplotlib's pad on the managed side.
+		rightPx = rightMargins[len(rightMargins)-1] + global.right
+	}
 	topPx := topMargins[0] + outerPadY + global.top
 	bottomPx := bottomMargins[len(bottomMargins)-1] + outerPadY + global.bottom
 
@@ -334,11 +338,11 @@ func addFigureMargins(a, b figureMargin) figureMargin {
 	}
 }
 
-func figureColorbarMarginsPx(fig *Figure, _ render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {
+func figureColorbarMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine LayoutEngine) figureMargin {
 	if fig == nil {
 		return figureMargin{}
 	}
-	pad := layoutPadPx(fig, engine)
+	alignment := computeFigureTextAlignment(fig, r, vp)
 	margin := figureMargin{}
 	for _, ax := range fig.Children {
 		if ax == nil || ax.colorbarParent == nil {
@@ -348,9 +352,29 @@ func figureColorbarMarginsPx(fig *Figure, _ render.Renderer, vp geom.Rect, engin
 		if resolvedColorbarWidth(fig, base, ax.colorbarWidth, resolvedColorbarAspect(ax.colorbarAspect)) <= 0 {
 			continue
 		}
-		margin.right = math.Max(margin.right, pad+pointsToPixels(fig.RC, 40))
+		padding := measureAxesDecorationPadding(ax, fig, r, vp, alignment)
+		margin.right = math.Max(margin.right, padding.right)
 	}
 	return margin
+}
+
+func axesHaveColorbar(axes []*Axes) bool {
+	for _, ax := range axes {
+		if ax == nil {
+			continue
+		}
+		if ax.figure != nil {
+			for _, candidate := range ax.figure.Children {
+				if candidate != nil && candidate.colorbarParent == ax {
+					return true
+				}
+			}
+		}
+		if ax.colorbarParent != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func layoutPadPx(fig *Figure, engine LayoutEngine) float64 {
@@ -360,7 +384,7 @@ func layoutPadPx(fig *Figure, engine LayoutEngine) float64 {
 	}
 	switch engine {
 	case LayoutEngineConstrained:
-		return pointsToPixels(rc, 0)
+		return pointsToPixels(rc, 3)
 	case LayoutEngineTight:
 		return pointsToPixels(rc, 4)
 	default:
@@ -418,7 +442,7 @@ func syncColorbarAxes(fig *Figure) {
 		}
 		parent := ax.colorbarParent
 		base := colorbarLayoutBase(parent, ax)
-		padding := resolvedColorbarPadding(base, ax.colorbarPadding)
+		padding := resolvedColorbarLayoutPadding(fig, base, ax.colorbarPadding)
 		width := resolvedColorbarWidth(fig, base, ax.colorbarWidth, resolvedColorbarAspect(ax.colorbarAspect))
 		parent.RectFraction = colorbarParentRect(base, width, padding)
 		ax.RectFraction = geom.Rect{

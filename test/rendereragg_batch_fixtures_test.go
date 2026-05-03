@@ -44,7 +44,7 @@ func renderRendererAggLargeScatter() image.Image {
 		y := float64((i*7)%12) + 0.28*math.Cos(float64(i)*0.41)
 		points = append(points, geom.Pt{X: x, Y: y})
 		radius := 4.0 + float64((i*11)%9)
-		sizes = append(sizes, math.Pi*radius*radius)
+		sizes = append(sizes, core.ScatterAreaFromRadius(radius, fig.RC.DPI))
 		t := float64(i%30) / 29.0
 		colors = append(colors, render.Color{R: 0.12 + 0.70*t, G: 0.58 - 0.25*t, B: 0.88 - 0.56*t, A: 0.72})
 		edges = append(edges, render.Color{R: 0.08, G: 0.10 + 0.28*t, B: 0.18, A: 0.95})

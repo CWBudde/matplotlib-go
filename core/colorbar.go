@@ -31,7 +31,7 @@ type Colorbar struct {
 
 const (
 	defaultColorbarFraction = 0.15
-	defaultColorbarPadding  = 0.06
+	defaultColorbarPadding  = 0.05
 	defaultColorbarAspect   = 20.0
 )
 
@@ -67,7 +67,7 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 
 	base := parent.RectFraction
 	width := resolvedColorbarWidth(f, base, cfg.Width, cfg.Aspect)
-	padding := resolvedColorbarPadding(base, cfg.Padding)
+	padding := resolvedColorbarLayoutPadding(f, base, cfg.Padding)
 	parent.RectFraction = colorbarParentRect(base, width, padding)
 	rect := geom.Rect{
 		Min: geom.Pt{
@@ -128,7 +128,15 @@ func resolvedColorbarPadding(base geom.Rect, padding float64) float64 {
 	if padding > 0 {
 		return padding
 	}
-	return base.W() * defaultColorbarPadding
+	return defaultColorbarPadding
+}
+
+func resolvedColorbarLayoutPadding(fig *Figure, base geom.Rect, padding float64) float64 {
+	resolved := resolvedColorbarPadding(base, padding)
+	if padding > 0 || fig == nil || fig.layoutEngine != LayoutEngineConstrained || fig.SizePx.X <= 0 {
+		return resolved
+	}
+	return resolved + layoutPadPx(fig, LayoutEngineConstrained)/fig.SizePx.X
 }
 
 func resolvedColorbarAspect(aspect float64) float64 {

@@ -29,6 +29,9 @@ func TestFigureAddColorbarConfiguresAxes(t *testing.T) {
 	}
 	wantWidth := resolvedColorbarWidth(fig, base, 0, defaultColorbarAspect)
 	wantPadding := resolvedColorbarPadding(base, 0)
+	if wantPadding != 0.05 {
+		t.Fatalf("default colorbar padding = %v, want matplotlib default 0.05", wantPadding)
+	}
 	if got, want := ax.RectFraction.Max.X, base.Max.X-wantWidth-wantPadding; !floatApprox(got, want, 1e-12) {
 		t.Fatalf("expected parent to reserve colorbar space: got right=%v want %v", got, want)
 	}

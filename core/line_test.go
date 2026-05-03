@@ -85,6 +85,9 @@ func TestLine2D_DefaultsToButtCaps(t *testing.T) {
 	if r.pathCalls[0].paint.LineJoin != render.JoinRound {
 		t.Fatalf("expected default line join %v, got %v", render.JoinRound, r.pathCalls[0].paint.LineJoin)
 	}
+	if r.pathCalls[0].paint.Snap != render.SnapAuto {
+		t.Fatalf("expected default line snap %v, got %v", render.SnapAuto, r.pathCalls[0].paint.Snap)
+	}
 }
 
 func TestLine2D_SingletonData(t *testing.T) {

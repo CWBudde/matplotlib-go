@@ -33,6 +33,7 @@
 
 ## Parity testing
 
+- Matplotlib parity is the primary goal for this port: prefer changing core library behavior over changing examples or fixtures when rendered output diverges.
 - When trying to achieve parity with Matplotlib, always compare with the original code of matplotlib at ./third_party
 - If possible, try to inspect the rendered output visually and compare it with the original matplotlib output.
 - Try to keep the examples as close to the original matplotlib examples as possible.

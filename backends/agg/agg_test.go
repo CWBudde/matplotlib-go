@@ -108,6 +108,24 @@ func TestClipPathMasksPathDrawing(t *testing.T) {
 	}
 }
 
+func TestClipPathPreservesStraightAlphaFillColor(t *testing.T) {
+	r := mustNew(t, 100, 100)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}}
+	_ = r.Begin(viewport)
+
+	r.ClipPath(fullRectPath(100, 100))
+	r.Path(fullRectPath(100, 100), &render.Paint{
+		Fill: render.Color{R: 0.36, G: 0.56, B: 0.92, A: 0.2},
+	})
+	_ = r.End()
+
+	got := r.GetImage().RGBAAt(50, 50)
+	want := color.RGBA{R: 222, G: 233, B: 251, A: 255}
+	if got != want {
+		t.Fatalf("clipped straight-alpha fill pixel = %+v, want %+v", got, want)
+	}
+}
+
 func TestClipPathRestoreStopsMasking(t *testing.T) {
 	r := mustNew(t, 100, 100)
 	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}}
@@ -203,6 +221,23 @@ func TestPathFill(t *testing.T) {
 	c := img.RGBAAt(50, 50)
 	if c.R < 200 {
 		t.Errorf("center pixel should be red, got R=%d", c.R)
+	}
+}
+
+func TestPathFillUsesStraightAlphaColor(t *testing.T) {
+	r := mustNew(t, 100, 100)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}}
+	_ = r.Begin(viewport)
+
+	r.Path(fullRectPath(100, 100), &render.Paint{
+		Fill: render.Color{R: 0.36, G: 0.56, B: 0.92, A: 0.2},
+	})
+	_ = r.End()
+
+	got := r.GetImage().RGBAAt(50, 50)
+	want := color.RGBA{R: 222, G: 233, B: 251, A: 255}
+	if got != want {
+		t.Fatalf("straight-alpha fill pixel = %+v, want %+v", got, want)
 	}
 }
 

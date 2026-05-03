@@ -1742,9 +1742,9 @@ func (r *Renderer) compositeClipSurface(src *agglib.Image, paths []geom.Path) {
 				continue
 			}
 			blendPixelRGBA(dst.Data[dstOff:dstOff+4], render.Color{
-				R: float64(src.Data[srcOff]) / 255,
-				G: float64(src.Data[srcOff+1]) / 255,
-				B: float64(src.Data[srcOff+2]) / 255,
+				R: float64(src.Data[srcOff]) / float64(sa),
+				G: float64(src.Data[srcOff+1]) / float64(sa),
+				B: float64(src.Data[srcOff+2]) / float64(sa),
 				A: (float64(sa) / 255) * (float64(maskA) / 255),
 			})
 		}

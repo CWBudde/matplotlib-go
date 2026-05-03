@@ -15,6 +15,8 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends/agg"
 	"github.com/cwbudde/matplotlib-go/color"
 	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/examples/colorbar/composition"
+	"github.com/cwbudde/matplotlib-go/examples/lines/dashes"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
 	"github.com/cwbudde/matplotlib-go/style"
@@ -393,40 +395,8 @@ func renderJoinsCaps() image.Image {
 
 // renderDashes creates a plot demonstrating dash patterns
 func renderDashes() image.Image {
-	fig := core.NewFigure(640, 360)
-	ax := fig.AddAxes(geom.Rect{
-		Min: geom.Pt{X: 0.1, Y: 0.1},
-		Max: geom.Pt{X: 0.9, Y: 0.9},
-	})
-	ax.SetTitle("Dash Patterns")
-	ax.SetXLim(0, 10)
-	ax.SetYLim(0, 5)
-
-	lines := []struct {
-		y      float64
-		dashes []float64
-		color  render.Color
-	}{
-		{4, []float64{}, render.Color{R: 0, G: 0, B: 0, A: 1}},
-		{3, []float64{10, 4}, render.Color{R: 0.8, G: 0, B: 0, A: 1}},
-		{2, []float64{6, 2, 2, 2}, render.Color{R: 0, G: 0.6, B: 0, A: 1}},
-		{1, []float64{2, 2}, render.Color{R: 0, G: 0, B: 0.8, A: 1}},
-	}
-
-	for _, lineSpec := range lines {
-		path := []geom.Pt{
-			{X: 1, Y: lineSpec.y}, {X: 9, Y: lineSpec.y},
-		}
-		line := &core.Line2D{
-			XY:     path,
-			W:      3.0,
-			Col:    lineSpec.color,
-			Dashes: lineSpec.dashes,
-		}
-		ax.Add(line)
-	}
-
-	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	fig := dashes.Dashes()
+	r, err := agg.New(dashes.Width, dashes.Height, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}
@@ -1711,48 +1681,12 @@ func renderFigureLabelsComposition() image.Image {
 }
 
 func renderColorbarComposition() image.Image {
-	fig := core.NewFigure(1000, 700)
-	fig.ConstrainedLayout()
-	ax := fig.AddSubplot(1, 1, 1)
-
-	const (
-		rows = 80
-		cols = 120
+	fig := composition.ColorbarComposition()
+	r, err := agg.New(
+		composition.Width,
+		composition.Height,
+		render.Color{R: 1, G: 1, B: 1, A: 1},
 	)
-	data := make([][]float64, rows)
-	for row := range data {
-		data[row] = make([]float64, cols)
-		for col := range data[row] {
-			x := (float64(col)/float64(cols-1))*4 - 2
-			y := (float64(row)/float64(rows-1))*4 - 2
-			radius := math.Hypot(x, y)
-			data[row][col] = math.Sin(3*radius) * math.Exp(-0.6*radius)
-		}
-	}
-
-	cmap := "inferno"
-	xMin := 0.0
-	xMax := float64(cols)
-	yMin := 0.0
-	yMax := float64(rows)
-	img := ax.Image(data, core.ImageOptions{
-		Colormap: &cmap,
-		XMin:     &xMin,
-		XMax:     &xMax,
-		YMin:     &yMin,
-		YMax:     &yMax,
-		Origin:   core.ImageOriginLower,
-	})
-	ax.SetTitle("Heatmap with Colorbar")
-	ax.SetXLabel("x")
-	ax.SetYLabel("y")
-	ax.SetXLim(0, cols)
-	ax.SetYLim(0, rows)
-	ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0, 20, 40, 60, 80}}
-	addReferenceXYGrid(ax)
-	fig.AddColorbar(ax, img, core.ColorbarOptions{Label: "Intensity"})
-
-	r, err := agg.New(1000, 700, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}

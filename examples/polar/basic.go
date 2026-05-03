@@ -9,7 +9,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/core"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
-	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 func main() {
@@ -22,7 +21,7 @@ func main() {
 	ax.SetTitle("Polar Axes")
 	ax.SetXLabel("theta")
 	ax.SetYLabel("radius")
-	ax.YScale = transform.NewLinear(0, 1.1)
+	ax.SetYLim(0, 1.1)
 	lineColor := render.Color{R: 0.16, G: 0.33, B: 0.73, A: 1}
 	fillColor := render.Color{R: 0.36, G: 0.56, B: 0.92, A: 0.2}
 	lineWidth := 2.2

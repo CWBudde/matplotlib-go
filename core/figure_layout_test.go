@@ -293,6 +293,9 @@ func TestConstrainedLayoutKeepsNestedYAxisTickDensityReadable(t *testing.T) {
 func TestConstrainedLayoutReservesColorbarSpaceAndTracksParent(t *testing.T) {
 	fig := NewFigure(1000, 700)
 	fig.ConstrainedLayout()
+	if got, want := layoutPadPx(fig, LayoutEngineConstrained), pointsToPixels(fig.RC, 3); !floatApprox(got, want, 1e-12) {
+		t.Fatalf("constrained layout pad = %v, want matplotlib default %v", got, want)
+	}
 	ax := fig.AddSubplot(1, 1, 1)
 	img := ax.Image([][]float64{{0, 1}, {2, 3}})
 	cb := fig.AddColorbar(ax, img, ColorbarOptions{Label: "Intensity"})
@@ -313,7 +316,7 @@ func TestConstrainedLayoutReservesColorbarSpaceAndTracksParent(t *testing.T) {
 		Min: ax.RectFraction.Min,
 		Max: geom.Pt{X: cb.RectFraction.Max.X, Y: ax.RectFraction.Max.Y},
 	}
-	if got, want := cb.RectFraction.Min.X-ax.RectFraction.Max.X, resolvedColorbarPadding(base, cb.colorbarPadding); !floatApprox(got, want, 1e-9) {
+	if got, want := cb.RectFraction.Min.X-ax.RectFraction.Max.X, resolvedColorbarLayoutPadding(fig, base, cb.colorbarPadding); !floatApprox(got, want, 1e-9) {
 		t.Fatalf("colorbar did not track parent padding: got %v want %v", got, want)
 	}
 	if ax.RectFraction.Max.X >= 0.90 {
