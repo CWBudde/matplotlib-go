@@ -198,6 +198,7 @@ func (p *polarProjection) ConfigureAxes(ax *Axes) {
 
 	ax.XScale = transform.NewLinear(0, 2*math.Pi)
 	ax.YScale = transform.NewLinear(0, 1)
+	_ = ax.SetBoxAspect(1)
 	ax.XAxis = NewXAxis()
 	ax.YAxis = NewYAxis()
 	ax.XAxisTop = nil

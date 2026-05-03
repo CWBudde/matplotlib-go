@@ -42,7 +42,7 @@ var backendDescriptors = []BackendDescriptor{
 	{
 		ID:          "gobasic",
 		Name:        "GoBasic",
-		Description: "Pure-Go raster backend used by the browser demo by default.",
+		Description: "Pure-Go raster backend available for browser rendering.",
 	},
 	{
 		ID:          "agg",
@@ -202,7 +202,7 @@ func DefaultDemoID() string {
 }
 
 func DefaultBackendID() string {
-	return backendDescriptors[0].ID
+	return "agg"
 }
 
 func ValidDemoID(id string) bool {

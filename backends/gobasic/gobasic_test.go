@@ -159,6 +159,51 @@ func TestPathFill(t *testing.T) {
 	}
 }
 
+func TestClipPathMasksPathDrawing(t *testing.T) {
+	r := New(100, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err := r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 100, Y: 100}}); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+	defer r.End()
+
+	r.ClipPath(upperLeftTriangleClip())
+	r.Path(fullRectPath(100, 100), &render.Paint{
+		Fill: render.Color{R: 1, G: 0, B: 0, A: 1},
+	})
+
+	if got := r.GetImage().RGBAAt(10, 10); got.R <= 200 || got.G >= 80 || got.B >= 80 {
+		t.Fatalf("expected clipped-in pixel to be red, got %+v", got)
+	}
+	if got := r.GetImage().RGBAAt(90, 90); got != (color.RGBA{R: 255, G: 255, B: 255, A: 255}) {
+		t.Fatalf("expected clipped-out pixel to remain white, got %+v", got)
+	}
+	if len(r.clipMaskMap) != 1 {
+		t.Fatalf("expected one cached clip mask, got %d", len(r.clipMaskMap))
+	}
+}
+
+func TestClipPathRestoreStopsMasking(t *testing.T) {
+	r := New(100, 100, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err := r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 100, Y: 100}}); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+	defer r.End()
+
+	r.Save()
+	r.ClipPath(upperLeftTriangleClip())
+	r.Path(fullRectPath(100, 100), &render.Paint{
+		Fill: render.Color{R: 1, G: 0, B: 0, A: 1},
+	})
+	r.Restore()
+
+	r.Path(fullRectPath(100, 100), &render.Paint{
+		Fill: render.Color{R: 0, G: 0, B: 1, A: 1},
+	})
+	if got := r.GetImage().RGBAAt(90, 90); got.B <= 200 || got.R >= 80 || got.G >= 80 {
+		t.Fatalf("expected restore to remove path clipping, got %+v", got)
+	}
+}
+
 func TestPathStroke(t *testing.T) {
 	r := New(100, 50, render.Color{R: 1, G: 1, B: 1, A: 1})
 
@@ -398,4 +443,23 @@ func TestGlyphRun(t *testing.T) {
 	if !changed {
 		t.Fatal("Expected DrawText to render at least one pixel")
 	}
+}
+
+func upperLeftTriangleClip() geom.Path {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 0, Y: 0})
+	p.LineTo(geom.Pt{X: 70, Y: 0})
+	p.LineTo(geom.Pt{X: 0, Y: 70})
+	p.Close()
+	return p
+}
+
+func fullRectPath(w, h float64) geom.Path {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 0, Y: 0})
+	p.LineTo(geom.Pt{X: w, Y: 0})
+	p.LineTo(geom.Pt{X: w, Y: h})
+	p.LineTo(geom.Pt{X: 0, Y: h})
+	p.Close()
+	return p
 }

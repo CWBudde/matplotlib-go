@@ -1,7 +1,9 @@
 package gobasic
 
 import (
+	"encoding/binary"
 	"errors"
+	"hash/fnv"
 	"image"
 	"image/color"
 	"image/png"
@@ -58,7 +60,8 @@ func quantizePath(p geom.Path) geom.Path {
 
 // state represents a saved graphics state.
 type state struct {
-	clipRect *geom.Rect
+	clipRect  *geom.Rect
+	clipPaths []geom.Path
 }
 
 // Renderer implements render.Renderer using pure Go dependencies.
@@ -68,9 +71,17 @@ type Renderer struct {
 	began       bool
 	stack       []state
 	clipRect    *geom.Rect
+	clipPaths   []geom.Path
+	clipMaskMap map[clipMaskKey]*image.Alpha
 	rasterizer  *vector.Rasterizer
 	lastFontKey string
 	resolution  uint
+}
+
+type clipMaskKey struct {
+	width  int
+	height int
+	hash   uint64
 }
 
 var (
@@ -100,9 +111,10 @@ func New(w, h int, bg render.Color) *Renderer {
 	}
 
 	return &Renderer{
-		dst:        dst,
-		rasterizer: vector.NewRasterizer(w, h),
-		resolution: 72,
+		dst:         dst,
+		rasterizer:  vector.NewRasterizer(w, h),
+		resolution:  72,
+		clipMaskMap: make(map[clipMaskKey]*image.Alpha),
 	}
 }
 
@@ -115,6 +127,7 @@ func (r *Renderer) Begin(viewport geom.Rect) error {
 	r.viewport = viewport
 	r.stack = r.stack[:0]
 	r.clipRect = nil
+	r.clipPaths = r.clipPaths[:0]
 	return nil
 }
 
@@ -126,6 +139,7 @@ func (r *Renderer) End() error {
 	r.began = false
 	r.stack = r.stack[:0]
 	r.clipRect = nil
+	r.clipPaths = r.clipPaths[:0]
 	return nil
 }
 
@@ -137,7 +151,8 @@ func (r *Renderer) Save() {
 		clipCopy = &rectCopy
 	}
 	r.stack = append(r.stack, state{
-		clipRect: clipCopy,
+		clipRect:  clipCopy,
+		clipPaths: clonePaths(r.clipPaths),
 	})
 }
 
@@ -153,6 +168,7 @@ func (r *Renderer) Restore() {
 
 	// Restore state
 	r.clipRect = s.clipRect
+	r.clipPaths = clonePaths(s.clipPaths)
 }
 
 // ClipRect sets a rectangular clip region.
@@ -166,10 +182,12 @@ func (r *Renderer) ClipRect(rect geom.Rect) {
 	}
 }
 
-// ClipPath sets a path-based clip region (stub implementation for Phase B).
+// ClipPath adds a path-based clip region to the current graphics state.
 func (r *Renderer) ClipPath(p geom.Path) {
-	// For Phase B, we only support rectangular clipping
-	// This is a no-op for now
+	if len(p.C) == 0 || !p.Validate() {
+		return
+	}
+	r.clipPaths = append(r.clipPaths, clonePath(p))
 }
 
 // Path draws a path with the given paint style.
@@ -213,7 +231,7 @@ func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 	var clipBounds image.Rectangle
 	var rasterBounds image.Rectangle
 	var offsetX, offsetY float64
-	if r.clipRect == nil {
+	if r.clipRect == nil && len(r.clipPaths) == 0 {
 		clipBounds = r.dst.Bounds()
 		rasterBounds = clipBounds
 	} else {
@@ -221,12 +239,15 @@ func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 		if !ok {
 			return
 		}
-		clipBounds = image.Rect(
-			int(math.Floor(r.clipRect.Min.X)),
-			int(math.Floor(r.clipRect.Min.Y)),
-			int(math.Ceil(r.clipRect.Max.X)),
-			int(math.Ceil(r.clipRect.Max.Y)),
-		).Intersect(r.dst.Bounds())
+		clipBounds = r.dst.Bounds()
+		if r.clipRect != nil {
+			clipBounds = clipBounds.Intersect(image.Rect(
+				int(math.Floor(r.clipRect.Min.X)),
+				int(math.Floor(r.clipRect.Min.Y)),
+				int(math.Ceil(r.clipRect.Max.X)),
+				int(math.Ceil(r.clipRect.Max.Y)),
+			))
+		}
 		clipBounds = clipBounds.Intersect(pathBounds)
 		if clipBounds.Empty() {
 			return
@@ -277,14 +298,42 @@ func (r *Renderer) fillPath(p geom.Path, fillColor render.Color) {
 	red, green, blue, alpha := fillColor.ToPremultipliedRGBA()
 	c := color.RGBA{R: red, G: green, B: blue, A: alpha}
 
-	if r.clipRect == nil {
+	if r.clipRect == nil && len(r.clipPaths) == 0 {
 		r.rasterizer.Draw(r.dst, rasterBounds, image.NewUniform(c), image.Point{})
 		return
 	}
 
-	// Use a zero-origin mask for the clipped path, then draw that mask directly
-	// into the matching destination rectangle.
-	r.rasterizer.Draw(r.dst, clipBounds, image.NewUniform(c), image.Point{})
+	if len(r.clipPaths) == 0 {
+		// Use a zero-origin mask for the clipped path, then draw that mask directly
+		// into the matching destination rectangle.
+		r.rasterizer.Draw(r.dst, clipBounds, image.NewUniform(c), image.Point{})
+		return
+	}
+
+	mask := image.NewAlpha(rasterBounds)
+	r.rasterizer.Draw(mask, rasterBounds, image.NewUniform(color.Alpha{A: 255}), image.Point{})
+	for y := clipBounds.Min.Y; y < clipBounds.Max.Y; y++ {
+		for x := clipBounds.Min.X; x < clipBounds.Max.X; x++ {
+			local := mask.PixOffset(x-clipBounds.Min.X, y-clipBounds.Min.Y)
+			if local < 0 || local >= len(mask.Pix) {
+				continue
+			}
+			coverage := mask.Pix[local]
+			if coverage == 0 {
+				continue
+			}
+			clipA := r.clipMaskAlphaAt(x, y)
+			if clipA == 0 {
+				continue
+			}
+			src := renderColorToRGBA(fillColor)
+			src.A = uint8(uint32(src.A) * uint32(coverage) * uint32(clipA) / (255 * 255))
+			if src.A == 0 {
+				continue
+			}
+			r.blendPixelNoClip(x, y, src)
+		}
+	}
 }
 
 func pathPixelBounds(p geom.Path) (image.Rectangle, bool) {
@@ -672,7 +721,20 @@ func (r *Renderer) blendPixel(x, y int, src color.RGBA) {
 	if src.A == 0 {
 		return
 	}
+	if len(r.clipPaths) > 0 {
+		clipA := r.clipMaskAlphaAt(x, y)
+		if clipA == 0 {
+			return
+		}
+		src.A = uint8(uint16(src.A) * uint16(clipA) / 255)
+		if src.A == 0 {
+			return
+		}
+	}
+	r.blendPixelNoClip(x, y, src)
+}
 
+func (r *Renderer) blendPixelNoClip(x, y int, src color.RGBA) {
 	i := r.dst.PixOffset(x, y)
 	dr := uint32(r.dst.Pix[i])
 	dg := uint32(r.dst.Pix[i+1])
@@ -705,6 +767,129 @@ func (r *Renderer) blendPixel(x, y int, src color.RGBA) {
 	r.dst.Pix[i+1] = uint8((sg*sa + dg*(255-sa)*da/255) / outA)
 	r.dst.Pix[i+2] = uint8((sb*sa + db*(255-sa)*da/255) / outA)
 	r.dst.Pix[i+3] = uint8(outA)
+}
+
+func (r *Renderer) clipMaskAlphaAt(x, y int) uint8 {
+	if len(r.clipPaths) == 0 {
+		return 255
+	}
+	if x < 0 || y < 0 || x >= r.dst.Bounds().Dx() || y >= r.dst.Bounds().Dy() {
+		return 0
+	}
+	alpha := 255
+	for _, path := range r.clipPaths {
+		mask := r.clipMaskForPath(path)
+		if mask == nil {
+			return 0
+		}
+		i := mask.PixOffset(x, y)
+		if i < 0 || i >= len(mask.Pix) {
+			return 0
+		}
+		alpha = alpha * int(mask.Pix[i]) / 255
+		if alpha == 0 {
+			return 0
+		}
+	}
+	return uint8(alpha)
+}
+
+func (r *Renderer) clipMaskForPath(path geom.Path) *image.Alpha {
+	if len(path.C) == 0 || !path.Validate() || r.dst == nil {
+		return nil
+	}
+	b := r.dst.Bounds()
+	key := clipMaskKey{
+		width:  b.Dx(),
+		height: b.Dy(),
+		hash:   hashPath(path),
+	}
+	if r.clipMaskMap == nil {
+		r.clipMaskMap = make(map[clipMaskKey]*image.Alpha)
+	}
+	if mask, ok := r.clipMaskMap[key]; ok {
+		return mask
+	}
+
+	mask := image.NewAlpha(b)
+	ras := vector.NewRasterizer(b.Dx(), b.Dy())
+	appendPathToRasterizer(ras, path, 0, 0)
+	ras.Draw(mask, b, image.NewUniform(color.Alpha{A: 255}), image.Point{})
+	r.clipMaskMap[key] = mask
+	return mask
+}
+
+func appendPathToRasterizer(ras *vector.Rasterizer, p geom.Path, offsetX, offsetY float64) {
+	vi := 0
+	for _, cmd := range p.C {
+		switch cmd {
+		case geom.MoveTo:
+			pt := p.V[vi]
+			ras.MoveTo(rasterCoord(pt.X-offsetX), rasterCoord(pt.Y-offsetY))
+			vi++
+		case geom.LineTo:
+			pt := p.V[vi]
+			ras.LineTo(rasterCoord(pt.X-offsetX), rasterCoord(pt.Y-offsetY))
+			vi++
+		case geom.QuadTo:
+			ctrl := p.V[vi]
+			to := p.V[vi+1]
+			ras.QuadTo(
+				rasterCoord(ctrl.X-offsetX), rasterCoord(ctrl.Y-offsetY),
+				rasterCoord(to.X-offsetX), rasterCoord(to.Y-offsetY),
+			)
+			vi += 2
+		case geom.CubicTo:
+			c1 := p.V[vi]
+			c2 := p.V[vi+1]
+			to := p.V[vi+2]
+			ras.CubeTo(
+				rasterCoord(c1.X-offsetX), rasterCoord(c1.Y-offsetY),
+				rasterCoord(c2.X-offsetX), rasterCoord(c2.Y-offsetY),
+				rasterCoord(to.X-offsetX), rasterCoord(to.Y-offsetY),
+			)
+			vi += 3
+		case geom.ClosePath:
+			ras.ClosePath()
+		}
+	}
+}
+
+func rasterCoord(v float64) float32 {
+	return float32(math.Round(v*1e6) / 1e6)
+}
+
+func clonePaths(paths []geom.Path) []geom.Path {
+	if len(paths) == 0 {
+		return nil
+	}
+	out := make([]geom.Path, len(paths))
+	for i, path := range paths {
+		out[i] = clonePath(path)
+	}
+	return out
+}
+
+func clonePath(path geom.Path) geom.Path {
+	return geom.Path{
+		V: append([]geom.Pt(nil), path.V...),
+		C: append([]geom.Cmd(nil), path.C...),
+	}
+}
+
+func hashPath(path geom.Path) uint64 {
+	h := fnv.New64a()
+	var buf [8]byte
+	for _, cmd := range path.C {
+		_, _ = h.Write([]byte{byte(cmd)})
+	}
+	for _, pt := range path.V {
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(quantize(pt.X)))
+		_, _ = h.Write(buf[:])
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(quantize(pt.Y)))
+		_, _ = h.Write(buf[:])
+	}
+	return h.Sum64()
 }
 
 func asRGBAImage(img render.Image) *image.RGBA {

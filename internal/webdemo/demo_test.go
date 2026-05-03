@@ -163,7 +163,7 @@ func TestDefaultDemoIDAndValidDemoID(t *testing.T) {
 }
 
 func TestDefaultBackendIDAndValidBackendID(t *testing.T) {
-	if got, want := DefaultBackendID(), "gobasic"; got != want {
+	if got, want := DefaultBackendID(), "agg"; got != want {
 		t.Fatalf("DefaultBackendID() = %q, want %q", got, want)
 	}
 
@@ -680,6 +680,30 @@ func BenchmarkRender(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+func BenchmarkRenderWithBackendTargets(b *testing.B) {
+	targets := []string{"polar", "projections"}
+	backends := []string{"gobasic", "agg"}
+	for _, id := range targets {
+		for _, backendID := range backends {
+			b.Run(id+"/"+backendID, func(b *testing.B) {
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					img, descriptor, err := RenderWithBackend(id, backendID, DefaultWidth, DefaultHeight)
+					if err != nil {
+						b.Fatalf("RenderWithBackend(%q, %q) error = %v", id, backendID, err)
+					}
+					if descriptor.ID != id {
+						b.Fatalf("RenderWithBackend(%q, %q) descriptor ID = %q, want %q", id, backendID, descriptor.ID, id)
+					}
+					if img.Bounds().Dx() != DefaultWidth || img.Bounds().Dy() != DefaultHeight {
+						b.Fatalf("RenderWithBackend(%q, %q) bounds = %v, want %dx%d", id, backendID, img.Bounds(), DefaultWidth, DefaultHeight)
+					}
+				}
+			})
+		}
 	}
 }
 

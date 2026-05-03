@@ -267,9 +267,11 @@ func loadDemo(canvasID, id, backendID string, width, height int) any {
 
 func newManager(canvasID, backendID string, fig *core.Figure) (plotcanvas.FigureManager, error) {
 	switch backendID {
-	case "gobasic", "":
-		return wasmcanvas.NewGoBasicManager(canvasID, fig)
 	case "agg":
+		return wasmcanvas.NewAggManager(canvasID, fig)
+	case "gobasic":
+		return wasmcanvas.NewGoBasicManager(canvasID, fig)
+	case "":
 		return wasmcanvas.NewAggManager(canvasID, fig)
 	default:
 		return nil, fmt.Errorf("matplotlib-go wasm: unknown backend %q", backendID)

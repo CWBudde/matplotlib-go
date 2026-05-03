@@ -275,9 +275,10 @@ func xLabelBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, a
 		return geom.Rect{}, false
 	}
 	side := ax.effectiveXLabelSide()
-	layout := measureSingleLineTextLayout(r, ax.XLabel, axisLabelFontSize(ctx), ctx.RC.FontKey)
+	size := axisLabelFontSize(ctx)
+	layout := measureSingleLineTextLayout(r, ax.XLabel, size, ctx.RC.FontKey)
 	anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side, alignment)
-	return textInkRect(alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign), layout)
+	return alignedTextLayoutRect(anchor, layout, TextAlignCenter, vAlign, pointsToPixels(ctx.RC, size))
 }
 
 func yLabelBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, alignment figureTextAlignment) (geom.Rect, bool) {

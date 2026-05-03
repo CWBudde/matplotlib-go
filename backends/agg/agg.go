@@ -58,6 +58,8 @@ type Renderer struct {
 	clipRect    *geom.Rect
 	clipPaths   []geom.Path
 	clipMaskMap map[clipMaskKey][]uint8
+	clipScratch *aggSurface
+	clipDepth   int
 	fontPath    string // path to TrueType font; empty means use GSV fallback
 	fallback    bool   // true if any text path had to fall back to GSV
 	lastFontKey string
@@ -211,7 +213,8 @@ func (r *Renderer) ClipPath(p geom.Path) {
 // Path draws a path with the given paint style.
 func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 	if r.hasClipPath() {
-		r.withClipPathMask(func() {
+		bounds, haveBounds := pathDrawBounds(p, paint)
+		r.withClipPathMask(bounds, haveBounds, func() {
 			r.drawPathDirect(p, paint)
 		})
 		return
@@ -338,7 +341,8 @@ func (r *Renderer) buildPath(p geom.Path) {
 
 func (r *Renderer) Image(img render.Image, dst geom.Rect) {
 	if r.hasClipPath() {
-		r.withClipPathMask(func() {
+		bounds, haveBounds := imageDrawBounds(dst)
+		r.withClipPathMask(bounds, haveBounds, func() {
 			r.drawImageDirect(img, dst)
 		})
 		return
@@ -384,7 +388,8 @@ func (r *Renderer) drawImageDirect(img render.Image, dst geom.Rect) {
 // Used by core.Image2D when rotation is requested.
 func (r *Renderer) ImageTransformed(img render.Image, _ geom.Rect, affine geom.Affine) {
 	if r.hasClipPath() {
-		r.withClipPathMask(func() {
+		bounds, haveBounds := transformedImageDrawBounds(img, affine)
+		r.withClipPathMask(bounds, haveBounds, func() {
 			r.drawImageTransformedDirect(img, affine)
 		})
 		return
@@ -518,7 +523,8 @@ func (r *Renderer) DrawGouraudTriangles(batch render.GouraudTriangleBatch) bool 
 		}
 	}
 	if r.hasClipPath() {
-		r.withClipPathMask(draw)
+		bounds, haveBounds := gouraudTriangleBatchBounds(batch)
+		r.withClipPathMask(bounds, haveBounds, draw)
 	} else {
 		draw()
 	}
@@ -754,7 +760,8 @@ func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey s
 // This is a helper method (not part of the Renderer interface).
 func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor render.Color) {
 	if r.hasClipPath() {
-		r.withClipPathMask(func() {
+		bounds, haveBounds := r.textDrawBounds(text, origin, size)
+		r.withClipPathMask(bounds, haveBounds, func() {
 			r.drawTextDirect(text, origin, size, textColor)
 		})
 		return
@@ -796,7 +803,8 @@ func (r *Renderer) drawTextDirect(text string, origin geom.Pt, size float64, tex
 // anchor is the bottom-center of the unrotated text box.
 func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
 	if r.hasClipPath() {
-		r.withClipPathMask(func() {
+		bounds, haveBounds := r.rotatedTextDrawBounds(text, anchor, size, angle)
+		r.withClipPathMask(bounds, haveBounds, func() {
 			r.drawTextRotatedDirect(text, anchor, size, angle, textColor)
 		})
 		return
@@ -887,6 +895,70 @@ func rotatedTextOrigin(anchor geom.Pt, metrics render.TextMetrics, bounds render
 		X: anchor.X - metrics.W/2,
 		Y: anchor.Y - metrics.Descent,
 	}
+}
+
+func (r *Renderer) textDrawBounds(text string, origin geom.Pt, size float64) (geom.Rect, bool) {
+	if text == "" || size <= 0 {
+		return geom.Rect{}, false
+	}
+	if bounds, ok := r.MeasureTextBounds(text, size, ""); ok && bounds.W > 0 && bounds.H > 0 {
+		return geom.Rect{
+			Min: geom.Pt{X: origin.X + bounds.X, Y: origin.Y + bounds.Y},
+			Max: geom.Pt{X: origin.X + bounds.X + bounds.W, Y: origin.Y + bounds.Y + bounds.H},
+		}.Inflate(2, 2), true
+	}
+	metrics := r.MeasureText(text, size, "")
+	if metrics.W <= 0 || metrics.H <= 0 {
+		return geom.Rect{}, false
+	}
+	return geom.Rect{
+		Min: geom.Pt{X: origin.X, Y: origin.Y - metrics.Ascent},
+		Max: geom.Pt{X: origin.X + metrics.W, Y: origin.Y + metrics.Descent},
+	}.Inflate(2, 2), true
+}
+
+func (r *Renderer) rotatedTextDrawBounds(text string, anchor geom.Pt, size, angle float64) (geom.Rect, bool) {
+	if text == "" || size <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
+		return geom.Rect{}, false
+	}
+	metrics := r.MeasureText(text, size, "")
+	if metrics.W <= 0 || metrics.H <= 0 {
+		return geom.Rect{}, false
+	}
+	bounds, haveBounds := r.MeasureTextBounds(text, size, "")
+	origin := rotatedTextOrigin(anchor, metrics, bounds, haveBounds)
+	var rect geom.Rect
+	if haveBounds && bounds.W > 0 && bounds.H > 0 {
+		rect = geom.Rect{
+			Min: geom.Pt{X: origin.X + bounds.X, Y: origin.Y + bounds.Y},
+			Max: geom.Pt{X: origin.X + bounds.X + bounds.W, Y: origin.Y + bounds.Y + bounds.H},
+		}
+	} else {
+		rect = geom.Rect{
+			Min: geom.Pt{X: origin.X, Y: origin.Y - metrics.Ascent},
+			Max: geom.Pt{X: origin.X + metrics.W, Y: origin.Y + metrics.Descent},
+		}
+	}
+	return rotatedRectBounds(rect, anchor, -angle)
+}
+
+func rotatedRectBounds(rect geom.Rect, anchor geom.Pt, angle float64) (geom.Rect, bool) {
+	cosA := math.Cos(angle)
+	sinA := math.Sin(angle)
+	rotate := func(pt geom.Pt) geom.Pt {
+		dx := pt.X - anchor.X
+		dy := pt.Y - anchor.Y
+		return geom.Pt{
+			X: anchor.X + dx*cosA - dy*sinA,
+			Y: anchor.Y + dx*sinA + dy*cosA,
+		}
+	}
+	return pointsBounds([]geom.Pt{
+		rotate(rect.Min),
+		rotate(geom.Pt{X: rect.Max.X, Y: rect.Min.Y}),
+		rotate(rect.Max),
+		rotate(geom.Pt{X: rect.Min.X, Y: rect.Max.Y}),
+	}, 3)
 }
 
 // DrawTextVertical renders text vertically (one character per line, top to bottom).
@@ -1309,6 +1381,93 @@ func pathBounds(path geom.Path) (geom.Rect, bool) {
 	return bounds, ok
 }
 
+func pathDrawBounds(path geom.Path, paint *render.Paint) (geom.Rect, bool) {
+	if paint == nil {
+		return geom.Rect{}, false
+	}
+	bounds, ok := pathBounds(path)
+	if !ok {
+		return geom.Rect{}, false
+	}
+	pad := 2.0
+	if paint.Stroke.A > 0 && paint.LineWidth > 0 {
+		pad += paint.LineWidth / 2
+	}
+	if paint.Hatch != "" && paint.HatchLineWidth > 0 {
+		pad = math.Max(pad, paint.HatchLineWidth/2+2)
+	}
+	return bounds.Inflate(pad, pad), true
+}
+
+func imageDrawBounds(dst geom.Rect) (geom.Rect, bool) {
+	minX := math.Min(dst.Min.X, dst.Max.X)
+	minY := math.Min(dst.Min.Y, dst.Max.Y)
+	maxX := math.Max(dst.Min.X, dst.Max.X)
+	maxY := math.Max(dst.Min.Y, dst.Max.Y)
+	if minX == maxX || minY == maxY {
+		return geom.Rect{}, false
+	}
+	return geom.Rect{
+		Min: geom.Pt{X: minX, Y: minY},
+		Max: geom.Pt{X: maxX, Y: maxY},
+	}.Inflate(2, 2), true
+}
+
+func transformedImageDrawBounds(img render.Image, affine geom.Affine) (geom.Rect, bool) {
+	if img == nil {
+		return geom.Rect{}, false
+	}
+	w, h := img.Size()
+	if w <= 0 || h <= 0 {
+		return geom.Rect{}, false
+	}
+	return pointsBounds([]geom.Pt{
+		affine.Apply(geom.Pt{}),
+		affine.Apply(geom.Pt{X: float64(w)}),
+		affine.Apply(geom.Pt{Y: float64(h)}),
+		affine.Apply(geom.Pt{X: float64(w), Y: float64(h)}),
+	}, 2)
+}
+
+func gouraudTriangleBatchBounds(batch render.GouraudTriangleBatch) (geom.Rect, bool) {
+	points := make([]geom.Pt, 0, len(batch.Triangles)*3)
+	for i := range batch.Triangles {
+		points = append(points, batch.Triangles[i].P[:]...)
+	}
+	return pointsBounds(points, 1)
+}
+
+func pointsBounds(points []geom.Pt, pad float64) (geom.Rect, bool) {
+	var bounds geom.Rect
+	ok := false
+	for _, pt := range points {
+		if !finitePt(pt) {
+			continue
+		}
+		if !ok {
+			bounds = geom.Rect{Min: pt, Max: pt}
+			ok = true
+			continue
+		}
+		if pt.X < bounds.Min.X {
+			bounds.Min.X = pt.X
+		}
+		if pt.Y < bounds.Min.Y {
+			bounds.Min.Y = pt.Y
+		}
+		if pt.X > bounds.Max.X {
+			bounds.Max.X = pt.X
+		}
+		if pt.Y > bounds.Max.Y {
+			bounds.Max.Y = pt.Y
+		}
+	}
+	if !ok {
+		return geom.Rect{}, false
+	}
+	return bounds.Inflate(pad, pad), true
+}
+
 func rectsOverlap(a, b geom.Rect) bool {
 	return a.Max.X >= b.Min.X && b.Max.X >= a.Min.X && a.Max.Y >= b.Min.Y && b.Max.Y >= a.Min.Y
 }
@@ -1686,29 +1845,117 @@ func (r *Renderer) hasClipPath() bool {
 	return len(r.clipPaths) > 0 && r.ctx != nil && r.ctx.image != nil
 }
 
-func (r *Renderer) withClipPathMask(draw func()) {
+type pixelRegion struct {
+	minX int
+	minY int
+	maxX int
+	maxY int
+}
+
+func (r *Renderer) withClipPathMask(bounds geom.Rect, haveBounds bool, draw func()) {
 	paths := clonePaths(r.clipPaths)
 	if len(paths) == 0 || r.ctx == nil || r.ctx.image == nil {
 		draw()
 		return
 	}
 
+	region, ok := r.clipCompositeRegion(bounds, haveBounds)
+	if !ok {
+		return
+	}
+	masks, ok := r.clipMasksForPaths(paths)
+	if !ok {
+		return
+	}
+
 	target := r.ctx
-	temp := newAggSurface(r.width, r.height)
-	temp.Clear(agglib.NewColor(0, 0, 0, 0))
+	temp := r.clipTempSurface()
+	clearImageRegion(temp.image, region)
 
 	oldPaths := r.clipPaths
+	r.clipDepth++
 	r.ctx = temp
 	r.clipPaths = nil
-	r.applyClipRect()
+	r.ctx.ClipBox(float64(region.minX), float64(region.minY), float64(region.maxX), float64(region.maxY))
 	draw()
+	r.clipDepth--
 	r.clipPaths = oldPaths
 	r.ctx = target
+	r.applyClipRect()
 
-	r.compositeClipSurface(temp.image, paths)
+	r.compositeClipSurface(temp.image, masks, region)
 }
 
-func (r *Renderer) compositeClipSurface(src *agglib.Image, paths []geom.Path) {
+func (r *Renderer) clipTempSurface() *aggSurface {
+	if r.clipDepth > 0 {
+		return newAggSurface(r.width, r.height)
+	}
+	if r.clipScratch == nil || r.clipScratch.image == nil || r.clipScratch.image.Width() != r.width || r.clipScratch.image.Height() != r.height {
+		r.clipScratch = newAggSurface(r.width, r.height)
+	}
+	return r.clipScratch
+}
+
+func (r *Renderer) clipCompositeRegion(bounds geom.Rect, haveBounds bool) (pixelRegion, bool) {
+	region := pixelRegion{
+		minX: 0,
+		minY: 0,
+		maxX: r.width,
+		maxY: r.height,
+	}
+	if r.clipRect != nil {
+		region.minX = maxInt(region.minX, int(math.Floor(r.clipRect.Min.X)))
+		region.minY = maxInt(region.minY, int(math.Floor(r.clipRect.Min.Y)))
+		region.maxX = minInt(region.maxX, int(math.Ceil(r.clipRect.Max.X)))
+		region.maxY = minInt(region.maxY, int(math.Ceil(r.clipRect.Max.Y)))
+	}
+	if haveBounds {
+		region.minX = maxInt(region.minX, int(math.Floor(bounds.Min.X)))
+		region.minY = maxInt(region.minY, int(math.Floor(bounds.Min.Y)))
+		region.maxX = minInt(region.maxX, int(math.Ceil(bounds.Max.X)))
+		region.maxY = minInt(region.maxY, int(math.Ceil(bounds.Max.Y)))
+	}
+	region.minX = maxInt(region.minX, 0)
+	region.minY = maxInt(region.minY, 0)
+	region.maxX = minInt(region.maxX, r.width)
+	region.maxY = minInt(region.maxY, r.height)
+	return region, region.minX < region.maxX && region.minY < region.maxY
+}
+
+func (r *Renderer) clipMasksForPaths(paths []geom.Path) ([][]uint8, bool) {
+	masks := make([][]uint8, 0, len(paths))
+	for _, path := range paths {
+		mask := r.clipMaskForPath(path)
+		if len(mask) == 0 {
+			return nil, false
+		}
+		masks = append(masks, mask)
+	}
+	return masks, true
+}
+
+func clearImageRegion(img *agglib.Image, region pixelRegion) {
+	if img == nil {
+		return
+	}
+	stride := img.Stride()
+	if stride <= 0 {
+		return
+	}
+	for y := region.minY; y < region.maxY; y++ {
+		start := y*stride + region.minX*4
+		end := y*stride + region.maxX*4
+		if start < 0 {
+			start = 0
+		}
+		if end > len(img.Data) {
+			end = len(img.Data)
+		}
+		clear(img.Data[start:end])
+	}
+}
+
+func (r *Renderer) compositeClipSurface(src *agglib.Image, masks [][]uint8, region pixelRegion) {
 	dst := r.ctx.image
 	if src == nil || dst == nil {
 		return
@@ -1716,24 +1963,15 @@ func (r *Renderer) compositeClipSurface(src *agglib.Image, paths []geom.Path) {
 	if src.Width() != dst.Width() || src.Height() != dst.Height() {
 		return
 	}
-
-	minX, minY := 0, 0
-	maxX, maxY := dst.Width(), dst.Height()
-	if r.clipRect != nil {
-		minX = maxInt(minX, int(math.Floor(r.clipRect.Min.X)))
-		minY = maxInt(minY, int(math.Floor(r.clipRect.Min.Y)))
-		maxX = minInt(maxX, int(math.Ceil(r.clipRect.Max.X)))
-		maxY = minInt(maxY, int(math.Ceil(r.clipRect.Max.Y)))
-	}
-	if minX >= maxX || minY >= maxY {
+	if region.minX >= region.maxX || region.minY >= region.maxY {
 		return
 	}
 
 	srcStride := src.Stride()
 	dstStride := dst.Stride()
-	for y := minY; y < maxY; y++ {
-		for x := minX; x < maxX; x++ {
-			maskA := r.clipMaskAlpha(paths, x, y)
+	for y := region.minY; y < region.maxY; y++ {
+		for x := region.minX; x < region.maxX; x++ {
+			maskA := clipMaskAlpha(masks, r.width, x, y)
 			if maskA == 0 {
 				continue
 			}
@@ -1756,14 +1994,13 @@ func (r *Renderer) compositeClipSurface(src *agglib.Image, paths []geom.Path) {
 	}
 }
 
-func (r *Renderer) clipMaskAlpha(paths []geom.Path, x, y int) uint8 {
+func clipMaskAlpha(masks [][]uint8, width, x, y int) uint8 {
 	alpha := 255
-	for _, path := range paths {
-		mask := r.clipMaskForPath(path)
+	i := y*width + x
+	for _, mask := range masks {
 		if len(mask) == 0 {
 			return 0
 		}
-		i := y*r.width + x
 		if i < 0 || i >= len(mask) {
 			return 0
 		}

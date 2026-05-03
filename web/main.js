@@ -81,6 +81,7 @@ let runtimeExited = false;
 let runtimeExitMessage = buildRuntimeExitMessage();
 let currentDemoID = "";
 let currentBackendID = "";
+let renderFrame = 0;
 const backendNames = new Map();
 const sourceCache = new Map();
 
@@ -118,9 +119,6 @@ async function init() {
     populateBackendSelector(backends, api.defaultBackendID());
 
     document
-      .getElementById("renderBtn")
-      .addEventListener("click", () => mountSelectedDemo());
-    document
       .getElementById("downloadBtn")
       .addEventListener("click", () => downloadCurrentPlot());
     document
@@ -131,12 +129,14 @@ async function init() {
       .addEventListener("click", () => hideSourcePanel());
     document
       .getElementById("demoSelector")
-      .addEventListener("change", () => mountSelectedDemo());
+      .addEventListener("change", () => scheduleRender());
     document
       .getElementById("backendSelector")
-      .addEventListener("change", () => mountSelectedDemo());
+      .addEventListener("change", () => scheduleRender());
 
-    mountSelectedDemo();
+    window.addEventListener("resize", () => scheduleRender());
+
+    scheduleRender();
   } catch (error) {
     updateStatus(`Failed to load WASM: ${error.message}`);
     console.error(error);
@@ -265,6 +265,17 @@ function mountSelectedDemo() {
   updateStatus(
     `Rendered ${result.id} with ${backendName} in ${elapsedMs.toFixed(1)} ms at ${result.width}×${result.height}`,
   );
+}
+
+function scheduleRender() {
+  if (renderFrame !== 0) {
+    return;
+  }
+
+  renderFrame = window.requestAnimationFrame(() => {
+    renderFrame = 0;
+    mountSelectedDemo();
+  });
 }
 
 function plotSize() {

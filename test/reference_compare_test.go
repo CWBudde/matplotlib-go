@@ -2,6 +2,7 @@ package test
 
 import (
 	"image"
+	"image/color"
 	"os"
 	"path/filepath"
 	"testing"
@@ -87,6 +88,27 @@ func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {
 	}
 }
 
+func TestColorbarCompositionImageOriginMatchesMatplotlibRef(t *testing.T) {
+	got := renderColorbarComposition()
+	matplotlibRef, err := imagecmp.LoadPNG(filepath.Join("..", "testdata", "matplotlib_ref", "colorbar_composition.png"))
+	if err != nil {
+		t.Fatalf("load matplotlib reference: %v", err)
+	}
+
+	gotRect, ok := largestChromaComponentBounds(got)
+	if !ok {
+		t.Fatal("rendered colorbar composition has no chromatic component")
+	}
+	wantRect, ok := largestChromaComponentBounds(matplotlibRef)
+	if !ok {
+		t.Fatal("matplotlib colorbar composition has no chromatic component")
+	}
+
+	if !rectWithinPixels(gotRect, wantRect, 1) {
+		t.Fatalf("main image component bounds = %v, want within 1 px of matplotlib %v", gotRect, wantRect)
+	}
+}
+
 func runReferenceCompareTest(t *testing.T, tc referenceCompareCase) {
 	t.Helper()
 
@@ -157,4 +179,109 @@ func savePNGOrFail(t *testing.T, img image.Image, path string) {
 	if err := imagecmp.SavePNG(img, path); err != nil {
 		t.Fatalf("save PNG %s: %v", path, err)
 	}
+}
+
+func largestChromaComponentBounds(img image.Image) (image.Rectangle, bool) {
+	if img == nil {
+		return image.Rectangle{}, false
+	}
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	if width <= 0 || height <= 0 {
+		return image.Rectangle{}, false
+	}
+
+	mask := make([]bool, width*height)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if isChromaticPixel(img.At(bounds.Min.X+x, bounds.Min.Y+y)) {
+				mask[y*width+x] = true
+			}
+		}
+	}
+
+	visited := make([]bool, len(mask))
+	queue := make([]int, 0, len(mask)/8)
+	bestArea := 0
+	best := image.Rectangle{}
+
+	for idx, chromatic := range mask {
+		if !chromatic || visited[idx] {
+			continue
+		}
+		visited[idx] = true
+		queue = append(queue[:0], idx)
+		area := 0
+		minX, maxX := idx%width, idx%width
+		minY, maxY := idx/width, idx/width
+
+		for len(queue) > 0 {
+			cur := queue[len(queue)-1]
+			queue = queue[:len(queue)-1]
+			x := cur % width
+			y := cur / width
+			area++
+			if x < minX {
+				minX = x
+			}
+			if x > maxX {
+				maxX = x
+			}
+			if y < minY {
+				minY = y
+			}
+			if y > maxY {
+				maxY = y
+			}
+
+			neighbors := [][2]int{{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}}
+			for _, neighbor := range neighbors {
+				nx, ny := neighbor[0], neighbor[1]
+				if nx < 0 || nx >= width || ny < 0 || ny >= height {
+					continue
+				}
+				next := ny*width + nx
+				if !mask[next] || visited[next] {
+					continue
+				}
+				visited[next] = true
+				queue = append(queue, next)
+			}
+		}
+
+		if area > bestArea {
+			bestArea = area
+			best = image.Rect(bounds.Min.X+minX, bounds.Min.Y+minY, bounds.Min.X+maxX+1, bounds.Min.Y+maxY+1)
+		}
+	}
+
+	return best, bestArea > 0
+}
+
+func isChromaticPixel(c color.Color) bool {
+	r16, g16, b16, a16 := c.RGBA()
+	if a16 == 0 {
+		return false
+	}
+	r := int(r16 >> 8)
+	g := int(g16 >> 8)
+	b := int(b16 >> 8)
+	lo := min(r, min(g, b))
+	hi := max(r, max(g, b))
+	return hi-lo > 20 && hi < 252
+}
+
+func rectWithinPixels(got, want image.Rectangle, tolerance int) bool {
+	return absInt(got.Min.X-want.Min.X) <= tolerance &&
+		absInt(got.Min.Y-want.Min.Y) <= tolerance &&
+		absInt(got.Max.X-want.Max.X) <= tolerance &&
+		absInt(got.Max.Y-want.Max.Y) <= tolerance
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

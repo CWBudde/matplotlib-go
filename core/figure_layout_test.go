@@ -324,6 +324,32 @@ func TestConstrainedLayoutReservesColorbarSpaceAndTracksParent(t *testing.T) {
 	}
 }
 
+func TestConstrainedLayoutMeasuresBottomXLabelLineBox(t *testing.T) {
+	fig := NewFigure(1000, 700)
+	fig.ConstrainedLayout()
+	ax := fig.AddSubplot(1, 1, 1)
+	ax.SetXLabel("x")
+	img := ax.Image([][]float64{{0, 1}, {2, 3}})
+	if cb := fig.AddColorbar(ax, img, ColorbarOptions{Label: "Intensity"}); cb == nil {
+		t.Fatal("expected colorbar axes")
+	}
+
+	var r figureLayoutRecordingRenderer
+	DrawFigure(fig, &r)
+
+	px := ax.layout(fig)
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), px)
+	wantMinBottom := layoutPadPx(fig, LayoutEngineConstrained) +
+		tickLabelPadPx(ax.XAxis, ctx) +
+		pointsToPixels(ctx.RC, tickLabelFontSize(ax.XAxis, ctx)) +
+		axisLabelPadPx(ctx) +
+		pointsToPixels(ctx.RC, axisLabelFontSize(ctx))
+	gotBottom := fig.SizePx.Y - px.Max.Y
+	if gotBottom+0.25 < wantMinBottom {
+		t.Fatalf("bottom margin = %v, want at least full x-label line-box stack %v", gotBottom, wantMinBottom)
+	}
+}
+
 func newTightLayoutProbeFigure() *Figure {
 	fig := NewFigure(800, 600)
 	ax := fig.AddSubplot(1, 1, 1)
