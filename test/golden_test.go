@@ -269,7 +269,7 @@ func runGoldenTest(t *testing.T, testName string, renderFunc func() image.Image)
 	// Render the plot
 	img := renderFunc()
 
-	goldenPath := "../testdata/golden/" + testName + ".png"
+	goldenPath := "../testdata/" + goldenDirName() + "/" + testName + ".png"
 
 	if *updateGolden {
 		// Update the golden image

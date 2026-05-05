@@ -23,6 +23,8 @@ var (
 	rasterFontCache   = map[string]*opentype.Font{}
 )
 
+const matplotlibTextHintingFactor = 8
+
 func loadRasterFont(face render.FontFace) (*opentype.Font, error) {
 	key := rasterFontCacheKey(face)
 	if key == "" {
@@ -89,18 +91,30 @@ func (r *Renderer) measureRasterText(text string, face render.FontFace, size flo
 	if !ok {
 		return render.TextMetrics{}, false
 	}
+	advance := layout.Advance
+	bounds := layout.Bounds
+	if nativeMetrics, ok := r.measureNativeFreetypeText(text, face, size, matplotlibTextHintingFactor); ok {
+		advance = nativeMetrics.W
+	}
+	if nativeBounds, ok := r.measureNativeFreetypeTextBounds(text, face, size, matplotlibTextHintingFactor); ok {
+		bounds = nativeBounds
+	}
 
 	metrics := fontFace.Metrics()
 	ascent := quantize(float64(metrics.Ascent.Ceil()))
 	descent := quantize(float64(metrics.Descent.Ceil()))
 	height := quantize(float64(metrics.Height.Ceil()))
-	if fontHeights, ok := rasterFontHeightMetrics(face, size, r.resolution); ok {
-		ascent = math.Max(fontHeights.ascent, math.Max(0, -layout.Bounds.Y))
-		descent = math.Max(fontHeights.descent, math.Max(0, layout.Bounds.Y+layout.Bounds.H))
+	if fontHeights, ok := r.measureNativeFreetypeFontHeights(face, size, matplotlibTextHintingFactor); ok {
+		ascent = math.Max(fontHeights.Ascent, math.Max(0, -bounds.Y))
+		descent = math.Max(fontHeights.Descent, math.Max(0, bounds.Y+bounds.H))
+		height = ascent + descent
+	} else if fontHeights, ok := rasterFontHeightMetrics(face, size, r.resolution); ok {
+		ascent = math.Max(fontHeights.ascent, math.Max(0, -bounds.Y))
+		descent = math.Max(fontHeights.descent, math.Max(0, bounds.Y+bounds.H))
 		height = ascent + descent
 	}
 	return render.TextMetrics{
-		W:       quantize(layout.Advance),
+		W:       quantize(advance),
 		H:       height,
 		Ascent:  ascent,
 		Descent: descent,
@@ -111,6 +125,9 @@ func (r *Renderer) drawRasterText(text string, face render.FontFace, origin geom
 	fontKey := fontReference(face)
 	if text == "" || fontKey == "" || size <= 0 {
 		return false
+	}
+	if r.drawNativeFreetypeRunText(text, face, origin, size, textColor, matplotlibTextHintingFactor) {
+		return true
 	}
 
 	primaryFace, err := r.openRasterFace(face, size)

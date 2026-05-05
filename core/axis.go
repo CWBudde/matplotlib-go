@@ -709,6 +709,9 @@ func axisTickSegment(axis *Axis, spine geom.Pt, tickSize float64, isXAxis bool) 
 	if axis == nil {
 		return spine, spine
 	}
+	if tickSize > 0 {
+		tickSize = math.Round(tickSize)
+	}
 
 	outward := tickSize
 	if (axis.Side == AxisTop) || (axis.Side == AxisLeft) {
@@ -1343,23 +1346,14 @@ func rotatePoint(p, anchor geom.Pt, cosA, sinA float64) geom.Pt {
 }
 
 func tickLabelCenterOffsetX(layout singleLineTextLayout) float64 {
-	if layout.HaveInkBounds {
-		return layout.InkBounds.X + layout.InkBounds.W/2
-	}
 	return layout.Width / 2
 }
 
 func tickLabelLeftOffset(hAlign TextAlign, layout singleLineTextLayout) float64 {
 	switch hAlign {
 	case TextAlignLeft:
-		if layout.HaveInkBounds {
-			return -layout.InkBounds.X
-		}
 		return 0
 	case TextAlignRight:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X + layout.InkBounds.W
-		}
 		return layout.Width
 	default:
 		return tickLabelCenterOffsetX(layout)
@@ -1369,19 +1363,10 @@ func tickLabelLeftOffset(hAlign TextAlign, layout singleLineTextLayout) float64 
 func tickLabelLeftOffsetForLeftAxis(hAlign TextAlign, layout singleLineTextLayout) float64 {
 	switch hAlign {
 	case TextAlignLeft:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X
-		}
 		return 0
 	case TextAlignCenter:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X + layout.InkBounds.W/2
-		}
 		return layout.Width / 2
 	default:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X + layout.InkBounds.W
-		}
 		return layout.Width
 	}
 }
@@ -1389,19 +1374,10 @@ func tickLabelLeftOffsetForLeftAxis(hAlign TextAlign, layout singleLineTextLayou
 func tickLabelLeftOffsetForRightAxis(hAlign TextAlign, layout singleLineTextLayout) float64 {
 	switch hAlign {
 	case TextAlignRight:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X + layout.InkBounds.W
-		}
 		return layout.Width
 	case TextAlignCenter:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X + layout.InkBounds.W/2
-		}
 		return layout.Width / 2
 	default:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X
-		}
 		return 0
 	}
 }

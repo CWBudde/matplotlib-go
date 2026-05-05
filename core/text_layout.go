@@ -57,19 +57,10 @@ func textBaselineOffset(layout singleLineTextLayout, align textLayoutVerticalAli
 func textHorizontalOriginOffset(layout singleLineTextLayout, align TextAlign) float64 {
 	switch align {
 	case TextAlignLeft:
-		if layout.HaveInkBounds {
-			return -layout.InkBounds.X
-		}
 		return 0
 	case TextAlignRight:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X + layout.InkBounds.W
-		}
 		return layout.Width
 	default:
-		if layout.HaveInkBounds {
-			return layout.InkBounds.X + layout.InkBounds.W/2
-		}
 		return layout.Width / 2
 	}
 }

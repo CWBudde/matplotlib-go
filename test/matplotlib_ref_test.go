@@ -9,8 +9,9 @@ package test
 //
 //	go test ./test/... -run TestMpl -update-matplotlib
 //
-// This requires either `uv` (recommended) or `python3` with matplotlib installed.
-// uv will automatically fetch matplotlib into a temporary virtual environment.
+// This requires a Python interpreter with matplotlib installed. Prefer a system
+// Python linked against system FreeType so reference glyph rasterization uses the
+// same FreeType stack as the Go cgo backend.
 
 import (
 	"flag"
@@ -39,6 +40,30 @@ var (
 	mplErr  error
 )
 
+func matplotlibPythonPath() (string, error) {
+	candidates := []string{}
+	if env := os.Getenv("MATPLOTLIB_GO_PYTHON"); env != "" {
+		candidates = append(candidates, env)
+	}
+	candidates = append(candidates, "/usr/bin/python3")
+	if pyPath, err := exec.LookPath("python3"); err == nil {
+		candidates = append(candidates, pyPath)
+	}
+
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		if candidate == "" || seen[candidate] {
+			continue
+		}
+		seen[candidate] = true
+		cmd := exec.Command(candidate, "-c", "import matplotlib.ft2font")
+		if err := cmd.Run(); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("no Python interpreter with matplotlib found; set MATPLOTLIB_GO_PYTHON")
+}
+
 // ensureRefs generates reference images when -update-matplotlib is set,
 // or skips the calling test if the committed ref directory is missing locally.
 func ensureRefs(t *testing.T) {
@@ -54,17 +79,14 @@ func ensureRefs(t *testing.T) {
 		script := filepath.Join("matplotlib_ref", "generate.py")
 		outDir, _ := filepath.Abs(mplRefDir)
 
-		uvPath, err := exec.LookPath("uv")
-		var cmd *exec.Cmd
-		if err == nil {
-			cmd = exec.Command(uvPath, "run", script, "--output-dir", outDir)
-		} else {
-			pyPath, err2 := exec.LookPath("python3")
-			if err2 != nil {
-				mplErr = fmt.Errorf("need uv or python3: uv: %v; python3: %v", err, err2)
-				return
-			}
-			cmd = exec.Command(pyPath, script, "--output-dir", outDir)
+		pyPath, err := matplotlibPythonPath()
+		if err != nil {
+			mplErr = err
+			return
+		}
+		cmd := exec.Command(pyPath, script, "--output-dir", outDir)
+		if repoRoot, err := filepath.Abs(".."); err == nil {
+			cmd.Env = append(os.Environ(), "PYTHONPATH="+prependEnvPath(repoRoot, os.Getenv("PYTHONPATH")))
 		}
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -74,6 +96,13 @@ func ensureRefs(t *testing.T) {
 	if mplErr != nil {
 		t.Fatalf("matplotlib reference generation failed: %v", mplErr)
 	}
+}
+
+func prependEnvPath(path, existing string) string {
+	if existing == "" {
+		return path
+	}
+	return path + string(os.PathListSeparator) + existing
 }
 
 // runMplTest renders our version, loads the matplotlib reference, and

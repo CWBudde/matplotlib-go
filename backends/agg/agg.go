@@ -149,7 +149,7 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	if err == nil {
 		r.fontPath = fp
 	}
-	if err := r.ctx.ConfigureTextFont(r.fontPath, 12, r.resolution); err != nil {
+	if err := r.ctx.ConfigureTextFont(r.fontPath, 12, r.resolution); err != nil && nativeFreetypeVersion() == "" {
 		r.fallback = true
 	}
 
@@ -657,6 +657,9 @@ func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) 
 	if font.backend != textBackendRaster {
 		return render.TextBounds{}, false
 	}
+	if bounds, ok := r.measureNativeFreetypeTextBounds(text, font.face, font.size, matplotlibTextHintingFactor); ok {
+		return bounds, true
+	}
 	sizePx := r.fontPixelSize(font.size)
 	fontKey = fontReference(font.face)
 	if layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, sizePx, fontKey); ok {
@@ -700,6 +703,10 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 	}
 	if font.backend != textBackendRaster {
 		return render.FontHeightMetrics{}, false
+	}
+
+	if metrics, ok := r.measureNativeFreetypeFontHeights(font.face, font.size, matplotlibTextHintingFactor); ok {
+		return metrics, true
 	}
 
 	if metrics, ok := rasterFontHeightMetrics(font.face, font.size, r.resolution); ok {
@@ -1117,34 +1124,38 @@ func interpolateColor(c0, c1, c2 render.Color, w0, w1, w2 float64) render.Color 
 }
 
 func blendPixelRGBA(dst []uint8, src render.Color) {
-	sa := clamp01(src.A)
-	if sa <= 0 {
+	sa := uint32(math.Round(clamp01(src.A) * 255))
+	if sa == 0 {
 		return
 	}
-	sr := clamp01(src.R)
-	sg := clamp01(src.G)
-	sb := clamp01(src.B)
-	if sa >= 1 {
-		dst[0] = uint8(math.Round(sr * 255))
-		dst[1] = uint8(math.Round(sg * 255))
-		dst[2] = uint8(math.Round(sb * 255))
+	sr := uint8(math.Round(clamp01(src.R) * 255))
+	sg := uint8(math.Round(clamp01(src.G) * 255))
+	sb := uint8(math.Round(clamp01(src.B) * 255))
+	if sa >= 255 {
+		dst[0] = sr
+		dst[1] = sg
+		dst[2] = sb
 		dst[3] = 255
 		return
 	}
 
-	da := float64(dst[3]) / 255
-	dr := float64(dst[0]) / 255
-	dg := float64(dst[1]) / 255
-	db := float64(dst[2]) / 255
-	outA := sa + da*(1-sa)
-	if outA <= 0 {
+	da := uint32(dst[3])
+	combinedA := ((sa + da) << 8) - sa*da
+	if combinedA == 0 {
 		dst[0], dst[1], dst[2], dst[3] = 0, 0, 0, 0
 		return
 	}
-	dst[0] = uint8(math.Round(((sr*sa + dr*da*(1-sa)) / outA) * 255))
-	dst[1] = uint8(math.Round(((sg*sa + dg*da*(1-sa)) / outA) * 255))
-	dst[2] = uint8(math.Round(((sb*sa + db*da*(1-sa)) / outA) * 255))
-	dst[3] = uint8(math.Round(outA * 255))
+	dst[3] = uint8(combinedA >> 8)
+	dst[0] = fixedBlendChannel(dst[0], sr, uint8(da), uint8(sa), combinedA)
+	dst[1] = fixedBlendChannel(dst[1], sg, uint8(da), uint8(sa), combinedA)
+	dst[2] = fixedBlendChannel(dst[2], sb, uint8(da), uint8(sa), combinedA)
+}
+
+func fixedBlendChannel(dst, src, dstA, srcA uint8, combinedA uint32) uint8 {
+	dstPremul := int64(uint32(dst) * uint32(dstA))
+	numerator := ((int64(src) << 8) - dstPremul) * int64(srcA)
+	numerator += dstPremul << 8
+	return uint8(numerator / int64(combinedA))
 }
 
 func minInt(a, b int) int {
@@ -2010,9 +2021,9 @@ func (r *Renderer) compositeClipSurface(src *agglib.Image, masks [][]uint8, regi
 				continue
 			}
 			blendPixelRGBA(dst.Data[dstOff:dstOff+4], render.Color{
-				R: float64(src.Data[srcOff]) / float64(sa),
-				G: float64(src.Data[srcOff+1]) / float64(sa),
-				B: float64(src.Data[srcOff+2]) / float64(sa),
+				R: float64(src.Data[srcOff]) / 255,
+				G: float64(src.Data[srcOff+1]) / 255,
+				B: float64(src.Data[srcOff+2]) / 255,
 				A: (float64(sa) / 255) * (float64(maskA) / 255),
 			})
 		}

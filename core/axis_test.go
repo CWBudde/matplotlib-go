@@ -1000,7 +1000,7 @@ func TestTickLabelPositionUsesBoundsForBottomXAxis(t *testing.T) {
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis, ctx)})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
-		X: tickPos.X - (1 + 5.0/2.0),
+		X: tickPos.X - 5.0/2.0,
 		Y: tickPos.Y + labelPad + 8,
 	}
 	if r.origins[0] != want {
@@ -1061,7 +1061,7 @@ func TestTickLabelPositionUsesBoundsForLeftYAxis(t *testing.T) {
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(axis, ctx), Y: 4})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
-		X: tickPos.X - labelPad - (1 + 5.0),
+		X: tickPos.X - labelPad - 5.0,
 		Y: tickPos.Y + 4,
 	}
 	if r.origins[0] != want {
@@ -1137,7 +1137,7 @@ func TestTickLabelPositionUsesBottomAlignmentForTopXAxis(t *testing.T) {
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis, ctx)})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
-		X: tickPos.X - (1 + 5.0/2.0),
+		X: tickPos.X - 5.0/2.0,
 		Y: tickPos.Y - labelPad - 2,
 	}
 	if r.origins[0] != want {
@@ -1177,7 +1177,7 @@ func TestTickLabelPositionUsesCenterBaselineForRightYAxis(t *testing.T) {
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: getSpinePosition(axis, ctx), Y: 4})
 	labelPad := tickLabelPadPx(axis, ctx)
 	want := geom.Pt{
-		X: tickPos.X + labelPad - 1,
+		X: tickPos.X + labelPad,
 		Y: tickPos.Y + 4,
 	}
 	if r.origins[0] != want {
@@ -1218,7 +1218,7 @@ func TestAxis_DrawTickLabels_UsesRotatedDrawerWhenRequested(t *testing.T) {
 	tickPos := ctx.DataToPixel.Apply(geom.Pt{X: 2, Y: getSpinePosition(axis, ctx)})
 	labelPad := tickLabelPadPx(axis, ctx)
 	origin := geom.Pt{
-		X: tickPos.X - (1 + 5.0/2.0),
+		X: tickPos.X - 5.0/2.0,
 		Y: tickPos.Y + labelPad + 8,
 	}
 	layout := measureSingleLineTextLayout(&r, "2", tickLabelFontSize(axis, ctx), ctx.RC.FontKey)

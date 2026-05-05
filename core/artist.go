@@ -1669,8 +1669,34 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			}
 		}
 
-		// Draw axes elements outside the clip so spines can straddle the axes edge
-		// the same way Matplotlib does.
+		// Matplotlib draws Axis objects (ticks and tick labels, zorder 1.5)
+		// before Spine artists (zorder 2.5). This matters at endpoint ticks:
+		// the spine overpaints the tick cap by a single coverage level.
+		if xAxis != nil {
+			xAxis.DrawTicks(r, ctx)
+			xAxis.DrawTickLabels(r, ctx)
+		}
+		if yAxis != nil {
+			yAxis.DrawTicks(r, ctx)
+			yAxis.DrawTickLabels(r, ctx)
+		}
+		if topAxis != nil {
+			topAxis.DrawTicks(r, ctx)
+			topAxis.DrawTickLabels(r, ctx)
+		}
+		if rightAxis != nil {
+			rightAxis.DrawTicks(r, ctx)
+			rightAxis.DrawTickLabels(r, ctx)
+		}
+		for _, extraAxis := range ax.ExtraAxes {
+			if extraAxis != nil {
+				extraAxis.DrawTicks(r, ctx)
+				extraAxis.DrawTickLabels(r, ctx)
+			}
+		}
+
+		// Draw spines outside the clip so they can straddle the axes edge the
+		// same way Matplotlib does.
 		if xAxis != nil {
 			xAxis.Draw(r, ctx)
 		}
@@ -1702,29 +1728,7 @@ func DrawFigure(fig *Figure, r render.Renderer) {
 			DrawFrame(r, ctx, ref, topAxis == nil, rightAxis == nil)
 		}
 
-		// Draw ticks (outward), tick labels, and text labels outside the clip rect.
-		if xAxis != nil {
-			xAxis.DrawTicks(r, ctx)
-			xAxis.DrawTickLabels(r, ctx)
-		}
-		if yAxis != nil {
-			yAxis.DrawTicks(r, ctx)
-			yAxis.DrawTickLabels(r, ctx)
-		}
-		if topAxis != nil {
-			topAxis.DrawTicks(r, ctx)
-			topAxis.DrawTickLabels(r, ctx)
-		}
-		if rightAxis != nil {
-			rightAxis.DrawTicks(r, ctx)
-			rightAxis.DrawTickLabels(r, ctx)
-		}
-		for _, extraAxis := range ax.ExtraAxes {
-			if extraAxis != nil {
-				extraAxis.DrawTicks(r, ctx)
-				extraAxis.DrawTickLabels(r, ctx)
-			}
-		}
+		// Draw axes text labels outside the clip rect.
 		drawAxesLabels(ax, r, ctx, px, alignment)
 	}
 

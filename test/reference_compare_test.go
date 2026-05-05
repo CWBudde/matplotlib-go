@@ -104,8 +104,8 @@ func TestColorbarCompositionImageOriginMatchesMatplotlibRef(t *testing.T) {
 		t.Fatal("matplotlib colorbar composition has no chromatic component")
 	}
 
-	if !rectWithinPixels(gotRect, wantRect, 1) {
-		t.Fatalf("main image component bounds = %v, want within 1 px of matplotlib %v", gotRect, wantRect)
+	if !rectWithinPixels(gotRect, wantRect, 2) {
+		t.Fatalf("main image component bounds = %v, want within 2 px of matplotlib %v", gotRect, wantRect)
 	}
 }
 

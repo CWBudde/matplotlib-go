@@ -1,4 +1,4 @@
-//go:build !freetype
+//go:build !cgo || purego
 
 package agg
 
@@ -9,6 +9,22 @@ import (
 
 func (r *Renderer) drawNativeFreetypeText(_ string, _ render.FontFace, _ geom.Pt, _ float64, _ render.Color) bool {
 	return false
+}
+
+func (r *Renderer) drawNativeFreetypeRunText(_ string, _ render.FontFace, _ geom.Pt, _ float64, _ render.Color, _ int) bool {
+	return false
+}
+
+func (r *Renderer) measureNativeFreetypeText(_ string, _ render.FontFace, _ float64, _ int) (render.TextMetrics, bool) {
+	return render.TextMetrics{}, false
+}
+
+func (r *Renderer) measureNativeFreetypeTextBounds(_ string, _ render.FontFace, _ float64, _ int) (render.TextBounds, bool) {
+	return render.TextBounds{}, false
+}
+
+func (r *Renderer) measureNativeFreetypeFontHeights(_ render.FontFace, _ float64, _ int) (render.FontHeightMetrics, bool) {
+	return render.FontHeightMetrics{}, false
 }
 
 func nativeFreetypeVersion() string {
