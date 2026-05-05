@@ -358,7 +358,7 @@ func (h *Hist2D) Draw(r render.Renderer, ctx *DrawContext) {
 
 // Z returns the z-order for sorting.
 func (h *Hist2D) Z() float64 {
-	return h.z
+	return zOrDefault(h.z, defaultPatchZ)
 }
 
 // Bounds returns the bounding box of the histogram in data coordinates.

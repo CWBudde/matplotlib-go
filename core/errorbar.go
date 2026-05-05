@@ -96,7 +96,7 @@ func (e *ErrorBar) Draw(r render.Renderer, ctx *DrawContext) {
 
 // Z returns the z-order for sorting.
 func (e *ErrorBar) Z() float64 {
-	return e.z
+	return zOrDefault(e.z, defaultLineZ)
 }
 
 // Bounds returns the data-space bounding box for bars and error extents.

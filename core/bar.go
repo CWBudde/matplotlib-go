@@ -163,7 +163,7 @@ func (b *Bar2D) createHorizontalBarPaths(y, height, width, baseline float64, ctx
 
 // Z returns the z-order for sorting.
 func (b *Bar2D) Z() float64 {
-	return b.z
+	return zOrDefault(b.z, defaultPatchZ)
 }
 
 // Bounds returns the bounding box of all bars.

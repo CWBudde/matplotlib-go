@@ -74,8 +74,8 @@ func (f *Fill2D) Draw(r render.Renderer, ctx *DrawContext) {
 	if f.EdgeWidth > 0 && edgeColor.A > 0 {
 		paint.Stroke = edgeColor
 		paint.LineWidth = f.EdgeWidth
-		paint.LineJoin = render.JoinRound
-		paint.LineCap = render.CapRound
+		paint.LineJoin = render.JoinMiter
+		paint.LineCap = render.CapButt
 	}
 
 	// Draw fill area with optional edge
@@ -86,27 +86,31 @@ func (f *Fill2D) Draw(r render.Renderer, ctx *DrawContext) {
 func (f *Fill2D) createFillPath(n int, ctx *DrawContext) geom.Path {
 	path := geom.Path{}
 
-	// Draw the first boundary from low to high independent coordinate.
+	second := func(i int) float64 {
+		if f.Y2 != nil {
+			return f.Y2[i]
+		}
+		return f.Baseline
+	}
+
+	// Matplotlib's fill_between PolyCollection starts on the second boundary,
+	// walks the first boundary forward, then walks the second boundary backward.
+	// The duplicate endpoint vertices are intentional: they match upstream's
+	// closed polygon path and affect antialiased edge coverage.
+	path.C = append(path.C, geom.MoveTo)
+	path.V = append(path.V, f.pixelPoint(0, second(0), ctx))
+
 	for i := 0; i < n; i++ {
 		pt := f.pixelPoint(i, f.Y1[i], ctx)
-		if i == 0 {
-			path.C = append(path.C, geom.MoveTo)
-		} else {
-			path.C = append(path.C, geom.LineTo)
-		}
+		path.C = append(path.C, geom.LineTo)
 		path.V = append(path.V, pt)
 	}
 
-	// Draw the second boundary from high to low independent coordinate.
-	for i := n - 1; i >= 0; i-- {
-		var dep float64
-		if f.Y2 != nil {
-			dep = f.Y2[i]
-		} else {
-			dep = f.Baseline
-		}
+	path.C = append(path.C, geom.LineTo)
+	path.V = append(path.V, f.pixelPoint(n-1, second(n-1), ctx))
 
-		pt := f.pixelPoint(i, dep, ctx)
+	for i := n - 1; i >= 0; i-- {
+		pt := f.pixelPoint(i, second(i), ctx)
 		path.C = append(path.C, geom.LineTo)
 		path.V = append(path.V, pt)
 	}
@@ -119,7 +123,7 @@ func (f *Fill2D) createFillPath(n int, ctx *DrawContext) geom.Path {
 
 // Z returns the z-order for sorting.
 func (f *Fill2D) Z() float64 {
-	return f.z
+	return zOrDefault(f.z, defaultPatchZ)
 }
 
 // Bounds returns the bounding box of the fill area.

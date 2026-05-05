@@ -20,6 +20,18 @@ type Artist interface {
 	Bounds(ctx *DrawContext) geom.Rect
 }
 
+const (
+	defaultPatchZ = 1.0
+	defaultLineZ  = 2.0
+)
+
+func zOrDefault(z, fallback float64) float64 {
+	if z != 0 {
+		return z
+	}
+	return fallback
+}
+
 // StickyEdgeArtist can opt an autoscaled data edge out of margin expansion.
 // This mirrors Matplotlib's sticky_edges behavior used by bars and images:
 // if a margin would cross a sticky value that sits on a data bound, the bound

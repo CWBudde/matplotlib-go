@@ -126,7 +126,7 @@ func (p *Patch) Z() float64 {
 	if p == nil {
 		return 0
 	}
-	return p.z
+	return zOrDefault(p.z, defaultPatchZ)
 }
 
 func (p *Patch) legendEntry() (legendEntry, bool) {

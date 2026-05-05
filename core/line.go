@@ -96,7 +96,7 @@ func lineDashesForPaint(dashes []float64, lineWidth float64, units DashUnits) []
 
 // Z returns the z-order for sorting.
 func (l *Line2D) Z() float64 {
-	return l.z
+	return zOrDefault(l.z, defaultLineZ)
 }
 
 // Bounds returns the bounding box of all points in data space.

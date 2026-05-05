@@ -455,7 +455,14 @@ func (r *Renderer) DrawMarkers(batch render.MarkerBatch) bool {
 	}
 	for i := range batch.Items {
 		item := &batch.Items[i]
-		path := transformMarkerPath(batch.Marker, item.Transform, item.Offset)
+		offset := item.Offset
+		markerPaint := item.Paint
+		markerPaint.Snap = render.SnapAuto
+		if !shouldSnapPath(batch.Marker, &markerPaint) {
+			offset.X = math.Floor(offset.X+0.5) + 0.5
+			offset.Y = math.Floor(offset.Y+0.5) + 0.5
+		}
+		path := transformMarkerPath(batch.Marker, item.Transform, offset)
 		if len(path.C) == 0 {
 			continue
 		}

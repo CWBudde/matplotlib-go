@@ -112,7 +112,7 @@ func (c *Collection) Z() float64 {
 	if c == nil {
 		return 0
 	}
-	return c.z
+	return zOrDefault(c.z, defaultPatchZ)
 }
 
 func (c *Collection) alphaValue() float64 {

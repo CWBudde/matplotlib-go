@@ -144,25 +144,40 @@ func ScatterAreaFromRadius(radiusPx, dpi float64) float64 {
 	return math.Pi * radiusPt * radiusPt
 }
 
-// createCirclePath creates a circular marker using a polygon approximation.
+// createCirclePath creates the same cubic unit-circle marker Matplotlib uses.
 func (s *Scatter2D) createCirclePath(center geom.Pt, radius float64) geom.Path {
-	const numSegments = 26 // Match matplotlib's default unit circle approximation.
-	path := geom.Path{}
+	const segments = 8
+	r := radius * 0.5
+	delta := 2 * math.Pi / segments
+	alpha := 4.0 / 3.0 * math.Tan(delta/4.0)
 
-	for i := 0; i < numSegments; i++ {
-		angle := 2 * math.Pi * float64(i) / numSegments
-		x := center.X + radius*0.5*math.Cos(angle)
-		y := center.Y + radius*0.5*math.Sin(angle)
-
-		if i == 0 {
-			path.C = append(path.C, geom.MoveTo)
-		} else {
-			path.C = append(path.C, geom.LineTo)
+	point := func(theta float64) geom.Pt {
+		return geom.Pt{
+			X: center.X + r*math.Cos(theta),
+			Y: center.Y + r*math.Sin(theta),
 		}
-		path.V = append(path.V, geom.Pt{X: x, Y: y})
 	}
-	path.C = append(path.C, geom.ClosePath)
+	tangent := func(theta float64) geom.Pt {
+		return geom.Pt{X: -math.Sin(theta), Y: math.Cos(theta)}
+	}
 
+	path := geom.Path{}
+	theta0 := -math.Pi / 2
+	path.MoveTo(point(theta0))
+	for i := 0; i < segments; i++ {
+		theta1 := theta0 + delta
+		p0 := point(theta0)
+		p1 := point(theta1)
+		t0 := tangent(theta0)
+		t1 := tangent(theta1)
+		path.CubicTo(
+			geom.Pt{X: p0.X + alpha*r*t0.X, Y: p0.Y + alpha*r*t0.Y},
+			geom.Pt{X: p1.X - alpha*r*t1.X, Y: p1.Y - alpha*r*t1.Y},
+			p1,
+		)
+		theta0 = theta1
+	}
+	path.Close()
 	return path
 }
 
@@ -320,7 +335,7 @@ func (s *Scatter2D) createCrossPath(center geom.Pt, radius float64) geom.Path {
 
 // Z returns the z-order for sorting.
 func (s *Scatter2D) Z() float64 {
-	return s.z
+	return zOrDefault(s.z, defaultPatchZ)
 }
 
 // Bounds returns the data-space bounding box of all marker centers.
