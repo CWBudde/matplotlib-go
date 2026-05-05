@@ -22,6 +22,10 @@ type AnchoredTextOptions struct {
 	TextColor       render.Color
 	BorderWidth     float64
 	FontSize        float64
+	// TextAlign controls horizontal alignment of multi-line text inside the
+	// box; mirrors matplotlib's text(..., ha=...) parameter. Defaults to
+	// TextAlignLeft.
+	TextAlign TextAlign
 }
 
 // AnchoredTextBox draws a boxed block of text anchored to an axes or figure corner.
@@ -40,6 +44,7 @@ type AnchoredTextBox struct {
 	TextColor       render.Color
 	BorderWidth     float64
 	FontSize        float64
+	TextAlign       TextAlign
 	z               float64
 }
 
@@ -109,6 +114,7 @@ func newAnchoredTextBox(text string, rc style.RC, opts ...AnchoredTextOptions) *
 		if opt.FontSize > 0 {
 			cfg.FontSize = opt.FontSize
 		}
+		cfg.TextAlign = opt.TextAlign
 	}
 
 	return &AnchoredTextBox{
@@ -125,6 +131,7 @@ func newAnchoredTextBox(text string, rc style.RC, opts ...AnchoredTextOptions) *
 		TextColor:       cfg.TextColor,
 		BorderWidth:     cfg.BorderWidth,
 		FontSize:        cfg.FontSize,
+		TextAlign:       cfg.TextAlign,
 		z:               950,
 	}
 }
@@ -164,20 +171,27 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 	})
 
 	y := boxLayout.contentBox.Min.Y + boxLayout.padding
+	leftX := boxLayout.contentBox.Min.X + boxLayout.padding
+	rightX := boxLayout.contentBox.Max.X - boxLayout.padding
 	for i, line := range lines {
 		layout := layouts[i]
 		if line == "" {
 			y += a.lineAdvance(fontSize, ctx)
 			continue
 		}
-		anchor := geom.Pt{
-			X: boxLayout.contentBox.Min.X + boxLayout.padding,
-			Y: y,
+		var anchorX float64
+		switch a.TextAlign {
+		case TextAlignRight:
+			anchorX = rightX
+		case TextAlignCenter:
+			anchorX = (leftX + rightX) / 2
+		default:
+			anchorX = leftX
 		}
 		drawDisplayText(
 			textRen,
 			line,
-			alignedSingleLineOrigin(anchor, layout, TextAlignLeft, textLayoutVAlignTop),
+			alignedSingleLineOrigin(geom.Pt{X: anchorX, Y: y}, layout, a.TextAlign, textLayoutVAlignTop),
 			fontSize,
 			resolvedTextColor(a.TextColor, ctx),
 			ctx.RC.FontKey,

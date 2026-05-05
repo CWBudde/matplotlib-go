@@ -433,8 +433,11 @@ func contourLevels(values, explicit []float64, levelCount int, filled bool) []fl
 }
 
 func contourLocatorLevels(minValue, maxValue float64, levelCount int, filled bool) []float64 {
+	// Match matplotlib's _ensure_locator_exists: MaxNLocator(N + 1, min_n_ticks=1).
+	// For levels=N the locator is asked for N+1 intervals so the resulting "nice" step
+	// is roughly (zmax-zmin)/(N+1) — matching ContourSet._autolev's tick layout.
 	levels := (MaxNLocator{
-		N:     levelCount,
+		N:     levelCount + 1,
 		Steps: []float64{1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10},
 	}).Ticks(minValue, maxValue, 0)
 	if len(levels) == 0 {

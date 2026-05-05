@@ -21,6 +21,16 @@ func UnstructuredShowcase() *core.Figure {
 
 	tri, values := sampleTriangulation()
 
+	// Mirror the Python example's bbox=dict(boxstyle="round,pad=...",
+	// facecolor="white", edgecolor=(0.75,0.75,0.75,1.0)) styling. Padding
+	// and CornerRadius are in pixels here; matplotlib's pad is in fontsize
+	// units (points), so multiply by DPI/72 to convert. matplotlib's
+	// "round" boxstyle defaults rounding_size to the pad value.
+	bboxBorder := render.Color{R: 0.75, G: 0.75, B: 0.75, A: 1}
+	bboxFace := render.Color{R: 1, G: 1, B: 1, A: 1}
+	axTextPadPx := 0.3 * 10.0 * float64(DPI) / 72.0
+	figTextPadPx := 0.35 * 11.0 * float64(DPI) / 72.0
+
 	meshAx := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.05, Y: 0.16},
 		Max: geom.Pt{X: 0.31, Y: 0.88},
@@ -33,8 +43,24 @@ func UnstructuredShowcase() *core.Figure {
 		LineWidth: &meshWidth,
 		Label:     "triplot",
 	})
+	// Mirror Python ax.text(0.98, 0.02, ..., ha="right", va="bottom",
+	// transform=ax.transAxes): place the bbox so its lower-right corner sits
+	// at axes-fraction (0.98, 0.02), padded outward by `pad` so the text edge
+	// (not the bbox edge) lands at 0.98/0.02.
 	meshAx.AddAnchoredText("explicit triangular mesh", core.AnchoredTextOptions{
-		Location: core.LegendLowerRight,
+		Locator: core.BBoxToAnchorLocator{
+			X: 0.98, Y: 0.02,
+			Location: core.LegendLowerRight,
+			OffsetX:  axTextPadPx,
+			OffsetY:  axTextPadPx,
+		},
+		FontSize:        10,
+		Padding:         axTextPadPx,
+		CornerRadius:    axTextPadPx,
+		BackgroundColor: bboxFace,
+		BorderColor:     bboxBorder,
+		BorderWidth:     1,
+		TextAlign:       core.TextAlignRight,
 	})
 
 	colorAx := fig.AddAxes(geom.Rect{
@@ -80,8 +106,23 @@ func UnstructuredShowcase() *core.Figure {
 		LevelCount: 7,
 	})
 
+	// Mirror Python fig.text(0.98, 0.98, ..., ha="right", va="top"): place the
+	// bbox so its upper-right corner sits at figure-fraction (0.98, 0.98),
+	// padded outward by `pad` so the text edge lands exactly at the anchor.
 	fig.AddAnchoredText("unstructured gallery family\ntriangulation, tripcolor, tricontour", core.AnchoredTextOptions{
-		Location: core.LegendUpperRight,
+		Locator: core.BBoxToAnchorLocator{
+			X: 0.98, Y: 0.98,
+			Location: core.LegendUpperRight,
+			OffsetX:  figTextPadPx,
+			OffsetY:  -figTextPadPx,
+		},
+		FontSize:        11,
+		Padding:         figTextPadPx,
+		CornerRadius:    figTextPadPx,
+		BackgroundColor: bboxFace,
+		BorderColor:     bboxBorder,
+		BorderWidth:     1,
+		TextAlign:       core.TextAlignRight,
 	})
 
 	return fig
