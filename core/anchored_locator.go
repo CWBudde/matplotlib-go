@@ -94,10 +94,6 @@ type BBoxToAnchorLocator struct {
 }
 
 func (l BBoxToAnchorLocator) Rect(clip geom.Rect, width, height float64) geom.Rect {
-	return l.RectWithInset(clip, width, height, 0)
-}
-
-func (l BBoxToAnchorLocator) RectWithInset(clip geom.Rect, width, height, inset float64) geom.Rect {
 	anchor := geom.Pt{
 		X: clip.Min.X + clip.W()*l.X + l.OffsetX,
 		Y: clip.Max.Y - clip.H()*l.Y + l.OffsetY,
@@ -106,23 +102,27 @@ func (l BBoxToAnchorLocator) RectWithInset(clip geom.Rect, width, height, inset 
 	var minX, minY float64
 	switch l.Location {
 	case LegendUpperLeft:
-		minX = anchor.X + inset
-		minY = anchor.Y + inset
+		minX = anchor.X
+		minY = anchor.Y
 	case LegendLowerRight:
-		minX = anchor.X - inset - width
-		minY = anchor.Y - inset - height
+		minX = anchor.X - width
+		minY = anchor.Y - height
 	case LegendLowerLeft:
-		minX = anchor.X + inset
-		minY = anchor.Y - inset - height
+		minX = anchor.X
+		minY = anchor.Y - height
 	default:
-		minX = anchor.X - inset - width
-		minY = anchor.Y + inset
+		minX = anchor.X - width
+		minY = anchor.Y
 	}
 
 	return geom.Rect{
 		Min: geom.Pt{X: minX, Y: minY},
 		Max: geom.Pt{X: minX + width, Y: minY + height},
 	}
+}
+
+func (l BBoxToAnchorLocator) RectWithInset(clip geom.Rect, width, height, _ float64) geom.Rect {
+	return l.Rect(clip, width, height)
 }
 
 func (BBoxToAnchorLocator) UsesFigureCoordinates() {}
