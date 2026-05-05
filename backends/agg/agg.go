@@ -466,7 +466,7 @@ func (r *Renderer) DrawMarkers(batch render.MarkerBatch) bool {
 		if len(path.C) == 0 {
 			continue
 		}
-		paint := item.Paint
+		paint := markerPaint
 		if !item.Antialiased {
 			paint.Antialias = render.AntialiasOff
 		}

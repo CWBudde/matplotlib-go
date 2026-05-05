@@ -37,6 +37,10 @@ type PathCollection struct {
 	EdgeColor     render.Color
 	EdgeWidths    []float64
 	EdgeWidth     float64
+	LineJoin      render.LineJoin
+	LineJoinSet   bool
+	LineCap       render.LineCap
+	LineCapSet    bool
 	LineOnly      bool
 }
 
@@ -176,7 +180,7 @@ func (c *PathCollection) Draw(r render.Renderer, ctx *DrawContext) {
 			continue
 		}
 
-		paint := collectionPaint(fill, edge, width, render.JoinRound, render.CapRound, nil)
+		paint := collectionPaint(fill, edge, width, c.lineJoin(), c.lineCap(), nil)
 		r.Path(path, &paint)
 	}
 }
@@ -498,7 +502,7 @@ func (c *FillBetweenPolyCollection) asPatchCollection() *PatchCollection {
 
 func (c *PathCollection) drawMarkers(r render.Renderer, ctx *DrawContext) bool {
 	drawer, ok := r.(render.MarkerDrawer)
-	if !ok || c == nil || ctx == nil || !c.PathInDisplay || len(c.Path.C) == 0 || len(c.Paths) > 0 {
+	if !ok || c == nil || ctx == nil || !c.singlePathMarkerOptimization() {
 		return false
 	}
 
@@ -532,7 +536,7 @@ func (c *PathCollection) drawMarkers(r render.Renderer, ctx *DrawContext) bool {
 		batch.Items = append(batch.Items, render.MarkerItem{
 			Offset:      offset,
 			Transform:   geom.Affine{A: scale, D: scale},
-			Paint:       collectionPaint(fill, edge, width, render.JoinRound, render.CapRound, nil),
+			Paint:       collectionPaint(fill, edge, width, c.lineJoin(), c.lineCap(), nil),
 			Antialiased: true,
 		})
 	}
@@ -540,6 +544,16 @@ func (c *PathCollection) drawMarkers(r render.Renderer, ctx *DrawContext) bool {
 		return false
 	}
 	return drawer.DrawMarkers(batch)
+}
+
+func (c *PathCollection) singlePathMarkerOptimization() bool {
+	if c == nil || !c.PathInDisplay || len(c.Path.C) == 0 || len(c.Paths) > 0 {
+		return false
+	}
+	if len(c.Sizes) > 1 || len(c.FaceColors) > 1 || len(c.EdgeColors) > 1 || len(c.EdgeWidths) > 1 {
+		return false
+	}
+	return true
 }
 
 func (c *PathCollection) drawPathCollection(r render.Renderer, ctx *DrawContext) bool {
@@ -577,7 +591,7 @@ func (c *PathCollection) drawPathCollection(r render.Renderer, ctx *DrawContext)
 		}
 		batch.Items = append(batch.Items, render.PathCollectionItem{
 			Path:        path,
-			Paint:       collectionPaint(fill, edge, width, render.JoinRound, render.CapRound, nil),
+			Paint:       collectionPaint(fill, edge, width, c.lineJoin(), c.lineCap(), nil),
 			Antialiased: true,
 		})
 	}
@@ -585,6 +599,20 @@ func (c *PathCollection) drawPathCollection(r render.Renderer, ctx *DrawContext)
 		return false
 	}
 	return drawer.DrawPathCollection(batch)
+}
+
+func (c *PathCollection) lineJoin() render.LineJoin {
+	if c == nil || !c.LineJoinSet {
+		return render.JoinRound
+	}
+	return c.LineJoin
+}
+
+func (c *PathCollection) lineCap() render.LineCap {
+	if c == nil || !c.LineCapSet {
+		return render.CapRound
+	}
+	return c.LineCap
 }
 
 func (c *PatchCollection) drawPathCollection(r render.Renderer, ctx *DrawContext) bool {

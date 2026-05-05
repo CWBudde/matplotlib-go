@@ -125,12 +125,8 @@ func TestScatter2D_SizeUsesMatplotlibAreaSemantics(t *testing.T) {
 		Size: 36,
 	}
 	pc := scatter.toPathCollection(ctx)
-	if len(pc.Sizes) != 1 {
-		t.Fatalf("path collection sizes = %v", pc.Sizes)
-	}
-
 	want := 6.0 * 144.0 / 72.0
-	if got := pc.Sizes[0]; got != want {
+	if got := pc.Size; got != want {
 		t.Fatalf("scatter scale = %v, want sqrt(area)*dpi/72 = %v", got, want)
 	}
 }

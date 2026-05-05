@@ -89,13 +89,17 @@ func (s *Scatter2D) toPathCollection(ctx *DrawContext) *PathCollection {
 		lineWidth = ctx.RC.LineWidth
 	}
 
-	sizes := make([]float64, len(s.XY))
-	for i := range s.XY {
-		size := s.Size
-		if len(s.Sizes) > 0 && i < len(s.Sizes) {
-			size = s.Sizes[i]
+	size := scatterAreaScale(s.Size, ctx)
+	var sizes []float64
+	if len(s.Sizes) > 0 {
+		sizes = make([]float64, len(s.XY))
+		for i := range s.XY {
+			itemSize := s.Size
+			if i < len(s.Sizes) {
+				itemSize = s.Sizes[i]
+			}
+			sizes[i] = scatterAreaScale(itemSize, ctx)
 		}
-		sizes[i] = scatterAreaScale(size, ctx)
 	}
 
 	faceColor := s.Color
@@ -112,6 +116,7 @@ func (s *Scatter2D) toPathCollection(ctx *DrawContext) *PathCollection {
 		},
 		Path:          s.markerPrototypePath(),
 		Offsets:       append([]geom.Pt(nil), s.XY...),
+		Size:          size,
 		Sizes:         sizes,
 		PathInDisplay: true,
 		FaceColors:    append([]render.Color(nil), s.Colors...),
@@ -119,8 +124,25 @@ func (s *Scatter2D) toPathCollection(ctx *DrawContext) *PathCollection {
 		EdgeColors:    append([]render.Color(nil), s.EdgeColors...),
 		EdgeColor:     edgeColor,
 		EdgeWidth:     lineWidth,
+		LineJoin:      s.markerLineJoin(),
+		LineJoinSet:   true,
+		LineCap:       s.markerLineCap(),
+		LineCapSet:    true,
 		LineOnly:      lineOnly,
 	}
+}
+
+func (s *Scatter2D) markerLineJoin() render.LineJoin {
+	switch s.Marker {
+	case MarkerSquare, MarkerTriangle, MarkerDiamond:
+		return render.JoinMiter
+	default:
+		return render.JoinRound
+	}
+}
+
+func (s *Scatter2D) markerLineCap() render.LineCap {
+	return render.CapButt
 }
 
 func scatterAreaScale(area float64, ctx *DrawContext) float64 {

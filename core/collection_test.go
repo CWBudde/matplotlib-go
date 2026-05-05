@@ -65,7 +65,7 @@ func TestPathCollectionUsesMarkerBatchWhenAvailable(t *testing.T) {
 		Collection:    Collection{Alpha: 0.8},
 		Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
 		Offsets:       []geom.Pt{{X: 1, Y: 2}, {X: 4, Y: 5}},
-		Sizes:         []float64{2, 3},
+		Size:          2,
 		PathInDisplay: true,
 		FaceColor:     render.Color{R: 1, A: 1},
 		EdgeColor:     render.Color{A: 1},
@@ -88,8 +88,30 @@ func TestPathCollectionUsesMarkerBatchWhenAvailable(t *testing.T) {
 	if items[0].Offset != (geom.Pt{X: 60, Y: 430}) {
 		t.Fatalf("first marker display offset = %+v", items[0].Offset)
 	}
-	if items[1].Transform.A != 3 || items[1].Transform.D != 3 {
+	if items[1].Transform.A != 2 || items[1].Transform.D != 2 {
 		t.Fatalf("second marker transform = %+v", items[1].Transform)
+	}
+}
+
+func TestPathCollectionSkipsMarkerBatchForVaryingTransforms(t *testing.T) {
+	pc := &PathCollection{
+		Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
+		Offsets:       []geom.Pt{{X: 1, Y: 2}, {X: 4, Y: 5}},
+		Sizes:         []float64{2, 3},
+		PathInDisplay: true,
+		FaceColor:     render.Color{R: 1, A: 1},
+		EdgeColor:     render.Color{A: 1},
+		EdgeWidth:     1,
+	}
+
+	r := &batchRecordingRenderer{returnNative: true}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.markerBatches) != 0 {
+		t.Fatalf("marker batches = %d, want none for varying transforms", len(r.markerBatches))
+	}
+	if len(r.pathCollectionBatches) != 1 {
+		t.Fatalf("path collection batches = %d, want 1", len(r.pathCollectionBatches))
 	}
 }
 
