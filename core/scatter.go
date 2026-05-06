@@ -169,9 +169,9 @@ func ScatterAreaFromRadius(radiusPx, dpi float64) float64 {
 // createCirclePath creates the same cubic unit-circle marker Matplotlib uses.
 func (s *Scatter2D) createCirclePath(center geom.Pt, radius float64) geom.Path {
 	const segments = 8
+	const control = 0.2652031
 	r := radius * 0.5
 	delta := 2 * math.Pi / segments
-	alpha := 4.0 / 3.0 * math.Tan(delta/4.0)
 
 	point := func(theta float64) geom.Pt {
 		return geom.Pt{
@@ -193,8 +193,8 @@ func (s *Scatter2D) createCirclePath(center geom.Pt, radius float64) geom.Path {
 		t0 := tangent(theta0)
 		t1 := tangent(theta1)
 		path.CubicTo(
-			geom.Pt{X: p0.X + alpha*r*t0.X, Y: p0.Y + alpha*r*t0.Y},
-			geom.Pt{X: p1.X - alpha*r*t1.X, Y: p1.Y - alpha*r*t1.Y},
+			geom.Pt{X: p0.X + control*r*t0.X, Y: p0.Y + control*r*t0.Y},
+			geom.Pt{X: p1.X - control*r*t1.X, Y: p1.Y - control*r*t1.Y},
 			p1,
 		)
 		theta0 = theta1
