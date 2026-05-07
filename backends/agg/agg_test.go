@@ -426,6 +426,40 @@ func TestMeasureText(t *testing.T) {
 	}
 }
 
+func TestGlyphRunRendersShapedGlyphs(t *testing.T) {
+	r := mustNew(t, 220, 120)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 220, Y: 120}}
+	if err := r.Begin(viewport); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	layout, ok := render.LayoutTextGlyphs("Ag", geom.Pt{}, 24, "DejaVu Sans")
+	if !ok {
+		t.Fatal("LayoutTextGlyphs(\"Ag\") failed")
+	}
+	run := render.GlyphRun{
+		Size:    24,
+		Origin:  geom.Pt{X: 40, Y: 80},
+		FontKey: "DejaVu Sans",
+		Glyphs:  make([]render.Glyph, 0, len(layout.Glyphs)),
+	}
+	for _, glyph := range layout.Glyphs {
+		run.Glyphs = append(run.Glyphs, render.Glyph{
+			ID:     uint32(glyph.GlyphIndex),
+			Offset: glyph.Origin,
+		})
+	}
+
+	r.GlyphRun(run, render.Color{A: 1})
+	if err := r.End(); err != nil {
+		t.Fatalf("End failed: %v", err)
+	}
+
+	if _, _, ok := inkBounds(r.GetImage(), color.RGBA{R: 255, G: 255, B: 255, A: 255}); !ok {
+		t.Fatal("GlyphRun should draw visible text from shaped glyph IDs")
+	}
+}
+
 func TestMeasureTextScalesWithResolution(t *testing.T) {
 	r := mustNew(t, 100, 100)
 

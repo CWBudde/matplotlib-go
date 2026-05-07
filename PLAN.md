@@ -695,7 +695,7 @@ Current slice landed:
 
 **Goal:** make text a shaped glyph pipeline rather than a set of fallback string-drawing paths.
 
-- [ ] Implement AGG `GlyphRun` rendering instead of leaving it as a no-op.
+- [x] Implement AGG `GlyphRun` rendering instead of leaving it as a no-op.
 - [ ] Add a backend-independent shaping layer for OpenType features, ligatures, combining marks, bidi text, script-aware glyph selection, glyph IDs, advances, and offsets.
 - [ ] Route `DrawText`, `DrawTextRotated`, `TextPath`, and measurement through the same shaped run model so raster text, path text, and bounds agree.
 - [ ] Replace `lastFontKey`/`MeasureText` priming with explicit font properties or text draw context passed through the renderer-facing API.

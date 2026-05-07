@@ -18,6 +18,8 @@ import (
 	agglib "github.com/cwbudde/agg_go"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
+	"golang.org/x/image/font/sfnt"
+	"golang.org/x/image/math/fixed"
 )
 
 // dejaVuFontPath holds the path to the extracted DejaVu Sans TTF, initialised once.
@@ -564,9 +566,134 @@ func (r *Renderer) DrawGouraudTriangles(batch render.GouraudTriangleBatch) bool 
 }
 
 // GlyphRun draws a run of glyphs.
-func (r *Renderer) GlyphRun(_ render.GlyphRun, _ render.Color) {
-	// GlyphRun requires glyph-ID-to-character mapping.
-	// Text rendering is done through DrawText helper instead.
+func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
+	if len(run.Glyphs) == 0 || run.Size <= 0 || r.ctx == nil {
+		return
+	}
+
+	if run.FontKey != "" {
+		r.lastFontKey = run.FontKey
+	}
+
+	font := r.configureTextFont(run.Size, r.lastFontKey)
+	if font.backend != textBackendRaster {
+		r.fallback = true
+		_ = r.drawGlyphRunLegacy(run, textColor, r.fontPixelSize(font.size))
+		return
+	}
+
+	if r.drawGlyphRunAsPaths(font.face, run, textColor) {
+		return
+	}
+
+	r.fallback = true
+	_ = r.drawGlyphRunLegacy(run, textColor, r.fontPixelSize(font.size))
+}
+
+func (r *Renderer) drawGlyphRunAsPaths(face render.FontFace, run render.GlyphRun, textColor render.Color) bool {
+	if r.ctx == nil {
+		return false
+	}
+
+	fontSize := r.fontPixelSize(run.Size)
+	if fontSize <= 0 {
+		return false
+	}
+
+	fontData, err := loadSFNTFontFace(face)
+	if err != nil {
+		return false
+	}
+
+	ppem := fixed.Int26_6(math.Round(fontSize * 64))
+	if ppem <= 0 {
+		return false
+	}
+
+	var (
+		path  geom.Path
+		buf   sfnt.Buffer
+		drawn bool
+	)
+	for _, glyph := range run.Glyphs {
+		if glyph.ID == 0 {
+			continue
+		}
+		segments, err := fontData.LoadGlyph(&buf, sfnt.GlyphIndex(glyph.ID), ppem, nil)
+		if err != nil || len(segments) == 0 {
+			continue
+		}
+		appendGlyphSegments(&path, segments, geom.Pt{
+			X: run.Origin.X + glyph.Offset.X,
+			Y: run.Origin.Y + glyph.Offset.Y,
+		})
+		drawn = true
+	}
+	if !drawn {
+		return false
+	}
+
+	r.Path(path, &render.Paint{Fill: textColor})
+	return true
+}
+
+func (r *Renderer) drawGlyphRunLegacy(run render.GlyphRun, textColor render.Color, size float64) bool {
+	if size <= 0 {
+		return false
+	}
+
+	fontPath := r.resolveTextFontPath(run.FontKey)
+	if fontPath == "" {
+		return false
+	}
+
+	drawn := false
+	for _, glyph := range run.Glyphs {
+		if glyph.ID == 0 {
+			continue
+		}
+		origin := geom.Pt{
+			X: run.Origin.X + glyph.Offset.X,
+			Y: run.Origin.Y + glyph.Offset.Y,
+		}
+		if r.drawTextPathFallback(string(rune(glyph.ID)), origin, size, textColor, fontPath) {
+			drawn = true
+		}
+	}
+	return drawn
+}
+
+func appendGlyphSegments(path *geom.Path, segments sfnt.Segments, origin geom.Pt) {
+	for _, segment := range segments {
+		switch segment.Op {
+		case sfnt.SegmentOpMoveTo:
+			path.MoveTo(sfntPoint(segment.Args[0], origin))
+		case sfnt.SegmentOpLineTo:
+			path.LineTo(sfntPoint(segment.Args[0], origin))
+		case sfnt.SegmentOpQuadTo:
+			path.QuadTo(
+				sfntPoint(segment.Args[0], origin),
+				sfntPoint(segment.Args[1], origin),
+			)
+		case sfnt.SegmentOpCubeTo:
+			path.CubicTo(
+				sfntPoint(segment.Args[0], origin),
+				sfntPoint(segment.Args[1], origin),
+				sfntPoint(segment.Args[2], origin),
+			)
+		}
+	}
+}
+
+func sfntPoint(p fixed.Point26_6, origin geom.Pt) geom.Pt {
+	return geom.Pt{
+		X: origin.X + sfntFixedToFloat(p.X),
+		Y: origin.Y + sfntFixedToFloat(p.Y),
+	}
+}
+
+func sfntFixedToFloat(v fixed.Int26_6) float64 {
+	return float64(v) / 64.0
 }
 
 // MeasureText measures text dimensions using the active font engine.

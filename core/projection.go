@@ -169,7 +169,7 @@ func newRadarProjection() *polarProjection {
 	return &polarProjection{
 		name:             "radar",
 		thetaOffset:      math.Pi / 2,
-		thetaDirection:   -1,
+		thetaDirection:   1,
 		radialLabelAngle: math.Pi / 2,
 		radarVariables:   defaultRadarVariables,
 	}

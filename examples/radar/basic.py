@@ -27,6 +27,7 @@ def main():
 
     fig = plt.figure(figsize=(7.2, 7.2), dpi=100, facecolor="white")
     ax = fig.add_axes([0.12, 0.10, 0.76, 0.78], projection="polar")
+    ax.set_theta_zero_location("N")
     ax.set_title("Radar Projection")
     ax.set_thetagrids(np.degrees(angles), labels)
     ax.set_ylim(0, 1)

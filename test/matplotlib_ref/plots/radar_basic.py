@@ -23,6 +23,7 @@ def radar_basic(out_dir):
 
     fig = make_fig_px(720, 720)
     ax = fig.add_axes(go_rect(0.12, 0.10, 0.88, 0.88), projection="polar")
+    ax.set_theta_zero_location("N")
     ax.set_title("Radar Projection")
     ax.set_thetagrids(np.degrees(angles), labels)
     ax.set_ylim(0, 1)

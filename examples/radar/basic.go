@@ -22,6 +22,10 @@ func main() {
 		fmt.Printf("Error creating radar axes: %v\n", err)
 		return
 	}
+	if err := ax.SetThetaZeroLocation("N"); err != nil {
+		fmt.Printf("Error setting theta zero location: %v\n", err)
+		return
+	}
 
 	ax.SetTitle("Radar Projection")
 	ax.YScale = transform.NewLinear(0, 1)

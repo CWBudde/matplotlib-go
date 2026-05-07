@@ -28,10 +28,10 @@ func TestAddRadarAxesConfiguresProjection(t *testing.T) {
 	if !approx(top.X, wantTop.X, 1e-6) || !approx(top.Y, wantTop.Y, 1e-6) {
 		t.Fatalf("theta=0 point = %+v, want %+v", top, wantTop)
 	}
-	right := ctx.DataToPixel.Apply(geom.Pt{X: math.Pi / 2, Y: 1})
-	wantRight := geom.Pt{X: center.X + radius, Y: center.Y}
-	if !approx(right.X, wantRight.X, 1e-6) || !approx(right.Y, wantRight.Y, 1e-6) {
-		t.Fatalf("theta=pi/2 point = %+v, want %+v", right, wantRight)
+	left := ctx.DataToPixel.Apply(geom.Pt{X: math.Pi / 2, Y: 1})
+	wantLeft := geom.Pt{X: center.X - radius, Y: center.Y}
+	if !approx(left.X, wantLeft.X, 1e-6) || !approx(left.Y, wantLeft.Y, 1e-6) {
+		t.Fatalf("theta=pi/2 point = %+v, want %+v", left, wantLeft)
 	}
 
 	r := &polarTextRenderer{}

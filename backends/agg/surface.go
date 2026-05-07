@@ -22,6 +22,18 @@ type sfntFontResource struct {
 	data []byte
 }
 
+func (fr *sfntFontResource) LoadGlyph(
+	buf *sfnt.Buffer,
+	glyphIndex sfnt.GlyphIndex,
+	ppem fixed.Int26_6,
+	opts *sfnt.LoadGlyphOptions,
+) (sfnt.Segments, error) {
+	if fr == nil || fr.font == nil {
+		return nil, sfnt.ErrNotFound
+	}
+	return fr.font.LoadGlyph(buf, glyphIndex, ppem, opts)
+}
+
 type fontHeightMetrics struct {
 	ascent  float64
 	descent float64
