@@ -29,10 +29,17 @@ func (p *axes3DProjection) ConfigureAxes(ax *Axes) {
 	if ax == nil {
 		return
 	}
-	ax.XScale = transform.NewLinear(0, 1)
-	ax.YScale = transform.NewLinear(0, 1)
+	ax.XScale = transform.NewLinear(default3DViewMin, default3DViewMax)
+	ax.YScale = transform.NewLinear(default3DViewMin, default3DViewMax)
+	ax.boxAspect = 1
 	ax.XAxis = NewXAxis()
 	ax.YAxis = NewYAxis()
+	ax.XAxis.ShowSpine = false
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowSpine = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
 	ax.XAxisTop = nil
 	ax.YAxisRight = nil
 	ax.ShowFrame = false

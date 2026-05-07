@@ -54,6 +54,23 @@ func TestCatalogSourcePathsExistWhenRecorded(t *testing.T) {
 	}
 }
 
+func TestCatalogIncludesPhase7ProjectionAndToolkitFixtures(t *testing.T) {
+	want := []string{
+		"geo_aitoff_axes",
+		"geo_hammer_axes",
+		"geo_lambert_axes",
+		"radar_basic",
+		"skewt_basic",
+		"mplot3d_basic",
+		"mplot3d_terrain",
+	}
+	for _, id := range want {
+		if _, ok := Lookup(id); !ok {
+			t.Fatalf("missing Phase 7 parity catalog case %q", id)
+		}
+	}
+}
+
 func TestWebDemosAreParityCasesWithReferences(t *testing.T) {
 	root := repoRoot(t)
 	seen := map[string]bool{}

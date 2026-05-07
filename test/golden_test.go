@@ -22,6 +22,7 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 	"github.com/cwbudde/matplotlib-go/style"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "Update golden images instead of comparing")
@@ -262,6 +263,41 @@ func TestPolarAxes_Golden(t *testing.T) {
 
 func TestGeoMollweideAxes_Golden(t *testing.T) {
 	runGoldenTest(t, "geo_mollweide_axes", renderGeoMollweideAxes)
+}
+
+func TestGeoAitoffAxes_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "geo_aitoff_axes", renderGeoAitoffAxes)
+}
+
+func TestGeoHammerAxes_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "geo_hammer_axes", renderGeoHammerAxes)
+}
+
+func TestGeoLambertAxes_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "geo_lambert_axes", renderGeoLambertAxes)
+}
+
+func TestRadarBasic_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "radar_basic", renderRadarBasic)
+}
+
+func TestSkewTBasic_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "skewt_basic", renderSkewTBasic)
+}
+
+func TestMplot3DBasic_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_basic", renderMplot3DBasic)
+}
+
+func TestMplot3DTerrain_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_terrain", renderMplot3DTerrain)
 }
 
 // runGoldenTest is a helper function for golden image testing
@@ -2830,6 +2866,283 @@ func renderGeoMollweideAxes() image.Image {
 	}
 	core.DrawFigure(fig, r)
 	return r.GetImage()
+}
+
+func renderGeoAitoffAxes() image.Image {
+	return renderGeoProjectionAxes("aitoff", "Aitoff Projection", -math.Pi, math.Pi)
+}
+
+func renderGeoHammerAxes() image.Image {
+	return renderGeoProjectionAxes("hammer", "Hammer Projection", -math.Pi, math.Pi)
+}
+
+func renderGeoLambertAxes() image.Image {
+	return renderGeoProjectionAxes("lambert", "Lambert Projection", -math.Pi/2, math.Pi/2)
+}
+
+func renderGeoProjectionAxes(projection, title string, lonMin, lonMax float64) image.Image {
+	fig := core.NewFigure(720, 420)
+	ax, err := fig.AddAxesProjection(geom.Rect{
+		Min: geom.Pt{X: 0.10, Y: 0.14},
+		Max: geom.Pt{X: 0.92, Y: 0.86},
+	}, projection)
+	if err != nil {
+		panic(err)
+	}
+	ax.SetTitle(title)
+	ax.SetXLabel("longitude")
+	ax.SetYLabel("latitude")
+
+	gridColor := render.Color{R: 0.78, G: 0.80, B: 0.84, A: 1}
+	lonGrid := ax.AddGrid(core.AxisBottom)
+	lonGrid.Color = gridColor
+	lonGrid.LineWidth = 0.8
+	latGrid := ax.AddGrid(core.AxisLeft)
+	latGrid.Color = gridColor
+	latGrid.LineWidth = 0.8
+
+	const n = 361
+	lon := make([]float64, n)
+	lat := make([]float64, n)
+	for i := range n {
+		t := float64(i) / float64(n-1)
+		lon[i] = lonMin + (lonMax-lonMin)*t
+		lat[i] = 0.35 * math.Sin(3*lon[i])
+	}
+
+	lineColor := render.Color{R: 0.14, G: 0.34, B: 0.70, A: 1}
+	lineWidth := 2.0
+	ax.Plot(lon, lat, core.PlotOptions{
+		Color:     &lineColor,
+		LineWidth: &lineWidth,
+	})
+
+	r, err := agg.New(720, 420, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderRadarBasic() image.Image {
+	fig := core.NewFigure(720, 720)
+	labels := []string{"Speed", "Power", "Range", "Handling", "Comfort"}
+	ax, err := fig.AddRadarAxes(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.10},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	}, labels)
+	if err != nil {
+		panic(err)
+	}
+	ax.SetTitle("Radar Projection")
+	ax.YScale = transform.NewLinear(0, 1)
+	ax.YAxis.Locator = core.FixedLocator{TicksList: []float64{0.25, 0.5, 0.75, 1.0}}
+	ax.YAxis.MinorLocator = nil
+	ax.YAxis.Formatter = core.PercentFormatter{Decimals: 0}
+
+	thetaGrid := ax.AddGrid(core.AxisBottom)
+	thetaGrid.Color = render.Color{R: 0.78, G: 0.80, B: 0.84, A: 1}
+	thetaGrid.LineWidth = 0.8
+
+	radiusGrid := ax.AddGrid(core.AxisLeft)
+	radiusGrid.Color = render.Color{R: 0.80, G: 0.83, B: 0.88, A: 1}
+	radiusGrid.LineWidth = 0.8
+
+	angles := core.RadarAngles(len(labels))
+	values := []float64{0.72, 0.88, 0.64, 0.79, 0.58}
+	closedAngles := append(append([]float64(nil), angles...), angles[0])
+	closedValues := append(append([]float64(nil), values...), values[0])
+
+	lineColor := render.Color{R: 0.15, G: 0.35, B: 0.70, A: 1}
+	fillColor := render.Color{R: 0.18, G: 0.50, B: 0.82, A: 0.22}
+	lineWidth := 2.2
+	ax.FillToBaseline(closedAngles, closedValues, core.FillOptions{
+		Color: &fillColor,
+	})
+	ax.Plot(closedAngles, closedValues, core.PlotOptions{
+		Color:     &lineColor,
+		LineWidth: &lineWidth,
+		Label:     "model A",
+	})
+
+	r, err := agg.New(720, 720, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderSkewTBasic() image.Image {
+	fig := core.NewFigure(720, 640)
+	ax, err := fig.AddSkewXAxes(geom.Rect{
+		Min: geom.Pt{X: 0.16, Y: 0.14},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	ax.SetTitle("Skew-T Style Projection")
+	ax.SetXLabel("Temperature (deg C)")
+	ax.SetYLabel("Pressure (hPa)")
+	ax.SetXLim(-70, 35)
+	ax.SetYLim(1050, 180)
+	if top := ax.TopAxis(); top != nil {
+		top.ShowTicks = false
+		top.ShowLabels = false
+	}
+
+	gridColor := render.Color{R: 0.82, G: 0.84, B: 0.88, A: 1}
+	xGrid := ax.AddGrid(core.AxisBottom)
+	xGrid.Color = gridColor
+	xGrid.LineWidth = 0.8
+	yGrid := ax.AddGrid(core.AxisLeft)
+	yGrid.Color = gridColor
+	yGrid.LineWidth = 0.8
+
+	pressure := []float64{1000, 925, 850, 700, 600, 500, 400, 300, 250, 200}
+	temperature := []float64{24, 20, 15, 5, -4, -14, -28, -43, -51, -58}
+	dewpoint := []float64{18, 14, 8, -4, -14, -25, -38, -50, -57, -64}
+
+	tempColor := render.Color{R: 0.78, G: 0.13, B: 0.16, A: 1}
+	dewColor := render.Color{R: 0.05, G: 0.48, B: 0.28, A: 1}
+	width := 2.4
+	ax.Plot(temperature, pressure, core.PlotOptions{
+		Color:     &tempColor,
+		LineWidth: &width,
+		Label:     "temperature",
+	})
+	ax.Plot(dewpoint, pressure, core.PlotOptions{
+		Color:     &dewColor,
+		LineWidth: &width,
+		Label:     "dewpoint",
+	})
+	ax.AddLegend()
+
+	r, err := agg.New(720, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DBasic() image.Image {
+	fig := core.NewFigure(760, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.14},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	ax.SetTitle("3D Toolkit Scaffold")
+	ax.SetXLabel("x")
+	ax.SetYLabel("y")
+	ax.SetView(30, -60)
+
+	x := []float64{0, 1}
+	y := []float64{0, 1}
+	zGrid := [][]float64{
+		{0, 1},
+		{1, 2},
+	}
+	gray := render.Color{R: 0.35, G: 0.35, B: 0.35, A: 1}
+	surfaceAlpha := 0.35
+	barColor := render.Color{R: 1.0, G: 0.4980392156862745, B: 0.054901960784313725, A: 1}
+	barAlpha := 0.7
+	ax.Plot3D([]float64{0, 1}, []float64{0, 1}, []float64{0, 1})
+	ax.Scatter3D([]float64{0.5, 0.7}, []float64{0.2, 0.9}, []float64{0.1, 0.3})
+	ax.Wireframe(x, y, zGrid, core.PlotOptions{Color: &gray})
+	ax.Surface(x, y, zGrid, core.PlotOptions{Alpha: &surfaceAlpha})
+	ax.Contour(x, y, zGrid)
+	ax.Bar3D([]float64{0.2}, []float64{0.3}, []float64{0.4}, []float64{0.2}, []float64{0.2}, []float64{0.3}, core.Bar3DOptions{Color: &barColor, Alpha: &barAlpha})
+	ax.Text3D(0.2, 0.8, 0.6, "demo point")
+
+	r, err := agg.New(760, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DTerrain() image.Image {
+	fig := core.NewFigure(900, 640)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.08, Y: 0.08},
+		Max: geom.Pt{X: 0.92, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	ax.SetTitle("3D Surface + Filled Contours")
+	ax.SetXLabel("x")
+	ax.SetYLabel("y")
+	ax.SetView(35, -60)
+
+	x, y, z := sinusoidalTerrain(90, 70)
+	zeroWidth := 0.0
+	black := render.Color{R: 0, G: 0, B: 0, A: 1}
+	contourWidth := 0.6
+	orange := render.Color{R: 1.0, G: 0.4980392156862745, B: 0.054901960784313725, A: 1}
+	triAlpha := 0.7
+	ax.PlotSurfaceGrid(x, y, z, core.PlotOptions{LineWidth: &zeroWidth})
+	ax.Plot3D([]float64{0, 0.9, 0.9, 0, 0}, []float64{0, 0, 0.9, 0.9, 0}, []float64{-0.2, -0.2, -0.2, -0.2, -0.2}, core.PlotOptions{Color: &black})
+	ax.Scatter3D([]float64{0.2, 0.5, 0.8}, []float64{0.2, 0.5, 0.8}, []float64{0.3, 0.35, 0.2})
+	ax.Contour(x, y, z, core.PlotOptions{Color: &black, LineWidth: &contourWidth})
+	ax.Contourf(x, y, z)
+
+	tri := core.Triangulation{
+		X:         []float64{0, 0.5, 1},
+		Y:         []float64{0, 0, 0.4},
+		Triangles: [][3]int{{0, 1, 2}},
+	}
+	triZ := []float64{0.1, 0.4, 0.9}
+	ax.Trisurf(tri, triZ, core.PlotOptions{Color: &orange, Alpha: &triAlpha})
+	ax.Text3D(0.9, 0.1, 0.65, "3D demo")
+
+	r, err := agg.New(900, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func sinusoidalTerrain(xCount, yCount int) ([]float64, []float64, [][]float64) {
+	if xCount < 2 {
+		xCount = 2
+	}
+	if yCount < 2 {
+		yCount = 2
+	}
+	x := make([]float64, xCount)
+	y := make([]float64, yCount)
+	z := make([][]float64, yCount)
+
+	for yi := 0; yi < yCount; yi++ {
+		y[yi] = -math.Pi + 2*math.Pi*float64(yi)/float64(yCount-1)
+	}
+	for xi := 0; xi < xCount; xi++ {
+		x[xi] = -math.Pi + 2*math.Pi*float64(xi)/float64(xCount-1)
+	}
+	for yi := 0; yi < yCount; yi++ {
+		row := make([]float64, xCount)
+		for xi := 0; xi < xCount; xi++ {
+			angleX := x[xi]
+			angleY := y[yi]
+			row[xi] = 0.5*math.Sin(angleX)*math.Cos(angleY) +
+				0.35*math.Sin(2*angleX+0.6)*math.Cos(angleY/2) +
+				0.15*math.Cos(3*angleY-angleX)
+		}
+		z[yi] = row
+	}
+	return x, y, z
 }
 
 func floatPtr(v float64) *float64 {

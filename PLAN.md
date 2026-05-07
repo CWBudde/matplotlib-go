@@ -607,7 +607,7 @@ Current slice landed:
 ### 7.5 Gallery Parity and Showcase Coverage
 
 - [x] Add example coverage for the remaining upstream gallery families still missing here (`widgets`) and deepen the newer showcase families where coverage is still thin (`axes_grid1`, `axisartist`, `unstructured`, `arrays`)
-- [ ] Add parity fixtures for each newly ported toolkit/projection family
+- [x] Add parity fixtures for each newly ported toolkit/projection family
 
 Current slice landed:
 

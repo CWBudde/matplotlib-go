@@ -97,7 +97,7 @@ func (t skewXDataTransform) Apply(p geom.Pt) geom.Pt {
 		v = t.y.Fwd(p.Y)
 	}
 	return geom.Pt{
-		X: u + t.factor*(v-0.5),
+		X: u + t.factor*v,
 		Y: v,
 	}
 }
@@ -113,7 +113,7 @@ func (t skewXDataTransform) Invert(p geom.Pt) (geom.Pt, bool) {
 		}
 	}
 
-	u := p.X - t.factor*(v-0.5)
+	u := p.X - t.factor*v
 	x := u
 	if t.x != nil {
 		var ok bool

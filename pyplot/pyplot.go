@@ -271,7 +271,7 @@ func Wireframe(x, y []float64, z [][]float64, opts ...core.PlotOptions) *core.Li
 }
 
 // Surface delegates to the current 3D axes.
-func Surface(x, y []float64, z [][]float64, opts ...core.PlotOptions) *core.LineCollection {
+func Surface(x, y []float64, z [][]float64, opts ...core.PlotOptions) *core.PolyCollection {
 	ax := GCA3D()
 	if ax == nil {
 		return nil

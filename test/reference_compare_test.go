@@ -69,6 +69,13 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "vector_fields", render: renderVectorFields, minPSNR: 41.5, maxMeanAbs: 3.0},
 	{name: "polar_axes", render: renderPolarAxes, minPSNR: 32.0, maxMeanAbs: 9.0},
 	{name: "geo_mollweide_axes", render: renderGeoMollweideAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "geo_aitoff_axes", render: renderGeoAitoffAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "geo_hammer_axes", render: renderGeoHammerAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "geo_lambert_axes", render: renderGeoLambertAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "radar_basic", render: renderRadarBasic, minPSNR: 28.0, maxMeanAbs: 14.0},
+	{name: "skewt_basic", render: renderSkewTBasic, minPSNR: 24.0, maxMeanAbs: 18.0},
+	{name: "mplot3d_basic", render: renderMplot3DBasic, minPSNR: 39.0, maxMeanAbs: 5.0},
+	{name: "mplot3d_terrain", render: renderMplot3DTerrain, minPSNR: 38.0, maxMeanAbs: 5.0},
 	{name: "unstructured_showcase", render: renderUnstructuredShowcase, minPSNR: 30.0, maxMeanAbs: 10.0},
 	{name: "arrays_showcase", render: renderArraysShowcase, minPSNR: 30.0, maxMeanAbs: 10.0},
 	{name: "axisartist_showcase", render: renderAxisArtistShowcase, minPSNR: 28.0, maxMeanAbs: 12.0},
@@ -127,10 +134,7 @@ func runReferenceCompareTest(t *testing.T, tc referenceCompareCase) {
 		t.Fatalf("load matplotlib reference %s: %v", matplotlibPath, err)
 	}
 
-	artifactsDir := filepath.Join("..", "testdata", "_artifacts", "reference_compare")
-	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
-		t.Fatalf("create artifacts directory %s: %v", artifactsDir, err)
-	}
+	artifactsDir := referenceCompareArtifactsDir(t)
 
 	savePNGOrFail(t, got, filepath.Join(artifactsDir, tc.name+"_rendered.png"))
 	savePNGOrFail(t, golden, filepath.Join(artifactsDir, tc.name+"_golden.png"))
@@ -179,6 +183,31 @@ func savePNGOrFail(t *testing.T, img image.Image, path string) {
 	if err := imagecmp.SavePNG(img, path); err != nil {
 		t.Fatalf("save PNG %s: %v", path, err)
 	}
+}
+
+func referenceCompareArtifactsDir(t *testing.T) string {
+	t.Helper()
+
+	artifactsDir := filepath.Join("..", "testdata", "_artifacts", "reference_compare")
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		t.Logf("could not create reference artifacts directory %s: %v; using temp dir", artifactsDir, err)
+		return t.TempDir()
+	}
+
+	probe, err := os.CreateTemp(artifactsDir, ".write-probe-*")
+	if err != nil {
+		t.Logf("reference artifacts directory %s is not writable: %v; using temp dir", artifactsDir, err)
+		return t.TempDir()
+	}
+	probeName := probe.Name()
+	if err := probe.Close(); err != nil {
+		t.Logf("could not close write probe %s: %v; using temp dir", probeName, err)
+		return t.TempDir()
+	}
+	if err := os.Remove(probeName); err != nil {
+		t.Logf("could not remove write probe %s: %v", probeName, err)
+	}
+	return artifactsDir
 }
 
 func largestChromaComponentBounds(img image.Image) (image.Rectangle, bool) {

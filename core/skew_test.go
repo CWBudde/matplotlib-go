@@ -62,6 +62,26 @@ func TestSkewXTransformRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSkewXTransformKeepsLowerPressureEdgeUnshifted(t *testing.T) {
+	fig := NewFigure(480, 360)
+	ax, err := fig.AddSkewXAxes(unitRect())
+	if err != nil {
+		t.Fatalf("AddSkewXAxes: %v", err)
+	}
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+
+	bottom := ctx.TransProjection().Apply(geom.Pt{X: 0, Y: 1050})
+	wantBottomX := ax.effectiveXScale().Fwd(0)
+	if !approx(bottom.X, wantBottomX, 1e-9) {
+		t.Fatalf("lower pressure edge x = %v, want unshifted %v", bottom.X, wantBottomX)
+	}
+
+	top := ctx.TransProjection().Apply(geom.Pt{X: 0, Y: 200})
+	if !(top.X > bottom.X) {
+		t.Fatalf("upper pressure levels should shift right: bottom=%+v top=%+v", bottom, top)
+	}
+}
+
 func TestSkewXAngleValidationAndEffect(t *testing.T) {
 	fig := NewFigure(480, 360)
 	ax, err := fig.AddSkewXAxes(unitRect())

@@ -13,8 +13,8 @@ import (
 func main() {
 	fig := core.NewFigure(720, 640)
 	ax, err := fig.AddSkewXAxes(geom.Rect{
-		Min: geom.Pt{X: 0.12, Y: 0.14},
-		Max: geom.Pt{X: 0.86, Y: 0.88},
+		Min: geom.Pt{X: 0.16, Y: 0.14},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
 	})
 	if err != nil {
 		fmt.Printf("Error creating skewx axes: %v\n", err)
@@ -26,6 +26,10 @@ func main() {
 	ax.SetYLabel("Pressure (hPa)")
 	ax.SetXLim(-70, 35)
 	ax.SetYLim(1050, 180)
+	if top := ax.TopAxis(); top != nil {
+		top.ShowTicks = false
+		top.ShowLabels = false
+	}
 
 	gridColor := render.Color{R: 0.82, G: 0.84, B: 0.88, A: 1}
 	xGrid := ax.AddGrid(core.AxisBottom)

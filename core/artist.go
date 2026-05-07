@@ -1786,7 +1786,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 	// XLabel: centered relative to the selected axis side and padded from the
 	// union of the spine and visible tick-label bounds, matching Matplotlib's
 	// default label placement model.
-	if ax.XLabel != "" {
+	if ax.XLabel != "" && ax.ProjectionName() != "3d" {
 		side := ax.effectiveXLabelSide()
 		layout := measureSingleLineTextLayout(r, ax.XLabel, labelSize, ctx.RC.FontKey)
 		anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side, alignment)
@@ -1801,7 +1801,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 	}
 
 	// YLabel: vertical text if supported, else horizontal fallback
-	if ax.YLabel != "" {
+	if ax.YLabel != "" && ax.ProjectionName() != "3d" {
 		side := ax.effectiveYLabelSide()
 		anchor := yLabelAnchorPoint(ax, r, ctx, px, side, alignment)
 		angle := math.Pi / 2

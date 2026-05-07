@@ -1,32 +1,27 @@
 #!/usr/bin/env python3
+"""Matplotlib reference plot module generated from test/matplotlib_ref/generate.py."""
+
 from __future__ import annotations
 
+from pathlib import Path
 import argparse
-
-import matplotlib.pyplot as plt
-import numpy as np
-
-
-def save(fig, path):
-    fig.savefig(path, dpi=fig.dpi, facecolor=fig.get_facecolor())
-    plt.close(fig)
-    print(f"saved {path}")
+import sys
 
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
+try:
+    from test.matplotlib_ref.common import *  # noqa: F401,F403
+except ModuleNotFoundError:
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    from common import *  # noqa: F401,F403
 
-def main():
-    parser = argparse.ArgumentParser(description="Matplotlib counterpart for mplot3d/basic.go")
-    parser.add_argument("--out", default="mplot3d_basic_python.png")
-    args = parser.parse_args()
 
-    fig = plt.figure(figsize=(7.6, 5.6), dpi=100, facecolor="white")
-    ax = fig.add_axes([0.12, 0.14, 0.76, 0.74], projection="3d")
+def mplot3d_basic(out_dir):
+    fig = make_fig_px(760, 560)
+    ax = fig.add_axes(go_rect(0.12, 0.14, 0.88, 0.88), projection="3d")
     ax.set(title="3D Toolkit Scaffold", xlabel="x", ylabel="y")
     ax.view_init(elev=30, azim=-60)
 
-    # Small shared data set mirrors the Go grid example and touches each
-    # scaffolded 3D artist without making the rendering hard to inspect.
     x = np.array([0, 1])
     y = np.array([0, 1])
     xx, yy = np.meshgrid(x, y)
@@ -38,7 +33,18 @@ def main():
     ax.contour(xx, yy, zz, zdir="z")
     ax.bar3d([0.2], [0.3], [0.4], [0.2], [0.2], [0.3], color="tab:orange", alpha=0.7)
     ax.text(0.2, 0.8, 0.6, "demo point")
-    save(fig, args.out)
+
+    save(fig, out_dir, "mplot3d_basic")
+
+
+PLOT = mplot3d_basic
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output-dir", default=".")
+    args = parser.parse_args()
+    PLOT(args.output_dir)
 
 
 if __name__ == "__main__":
