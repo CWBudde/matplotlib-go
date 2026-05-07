@@ -5,6 +5,14 @@ import {
   buildRuntimeExitMessage,
   missingAPIMethods,
 } from "./runtime.mjs";
+import {
+  THEME_KEY,
+  nextThemeMode,
+  normalizeThemeMode,
+  resolveThemeMode,
+  themeIcon,
+  themeLabel,
+} from "./theme.mjs";
 
 const go = new Go();
 const DEFAULT_WIDTH = 960;
@@ -82,10 +90,13 @@ let runtimeExitMessage = buildRuntimeExitMessage();
 let currentDemoID = "";
 let currentBackendID = "";
 let renderFrame = 0;
+let currentThemeMode = "auto";
 const backendNames = new Map();
 const sourceCache = new Map();
 
 async function init() {
+  initTheme();
+
   const canvas = document.getElementById("plotCanvas");
   if (!canvas) {
     updateStatus("Failed to load WASM: canvas element was not found");
@@ -141,6 +152,77 @@ async function init() {
     updateStatus(`Failed to load WASM: ${error.message}`);
     console.error(error);
   }
+}
+
+function initTheme() {
+  currentThemeMode = readStoredThemeMode();
+  applyTheme(currentThemeMode);
+  updateThemeToggleButton();
+
+  document.getElementById("themeToggle")?.addEventListener("click", () => {
+    cycleTheme();
+  });
+
+  const systemScheme = window.matchMedia("(prefers-color-scheme: dark)");
+  systemScheme.addEventListener("change", () => {
+    if (currentThemeMode === "auto") {
+      applyTheme("auto");
+    }
+  });
+}
+
+function readStoredThemeMode() {
+  try {
+    return normalizeThemeMode(localStorage.getItem(THEME_KEY));
+  } catch {
+    return "auto";
+  }
+}
+
+function storeThemeMode(mode) {
+  try {
+    localStorage.setItem(THEME_KEY, mode);
+  } catch {
+    // Theme persistence is optional; the active DOM theme still changes.
+  }
+}
+
+function getSystemTheme() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function applyTheme(mode) {
+  const normalizedMode = normalizeThemeMode(mode);
+  const resolvedTheme = resolveThemeMode(normalizedMode, getSystemTheme());
+  document.documentElement.dataset.themeMode = normalizedMode;
+  if (resolvedTheme === "dark") {
+    document.documentElement.dataset.theme = "dark";
+    return;
+  }
+  delete document.documentElement.dataset.theme;
+}
+
+function updateThemeToggleButton() {
+  const toggle = document.getElementById("themeToggle");
+  const label = toggle?.querySelector(".theme-toggle-label");
+  const icon = toggle?.querySelector(".theme-toggle-icon");
+  if (!toggle || !label || !icon) {
+    return;
+  }
+
+  label.textContent = themeLabel(currentThemeMode);
+  icon.innerHTML = themeIcon(currentThemeMode);
+  toggle.title = `Theme: ${themeLabel(currentThemeMode)}`;
+  toggle.setAttribute("aria-label", `Theme: ${themeLabel(currentThemeMode)}`);
+}
+
+function cycleTheme() {
+  currentThemeMode = nextThemeMode(currentThemeMode);
+  applyTheme(currentThemeMode);
+  updateThemeToggleButton();
+  storeThemeMode(currentThemeMode);
 }
 
 function waitForAPI() {
@@ -339,7 +421,8 @@ function showSourceForDemo(demoID, scrollIntoView) {
     return;
   }
 
-  document.getElementById("sourceTitle").textContent = `Code for ${source.title}`;
+  document.getElementById("sourceTitle").textContent =
+    `Code for ${source.title}`;
   document.getElementById("sourceCode").innerHTML = highlightGoSource(
     source.source,
   );
@@ -404,7 +487,7 @@ function highlightGoSource(source) {
       continue;
     }
 
-    if (char === "`" || char === "\"" || char === "'") {
+    if (char === "`" || char === '"' || char === "'") {
       const tokenEnd = readStringEnd(source, index, char);
       html += tokenSpan("string", source.slice(index, tokenEnd));
       index = tokenEnd;

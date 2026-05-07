@@ -463,6 +463,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Minimal browser runtime host for Go `js/wasm` demos using the GoBasic backend and an HTML canvas bridge
 - [x] Web demo stabilization for browser-hosted WASM callbacks: preserve the runtime on canvas focus/mouse input and fail clearly on stale generated web assets
 - [x] Broaden the WASM web demo gallery with showcase examples for fills, error bars, patches, and polar axes
+- [x] Add a persisted light/dark/auto theme switch to the WASM web demo host
 
 ### 5.5 Additional Export and Embedding Targets
 

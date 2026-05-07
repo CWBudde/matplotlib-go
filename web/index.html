@@ -4,17 +4,57 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>matplotlib-go Web Demo</title>
+    <script>
+      (() => {
+        try {
+          const modes = ["auto", "light", "dark"];
+          const storedMode = localStorage.getItem("matplotlib-go-theme");
+          const mode = modes.includes(storedMode) ? storedMode : "auto";
+          const isDark =
+            mode === "dark" ||
+            (mode === "auto" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.themeMode = mode;
+          if (isDark) {
+            document.documentElement.dataset.theme = "dark";
+          }
+        } catch {
+          document.documentElement.dataset.themeMode = "auto";
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <main class="page-shell">
       <section class="hero">
-        <p class="eyebrow">WASM Demo</p>
-        <h1>matplotlib-go in the browser</h1>
-        <p class="hero-copy">
-          Figures are rendered by Go code compiled to WebAssembly and painted
-          into an HTML canvas via a small JavaScript bridge.
-        </p>
+        <div class="hero-content">
+          <p class="eyebrow">WASM Demo</p>
+          <h1>matplotlib-go in the browser</h1>
+          <p class="hero-copy">
+            Figures are rendered by Go code compiled to WebAssembly and painted
+            into an HTML canvas via a small JavaScript bridge.
+          </p>
+        </div>
+        <button
+          id="themeToggle"
+          class="theme-toggle"
+          type="button"
+          aria-label="Toggle theme"
+        >
+          <svg
+            class="theme-toggle-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="3" y="4" width="18" height="12" rx="2"></rect>
+            <path d="M8 20h8"></path>
+            <path d="M12 16v4"></path>
+          </svg>
+          <span class="theme-toggle-label">Auto</span>
+        </button>
       </section>
 
       <section class="workspace">
