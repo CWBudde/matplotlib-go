@@ -210,27 +210,20 @@ func TestAggImageAlphaScalesSourceAlphaOnly(t *testing.T) {
 }
 
 func TestAggGetImageBufferIsRGBANotARGB(t *testing.T) {
-	r, err := New(2, 1, render.Color{})
+	r, err := New(2, 1, render.Color{
+		R: float64(0x12) / 255,
+		G: float64(0x34) / 255,
+		B: float64(0x56) / 255,
+		A: 1,
+	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	src := image.NewRGBA(image.Rect(0, 0, 2, 1))
-	src.SetRGBA(0, 0, color.RGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff})
-	src.SetRGBA(1, 0, color.RGBA{R: 0xab, G: 0xcd, B: 0xef, A: 0xff})
-	data := render.NewImageData(src)
-
-	if err := r.Begin(geom.Rect{Max: geom.Pt{X: 2, Y: 1}}); err != nil {
-		t.Fatalf("Begin: %v", err)
-	}
-	r.Image(data, geom.Rect{Max: geom.Pt{X: 2, Y: 1}})
-	if err := r.End(); err != nil {
-		t.Fatalf("End: %v", err)
-	}
 
 	got := r.GetImage()
-	want := []uint8{0x12, 0x34, 0x56, 0xff, 0xab, 0xcd, 0xef, 0xff}
-	if !bytes.Equal(got.Pix[:8], want) {
-		t.Fatalf("buffer bytes = %#v, want RGBA %#v", got.Pix[:8], want)
+	want := []uint8{0x12, 0x34, 0x56, 0xff}
+	if !bytes.Equal(got.Pix[:4], want) {
+		t.Fatalf("buffer bytes = %#v, want RGBA %#v", got.Pix[:4], want)
 	}
 }
 

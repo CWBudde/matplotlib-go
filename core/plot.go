@@ -16,6 +16,7 @@ type PlotOptions struct {
 	Label      string   // series label for legend
 	Alpha      *float64 // alpha transparency
 	LevelCount int      // contour level count for contour-like plot types
+	Levels     []float64
 	Offset     *float64 // fixed projection offset for contour-like plot types
 }
 

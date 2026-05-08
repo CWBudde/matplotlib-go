@@ -2310,28 +2310,22 @@ func renderImageToAGG(img render.Image) (*agglib.Image, bool) {
 	if rgba == nil || rgba.Bounds().Dx() <= 0 || rgba.Bounds().Dy() <= 0 {
 		return nil, false
 	}
-	rgba = rgbaWithImageAlpha(rgba, extractImageAlpha(img))
-
-	aggImg, err := agglib.NewImageFromStandardImage(rgba)
-	if err != nil {
-		return nil, false
-	}
-	return aggImg, true
-}
-
-func rgbaWithImageAlpha(src *image.RGBA, alpha float64) *image.RGBA {
-	alpha = clamp01(alpha)
-	if src == nil || alpha == 1 {
-		return src
-	}
-	bounds := src.Bounds()
-	dst := image.NewRGBA(bounds)
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := src.RGBAAt(x, y)
-			c.A = uint8(float64(c.A) * alpha)
-			dst.SetRGBA(x, y, c)
+	bounds := rgba.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	stride := width * 4
+	data := make([]uint8, height*stride)
+	alpha := extractImageAlpha(img)
+	for y := 0; y < height; y++ {
+		srcOff := rgba.PixOffset(bounds.Min.X, bounds.Min.Y+y)
+		dstOff := y * stride
+		copy(data[dstOff:dstOff+stride], rgba.Pix[srcOff:srcOff+stride])
+		if alpha != 1 {
+			for x := 0; x < width; x++ {
+				aOff := dstOff + x*4 + 3
+				data[aOff] = uint8(float64(data[aOff]) * alpha)
+			}
 		}
 	}
-	return dst
+	return agglib.NewImage(data, width, height, stride), true
 }

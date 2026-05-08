@@ -652,6 +652,28 @@ func TestAxes3DContourfUsesExplicitZOffset(t *testing.T) {
 	}
 }
 
+func TestAxes3DContourfUsesStructuredGridBandPolygons(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	offset := -1.0
+	fill := ax.Contourf(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+		PlotOptions{Levels: []float64{0.5, 1.5}, Offset: &offset},
+	)
+	if fill == nil {
+		t.Fatal("Contourf returned nil")
+	}
+	if got, want := len(fill.Polygons), 1; got != want {
+		t.Fatalf("Contourf polygons = %d, want one structured quad band polygon", got)
+	}
+}
+
 func TestAxes3DContourProjectsLinesAtContourLevels(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
