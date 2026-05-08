@@ -264,7 +264,7 @@ func (s *aggSurface) DrawImageTransformed(img *agglib.Image, transform *agglib.T
 	parallelogram := []float64{
 		corners[0][0], corners[0][1],
 		corners[1][0], corners[1][1],
-		corners[3][0], corners[3][1],
+		corners[2][0], corners[2][1],
 	}
 
 	return s.painter.TransformImageParallelogram(img, 0, 0, img.Width(), img.Height(), parallelogram)

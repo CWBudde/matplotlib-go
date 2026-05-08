@@ -384,11 +384,9 @@ func (r *Renderer) drawImageDirect(img render.Image, dst geom.Rect) {
 	}
 
 	agg := r.ctx
-	restoreImageBlend := r.applyImageBlend(img)
 	prevFilter := agg.GetImageFilter()
 	prevResample := agg.GetImageResample()
 	defer func() {
-		restoreImageBlend()
 		agg.SetImageFilter(prevFilter)
 		agg.SetImageResample(prevResample)
 	}()
@@ -433,13 +431,11 @@ func (r *Renderer) drawImageTransformedDirect(img render.Image, affine geom.Affi
 	}
 
 	agg := r.ctx
-	restoreImageBlend := r.applyImageBlend(img)
 	prevFilter := agg.GetImageFilter()
 	prevResample := agg.GetImageResample()
 	affineDispX, affineDispY := imageTransformDisplaySpan(img, affine)
 	applyInterpolation(agg, img, affineDispX, affineDispY)
 	defer func() {
-		restoreImageBlend()
 		agg.SetImageFilter(prevFilter)
 		agg.SetImageResample(prevResample)
 	}()
@@ -453,33 +449,6 @@ func (r *Renderer) drawImageTransformedDirect(img render.Image, affine geom.Affi
 		affine.F,
 	)
 	_ = agg.DrawImageTransformed(aggImg, transform)
-}
-
-func (r *Renderer) applyImageBlend(img render.Image) func() {
-	agg := r.ctx
-	if agg == nil || img == nil {
-		return func() {}
-	}
-
-	alpha := extractImageAlpha(img)
-	if alpha == 1 {
-		return func() {}
-	}
-
-	prevBlendMode := agg.GetImageBlendMode()
-	prevBlendColor := agg.GetImageBlendColor()
-	prevMasterAlpha := agg.GetMasterAlpha()
-
-	agg.SetImageBlendMode(agglib.BlendSrcOver)
-	alphaF := uint8(math.Round(alpha * 255))
-	agg.SetImageBlendColor(agglib.NewColor(255, 255, 255, alphaF))
-	agg.SetMasterAlpha(1)
-
-	return func() {
-		agg.SetImageBlendMode(prevBlendMode)
-		agg.SetImageBlendColor(prevBlendColor)
-		agg.SetMasterAlpha(prevMasterAlpha)
-	}
 }
 
 func extractImageAlpha(img render.Image) float64 {
@@ -2341,10 +2310,28 @@ func renderImageToAGG(img render.Image) (*agglib.Image, bool) {
 	if rgba == nil || rgba.Bounds().Dx() <= 0 || rgba.Bounds().Dy() <= 0 {
 		return nil, false
 	}
+	rgba = rgbaWithImageAlpha(rgba, extractImageAlpha(img))
 
 	aggImg, err := agglib.NewImageFromStandardImage(rgba)
 	if err != nil {
 		return nil, false
 	}
 	return aggImg, true
+}
+
+func rgbaWithImageAlpha(src *image.RGBA, alpha float64) *image.RGBA {
+	alpha = clamp01(alpha)
+	if src == nil || alpha == 1 {
+		return src
+	}
+	bounds := src.Bounds()
+	dst := image.NewRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			c := src.RGBAAt(x, y)
+			c.A = uint8(float64(c.A) * alpha)
+			dst.SetRGBA(x, y, c)
+		}
+	}
+	return dst
 }

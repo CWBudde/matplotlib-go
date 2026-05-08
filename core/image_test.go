@@ -210,7 +210,7 @@ func TestImageRasterizeLeavesPixelAlphaUnscaledWhenImageAlphaApplies(t *testing.
 	}
 
 	rgba := rgbaData.RGBA()
-	black := rgba.RGBAAt(0, 1)
+	black := rgba.RGBAAt(0, 0)
 	if black.A != 255 {
 		t.Fatalf("expected rasterized black pixel alpha to remain 255, got %d", black.A)
 	}

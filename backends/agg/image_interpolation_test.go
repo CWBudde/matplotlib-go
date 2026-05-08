@@ -185,3 +185,150 @@ func TestAggImageRespectsImageAlphaState(t *testing.T) {
 		t.Fatalf("expected red with 0.5 image alpha, got %+v", got)
 	}
 }
+
+func TestAggImageAlphaScalesSourceAlphaOnly(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	src.SetRGBA(0, 0, color.RGBA{R: 80, G: 120, B: 200, A: 200})
+	data := render.NewImageData(src)
+	data.SetAlpha(0.5)
+
+	converted, ok := renderImageToAGG(data)
+	if !ok {
+		t.Fatal("renderImageToAGG returned false")
+	}
+	rgba := converted.ToGoImage()
+	got := rgba.RGBAAt(0, 0)
+	if got.R != 80 || got.G != 120 || got.B != 200 {
+		t.Fatalf("image alpha should not recolor RGB channels, got %+v", got)
+	}
+	if got.A != 100 {
+		t.Fatalf("image alpha should scale source alpha, got %d want 100", got.A)
+	}
+	if src.RGBAAt(0, 0).A != 200 {
+		t.Fatalf("renderImageToAGG mutated source alpha, got %d", src.RGBAAt(0, 0).A)
+	}
+}
+
+func TestAggGetImageBufferIsRGBANotARGB(t *testing.T) {
+	r, err := New(2, 1, render.Color{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	src := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	src.SetRGBA(0, 0, color.RGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff})
+	src.SetRGBA(1, 0, color.RGBA{R: 0xab, G: 0xcd, B: 0xef, A: 0xff})
+	data := render.NewImageData(src)
+
+	if err := r.Begin(geom.Rect{Max: geom.Pt{X: 2, Y: 1}}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	r.Image(data, geom.Rect{Max: geom.Pt{X: 2, Y: 1}})
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	got := r.GetImage()
+	want := []uint8{0x12, 0x34, 0x56, 0xff, 0xab, 0xcd, 0xef, 0xff}
+	if !bytes.Equal(got.Pix[:8], want) {
+		t.Fatalf("buffer bytes = %#v, want RGBA %#v", got.Pix[:8], want)
+	}
+}
+
+func TestAggTransparentBackgroundRemainsTransparent(t *testing.T) {
+	r, err := New(3, 2, render.Color{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	img := r.GetImage()
+	for y := 0; y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			if got := img.RGBAAt(x, y); got != (color.RGBA{}) {
+				t.Fatalf("pixel (%d,%d) = %+v, want transparent black", x, y, got)
+			}
+		}
+	}
+}
+
+func TestAggSavePNGRoundTripsGetImageRGBA(t *testing.T) {
+	r, err := New(2, 2, render.Color{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	src := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	src.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
+	src.SetRGBA(1, 0, color.RGBA{G: 255, A: 255})
+	src.SetRGBA(0, 1, color.RGBA{B: 255, A: 255})
+	src.SetRGBA(1, 1, color.RGBA{R: 255, G: 255, A: 255})
+
+	if err := r.Begin(geom.Rect{Max: geom.Pt{X: 2, Y: 2}}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	r.Image(render.NewImageData(src), geom.Rect{Max: geom.Pt{X: 2, Y: 2}})
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	path := t.TempDir() + "/out.png"
+	if err := r.SavePNG(path); err != nil {
+		t.Fatalf("SavePNG: %v", err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("Open saved PNG: %v", err)
+	}
+	defer f.Close()
+	decoded, err := png.Decode(f)
+	if err != nil {
+		t.Fatalf("Decode saved PNG: %v", err)
+	}
+
+	got := r.GetImage()
+	for y := 0; y < got.Bounds().Dy(); y++ {
+		for x := 0; x < got.Bounds().Dx(); x++ {
+			if decoded.At(x, y) != got.At(x, y) {
+				t.Fatalf("decoded pixel (%d,%d) = %v, want %v", x, y, decoded.At(x, y), got.At(x, y))
+			}
+		}
+	}
+}
+
+func TestAggTransformedImagePreservesSourceOrientation(t *testing.T) {
+	r, err := New(20, 20, render.Color{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	src := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	src.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
+	src.SetRGBA(1, 0, color.RGBA{G: 255, A: 255})
+	src.SetRGBA(0, 1, color.RGBA{B: 255, A: 255})
+	src.SetRGBA(1, 1, color.RGBA{R: 255, G: 255, A: 255})
+	data := render.NewImageData(src)
+
+	if err := r.Begin(geom.Rect{Max: geom.Pt{X: 20, Y: 20}}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	r.ImageTransformed(data, geom.Rect{Max: geom.Pt{X: 20, Y: 20}}, geom.Affine{
+		A: 10,
+		D: 10,
+	})
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	img := r.GetImage()
+	samples := []struct {
+		name string
+		x, y int
+		want color.RGBA
+	}{
+		{"top-left", 2, 2, color.RGBA{R: 255, A: 255}},
+		{"top-right", 12, 2, color.RGBA{G: 255, A: 255}},
+		{"bottom-left", 2, 12, color.RGBA{B: 255, A: 255}},
+		{"bottom-right", 12, 12, color.RGBA{R: 255, G: 255, A: 255}},
+	}
+	for _, sample := range samples {
+		if got := img.RGBAAt(sample.x, sample.y); got != sample.want {
+			t.Fatalf("%s pixel = %+v, want %+v", sample.name, got, sample.want)
+		}
+	}
+}

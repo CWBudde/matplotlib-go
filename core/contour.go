@@ -500,6 +500,78 @@ func contourBandPolygons(tri Triangulation, values, levels []float64, opt Contou
 	return polygons, colors
 }
 
+func contourGridBandPolygons(x, y []float64, data [][]float64, levels []float64, opt ContourOptions, mapping ScalarMapInfo, alpha float64) ([][]geom.Pt, []render.Color) {
+	rows := len(data)
+	if rows < 2 || len(x) < 2 || len(y) < 2 || len(levels) < 2 {
+		return nil, nil
+	}
+	cols := len(data[0])
+	if cols < 2 || len(x) < cols || len(y) < rows {
+		return nil, nil
+	}
+	for row := 1; row < rows; row++ {
+		if len(data[row]) != cols {
+			return nil, nil
+		}
+	}
+
+	polygons := [][]geom.Pt{}
+	colors := []render.Color{}
+	for levelIdx := 0; levelIdx+1 < len(levels); levelIdx++ {
+		low := levels[levelIdx]
+		high := levels[levelIdx+1]
+		color := contourBandColor(low, high, levelIdx, opt, mapping, alpha)
+		for row := 0; row+1 < rows; row++ {
+			for col := 0; col+1 < cols; col++ {
+				polygon := contourCellBandPolygon(
+					[4]geom.Pt{
+						{X: x[col], Y: y[row]},
+						{X: x[col+1], Y: y[row]},
+						{X: x[col+1], Y: y[row+1]},
+						{X: x[col], Y: y[row+1]},
+					},
+					[4]float64{
+						data[row][col],
+						data[row][col+1],
+						data[row+1][col+1],
+						data[row+1][col],
+					},
+					low,
+					high,
+				)
+				if len(polygon) < 3 {
+					continue
+				}
+				polygons = append(polygons, polygon)
+				colors = append(colors, color)
+			}
+		}
+	}
+	return polygons, colors
+}
+
+func contourCellBandPolygon(points [4]geom.Pt, values [4]float64, low, high float64) []geom.Pt {
+	polygon := []contourVertex{
+		{Point: points[0], Value: values[0]},
+		{Point: points[1], Value: values[1]},
+		{Point: points[2], Value: values[2]},
+		{Point: points[3], Value: values[3]},
+	}
+	polygon = clipContourPolygonMin(polygon, low)
+	if len(polygon) < 3 {
+		return nil
+	}
+	polygon = clipContourPolygonMax(polygon, high)
+	if len(polygon) < 3 {
+		return nil
+	}
+	out := make([]geom.Pt, len(polygon))
+	for i, vertex := range polygon {
+		out[i] = vertex.Point
+	}
+	return rotateContourPolygonToMatplotlibStart(out)
+}
+
 func contourSegmentsForLevel(tri Triangulation, values []float64, level float64) [][]geom.Pt {
 	segments := make([][]geom.Pt, 0, len(tri.Triangles))
 	for triIdx, triangle := range tri.Triangles {
@@ -574,6 +646,26 @@ func triangleBandPolygon(points [3]geom.Pt, values [3]float64, low, high float64
 	for i, vertex := range polygon {
 		out[i] = vertex.Point
 	}
+	return out
+}
+
+func rotateContourPolygonToMatplotlibStart(points []geom.Pt) []geom.Pt {
+	if len(points) == 0 {
+		return points
+	}
+	start := 0
+	for i := 1; i < len(points); i++ {
+		if points[i].X > points[start].X ||
+			(points[i].X == points[start].X && points[i].Y < points[start].Y) {
+			start = i
+		}
+	}
+	if start == 0 {
+		return points
+	}
+	out := make([]geom.Pt, 0, len(points))
+	out = append(out, points[start:]...)
+	out = append(out, points[:start]...)
 	return out
 }
 
