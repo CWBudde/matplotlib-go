@@ -91,6 +91,10 @@ type QuadMesh struct {
 	PatchCollection
 	XEdges []float64
 	YEdges []float64
+	// Shading is flat for cell-colored meshes and gouraud for vertex-colored
+	// meshes routed to native Gouraud triangle drawing when available.
+	Shading MeshShading
+	Values  [][]float64
 }
 
 // FillBetweenPolyCollection is a polygon-collection primitive specialized for
@@ -405,6 +409,9 @@ func (m *QuadMesh) Draw(r render.Renderer, ctx *DrawContext) {
 	if m == nil {
 		return
 	}
+	if m.drawGouraudMesh(r, ctx) {
+		return
+	}
 	if m.drawQuadMesh(r, ctx) {
 		return
 	}
@@ -669,7 +676,7 @@ func (c *PatchCollection) drawPathCollection(r render.Renderer, ctx *DrawContext
 
 func (m *QuadMesh) drawQuadMesh(r render.Renderer, ctx *DrawContext) bool {
 	drawer, ok := r.(render.QuadMeshDrawer)
-	if !ok || m == nil || ctx == nil || len(m.XEdges) < 2 || len(m.YEdges) < 2 {
+	if !ok || m == nil || ctx == nil || m.Shading == MeshShadingGouraud || len(m.XEdges) < 2 || len(m.YEdges) < 2 {
 		return false
 	}
 	nativeHatch := false
@@ -725,6 +732,63 @@ func (m *QuadMesh) drawQuadMesh(r render.Renderer, ctx *DrawContext) bool {
 		return false
 	}
 	return drawer.DrawQuadMesh(batch)
+}
+
+func (m *QuadMesh) drawGouraudMesh(r render.Renderer, ctx *DrawContext) bool {
+	drawer, ok := r.(render.GouraudTriangleDrawer)
+	if !ok || m == nil || ctx == nil || m.Shading != MeshShadingGouraud || len(m.XEdges) < 2 || len(m.YEdges) < 2 {
+		return false
+	}
+	rows := len(m.YEdges)
+	cols := len(m.XEdges)
+	if len(m.Values) != rows {
+		return false
+	}
+	for _, row := range m.Values {
+		if len(row) != cols {
+			return false
+		}
+	}
+
+	mapping := m.ScalarMap().Resolved()
+	alpha := m.alphaValue()
+	colors := meshValueColors(m.Values, mapping, alpha)
+	tr := ctx.TransformFor(m.Coords)
+	pointAt := func(xi, yi int) geom.Pt {
+		pt := geom.Pt{X: m.XEdges[xi], Y: m.YEdges[yi]}
+		if tr != nil {
+			pt = tr.Apply(pt)
+		}
+		return pt
+	}
+
+	batch := render.GouraudTriangleBatch{
+		Triangles:   make([]render.GouraudTriangle, 0, (rows-1)*(cols-1)*2),
+		Antialiased: true,
+	}
+	for yi := 0; yi+1 < rows; yi++ {
+		for xi := 0; xi+1 < cols; xi++ {
+			p00 := pointAt(xi, yi)
+			p10 := pointAt(xi+1, yi)
+			p11 := pointAt(xi+1, yi+1)
+			p01 := pointAt(xi, yi+1)
+			c00 := colors[yi][xi]
+			c10 := colors[yi][xi+1]
+			c11 := colors[yi+1][xi+1]
+			c01 := colors[yi+1][xi]
+			if c00.A <= 0 || c10.A <= 0 || c11.A <= 0 || c01.A <= 0 {
+				continue
+			}
+			batch.Triangles = append(batch.Triangles,
+				render.GouraudTriangle{P: [3]geom.Pt{p00, p10, p11}, Color: [3]render.Color{c00, c10, c11}},
+				render.GouraudTriangle{P: [3]geom.Pt{p00, p11, p01}, Color: [3]render.Color{c00, c11, c01}},
+			)
+		}
+	}
+	if len(batch.Triangles) == 0 {
+		return false
+	}
+	return drawer.DrawGouraudTriangles(batch)
 }
 
 func (c *PatchCollection) hasHatches() bool {

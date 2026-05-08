@@ -881,12 +881,21 @@ This phase tracks the plot categories that already exist in the Go port but are 
 
 ### 10.1 QuadMesh, PColor, PColorMesh, and Hist2D
 
-- [ ] Match Matplotlib `pcolor` / `pcolormesh` input-shape validation for scalar data, explicit edge coordinates, center coordinates, and mismatched dimensions.
-- [ ] Add shading policy parity for `flat`, `nearest`, `auto`, and `gouraud`, including how each mode derives cell geometry from input coordinates.
-- [ ] Preserve masked, NaN, Inf, bad, under, and over cell semantics through `QuadMesh`, `Colorbar`, and AGG draw batches.
+- [x] Match Matplotlib `pcolor` / `pcolormesh` input-shape validation for the supported 1-D rectilinear scalar-data API, including explicit edge coordinates, center coordinates, and mismatched dimensions.
+- [x] Add shading policy parity for `flat`, `nearest`, `auto`, and rectilinear `gouraud`, including how each mode derives cell geometry from input coordinates.
+- [x] Preserve NaN/Inf bad-cell transparency through `QuadMesh` color mapping and AGG draw batches; add weighted/density `hist2d` bin semantics.
+- [ ] Extend masked, bad, under, and over cell semantics beyond the current linear colormap model through `QuadMesh`, `Colorbar`, and AGG draw batches.
 - [ ] Match AGG edge rendering for antialiasing, linewidth, snap, join, cap, and alpha accumulation on dense quad meshes.
 - [ ] Add focused Matplotlib-reference fixtures for `pcolor`, `pcolormesh(shading="nearest")`, `pcolormesh(shading="gouraud")`, masked quad meshes, and `hist2d` with weights/density.
 - [ ] Tighten `rendereragg_quad_mesh` thresholds once the native batch path matches upstream cell placement and blending.
+
+Completed notes:
+
+- Added `MeshShading` support for rectilinear `flat`, `nearest`, `auto`, and `gouraud` mesh construction.
+- `nearest` now interprets supplied coordinates as centers and expands them to cell edges using Matplotlib's midpoint policy; `flat` rejects center-shaped coordinate inputs.
+- Rectilinear `gouraud` meshes route through native `render.GouraudTriangleDrawer` batches when available and fall back to averaged flat cells otherwise.
+- Non-finite mesh scalar values now remain transparent while finite values drive scalar range resolution.
+- `Hist2D` now supports per-sample weights plus probability/density normalization over 2D bin area.
 
 ### 10.2 PathCollection and Large Scatter
 

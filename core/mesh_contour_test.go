@@ -2,6 +2,7 @@ package core
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -50,6 +51,98 @@ func TestAxesPColorMeshAndColorbar(t *testing.T) {
 	}
 }
 
+func TestPColorMeshShadingAutoUsesCenterCoordinates(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	mesh := ax.PColorMesh([][]float64{
+		{0, 1, 2},
+		{3, 4, 5},
+	}, MeshOptions{
+		XEdges: []float64{0, 2, 5},
+		YEdges: []float64{10, 16},
+	})
+	if mesh == nil {
+		t.Fatal("expected quad mesh")
+	}
+	if mesh.Shading != MeshShadingFlat {
+		t.Fatalf("mesh shading = %q, want flat after nearest-center expansion", mesh.Shading)
+	}
+	if want := []float64{-1, 1, 3.5, 6.5}; !reflect.DeepEqual(mesh.XEdges, want) {
+		t.Fatalf("XEdges = %v, want %v", mesh.XEdges, want)
+	}
+	if want := []float64{7, 13, 19}; !reflect.DeepEqual(mesh.YEdges, want) {
+		t.Fatalf("YEdges = %v, want %v", mesh.YEdges, want)
+	}
+}
+
+func TestPColorMeshFlatRejectsCenterCoordinateShape(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	mesh := ax.PColorMesh([][]float64{
+		{0, 1},
+		{2, 3},
+	}, MeshOptions{
+		XEdges:  []float64{0, 1},
+		YEdges:  []float64{0, 1},
+		Shading: MeshShadingFlat,
+	})
+	if mesh != nil {
+		t.Fatalf("expected flat shading to reject center-shaped coordinates, got %+v", mesh)
+	}
+}
+
+func TestPColorMeshGouraudDrawsNativeTriangles(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	cmap := "viridis"
+
+	mesh := ax.PColorMesh([][]float64{
+		{0, 1},
+		{2, 3},
+	}, MeshOptions{
+		XEdges:   []float64{0, 2},
+		YEdges:   []float64{0, 3},
+		Shading:  MeshShadingGouraud,
+		Colormap: &cmap,
+	})
+	if mesh == nil {
+		t.Fatal("expected gouraud mesh")
+	}
+	r := &batchRecordingRenderer{returnNative: true}
+	mesh.Draw(r, createTestDrawContext())
+	if len(r.gouraudBatches) != 1 {
+		t.Fatalf("gouraud batches = %d, want 1", len(r.gouraudBatches))
+	}
+	if got := len(r.gouraudBatches[0].Triangles); got != 2 {
+		t.Fatalf("gouraud triangles = %d, want 2", got)
+	}
+	if len(r.quadMeshBatches) != 0 || len(r.pathCalls) != 0 {
+		t.Fatalf("expected native gouraud only, quad batches=%d path calls=%d", len(r.quadMeshBatches), len(r.pathCalls))
+	}
+}
+
+func TestPColorMeshBadCellsAreTransparent(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	mesh := ax.PColorMesh([][]float64{
+		{0, math.NaN()},
+		{math.Inf(1), 3},
+	})
+	if mesh == nil {
+		t.Fatal("expected quad mesh")
+	}
+	if mesh.FaceColors[1].A != 0 || mesh.FaceColors[2].A != 0 {
+		t.Fatalf("bad cells should be transparent, got %+v", mesh.FaceColors)
+	}
+	mapping := mesh.ScalarMap()
+	if mapping.VMin != 0 || mapping.VMax != 3 {
+		t.Fatalf("bad cells should not affect scalar range, got %+v", mapping)
+	}
+}
+
 func TestAxesHist2DCounts(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{
@@ -77,6 +170,31 @@ func TestAxesHist2DCounts(t *testing.T) {
 	}
 	if got := result.Counts[0][1] + result.Counts[1][0]; got != 0 {
 		t.Fatalf("unexpected off-diagonal counts %v", got)
+	}
+}
+
+func TestAxesHist2DWeightsAndDensity(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	result := ax.Hist2D(
+		[]float64{0.25, 0.75, 1.5},
+		[]float64{0.25, 0.75, 0.5},
+		Hist2DOptions{
+			XBinEdges: []float64{0, 1, 2},
+			YBinEdges: []float64{0, 1},
+			Weights:   []float64{2, 1, 3},
+			Norm:      HistNormDensity,
+		},
+	)
+	if result == nil || result.Mesh == nil {
+		t.Fatal("expected hist2d result mesh")
+	}
+	if got, want := result.Counts[0][0], 0.5; got != want {
+		t.Fatalf("density count[0][0] = %v, want %v", got, want)
+	}
+	if got, want := result.Counts[0][1], 0.5; got != want {
+		t.Fatalf("density count[0][1] = %v, want %v", got, want)
 	}
 }
 

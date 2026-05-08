@@ -42,6 +42,7 @@ type batchRecordingRenderer struct {
 	markerBatches         []render.MarkerBatch
 	pathCollectionBatches []render.PathCollectionBatch
 	quadMeshBatches       []render.QuadMeshBatch
+	gouraudBatches        []render.GouraudTriangleBatch
 	returnNative          bool
 }
 
@@ -57,6 +58,11 @@ func (r *batchRecordingRenderer) DrawPathCollection(batch render.PathCollectionB
 
 func (r *batchRecordingRenderer) DrawQuadMesh(batch render.QuadMeshBatch) bool {
 	r.quadMeshBatches = append(r.quadMeshBatches, batch)
+	return r.returnNative
+}
+
+func (r *batchRecordingRenderer) DrawGouraudTriangles(batch render.GouraudTriangleBatch) bool {
+	r.gouraudBatches = append(r.gouraudBatches, batch)
 	return r.returnNative
 }
 
