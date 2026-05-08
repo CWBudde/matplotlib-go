@@ -391,9 +391,9 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 	if len(polygons) == 0 {
 		return nil
 	}
+	paths, pathColors := compoundContourPaths(polygons, colors)
 
 	collection := &PolyCollection{
-		Polygons: polygons,
 		PatchCollection: PatchCollection{
 			Collection: Collection{
 				Coords: Coords(CoordData),
@@ -401,7 +401,8 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 				Alpha:  1,
 				z:      zorder,
 			},
-			FaceColors: colors,
+			Paths:      paths,
+			FaceColors: pathColors,
 			LineJoin:   render.JoinMiter,
 			LineCap:    render.CapButt,
 		},
@@ -410,8 +411,10 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 	a.add3DReprojector(func() {
 		if collection != nil {
 			polygons, colors, zorder := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, explicitLevels, offset)
-			collection.Polygons = polygons
-			collection.FaceColors = colors
+			paths, pathColors := compoundContourPaths(polygons, colors)
+			collection.Polygons = nil
+			collection.Paths = paths
+			collection.FaceColors = pathColors
 			collection.z = zorder
 		}
 	}, limitsChanged)
@@ -753,6 +756,49 @@ func zGridRange(z [][]float64) (float64, float64) {
 		}
 	}
 	return minVal, maxVal
+}
+
+func compoundContourPaths(polygons [][]geom.Pt, colors []render.Color) ([]geom.Path, []render.Color) {
+	paths := make([]geom.Path, 0)
+	pathColors := make([]render.Color, 0)
+	var current geom.Path
+	var currentColor render.Color
+	haveCurrent := false
+	flush := func() {
+		if !haveCurrent || len(current.C) == 0 {
+			return
+		}
+		paths = append(paths, current)
+		pathColors = append(pathColors, currentColor)
+		current = geom.Path{}
+		haveCurrent = false
+	}
+	for i, polygon := range polygons {
+		if len(polygon) < 3 {
+			continue
+		}
+		color := render.Color{}
+		if i < len(colors) {
+			color = colors[i]
+		}
+		if haveCurrent && color != currentColor {
+			flush()
+		}
+		if !haveCurrent {
+			currentColor = color
+			haveCurrent = true
+		}
+		for j, pt := range polygon {
+			if j == 0 {
+				current.MoveTo(pt)
+			} else {
+				current.LineTo(pt)
+			}
+		}
+		current.Close()
+	}
+	flush()
+	return paths, pathColors
 }
 
 func flattenGridValues(z [][]float64) []float64 {
