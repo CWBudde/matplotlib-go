@@ -20,6 +20,7 @@ const (
 type MeshOptions struct {
 	XEdges    []float64
 	YEdges    []float64
+	Mask      [][]bool
 	Shading   MeshShading
 	Colormap  *string
 	VMin      *float64
@@ -81,7 +82,8 @@ func (a *Axes) PColorMesh(data [][]float64, opts ...MeshOptions) *QuadMesh {
 	if opt.Colormap != nil {
 		cmap = *opt.Colormap
 	}
-	mapping := resolveScalarMapGrid(data, cmap, opt.VMin, opt.VMax)
+	scalarData := meshScalarData(data, opt.Mask)
+	mapping := resolveScalarMapGrid(scalarData, cmap, opt.VMin, opt.VMax)
 	alpha := meshAlpha(opt.Alpha)
 	edgeWidth := 0.0
 	if opt.EdgeWidth != nil {
@@ -100,16 +102,11 @@ func (a *Axes) PColorMesh(data [][]float64, opts ...MeshOptions) *QuadMesh {
 		for yi := 0; yi+1 < rows; yi++ {
 			for xi := 0; xi+1 < cols; xi++ {
 				value := meshValueAverage([]float64{
-					data[yi][xi],
-					data[yi][xi+1],
-					data[yi+1][xi],
-					data[yi+1][xi+1],
+					scalarData[yi][xi],
+					scalarData[yi][xi+1],
+					scalarData[yi+1][xi],
+					scalarData[yi+1][xi+1],
 				})
-				if !isFinite(value) {
-					faceColors = append(faceColors, render.Color{})
-					edgeColors = append(edgeColors, render.Color{})
-					continue
-				}
 				faceColors = append(faceColors, mapping.Color(value, alpha))
 				edgeColors = append(edgeColors, edgeColor)
 			}
@@ -118,22 +115,17 @@ func (a *Axes) PColorMesh(data [][]float64, opts ...MeshOptions) *QuadMesh {
 			edgeWidth = 0
 		}
 	} else {
-		for _, row := range data {
+		for _, row := range scalarData {
 			for _, value := range row {
-				if !isFinite(value) {
-					faceColors = append(faceColors, render.Color{})
-					edgeColors = append(edgeColors, render.Color{})
-					continue
-				}
 				faceColors = append(faceColors, mapping.Color(value, alpha))
 				edgeColors = append(edgeColors, edgeColor)
 			}
 		}
 	}
 
-	values := make([][]float64, len(data))
-	for i := range data {
-		values[i] = append([]float64(nil), data[i]...)
+	values := make([][]float64, len(scalarData))
+	for i := range scalarData {
+		values[i] = append([]float64(nil), scalarData[i]...)
 	}
 
 	mesh := &QuadMesh{
@@ -166,6 +158,24 @@ func meshFaceColorCount(rows, cols int, shading MeshShading) int {
 		return maxInt(0, rows-1) * maxInt(0, cols-1)
 	}
 	return rows * cols
+}
+
+func meshScalarData(data [][]float64, mask [][]bool) [][]float64 {
+	out := make([][]float64, len(data))
+	for yi, row := range data {
+		out[yi] = make([]float64, len(row))
+		copy(out[yi], row)
+		for xi := range row {
+			if meshMasked(mask, yi, xi) {
+				out[yi][xi] = math.NaN()
+			}
+		}
+	}
+	return out
+}
+
+func meshMasked(mask [][]bool, yi, xi int) bool {
+	return yi < len(mask) && xi < len(mask[yi]) && mask[yi][xi]
 }
 
 func resolvedMeshGeometry(rows, cols int, opt MeshOptions) (xEdges, yEdges []float64, shading MeshShading, ok bool) {

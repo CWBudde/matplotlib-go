@@ -75,6 +75,17 @@ func TestListedColormapRepresentativeBytes(t *testing.T) {
 	}
 }
 
+func TestBinaryColormapMatchesMatplotlibSpyDefaults(t *testing.T) {
+	cmap := GetColormap("binary")
+
+	if got := cmap.At(0); got != (render.Color{R: 1, G: 1, B: 1, A: 1}) {
+		t.Fatalf("binary at 0 = %+v, want white", got)
+	}
+	if got := cmap.At(1); got != (render.Color{R: 0, G: 0, B: 0, A: 1}) {
+		t.Fatalf("binary at 1 = %+v, want black", got)
+	}
+}
+
 func TestGetColormap_ChannelMapsRegistered(t *testing.T) {
 	tests := []struct {
 		name string
@@ -107,6 +118,46 @@ func TestRegisterColormap_NormalizesNameAndClampsStops(t *testing.T) {
 	mid := c.At(0.5)
 	if math.Abs(mid.R-0.5) > 1e-9 || math.Abs(mid.G-0) > 1e-9 || math.Abs(mid.B-0.5) > 1e-9 {
 		t.Fatalf("unexpected midpoint color: %#v", mid)
+	}
+}
+
+func TestColormapAtValueUsesBadUnderAndOverColors(t *testing.T) {
+	bad := render.Color{R: 0.7, G: 0.7, B: 0.7, A: 0.4}
+	under := render.Color{R: 0.1, G: 0.2, B: 0.9, A: 1}
+	over := render.Color{R: 0.9, G: 0.2, B: 0.1, A: 1}
+	c := NewColormap("bounded", []ColorStop{
+		{Pos: 0, Color: render.Color{R: 0, G: 0, B: 0, A: 1}},
+		{Pos: 1, Color: render.Color{R: 1, G: 1, B: 1, A: 1}},
+	}).WithBad(bad).WithUnder(under).WithOver(over)
+
+	if got := c.AtValue(math.NaN()); got != bad {
+		t.Fatalf("bad color = %#v, want %#v", got, bad)
+	}
+	if got := c.AtValue(-0.01); got != under {
+		t.Fatalf("under color = %#v, want %#v", got, under)
+	}
+	if got := c.AtValue(1.01); got != over {
+		t.Fatalf("over color = %#v, want %#v", got, over)
+	}
+	if got := c.AtValue(0.5); got.R < 0.49 || got.R > 0.51 {
+		t.Fatalf("in-range color = %#v, want midpoint", got)
+	}
+}
+
+func TestColormapAtValueDefaultsBadTransparentAndUnderOverEndpoints(t *testing.T) {
+	c := NewColormap("defaults", []ColorStop{
+		{Pos: 0, Color: render.Color{R: 0.2, G: 0.3, B: 0.4, A: 1}},
+		{Pos: 1, Color: render.Color{R: 0.8, G: 0.7, B: 0.6, A: 1}},
+	})
+
+	if got := c.AtValue(math.NaN()); got.A != 0 {
+		t.Fatalf("default bad color = %#v, want transparent", got)
+	}
+	if got, want := c.AtValue(-1), c.At(0); got != want {
+		t.Fatalf("default under = %#v, want low endpoint %#v", got, want)
+	}
+	if got, want := c.AtValue(2), c.At(1); got != want {
+		t.Fatalf("default over = %#v, want high endpoint %#v", got, want)
 	}
 }
 

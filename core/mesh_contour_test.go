@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	matcolor "github.com/cwbudde/matplotlib-go/color"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
 )
@@ -140,6 +141,73 @@ func TestPColorMeshBadCellsAreTransparent(t *testing.T) {
 	mapping := mesh.ScalarMap()
 	if mapping.VMin != 0 || mapping.VMax != 3 {
 		t.Fatalf("bad cells should not affect scalar range, got %+v", mapping)
+	}
+}
+
+func TestPColorMeshUsesBadUnderAndOverColormapColors(t *testing.T) {
+	bad := render.Color{R: 0.55, G: 0.55, B: 0.55, A: 0.8}
+	under := render.Color{R: 0.10, G: 0.25, B: 0.90, A: 1}
+	over := render.Color{R: 0.90, G: 0.25, B: 0.10, A: 1}
+	cmapName := "bounded mesh fixture"
+	matcolor.RegisterColormap(cmapName, matcolor.NewColormap(cmapName, []matcolor.ColorStop{
+		{Pos: 0, Color: render.Color{R: 0, G: 0, B: 0, A: 1}},
+		{Pos: 1, Color: render.Color{R: 1, G: 1, B: 1, A: 1}},
+	}).WithBad(bad).WithUnder(under).WithOver(over))
+
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	vmin, vmax := 0.0, 1.0
+	mesh := ax.PColorMesh([][]float64{
+		{math.NaN(), -0.25},
+		{0.5, 1.25},
+	}, MeshOptions{
+		Colormap: &cmapName,
+		VMin:     &vmin,
+		VMax:     &vmax,
+	})
+	if mesh == nil {
+		t.Fatal("expected quad mesh")
+	}
+	if got := mesh.FaceColors[0]; got != bad {
+		t.Fatalf("bad cell color = %#v, want %#v", got, bad)
+	}
+	if got := mesh.FaceColors[1]; got != under {
+		t.Fatalf("under cell color = %#v, want %#v", got, under)
+	}
+	if got := mesh.FaceColors[3]; got != over {
+		t.Fatalf("over cell color = %#v, want %#v", got, over)
+	}
+}
+
+func TestPColorMeshMaskUsesBadColorAndExcludesScalarRange(t *testing.T) {
+	bad := render.Color{R: 0.55, G: 0.55, B: 0.55, A: 0.8}
+	cmapName := "masked mesh fixture"
+	matcolor.RegisterColormap(cmapName, matcolor.NewColormap(cmapName, []matcolor.ColorStop{
+		{Pos: 0, Color: render.Color{R: 0, G: 0, B: 0, A: 1}},
+		{Pos: 1, Color: render.Color{R: 1, G: 1, B: 1, A: 1}},
+	}).WithBad(bad))
+
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	mesh := ax.PColorMesh([][]float64{
+		{100, 2},
+		{3, 4},
+	}, MeshOptions{
+		Colormap: &cmapName,
+		Mask: [][]bool{
+			{true, false},
+			{false, false},
+		},
+	})
+	if mesh == nil {
+		t.Fatal("expected quad mesh")
+	}
+	if got := mesh.FaceColors[0]; got != bad {
+		t.Fatalf("masked cell color = %#v, want bad color %#v", got, bad)
+	}
+	mapping := mesh.ScalarMap()
+	if mapping.VMin != 2 || mapping.VMax != 4 {
+		t.Fatalf("masked value should not affect scalar range, got %+v", mapping)
 	}
 }
 

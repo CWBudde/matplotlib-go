@@ -90,6 +90,12 @@ func TestAxesSpySupportsMarkerAndImageModes(t *testing.T) {
 	if result.Image == nil {
 		t.Fatal("default Spy() should create an Image2D like matplotlib")
 	}
+	if result.Image.Colormap != "binary" {
+		t.Fatalf("default Spy() image colormap = %q, want %q", result.Image.Colormap, "binary")
+	}
+	if result.Image.Interpolation != "nearest" {
+		t.Fatalf("default Spy() image interpolation = %q, want %q", result.Image.Interpolation, "nearest")
+	}
 	if result.Markers != nil {
 		t.Fatal("default Spy() should not create marker collection")
 	}

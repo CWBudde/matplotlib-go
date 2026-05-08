@@ -16,6 +16,7 @@ import (
 type DiffResult struct {
 	MaxDiff   uint8   // Maximum per-channel difference found
 	MeanAbs   float64 // Mean absolute difference across all channels
+	RMSE      float64 // Root-mean-square error across all channels
 	PSNR      float64 // Peak Signal-to-Noise Ratio in dB
 	Identical bool    // True if images are pixel-perfect identical
 }
@@ -37,6 +38,7 @@ func ComparePNG(got, want image.Image, tolerance uint8) (DiffResult, error) {
 	var sumDiff float64
 	var numPixels int64
 	var sumSquaredError float64
+	var sumSquaredErrorPSNR float64
 	identical := true
 
 	// Iterate through all pixels
@@ -62,8 +64,10 @@ func ComparePNG(got, want image.Image, tolerance uint8) (DiffResult, error) {
 			sumDiff += channelSum / 4.0 // Average per pixel
 
 			// Calculate squared error for PSNR
-			squaredError := float64(diffR*diffR + diffG*diffG + diffB*diffB + diffA*diffA)
-			sumSquaredError += squaredError / 4.0 // Average per pixel
+			rmseSquaredError := squareDiff(diffR) + squareDiff(diffG) + squareDiff(diffB) + squareDiff(diffA)
+			sumSquaredError += rmseSquaredError / 4.0 // Average per pixel
+			psnrSquaredError := float64(diffR*diffR + diffG*diffG + diffB*diffB + diffA*diffA)
+			sumSquaredErrorPSNR += psnrSquaredError / 4.0
 
 			numPixels++
 
@@ -79,16 +83,20 @@ func ComparePNG(got, want image.Image, tolerance uint8) (DiffResult, error) {
 
 	// Calculate PSNR (Peak Signal-to-Noise Ratio)
 	var psnr float64
+	var rmse float64
 	if sumSquaredError == 0 {
 		psnr = math.Inf(1) // Perfect match
 	} else {
 		mse := sumSquaredError / float64(numPixels)
-		psnr = 20 * math.Log10(255/math.Sqrt(mse))
+		rmse = math.Sqrt(mse)
+		psnrMSE := sumSquaredErrorPSNR / float64(numPixels)
+		psnr = 20 * math.Log10(255/math.Sqrt(psnrMSE))
 	}
 
 	return DiffResult{
 		MaxDiff:   maxDiff,
 		MeanAbs:   meanAbs,
+		RMSE:      rmse,
 		PSNR:      psnr,
 		Identical: identical && maxDiff <= tolerance,
 	}, nil
@@ -182,6 +190,11 @@ func absDiff(a, b uint8) uint8 {
 		return a - b
 	}
 	return b - a
+}
+
+func squareDiff(v uint8) float64 {
+	f := float64(v)
+	return f * f
 }
 
 func max4(a, b, c, d uint8) uint8 {

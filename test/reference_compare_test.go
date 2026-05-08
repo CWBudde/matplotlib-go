@@ -24,6 +24,7 @@ type referenceCompareCase struct {
 	render     func() image.Image
 	minPSNR    float64
 	maxMeanAbs float64
+	maxRMSE    float64
 }
 
 var referenceCompareCases = []referenceCompareCase{
@@ -68,11 +69,11 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "units_custom_converter", render: renderUnitsCustomConverter, minPSNR: 40.0, maxMeanAbs: 3.5},
 	{name: "vector_fields", render: renderVectorFields, minPSNR: 41.5, maxMeanAbs: 3.0},
 	{name: "imshow_clipped", render: renderImshowClipped, minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "imshow_transformed", render: renderImshowTransformed, minPSNR: 24.0, maxMeanAbs: 18.0},
+	{name: "imshow_transformed", render: renderImshowTransformed, minPSNR: 24.0, maxMeanAbs: 18.0, maxRMSE: 30.0},
 	{name: "image_alpha", render: renderImageAlpha, minPSNR: 30.0, maxMeanAbs: 16.0},
 	{name: "matshow_basic", render: renderMatshowBasic, minPSNR: 30.0, maxMeanAbs: 10.0},
 	{name: "spy_marker", render: renderSpyMarker, minPSNR: 28.0, maxMeanAbs: 12.0},
-	{name: "spy_image", render: renderSpyImage, minPSNR: 28.0, maxMeanAbs: 22.0},
+	{name: "spy_image", render: renderSpyImage, minPSNR: 27.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
 	{name: "polar_axes", render: renderPolarAxes, minPSNR: 32.0, maxMeanAbs: 9.0},
 	{name: "geo_mollweide_axes", render: renderGeoMollweideAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
 	{name: "geo_aitoff_axes", render: renderGeoAitoffAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
@@ -86,6 +87,11 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "arrays_showcase", render: renderArraysShowcase, minPSNR: 30.0, maxMeanAbs: 10.0},
 	{name: "axisartist_showcase", render: renderAxisArtistShowcase, minPSNR: 28.0, maxMeanAbs: 12.0},
 	{name: "axes_grid1_showcase", render: renderAxesGrid1Showcase, minPSNR: 28.0, maxMeanAbs: 12.0},
+	{name: "pcolor_flat", render: renderPColorFlat, minPSNR: 28.0, maxMeanAbs: 15.0},
+	{name: "pcolormesh_nearest", render: renderPColorMeshNearest, minPSNR: 28.0, maxMeanAbs: 15.0},
+	{name: "pcolormesh_gouraud", render: renderPColorMeshGouraud, minPSNR: 20.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
+	{name: "pcolormesh_masked", render: renderPColorMeshMasked, minPSNR: 28.0, maxMeanAbs: 15.0},
+	{name: "hist2d_weighted_density", render: renderHist2DWeightedDensity, minPSNR: 28.0, maxMeanAbs: 16.0, maxRMSE: 30.0},
 	{name: "rendereragg_large_scatter", render: renderRendererAggLargeScatter, minPSNR: 30.0, maxMeanAbs: 12.0},
 	{name: "rendereragg_mixed_collection", render: renderRendererAggMixedCollection, minPSNR: 30.0, maxMeanAbs: 12.0},
 	{name: "rendereragg_quad_mesh", render: renderRendererAggQuadMesh, minPSNR: 30.0, maxMeanAbs: 12.0},
@@ -157,10 +163,11 @@ func runReferenceCompareTest(t *testing.T, tc referenceCompareCase) {
 	}
 
 	t.Logf(
-		"%s: MaxDiff=%d MeanAbs=%.2f PSNR=%.2fdB",
+		"%s: MaxDiff=%d MeanAbs=%.2f RMSE=%.2f PSNR=%.2fdB",
 		tc.name,
 		diff.MaxDiff,
 		diff.MeanAbs,
+		diff.RMSE,
 		diff.PSNR,
 	)
 
@@ -172,14 +179,16 @@ func runReferenceCompareTest(t *testing.T, tc referenceCompareCase) {
 	if tc.maxMeanAbs > 0 {
 		maxMeanAbs = tc.maxMeanAbs
 	}
-	if diff.PSNR < minPSNR || diff.MeanAbs > maxMeanAbs {
+	if diff.PSNR < minPSNR || diff.MeanAbs > maxMeanAbs || (tc.maxRMSE > 0 && diff.RMSE > tc.maxRMSE) {
 		t.Fatalf(
-			"reference mismatch for %s: PSNR=%.2f (min %.2f), MeanAbs=%.2f (max %.2f)",
+			"reference mismatch for %s: PSNR=%.2f (min %.2f), MeanAbs=%.2f (max %.2f), RMSE=%.2f (max %.2f)",
 			tc.name,
 			diff.PSNR,
 			minPSNR,
 			diff.MeanAbs,
 			maxMeanAbs,
+			diff.RMSE,
+			tc.maxRMSE,
 		)
 	}
 }

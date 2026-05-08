@@ -276,7 +276,8 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 		useImage = false
 	}
 	if useImage {
-		cmap := "gray"
+		cmap := "binary"
+		nearest := "nearest"
 		vMin := 0.0
 		vMax := 1.0
 		result.Image = a.MatShow(mask, MatShowOptions{
@@ -288,6 +289,7 @@ func (a *Axes) Spy(data [][]float64, opts ...SpyOptions) *SpyResult {
 			IntegerTicks: boolPtr(true),
 			Label:        cfg.Label,
 		})
+		result.Image.Interpolation = nearest
 		return result
 	}
 

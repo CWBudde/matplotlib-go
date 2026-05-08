@@ -1,6 +1,7 @@
 package core
 
 import (
+	"image"
 	"math"
 	"testing"
 
@@ -271,6 +272,21 @@ func TestImage_DrawRotatedCallsImageTransformed(t *testing.T) {
 	}
 	if r.imageCalls != 0 {
 		t.Fatalf("expected Image not to be called when transform renderer is available, got %d", r.imageCalls)
+	}
+}
+
+func TestImageTransformPositiveAngleUsesDataSpaceOrientation(t *testing.T) {
+	raster := render.NewImageData(image.NewRGBA(image.Rect(0, 0, 10, 10)))
+	tr := imageTransform(
+		geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 10, Y: 10}},
+		raster,
+		geom.Pt{X: 5, Y: 5},
+		math.Pi/2,
+	)
+
+	got := tr.Apply(geom.Pt{X: 10, Y: 5})
+	if !almostEqualFloat(got.X, 5) || !almostEqualFloat(got.Y, 0) {
+		t.Fatalf("positive rotation maps right-center to %+v, want top-center", got)
 	}
 }
 

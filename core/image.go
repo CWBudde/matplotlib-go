@@ -163,8 +163,8 @@ func imageTransform(dst geom.Rect, raster render.Image, anchor geom.Pt, angle fl
 	sin := math.Sin(angle)
 	rot := geom.Affine{
 		A: cos,
-		B: sin,
-		C: -sin,
+		B: -sin,
+		C: sin,
 		D: cos,
 		E: anchor.X,
 		F: anchor.Y,

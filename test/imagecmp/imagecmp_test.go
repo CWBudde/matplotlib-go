@@ -62,6 +62,9 @@ func TestComparePNG_SinglePixelDiff(t *testing.T) {
 	if result.MaxDiff != 5 {
 		t.Errorf("Expected MaxDiff=5, got %d", result.MaxDiff)
 	}
+	if result.RMSE != 0.25 {
+		t.Errorf("Expected RMSE=0.25, got %f", result.RMSE)
+	}
 
 	if result.Identical {
 		t.Error("Expected images with difference > tolerance to not be identical")

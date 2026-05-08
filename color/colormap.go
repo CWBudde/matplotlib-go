@@ -16,9 +16,15 @@ type ColorStop struct {
 
 // Colormap maps normalized values in [0,1] to colors.
 type Colormap struct {
-	name   string
-	stops  []ColorStop
-	listed []render.Color
+	name     string
+	stops    []ColorStop
+	listed   []render.Color
+	bad      render.Color
+	under    render.Color
+	over     render.Color
+	hasBad   bool
+	hasUnder bool
+	hasOver  bool
 }
 
 // Name returns the user-visible colormap name.
@@ -64,6 +70,53 @@ func (c Colormap) At(t float64) render.Color {
 	}
 
 	return c.stops[len(c.stops)-1].Color
+}
+
+// AtValue returns a color for a possibly out-of-range normalized value.
+// NaN/Inf values use the bad color, values below zero use under, and values
+// above one use over. When under/over are not configured, the colormap
+// endpoints are used, matching Matplotlib's default behavior.
+func (c Colormap) AtValue(t float64) render.Color {
+	if math.IsNaN(t) || math.IsInf(t, 0) {
+		if c.hasBad {
+			return c.bad
+		}
+		return render.Color{}
+	}
+	if t < 0 {
+		if c.hasUnder {
+			return c.under
+		}
+		return c.At(0)
+	}
+	if t > 1 {
+		if c.hasOver {
+			return c.over
+		}
+		return c.At(1)
+	}
+	return c.At(t)
+}
+
+// WithBad returns a copy of the colormap with a configured bad-value color.
+func (c Colormap) WithBad(color render.Color) Colormap {
+	c.bad = color
+	c.hasBad = true
+	return c
+}
+
+// WithUnder returns a copy of the colormap with a configured under-range color.
+func (c Colormap) WithUnder(color render.Color) Colormap {
+	c.under = color
+	c.hasUnder = true
+	return c
+}
+
+// WithOver returns a copy of the colormap with a configured over-range color.
+func (c Colormap) WithOver(color render.Color) Colormap {
+	c.over = color
+	c.hasOver = true
+	return c
 }
 
 // NewColormap creates a new linear colormap from color stops.
@@ -118,6 +171,13 @@ var colormaps = map[string]Colormap{
 		stops: []ColorStop{
 			{0, render.Color{R: 0, G: 0, B: 0, A: 1}},
 			{1, render.Color{R: 1, G: 1, B: 1, A: 1}},
+		},
+	},
+	"binary": {
+		name: "binary",
+		stops: []ColorStop{
+			{0, render.Color{R: 1, G: 1, B: 1, A: 1}},
+			{1, render.Color{R: 0, G: 0, B: 0, A: 1}},
 		},
 	},
 	"red channel": {

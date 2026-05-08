@@ -29,17 +29,17 @@ func TestFigureAddColorbarConfiguresAxes(t *testing.T) {
 	}
 	wantWidth := resolvedColorbarWidth(fig, base, 0, defaultColorbarAspect)
 	wantPadding := resolvedColorbarPadding(base, 0)
-	if wantPadding != 0.05 {
-		t.Fatalf("default colorbar padding = %v, want matplotlib default 0.05", wantPadding)
+	if wantPadding != base.W()*0.05 {
+		t.Fatalf("default colorbar padding = %v, want 5%% of parent width", wantPadding)
 	}
-	if got, want := ax.RectFraction.Max.X, base.Max.X-wantWidth-wantPadding; !floatApprox(got, want, 1e-12) {
+	if got, want := ax.RectFraction.Max.X, base.Min.X+base.W()*(1-defaultColorbarFraction-defaultColorbarPadding); !floatApprox(got, want, 1e-12) {
 		t.Fatalf("expected parent to reserve colorbar space: got right=%v want %v", got, want)
 	}
 	if got, want := cbAx.RectFraction.W(), wantWidth; !floatApprox(got, want, 1e-12) {
 		t.Fatalf("expected colorbar width to follow default aspect: got %v want %v", got, want)
 	}
-	if got, want := cbAx.RectFraction.Max.X, base.Max.X; !floatApprox(got, want, 1e-12) {
-		t.Fatalf("expected colorbar to occupy reserved right edge: got right=%v want %v", got, want)
+	if got, want := cbAx.RectFraction.Min.X, base.Min.X+base.W()*(1-defaultColorbarFraction); !floatApprox(got, want, 1e-12) {
+		t.Fatalf("expected colorbar to start at matplotlib default slot: got left=%v want %v", got, want)
 	}
 	if cbAx.RectFraction.Min.X <= ax.RectFraction.Max.X {
 		t.Fatalf("expected colorbar to be placed to the right, got %+v", cbAx.RectFraction)

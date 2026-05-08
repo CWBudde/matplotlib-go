@@ -884,9 +884,9 @@ This phase tracks the plot categories that already exist in the Go port but are 
 - [x] Match Matplotlib `pcolor` / `pcolormesh` input-shape validation for the supported 1-D rectilinear scalar-data API, including explicit edge coordinates, center coordinates, and mismatched dimensions.
 - [x] Add shading policy parity for `flat`, `nearest`, `auto`, and rectilinear `gouraud`, including how each mode derives cell geometry from input coordinates.
 - [x] Preserve NaN/Inf bad-cell transparency through `QuadMesh` color mapping and AGG draw batches; add weighted/density `hist2d` bin semantics.
-- [ ] Extend masked, bad, under, and over cell semantics beyond the current linear colormap model through `QuadMesh`, `Colorbar`, and AGG draw batches.
+- [x] Extend masked, bad, under, and over cell semantics beyond the current linear colormap model through `QuadMesh`, `Colorbar`, and AGG draw batches.
 - [ ] Match AGG edge rendering for antialiasing, linewidth, snap, join, cap, and alpha accumulation on dense quad meshes.
-- [ ] Add focused Matplotlib-reference fixtures for `pcolor`, `pcolormesh(shading="nearest")`, `pcolormesh(shading="gouraud")`, masked quad meshes, and `hist2d` with weights/density.
+- [x] Add focused Matplotlib-reference fixtures for `pcolor`, `pcolormesh(shading="nearest")`, `pcolormesh(shading="gouraud")`, masked quad meshes, and `hist2d` with weights/density.
 - [ ] Tighten `rendereragg_quad_mesh` thresholds once the native batch path matches upstream cell placement and blending.
 
 Completed notes:
@@ -896,6 +896,9 @@ Completed notes:
 - Rectilinear `gouraud` meshes route through native `render.GouraudTriangleDrawer` batches when available and fall back to averaged flat cells otherwise.
 - Non-finite mesh scalar values now remain transparent while finite values drive scalar range resolution.
 - `Hist2D` now supports per-sample weights plus probability/density normalization over 2D bin area.
+- Colormaps now preserve explicit bad, under, and over colors for mesh scalar mapping; `MeshOptions.Mask` treats masked cells as bad values and excludes them from scalar range calculation.
+- Added committed Go goldens and Matplotlib references for `pcolor_flat`, `pcolormesh_nearest`, `pcolormesh_gouraud`, `pcolormesh_masked`, and `hist2d_weighted_density`.
+- Matplotlib-style colorbar slot placement now prevents manual-axes colorbars from shrinking parents twice; `hist2d_weighted_density` and `pcolormesh_gouraud` are RMSE-gated below 30 against Matplotlib references.
 
 ### 10.2 PathCollection and Large Scatter
 
@@ -921,6 +924,7 @@ Completed notes:
 - Fixed transformed-image parallelogram orientation so affine image sampling uses top-left, top-right, bottom-right corner order as AGG expects.
 - Added committed Go goldens and Matplotlib references for `imshow_clipped`, `imshow_transformed`, `image_alpha`, `matshow_basic`, `spy_marker`, and `spy_image`.
 - Added backend buffer/export tests covering RGBA byte order, transparent backgrounds, PNG round-tripping from the renderer buffer, source-alpha scaling, and transformed image orientation.
+- `spy` image mode now uses Matplotlib's binary white/black image defaults with nearest interpolation, and transformed image rotation now follows Matplotlib's data-coordinate positive-angle convention; both `spy_image` and `imshow_transformed` are RMSE-gated below 30.
 
 ### 10.4 Filled Areas, Contours, and Alpha Accumulation
 

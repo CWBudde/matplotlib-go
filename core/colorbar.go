@@ -70,11 +70,11 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	parent.RectFraction = colorbarParentRect(base, width, padding)
 	rect := geom.Rect{
 		Min: geom.Pt{
-			X: parent.RectFraction.Max.X + padding,
+			X: colorbarSlotLeft(base),
 			Y: parent.RectFraction.Min.Y,
 		},
 		Max: geom.Pt{
-			X: parent.RectFraction.Max.X + padding + width,
+			X: colorbarSlotLeft(base) + width,
 			Y: parent.RectFraction.Max.Y,
 		},
 	}
@@ -125,9 +125,9 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 
 func resolvedColorbarPadding(base geom.Rect, padding float64) float64 {
 	if padding > 0 {
-		return padding
+		return base.W() * padding
 	}
-	return defaultColorbarPadding
+	return base.W() * defaultColorbarPadding
 }
 
 func resolvedColorbarLayoutPadding(fig *Figure, base geom.Rect, padding float64) float64 {
@@ -161,16 +161,21 @@ func resolvedColorbarWidth(fig *Figure, base geom.Rect, width, aspect float64) f
 }
 
 func colorbarParentRect(base geom.Rect, width, padding float64) geom.Rect {
-	reserved := width + padding
-	if reserved <= 0 {
+	_ = width
+	if padding < 0 {
 		return base
 	}
 	shrunk := base
-	if base.Max.X-reserved <= base.Min.X {
+	right := colorbarSlotLeft(base) - padding
+	if right <= base.Min.X {
 		return shrunk
 	}
-	shrunk.Max.X -= reserved
+	shrunk.Max.X = right
 	return shrunk
+}
+
+func colorbarSlotLeft(base geom.Rect) float64 {
+	return base.Max.X - base.W()*defaultColorbarFraction
 }
 
 // Draw renders a vertical gradient across the colorbar axes.

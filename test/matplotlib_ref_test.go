@@ -259,6 +259,26 @@ func TestMpl_AxesGrid1Showcase(t *testing.T) {
 	runMplTest(t, "axes_grid1_showcase", renderAxesGrid1Showcase)
 }
 
+func TestMpl_PColorFlat(t *testing.T) {
+	runMplTest(t, "pcolor_flat", renderPColorFlat)
+}
+
+func TestMpl_PColorMeshNearest(t *testing.T) {
+	runMplTest(t, "pcolormesh_nearest", renderPColorMeshNearest)
+}
+
+func TestMpl_PColorMeshGouraud(t *testing.T) {
+	runMplTest(t, "pcolormesh_gouraud", renderPColorMeshGouraud)
+}
+
+func TestMpl_PColorMeshMasked(t *testing.T) {
+	runMplTest(t, "pcolormesh_masked", renderPColorMeshMasked)
+}
+
+func TestMpl_Hist2DWeightedDensity(t *testing.T) {
+	runMplTest(t, "hist2d_weighted_density", renderHist2DWeightedDensity)
+}
+
 func TestMpl_RendererAggLargeScatter(t *testing.T) {
 	runMplTest(t, "rendereragg_large_scatter", renderRendererAggLargeScatter)
 }

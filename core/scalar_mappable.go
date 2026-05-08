@@ -48,9 +48,19 @@ func (m ScalarMapInfo) Normalize(v float64) float64 {
 
 // Color maps a scalar into a display color using the configured colormap.
 func (m ScalarMapInfo) Color(v, alpha float64) render.Color {
-	color := matcolor.GetColormap(m.Resolved().Colormap).At(m.Normalize(v))
+	m = m.Resolved()
+	color := matcolor.GetColormap(m.Colormap).AtValue(m.normalizeRaw(v))
 	color.A *= clampOneToOne(alpha)
 	return color
+}
+
+func (m ScalarMapInfo) normalizeRaw(v float64) float64 {
+	m = m.Resolved()
+	span := m.VMax - m.VMin
+	if span == 0 {
+		return 0
+	}
+	return (v - m.VMin) / span
 }
 
 func resolveScalarMapGrid(data [][]float64, cmap string, vmin, vmax *float64) ScalarMapInfo {

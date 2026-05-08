@@ -446,16 +446,17 @@ func syncColorbarAxes(fig *Figure) {
 		}
 		parent := ax.colorbarParent
 		base := colorbarLayoutBase(parent, ax)
+		ax.colorbarBase = base
 		padding := resolvedColorbarLayoutPadding(fig, base, ax.colorbarPadding)
 		width := resolvedColorbarWidth(fig, base, ax.colorbarWidth, resolvedColorbarAspect(ax.colorbarAspect))
 		parent.RectFraction = colorbarParentRect(base, width, padding)
 		ax.RectFraction = geom.Rect{
 			Min: geom.Pt{
-				X: parent.RectFraction.Max.X + padding,
+				X: colorbarSlotLeft(base),
 				Y: parent.RectFraction.Min.Y,
 			},
 			Max: geom.Pt{
-				X: parent.RectFraction.Max.X + padding + width,
+				X: colorbarSlotLeft(base) + width,
 				Y: parent.RectFraction.Max.Y,
 			},
 		}
@@ -467,7 +468,10 @@ func colorbarLayoutBase(parent, colorbar *Axes) geom.Rect {
 		return geom.Rect{}
 	}
 	base := colorbar.colorbarBase
-	if parent == nil || parent.subplotSpec == nil {
+	if parent == nil {
+		return base
+	}
+	if parent.subplotSpec == nil {
 		return base
 	}
 	if colorbar.RectFraction.W() > 0 && colorbar.RectFraction.Min.X > parent.RectFraction.Max.X {
