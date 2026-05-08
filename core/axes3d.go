@@ -3,6 +3,7 @@ package core
 import (
 	"math"
 	"sort"
+	"strings"
 
 	matcolor "github.com/cwbudde/matplotlib-go/color"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -188,17 +189,19 @@ func (a *Axes3D) Scatter3D(x, y, z []float64, opts ...ScatterOptions) *Scatter2D
 
 	if len(opts) > 0 {
 		scatter := a.Scatter(x2, y2, opts[0])
+		reprojectScatter3D(scatter, a.projectedScatterData(x, y, z))
 		scatter.z = a.points3DCollectionZ(x, y, z)
 		a.add3DReprojector(func() {
-			reprojectScatter3D(scatter, a.projectedData(x, y, z))
+			reprojectScatter3D(scatter, a.projectedScatterData(x, y, z))
 			scatter.z = a.points3DCollectionZ(x, y, z)
 		}, limitsChanged)
 		return scatter
 	}
 	scatter := a.Scatter(x2, y2)
+	reprojectScatter3D(scatter, a.projectedScatterData(x, y, z))
 	scatter.z = a.points3DCollectionZ(x, y, z)
 	a.add3DReprojector(func() {
-		reprojectScatter3D(scatter, a.projectedData(x, y, z))
+		reprojectScatter3D(scatter, a.projectedScatterData(x, y, z))
 		scatter.z = a.points3DCollectionZ(x, y, z)
 	}, limitsChanged)
 	return scatter
@@ -362,7 +365,6 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 
 // Contourf projects a structured z grid and emits filled contour bands.
 func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *PolyCollection {
-	limitsChanged := a.observe3DGrid(x, y, z)
 	alpha := 0.45
 	label := ""
 	levelCount := 7
@@ -386,6 +388,7 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 		offset = opt.Offset
 		label = opt.Label
 	}
+	limitsChanged := a.observe3DContourf(x, y, z, levelCount, explicitLevels)
 
 	polygons, colors, zorder := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, explicitLevels, offset)
 	if len(polygons) == 0 {
@@ -761,16 +764,22 @@ func zGridRange(z [][]float64) (float64, float64) {
 func compoundContourPaths(polygons [][]geom.Pt, colors []render.Color) ([]geom.Path, []render.Color) {
 	paths := make([]geom.Path, 0)
 	pathColors := make([]render.Color, 0)
-	var current geom.Path
+	var current [][]geom.Pt
 	var currentColor render.Color
 	haveCurrent := false
 	flush := func() {
-		if !haveCurrent || len(current.C) == 0 {
+		if !haveCurrent || len(current) == 0 {
 			return
 		}
-		paths = append(paths, current)
-		pathColors = append(pathColors, currentColor)
-		current = geom.Path{}
+		path := contourBoundaryPath(current)
+		if len(path.C) == 0 {
+			path = contourPolygonsPath(current)
+		}
+		if len(path.C) > 0 {
+			paths = append(paths, path)
+			pathColors = append(pathColors, currentColor)
+		}
+		current = nil
 		haveCurrent = false
 	}
 	for i, polygon := range polygons {
@@ -788,17 +797,147 @@ func compoundContourPaths(polygons [][]geom.Pt, colors []render.Color) ([]geom.P
 			currentColor = color
 			haveCurrent = true
 		}
-		for j, pt := range polygon {
-			if j == 0 {
-				current.MoveTo(pt)
-			} else {
-				current.LineTo(pt)
-			}
-		}
-		current.Close()
+		current = append(current, polygon)
 	}
 	flush()
 	return paths, pathColors
+}
+
+type contourPointKey struct {
+	x int64
+	y int64
+}
+
+type contourEdgeKey struct {
+	from contourPointKey
+	to   contourPointKey
+}
+
+type contourBoundaryEdge struct {
+	id      int
+	from    geom.Pt
+	to      geom.Pt
+	fromKey contourPointKey
+	toKey   contourPointKey
+}
+
+func contourPolygonsPath(polygons [][]geom.Pt) geom.Path {
+	var path geom.Path
+	for _, polygon := range polygons {
+		if len(polygon) < 3 {
+			continue
+		}
+		for i, pt := range polygon {
+			if i == 0 {
+				path.MoveTo(pt)
+			} else {
+				path.LineTo(pt)
+			}
+		}
+		path.Close()
+	}
+	return path
+}
+
+func contourBoundaryPath(polygons [][]geom.Pt) geom.Path {
+	edgesByKey := map[contourEdgeKey]contourBoundaryEdge{}
+	ordered := make([]contourEdgeKey, 0)
+	nextID := 0
+	for _, polygon := range polygons {
+		if len(polygon) < 3 {
+			continue
+		}
+		for i, from := range polygon {
+			to := polygon[(i+1)%len(polygon)]
+			fromKey := contourPathPointKey(from)
+			toKey := contourPathPointKey(to)
+			if fromKey == toKey {
+				continue
+			}
+			key := contourEdgeKey{from: fromKey, to: toKey}
+			reverse := contourEdgeKey{from: toKey, to: fromKey}
+			if _, ok := edgesByKey[reverse]; ok {
+				delete(edgesByKey, reverse)
+				continue
+			}
+			edgesByKey[key] = contourBoundaryEdge{
+				id:      nextID,
+				from:    from,
+				to:      to,
+				fromKey: fromKey,
+				toKey:   toKey,
+			}
+			ordered = append(ordered, key)
+			nextID++
+		}
+	}
+	if len(edgesByKey) == 0 {
+		return geom.Path{}
+	}
+
+	adjacent := map[contourPointKey][]contourBoundaryEdge{}
+	for _, edge := range edgesByKey {
+		adjacent[edge.fromKey] = append(adjacent[edge.fromKey], edge)
+	}
+
+	used := map[int]bool{}
+	var path geom.Path
+	for _, key := range ordered {
+		edge, ok := edgesByKey[key]
+		if !ok || used[edge.id] {
+			continue
+		}
+		loop := []geom.Pt{edge.from, edge.to}
+		used[edge.id] = true
+		startKey := edge.fromKey
+		currentKey := edge.toKey
+		closed := currentKey == startKey
+		for !closed {
+			next, ok := nextUnusedContourBoundaryEdge(adjacent[currentKey], used)
+			if !ok {
+				break
+			}
+			loop = append(loop, next.to)
+			used[next.id] = true
+			currentKey = next.toKey
+			closed = currentKey == startKey
+		}
+		if !closed || len(loop) < 4 {
+			continue
+		}
+		if contourPathPointKey(loop[len(loop)-1]) == contourPathPointKey(loop[0]) {
+			loop = loop[:len(loop)-1]
+		}
+		if len(loop) < 3 {
+			continue
+		}
+		for i, pt := range loop {
+			if i == 0 {
+				path.MoveTo(pt)
+			} else {
+				path.LineTo(pt)
+			}
+		}
+		path.Close()
+	}
+	return path
+}
+
+func nextUnusedContourBoundaryEdge(edges []contourBoundaryEdge, used map[int]bool) (contourBoundaryEdge, bool) {
+	for _, edge := range edges {
+		if !used[edge.id] {
+			return edge, true
+		}
+	}
+	return contourBoundaryEdge{}, false
+}
+
+func contourPathPointKey(pt geom.Pt) contourPointKey {
+	const scale = 1e9
+	return contourPointKey{
+		x: int64(math.Round(pt.X * scale)),
+		y: int64(math.Round(pt.Y * scale)),
+	}
 }
 
 func flattenGridValues(z [][]float64) []float64 {
@@ -961,11 +1100,23 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 	return collection
 }
 
-func reprojectScatter3D(scatter *Scatter2D, points []geom.Pt) {
+type projectedScatterPoint struct {
+	point geom.Pt
+	depth float64
+}
+
+func reprojectScatter3D(scatter *Scatter2D, points []projectedScatterPoint) {
 	if scatter == nil {
 		return
 	}
-	scatter.XY = append(scatter.XY[:0], points...)
+	sort.SliceStable(points, func(i, j int) bool {
+		return points[i].depth > points[j].depth
+	})
+	scatter.XY = scatter.XY[:0]
+	for _, point := range points {
+		scatter.XY = append(scatter.XY, point.point)
+	}
+	scatter.Colors = depthShadedScatterColors(scatter.Color, points)
 }
 
 func reprojectLine3D(line *Line2D, points []geom.Pt) {
@@ -973,6 +1124,51 @@ func reprojectLine3D(line *Line2D, points []geom.Pt) {
 		return
 	}
 	line.XY = append(line.XY[:0], points...)
+}
+
+func (a *Axes3D) projectedScatterData(x, y, z []float64) []projectedScatterPoint {
+	n := len(x)
+	if len(y) < n {
+		n = len(y)
+	}
+	if len(z) < n {
+		n = len(z)
+	}
+	points := make([]projectedScatterPoint, 0, n)
+	for i := 0; i < n; i++ {
+		if !isFinite3D(x[i], y[i], z[i]) {
+			continue
+		}
+		point, depth := a.projectPointDepth(x[i], y[i], z[i])
+		points = append(points, projectedScatterPoint{point: point, depth: depth})
+	}
+	return points
+}
+
+func depthShadedScatterColors(color render.Color, points []projectedScatterPoint) []render.Color {
+	if len(points) == 0 {
+		return nil
+	}
+	minZ, maxZ := points[0].depth, points[0].depth
+	for _, point := range points[1:] {
+		if point.depth < minZ {
+			minZ = point.depth
+		}
+		if point.depth > maxZ {
+			maxZ = point.depth
+		}
+	}
+	colors := make([]render.Color, len(points))
+	for i, point := range points {
+		saturation := 1.0
+		if maxZ != minZ {
+			saturation = 1 - ((point.depth-minZ)/(maxZ-minZ))*0.7
+		}
+		shaded := color
+		shaded.A *= saturation
+		colors[i] = shaded
+	}
+	return colors
 }
 
 func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseColor render.Color) ([][]geom.Pt, []render.Color, float64) {
@@ -1690,7 +1886,7 @@ func format3DTick(v float64, i int, ticks []float64) string {
 			step = math.Abs(ticks[i] - ticks[i-1])
 		}
 	}
-	return formatScalarTickLabel(ScalarFormatter{Prec: 3}, v, step)
+	return strings.ReplaceAll(formatScalarTickLabel(ScalarFormatter{Prec: 3}, v, step), "-", "\u2212")
 }
 
 // Bar3DOptions configures projected wireframe bars.
@@ -1953,6 +2149,43 @@ func (a *Axes3D) observe3DGrid(x, y []float64, z [][]float64) bool {
 				changed = true
 			}
 		}
+	}
+	return changed
+}
+
+func (a *Axes3D) observe3DContourf(x, y []float64, z [][]float64, levelCount int, explicitLevels []float64) bool {
+	if a == nil || len(z) == 0 {
+		return false
+	}
+	rows := len(z)
+	cols := len(z[0])
+	if cols == 0 || len(x) < cols || len(y) < rows {
+		return false
+	}
+	for row := 1; row < rows; row++ {
+		if len(z[row]) != cols {
+			return false
+		}
+	}
+
+	levels := contourLevels(flattenGridValues(z), explicitLevels, levelCount, true)
+	if len(levels) < 2 {
+		return a.observe3DGrid(x, y, z)
+	}
+	midpoints := make([]float64, 0, len(levels)-1)
+	for i := 0; i+1 < len(levels); i++ {
+		midpoints = append(midpoints, levels[i]+(levels[i+1]-levels[i])*0.5)
+	}
+
+	minX, maxX := finiteRange(x[:cols])
+	minY, maxY := finiteRange(y[:rows])
+	minZ, maxZ := finiteRange(midpoints)
+	if !isFinite(minX) || !isFinite(maxX) || !isFinite(minY) || !isFinite(maxY) || !isFinite(minZ) || !isFinite(maxZ) {
+		return false
+	}
+	changed := a.observe3DPoint(minX, minY, minZ)
+	if a.observe3DPoint(maxX, maxY, maxZ) {
+		changed = true
 	}
 	return changed
 }

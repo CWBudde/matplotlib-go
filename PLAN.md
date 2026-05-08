@@ -1023,6 +1023,12 @@ The current implementation projects 3D data into 2D artists, which is useful for
 - [ ] Add Matplotlib-reference fixtures for every upstream `galleries/plot_types/3D` family: plot3d, scatter3d, surface3d, wire3d, trisurf3d, bar3d, voxels, quiver3d, stem3d, and fill_between3d.
 - [ ] Keep 3D tests focused on static AGG output; interactive rotation belongs to Phase 9 unless a backend-specific viewer requires it.
 
+Current parity-hardening slice:
+
+- Matplotlib-style 3D scatter marker depth sorting and depth-shaded alpha for the existing `mplot3d_basic` fixture.
+- Filled-contour autoscaling from filled level midpoints, plus same-band contour path boundary merging for the existing `mplot3d_terrain` fixture.
+- Unicode-minus scalar tick labels for default 3D z-axis formatter parity in negative tick ranges.
+
 **Exit Criteria:**
 
 - [ ] Every Matplotlib plot-type gallery 3D category has a Go example, a golden image, and a Matplotlib reference image.

@@ -113,6 +113,29 @@ func TestAxes3DScatterDefaultColorUsesShapeCycle(t *testing.T) {
 	}
 }
 
+func TestAxes3DScatterDepthShadesAndSortsMarkersLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	scatter := ax.Scatter3D(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[]float64{0, 1},
+	)
+	if scatter == nil {
+		t.Fatal("Scatter3D returned nil")
+	}
+	if got, want := len(scatter.Colors), 2; got != want {
+		t.Fatalf("3D scatter per-marker colors = %d, want %d depth-shaded colors", got, want)
+	}
+	if !approx(scatter.Colors[0].A, 0.3, 1e-12) || !approx(scatter.Colors[1].A, 1.0, 1e-12) {
+		t.Fatalf("3D scatter depth-shaded alphas = %.12g, %.12g; want Matplotlib z-sorted alpha range 0.3..1.0", scatter.Colors[0].A, scatter.Colors[1].A)
+	}
+}
+
 func TestAxes3DPlot3DUsesProjectedCoordinates(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
@@ -738,6 +761,28 @@ func TestAxes3DContourfUsesProjectedCollectionZLikeMatplotlib(t *testing.T) {
 	}
 }
 
+func TestAxes3DContourfAutoscaleUsesFilledLevelMidpointsLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	fill := ax.Contourf(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0.1, 0.2}, {0.8, 0.9}},
+		PlotOptions{Levels: []float64{0, 1, 2}},
+	)
+	if fill == nil {
+		t.Fatal("Contourf returned nil")
+	}
+	mins, maxs := ax.projectionLimits()
+	if !approx(mins[2], 0.45, 1e-12) || !approx(maxs[2], 1.55, 1e-12) {
+		t.Fatalf("Contourf projection z limits = %.12g..%.12g, want Matplotlib autoscale from filled midpoints 0.5..1.5 with margin", mins[2], maxs[2])
+	}
+}
+
 func TestAxes3DContourfUsesStructuredGridBandPolygons(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
@@ -785,6 +830,46 @@ func TestAxes3DContourfGroupsBandsIntoCompoundPathsLikeMatplotlib(t *testing.T) 
 	}
 	if len(fill.Paths[0].C) == 0 || len(fill.Paths[0].V) <= 4 {
 		t.Fatalf("Contourf compound path = %+v, want multiple cell polygons grouped into one path", fill.Paths[0])
+	}
+}
+
+func TestCompoundContourPathsDissolvesSharedBandEdgesLikeMatplotlib(t *testing.T) {
+	color := render.Color{R: 0.2, G: 0.4, B: 0.6, A: 1}
+	paths, colors := compoundContourPaths(
+		[][]geom.Pt{
+			{
+				{X: 0, Y: 0},
+				{X: 1, Y: 0},
+				{X: 1, Y: 1},
+				{X: 0, Y: 1},
+			},
+			{
+				{X: 1, Y: 0},
+				{X: 2, Y: 0},
+				{X: 2, Y: 1},
+				{X: 1, Y: 1},
+			},
+		},
+		[]render.Color{color, color},
+	)
+	if got, want := len(paths), 1; got != want {
+		t.Fatalf("compound paths = %d, want one path for the filled band", got)
+	}
+	if got, want := len(colors), 1; got != want || colors[0] != color {
+		t.Fatalf("compound colors = %+v, want [%+v]", colors, color)
+	}
+	moveCount := 0
+	closeCount := 0
+	for _, cmd := range paths[0].C {
+		switch cmd {
+		case geom.MoveTo:
+			moveCount++
+		case geom.ClosePath:
+			closeCount++
+		}
+	}
+	if moveCount != 1 || closeCount != 1 {
+		t.Fatalf("compound path commands = %+v, want one closed region without the shared cell edge", paths[0].C)
 	}
 }
 
@@ -871,6 +956,13 @@ func TestAxes3DContourZOrderUsesContourGeometry(t *testing.T) {
 	}
 	if !(surface.Z() > contour.Z()) {
 		t.Fatalf("surface zorder %.6g, contour zorder %.6g; want surface drawn over 3D contour lines like Matplotlib computed_zorder", surface.Z(), contour.Z())
+	}
+}
+
+func TestFormat3DTickUsesUnicodeMinusLikeMatplotlib(t *testing.T) {
+	ticks := []float64{-0.5, -0.25, 0}
+	if got := format3DTick(-0.25, 1, ticks); got != "\u22120.25" {
+		t.Fatalf("3D negative tick label = %q, want Unicode minus like Matplotlib", got)
 	}
 }
 
