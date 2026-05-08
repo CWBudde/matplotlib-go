@@ -170,7 +170,7 @@ func newRadarProjection() *polarProjection {
 		name:             "radar",
 		thetaOffset:      math.Pi / 2,
 		thetaDirection:   1,
-		radialLabelAngle: math.Pi / 2,
+		radialLabelAngle: math.Pi/2 + defaultPolarRadialLabelAngle,
 		radarVariables:   defaultRadarVariables,
 	}
 }
@@ -221,6 +221,8 @@ func (p *polarProjection) ConfigureAxes(ax *Axes) {
 
 	if p.isRadar() {
 		configureRadarThetaAxis(ax, p)
+		ax.YAxis.ShowSpine = false
+		ax.YAxis.ShowTicks = false
 	}
 }
 

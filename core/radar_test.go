@@ -108,6 +108,25 @@ func TestRadarRadialLabelsUseMatplotlibDefaultOffsetFromNorth(t *testing.T) {
 	}
 }
 
+func TestRadarHidesRadialSpineAndTicks(t *testing.T) {
+	fig := NewFigure(400, 400)
+	ax, err := fig.AddRadarAxes(unitRect(), []string{"A", "B", "C", "D", "E"})
+	if err != nil {
+		t.Fatalf("AddRadarAxes: %v", err)
+	}
+	ax.YAxis.Locator = FixedLocator{TicksList: []float64{0.5}}
+	ax.YAxis.MinorLocator = nil
+
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	r := &recordingRenderer{}
+
+	ax.YAxis.Draw(r, ctx)
+
+	if len(r.pathCalls) != 0 {
+		t.Fatalf("radar radial axis drew %d paths, want none", len(r.pathCalls))
+	}
+}
+
 func TestRadarTitleClearsTopThetaLabel(t *testing.T) {
 	fig := NewFigure(400, 400)
 	ax, err := fig.AddRadarAxes(unitRect(), []string{"Speed", "Power", "Range", "Handling", "Comfort"})

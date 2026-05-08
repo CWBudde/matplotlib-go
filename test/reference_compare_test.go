@@ -72,7 +72,7 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "geo_aitoff_axes", render: renderGeoAitoffAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
 	{name: "geo_hammer_axes", render: renderGeoHammerAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
 	{name: "geo_lambert_axes", render: renderGeoLambertAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "radar_basic", render: renderRadarBasic, minPSNR: 28.0, maxMeanAbs: 14.0},
+	{name: "radar_basic", render: renderRadarBasic, minPSNR: 45.0, maxMeanAbs: 2.0},
 	{name: "skewt_basic", render: renderSkewTBasic, minPSNR: 24.0, maxMeanAbs: 18.0},
 	{name: "mplot3d_basic", render: renderMplot3DBasic, minPSNR: 39.0, maxMeanAbs: 5.0},
 	{name: "mplot3d_terrain", render: renderMplot3DTerrain, minPSNR: 38.0, maxMeanAbs: 5.0},
