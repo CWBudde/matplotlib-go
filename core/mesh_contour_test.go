@@ -169,6 +169,29 @@ func TestStructuredContourBandClipsSingleQuadLikeMatplotlib(t *testing.T) {
 	}
 }
 
+func TestStructuredContourLineClipsSingleSaddleQuadLikeMatplotlib(t *testing.T) {
+	grid := [][]float64{
+		{0, 1},
+		{1, 0},
+	}
+	polylines, levels := contourGridPolylines([]float64{0, 1}, []float64{0, 1}, grid, []float64{0.5})
+	if got, want := len(polylines), 1; got != want {
+		t.Fatalf("structured contour polylines = %d, want one Matplotlib saddle path", got)
+	}
+	if got, want := len(levels), 1; got != want || levels[0] != 0.5 {
+		t.Fatalf("structured contour levels = %v, want [0.5]", levels)
+	}
+	want := []geom.Pt{
+		{X: 0, Y: 0.5},
+		{X: 0.5, Y: 1},
+		{X: 1, Y: 0.5},
+		{X: 0.5, Y: 0},
+	}
+	if !pointsEqual(polylines[0], want, 1e-12) {
+		t.Fatalf("structured saddle contour = %+v, want Matplotlib path %+v", polylines[0], want)
+	}
+}
+
 func TestTriangulationArtists(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{

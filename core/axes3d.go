@@ -49,6 +49,22 @@ func (f *axes3DFrame) Draw(r render.Renderer, ctx *DrawContext) {
 		mins, maxs = vec3{0, 0, 0}, vec3{1, 1, 1}
 	}
 	frameMins, frameMaxs := axes3DFrameLimits(mins, maxs)
+	gridLineWidth := 0.8
+	axisLineWidth := 0.8
+	gridColor := render.Color{R: 0.70, G: 0.70, B: 0.70, A: 1}
+	axisColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+	if ctx.RC.GridLineWidth > 0 {
+		gridLineWidth = ctx.RC.GridLineWidth
+	}
+	if ctx.RC.AxisLineWidth > 0 {
+		axisLineWidth = ctx.RC.AxisLineWidth
+	}
+	if ctx.RC.GridColor.A > 0 {
+		gridColor = ctx.RC.GridColor
+	}
+	if ctx.RC.AxesEdgeColor.A > 0 {
+		axisColor = ctx.RC.AxesEdgeColor
+	}
 
 	panes := f.axes.activePanePolygonsProjected(frameMins, frameMaxs, mins, maxs)
 	(&PolyCollection{
@@ -66,8 +82,8 @@ func (f *axes3DFrame) Draw(r render.Renderer, ctx *DrawContext) {
 	(&LineCollection{
 		Collection: Collection{Coords: Coords(CoordData), Alpha: 1},
 		Segments:   segments,
-		Color:      render.Color{R: 0.70, G: 0.70, B: 0.70, A: 1},
-		LineWidth:  0.8,
+		Color:      gridColor,
+		LineWidth:  gridLineWidth,
 		LineJoin:   render.JoinMiter,
 		LineCap:    render.CapButt,
 	}).Draw(r, ctx)
@@ -76,8 +92,8 @@ func (f *axes3DFrame) Draw(r render.Renderer, ctx *DrawContext) {
 	(&LineCollection{
 		Collection: Collection{Coords: Coords(CoordData), Alpha: 1},
 		Segments:   axisLines,
-		Color:      render.Color{R: 0, G: 0, B: 0, A: 1},
-		LineWidth:  0.8,
+		Color:      axisColor,
+		LineWidth:  axisLineWidth,
 		LineJoin:   render.JoinMiter,
 		LineCap:    render.CapButt,
 	}).Draw(r, ctx)
@@ -86,11 +102,16 @@ func (f *axes3DFrame) Draw(r render.Renderer, ctx *DrawContext) {
 	(&LineCollection{
 		Collection: Collection{Coords: Coords(CoordData), Alpha: 1},
 		Segments:   tickSegments,
-		Color:      render.Color{R: 0, G: 0, B: 0, A: 1},
-		LineWidth:  0.8,
+		Color:      axisColor,
+		LineWidth:  axisLineWidth,
 		LineJoin:   render.JoinMiter,
 		LineCap:    render.CapButt,
 	}).Draw(r, ctx)
+
+	if textRen, ok := r.(render.TextDrawer); ok {
+		f.axes.draw3DTickLabels(textRen, r, ctx, frameMins, frameMaxs, mins, maxs)
+		f.axes.draw3DAxisLabels(textRen, r, ctx, frameMins, frameMaxs)
+	}
 }
 
 func (f *axes3DFrame) Z() float64 { return -1000 }
@@ -106,20 +127,6 @@ func axes3DPaneFaceColors() []render.Color {
 }
 
 func (f *axes3DFrame) DrawOverlay(r render.Renderer, ctx *DrawContext) {
-	if f == nil || f.axes == nil || r == nil || ctx == nil {
-		return
-	}
-	textRen, ok := r.(render.TextDrawer)
-	if !ok {
-		return
-	}
-	mins, maxs := f.axes.projectionLimits()
-	if !f.axes.hasData {
-		mins, maxs = vec3{0, 0, 0}, vec3{1, 1, 1}
-	}
-	frameMins, frameMaxs := axes3DFrameLimits(mins, maxs)
-	f.axes.draw3DTickLabels(textRen, r, ctx, frameMins, frameMaxs, mins, maxs)
-	f.axes.draw3DAxisLabels(textRen, r, ctx, frameMins, frameMaxs)
 }
 
 // NewAxes3D wraps an existing axes and configures 3D default view settings.
@@ -277,10 +284,14 @@ func (a *Axes3D) Wireframe(x, y []float64, z [][]float64, opts ...PlotOptions) *
 func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *LineCollection {
 	limitsChanged := a.observe3DGrid(x, y, z)
 	levelCount := 7
+	var explicitLevels []float64
 	if len(opts) > 0 && opts[0].LevelCount > 0 {
 		levelCount = opts[0].LevelCount
 	}
-	segments, segmentLevels, _, values, zorder := a.projectedContourLineData(x, y, z, levelCount)
+	if len(opts) > 0 && len(opts[0].Levels) > 0 {
+		explicitLevels = opts[0].Levels
+	}
+	segments, segmentLevels, _, values, zorder := a.projectedContourLineData(x, y, z, levelCount, explicitLevels)
 	if len(segments) == 0 {
 		return nil
 	}
@@ -333,7 +344,7 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			segments, segmentLevels, _, values, zorder := a.projectedContourLineData(x, y, z, levelCount)
+			segments, segmentLevels, _, values, zorder := a.projectedContourLineData(x, y, z, levelCount, explicitLevels)
 			collection.Segments = segments
 			if !colorOverride {
 				mapping := resolveScalarMapValues(values, "viridis", nil, nil)
@@ -355,6 +366,7 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 	alpha := 0.45
 	label := ""
 	levelCount := 7
+	var explicitLevels []float64
 	colorOverride := (*render.Color)(nil)
 	offset := (*float64)(nil)
 	if len(opts) > 0 {
@@ -368,11 +380,14 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 		if opt.LevelCount > 0 {
 			levelCount = opt.LevelCount
 		}
+		if len(opt.Levels) > 0 {
+			explicitLevels = opt.Levels
+		}
 		offset = opt.Offset
 		label = opt.Label
 	}
 
-	polygons, colors := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, offset)
+	polygons, colors, zorder := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, explicitLevels, offset)
 	if len(polygons) == 0 {
 		return nil
 	}
@@ -384,6 +399,7 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 				Coords: Coords(CoordData),
 				Label:  label,
 				Alpha:  1,
+				z:      zorder,
 			},
 			FaceColors: colors,
 			LineJoin:   render.JoinMiter,
@@ -393,9 +409,10 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			polygons, colors := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, offset)
+			polygons, colors, zorder := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, explicitLevels, offset)
 			collection.Polygons = polygons
 			collection.FaceColors = colors
+			collection.z = zorder
 		}
 	}, limitsChanged)
 	return collection
@@ -411,7 +428,7 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 
 	alpha := 0.85
 	label := ""
-	edgeWidth := 0.35
+	edgeWidth := 1.0
 	if len(opts) > 0 {
 		opt := opts[0]
 		if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
@@ -436,7 +453,7 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 				z:      zorder,
 			},
 			FaceColors: faceColors,
-			EdgeColor:  render.Color{R: 0.20, G: 0.20, B: 0.20, A: 0.35},
+			EdgeColor:  render.Color{A: 0},
 			EdgeWidth:  edgeWidth,
 			LineJoin:   render.JoinMiter,
 			LineCap:    render.CapButt,
@@ -458,11 +475,11 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 }
 
 func (a *Axes3D) projectedContourSegments(x, y []float64, z [][]float64, levelCount int) [][]geom.Pt {
-	segments, _, _, _, _ := a.projectedContourLineData(x, y, z, levelCount)
+	segments, _, _, _, _ := a.projectedContourLineData(x, y, z, levelCount, nil)
 	return segments
 }
 
-func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, levelCount int) ([][]geom.Pt, []float64, []float64, []float64, float64) {
+func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, levelCount int, explicitLevels []float64) ([][]geom.Pt, []float64, []float64, []float64, float64) {
 	if a == nil || len(z) == 0 {
 		return nil, nil, nil, nil, defaultPatchZ
 	}
@@ -477,23 +494,17 @@ func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, levelCo
 		}
 	}
 
-	tri, values, ok := contourGridTriangulation(z, []ContourOptions{{
-		X: x[:cols],
-		Y: y[:rows],
-	}})
-	if !ok {
-		return nil, nil, nil, nil, defaultPatchZ
-	}
+	values := flattenGridValues(z)
 	if levelCount <= 0 {
 		levelCount = 7
 	}
 
-	levels := contourLevels(values, nil, levelCount, false)
+	levels := contourLevels(values, explicitLevels, levelCount, false)
 	if len(levels) == 0 {
 		return nil, nil, nil, nil, defaultPatchZ
 	}
 
-	rawLines, rawLevels := contourPolylines(tri, values, levels)
+	rawLines, rawLevels := contourGridPolylines(x[:cols], y[:rows], z, levels)
 	segments := make([][]geom.Pt, 0, len(rawLines))
 	segmentLevels := make([]float64, 0, len(rawLines))
 	depth := math.Inf(1)
@@ -648,18 +659,18 @@ func surfacePatchPerimeter(row0, row1, col0, col1 int, emit func(row, col int)) 
 	}
 }
 
-func (a *Axes3D) projectedContourFloorPolygons(x, y []float64, z [][]float64, alpha float64, colorOverride *render.Color, levelCount int, offset *float64) ([][]geom.Pt, []render.Color) {
+func (a *Axes3D) projectedContourFloorPolygons(x, y []float64, z [][]float64, alpha float64, colorOverride *render.Color, levelCount int, explicitLevels []float64, offset *float64) ([][]geom.Pt, []render.Color, float64) {
 	if a == nil || len(z) == 0 {
-		return nil, nil
+		return nil, nil, defaultPatchZ
 	}
 	rows := len(z)
 	cols := len(z[0])
 	if cols == 0 || len(x) < cols || len(y) < rows {
-		return nil, nil
+		return nil, nil, defaultPatchZ
 	}
 	for row := 1; row < rows; row++ {
 		if len(z[row]) != cols {
-			return nil, nil
+			return nil, nil, defaultPatchZ
 		}
 	}
 
@@ -673,16 +684,10 @@ func (a *Axes3D) projectedContourFloorPolygons(x, y []float64, z [][]float64, al
 		floorZ = *offset
 	}
 
-	tri, values, ok := contourGridTriangulation(z, []ContourOptions{{
-		X: x[:cols],
-		Y: y[:rows],
-	}})
-	if !ok {
-		return nil, nil
-	}
-	levels := contourLevels(values, nil, levelCount, true)
+	values := flattenGridValues(z)
+	levels := contourLevels(values, explicitLevels, levelCount, true)
 	if len(levels) < 2 {
-		return nil, nil
+		return nil, nil, defaultPatchZ
 	}
 
 	mapping := resolveScalarMapValues(values, "viridis", nil, nil)
@@ -692,20 +697,25 @@ func (a *Axes3D) projectedContourFloorPolygons(x, y []float64, z [][]float64, al
 	if colorOverride != nil {
 		opt.Color = colorOverride
 	}
-	rawPolygons, colors := contourBandPolygons(tri, values, levels, opt, mapping, alpha)
+	rawPolygons, colors := contourGridBandPolygons(x[:cols], y[:rows], z, levels, opt, mapping, alpha)
 	if len(rawPolygons) == 0 {
-		return nil, nil
+		return nil, nil, defaultPatchZ
 	}
 
 	polygons := make([][]geom.Pt, 0, len(rawPolygons))
 	projectedColors := make([]render.Color, 0, len(colors))
+	collectionDepth := math.Inf(1)
 	for i, polygon := range rawPolygons {
 		if len(polygon) < 3 {
 			continue
 		}
 		projected := make([]geom.Pt, len(polygon))
 		for j, pt := range polygon {
-			projected[j] = a.ProjectPoint(pt.X, pt.Y, floorZ)
+			projectedPt, zDepth := a.projectPointDepth(pt.X, pt.Y, floorZ)
+			projected[j] = projectedPt
+			if zDepth < collectionDepth {
+				collectionDepth = zDepth
+			}
 		}
 		polygons = append(polygons, projected)
 		if i < len(colors) {
@@ -718,7 +728,7 @@ func (a *Axes3D) projectedContourFloorPolygons(x, y []float64, z [][]float64, al
 			projectedColors = append(projectedColors, mapping.Color(0, 1))
 		}
 	}
-	return polygons, projectedColors
+	return polygons, projectedColors, computed3DCollectionZ(collectionDepth)
 }
 
 func zGridRange(z [][]float64) (float64, float64) {
@@ -743,6 +753,14 @@ func zGridRange(z [][]float64) (float64, float64) {
 		}
 	}
 	return minVal, maxVal
+}
+
+func flattenGridValues(z [][]float64) []float64 {
+	values := make([]float64, 0)
+	for _, row := range z {
+		values = append(values, row...)
+	}
+	return values
 }
 
 func (a *Axes3D) projectedContourFillPolygons(x, y []float64, z [][]float64, opt ContourOptions, levelCount int) ([][]geom.Pt, []render.Color) {
@@ -1499,7 +1517,7 @@ func (a *Axes3D) draw3DTickLabels(textRen render.TextDrawer, r render.Renderer, 
 		pos[0] = tick
 		pos[tickDirs[0]] = axisLines[0][0][tickDirs[0]]
 		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 0), tickMins, tickMaxs)
-		draw3DTextAtAnchor(textRen, r, ctx, format3DTick(tick, i, xTicks), anchor, fontSize, textColor)
+		draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, xTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
 	}
 	yTicks := frameAxisTicks(tickMins[1], tickMaxs[1])
 	for i, tick := range yTicks {
@@ -1507,7 +1525,7 @@ func (a *Axes3D) draw3DTickLabels(textRen render.TextDrawer, r render.Renderer, 
 		pos[1] = tick
 		pos[tickDirs[1]] = axisLines[1][0][tickDirs[1]]
 		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 1), tickMins, tickMaxs)
-		draw3DTextAtAnchor(textRen, r, ctx, format3DTick(tick, i, yTicks), anchor, fontSize, textColor)
+		draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, yTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
 	}
 	zTicks := frameAxisTicks(tickMins[2], tickMaxs[2])
 	for i, tick := range zTicks {
@@ -1515,7 +1533,7 @@ func (a *Axes3D) draw3DTickLabels(textRen render.TextDrawer, r render.Renderer, 
 		pos[2] = tick
 		pos[tickDirs[2]] = axisLines[2][0][tickDirs[2]]
 		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 2), tickMins, tickMaxs)
-		draw3DTextAtAnchor(textRen, r, ctx, format3DTick(tick, i, zTicks), anchor, fontSize, textColor)
+		draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, zTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
 	}
 }
 
@@ -1590,11 +1608,15 @@ func (a *Axes3D) project3DLabelAnchor(ctx *DrawContext, pos, projMins, projMaxs 
 }
 
 func draw3DTextAtAnchor(textRen render.TextDrawer, r render.Renderer, ctx *DrawContext, label string, anchor geom.Pt, fontSize float64, textColor render.Color) {
+	draw3DTextAtAnchorAligned(textRen, r, ctx, label, anchor, fontSize, textColor, textLayoutVAlignCenter)
+}
+
+func draw3DTextAtAnchorAligned(textRen render.TextDrawer, r render.Renderer, ctx *DrawContext, label string, anchor geom.Pt, fontSize float64, textColor render.Color, vAlign textLayoutVerticalAlign) {
 	if label == "" {
 		return
 	}
 	layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
-	origin := alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignCenter)
+	origin := alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign)
 	drawDisplayText(textRen, label, origin, fontSize, textColor, ctx.RC.FontKey)
 }
 
@@ -1742,6 +1764,7 @@ func (a *Axes3D) SetView(elevationDeg, azimuthDeg float64) {
 	}
 	a.elevationDeg = elevationDeg
 	a.azimuthDeg = azimuthDeg
+	a.reproject3DArtists()
 }
 
 // SetDistance sets the perspective distance used by the 3D projection.
@@ -1751,6 +1774,7 @@ func (a *Axes3D) SetDistance(distance float64) {
 		return
 	}
 	a.distance = distance
+	a.reproject3DArtists()
 }
 
 // SetDefaults sets standard Matplotlib-like defaults for elevation, azimuth,
@@ -1762,6 +1786,7 @@ func (a *Axes3D) SetDefaults() {
 	a.elevationDeg = default3DElevationDeg
 	a.azimuthDeg = default3DAzimuthDeg
 	a.distance = default3DDistance
+	a.reproject3DArtists()
 }
 
 // View reports the current 3D orientation state.

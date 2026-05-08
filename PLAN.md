@@ -900,10 +900,18 @@ This phase tracks the plot categories that already exist in the Go port but are 
 
 - [x] Complete AGG image clipping for clip boxes and non-rectangular clip paths, including projected axes frames.
 - [x] Align image interpolation and resampling controls with Matplotlib names and fallback behavior (`nearest`, `none`, `bilinear`, `bicubic`, and rc/default policy); add scale-aware `auto`/`antialiased` resolution for direct and transformed draws.
-- [ ] Preserve image alpha, GC alpha, premultiplication, and background compositing semantics in the backend instead of pre-flattening in callers.
-- [ ] Match transformed image orientation, affine sampling, clipping, and interpolation against upstream `RendererAgg.draw_image`.
-- [ ] Add reference fixtures for clipped `imshow`, transformed `imshow`, alpha images, `matshow`, marker-mode `spy`, and image-mode `spy`.
-- [ ] Add direct buffer tests for RGBA/ARGB ordering, transparent backgrounds, and raw image export behavior.
+- [x] Preserve image alpha, GC alpha, premultiplication, and background compositing semantics in the backend instead of pre-flattening in callers.
+- [x] Match transformed image orientation, affine sampling, clipping, and interpolation against upstream `RendererAgg.draw_image`.
+- [x] Add reference fixtures for clipped `imshow`, transformed `imshow`, alpha images, `matshow`, marker-mode `spy`, and image-mode `spy`.
+- [x] Add direct buffer tests for RGBA/ARGB ordering, transparent backgrounds, and raw image export behavior.
+
+Completed notes:
+
+- Ported upstream `RendererAgg::draw_image` alpha behavior from `third_party/matplotlib/src/_backend_agg.h`: image-level alpha is applied to source alpha only before source-over compositing; RGB channels are not recolored by image alpha.
+- AGG image draws now use source-over image compositing for direct and transformed image paths, preserving transparent-background behavior and matching Matplotlib's straight-RGBA buffer semantics.
+- Fixed transformed-image parallelogram orientation so affine image sampling uses top-left, top-right, bottom-right corner order as AGG expects.
+- Added committed Go goldens and Matplotlib references for `imshow_clipped`, `imshow_transformed`, `image_alpha`, `matshow_basic`, `spy_marker`, and `spy_image`.
+- Added backend buffer/export tests covering RGBA byte order, transparent backgrounds, PNG round-tripping from the renderer buffer, source-alpha scaling, and transformed image orientation.
 
 ### 10.4 Filled Areas, Contours, and Alpha Accumulation
 

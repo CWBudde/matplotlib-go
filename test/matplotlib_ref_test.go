@@ -129,10 +129,7 @@ func runMplTest(t *testing.T, name string, renderFunc func() image.Image) {
 	t.Logf("PSNR=%.1f dB  MeanAbs=%.2f  MaxDiff=%d", diff.PSNR, diff.MeanAbs, diff.MaxDiff)
 
 	// Always write artefacts so humans can inspect visually.
-	artifactsDir := filepath.Join("..", "testdata", "_artifacts", "matplotlib_ref")
-	if mkErr := os.MkdirAll(artifactsDir, 0o755); mkErr != nil {
-		t.Fatalf("could not create artifacts directory %s: %v", artifactsDir, mkErr)
-	}
+	artifactsDir := matplotlibArtifactsDir(t)
 	if err := imagecmp.SavePNG(got, filepath.Join(artifactsDir, name+"_go.png")); err != nil {
 		t.Fatalf("could not save rendered image: %v", err)
 	}
@@ -149,7 +146,31 @@ func runMplTest(t *testing.T, name string, renderFunc func() image.Image) {
 	}
 }
 
-// ─── Individual tests ────────────────────────────────────────────────────────
+func matplotlibArtifactsDir(t *testing.T) string {
+	t.Helper()
+
+	artifactsDir := filepath.Join("..", "testdata", "_artifacts", "matplotlib_ref")
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		t.Logf("could not create artifacts directory %s: %v; using temp dir", artifactsDir, err)
+		return t.TempDir()
+	}
+	probe, err := os.CreateTemp(artifactsDir, ".write-probe-*")
+	if err != nil {
+		t.Logf("artifacts directory %s is not writable: %v; using temp dir", artifactsDir, err)
+		return t.TempDir()
+	}
+	probeName := probe.Name()
+	if err := probe.Close(); err != nil {
+		t.Logf("could not close write probe %s: %v; using temp dir", probeName, err)
+		return t.TempDir()
+	}
+	if err := os.Remove(probeName); err != nil {
+		t.Logf("could not remove write probe %s: %v", probeName, err)
+	}
+	return artifactsDir
+}
+
+// Individual tests
 // Each test reuses the render* helper from golden_test.go.
 
 func TestMpl_BasicLine(t *testing.T)    { runMplTest(t, "basic_line", renderBasicLine) }
@@ -256,3 +277,13 @@ func TestMpl_RendererAggGouraudTriangles(t *testing.T) {
 func TestMpl_ErrorBars(t *testing.T)    { runMplTest(t, "errorbar_basic", renderErrorBars) }
 func TestMpl_TitleStrict(t *testing.T)  { runMplTest(t, "title_strict", renderTitleStrict) }
 func TestMpl_ImageHeatmap(t *testing.T) { runMplTest(t, "image_heatmap", renderImageHeatmap) }
+func TestMpl_ImshowClipped(t *testing.T) {
+	runMplTest(t, "imshow_clipped", renderImshowClipped)
+}
+func TestMpl_ImshowTransformed(t *testing.T) {
+	runMplTest(t, "imshow_transformed", renderImshowTransformed)
+}
+func TestMpl_ImageAlpha(t *testing.T)   { runMplTest(t, "image_alpha", renderImageAlpha) }
+func TestMpl_MatshowBasic(t *testing.T) { runMplTest(t, "matshow_basic", renderMatshowBasic) }
+func TestMpl_SpyMarker(t *testing.T)    { runMplTest(t, "spy_marker", renderSpyMarker) }
+func TestMpl_SpyImage(t *testing.T)     { runMplTest(t, "spy_image", renderSpyImage) }

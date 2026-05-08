@@ -384,9 +384,12 @@ func (r *Renderer) drawImageDirect(img render.Image, dst geom.Rect) {
 	}
 
 	agg := r.ctx
+	prevBlendMode := agg.GetBlendMode()
 	prevFilter := agg.GetImageFilter()
 	prevResample := agg.GetImageResample()
+	agg.SetBlendMode(agglib.BlendSrcOver)
 	defer func() {
+		agg.SetBlendMode(prevBlendMode)
 		agg.SetImageFilter(prevFilter)
 		agg.SetImageResample(prevResample)
 	}()
@@ -431,11 +434,14 @@ func (r *Renderer) drawImageTransformedDirect(img render.Image, affine geom.Affi
 	}
 
 	agg := r.ctx
+	prevBlendMode := agg.GetBlendMode()
 	prevFilter := agg.GetImageFilter()
 	prevResample := agg.GetImageResample()
 	affineDispX, affineDispY := imageTransformDisplaySpan(img, affine)
+	agg.SetBlendMode(agglib.BlendSrcOver)
 	applyInterpolation(agg, img, affineDispX, affineDispY)
 	defer func() {
+		agg.SetBlendMode(prevBlendMode)
 		agg.SetImageFilter(prevFilter)
 		agg.SetImageResample(prevResample)
 	}()

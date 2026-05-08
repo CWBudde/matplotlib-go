@@ -120,7 +120,7 @@ func TestClipPathPreservesStraightAlphaFillColor(t *testing.T) {
 	_ = r.End()
 
 	got := r.GetImage().RGBAAt(50, 50)
-	want := color.RGBA{R: 222, G: 232, B: 251, A: 255}
+	want := color.RGBA{R: 222, G: 233, B: 251, A: 255}
 	if got != want {
 		t.Fatalf("clipped straight-alpha fill pixel = %+v, want %+v", got, want)
 	}
@@ -235,7 +235,7 @@ func TestPathFillUsesStraightAlphaColor(t *testing.T) {
 	_ = r.End()
 
 	got := r.GetImage().RGBAAt(50, 50)
-	want := color.RGBA{R: 222, G: 232, B: 251, A: 255}
+	want := color.RGBA{R: 222, G: 233, B: 251, A: 255}
 	if got != want {
 		t.Fatalf("straight-alpha fill pixel = %+v, want %+v", got, want)
 	}

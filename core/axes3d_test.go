@@ -5,6 +5,7 @@ import (
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/style"
 )
 
 func TestAddAxes3DConfiguresProjection(t *testing.T) {
@@ -155,6 +156,25 @@ func TestAxes3DReprojectsExistingArtistsWhenDataLimitsExpand(t *testing.T) {
 	if !approx(got.X, 0.06981276096054631, 1e-12) ||
 		!approx(got.Y, 0.009353136460382655, 1e-12) {
 		t.Fatalf("reprojected line endpoint = %+v, want Matplotlib projection with autoscale margins", got)
+	}
+}
+
+func TestAxes3DSetViewReprojectsExistingArtistsLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	line := ax.Plot3D([]float64{0, 1}, []float64{0, 1}, []float64{0, 1})
+	if line == nil || len(line.XY) == 0 {
+		t.Fatal("Plot3D returned no line points")
+	}
+	before := line.XY[0]
+	ax.SetView(60, 30)
+	want := ax.ProjectPoint(0, 0, 0)
+	if got := line.XY[0]; got == before || !pointsEqual([]Pt{got}, []Pt{want}, 1e-12) {
+		t.Fatalf("line first point after SetView = %+v, before %+v, want reprojected point %+v", got, before, want)
 	}
 }
 
@@ -511,6 +531,29 @@ func TestAxes3DSurfaceUsesMatplotlibDefaultSampleCounts(t *testing.T) {
 	}
 }
 
+func TestAxes3DSurfaceDefaultHasNoEdgeColorsLikeMatplotlibCmapSurface(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	collection := ax.Surface(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+	)
+	if collection == nil {
+		t.Fatal("Surface returned nil")
+	}
+	if got := collection.EdgeColor.A; got != 0 {
+		t.Fatalf("surface default edge alpha = %v, want 0 like Matplotlib cmap plot_surface edgecolors", got)
+	}
+	if got, want := collection.EdgeWidth, 1.0; got != want {
+		t.Fatalf("surface default linewidth = %v, want %v like Matplotlib plot_surface", got, want)
+	}
+}
+
 func projectPlaneCorners(ax *Axes3D, plane [4][3]int, mins, maxs vec3) []Pt {
 	points := make([]Pt, len(plane))
 	for i, corner := range plane {
@@ -610,8 +653,8 @@ func TestAxes3DContourfProjectsFilledContourBands(t *testing.T) {
 	if fill == nil {
 		t.Fatal("Contourf returned nil")
 	}
-	if got, cellCount := len(fill.Polygons), 1; got <= cellCount {
-		t.Fatalf("Contourf polygon count = %d, want filled contour band polygons rather than %d grid cell", got, cellCount)
+	if got, cellCount := len(fill.Paths), 1; got <= cellCount {
+		t.Fatalf("Contourf compound path count = %d, want filled contour band paths rather than %d grid cell", got, cellCount)
 	}
 }
 
@@ -630,25 +673,68 @@ func TestAxes3DContourfUsesExplicitZOffset(t *testing.T) {
 	}
 	offset := -3.0
 	fill := ax.Contourf(x, y, z, PlotOptions{LevelCount: 3, Offset: &offset})
-	if fill == nil || len(fill.Polygons) == 0 || len(fill.Polygons[0]) == 0 {
+	if fill == nil || len(fill.Paths) == 0 || len(fill.Paths[0].V) == 0 {
 		t.Fatalf("Contourf returned no polygons: %+v", fill)
 	}
 
-	tri, values, ok := contourGridTriangulation(z, []ContourOptions{{X: x, Y: y}})
-	if !ok {
-		t.Fatal("contourGridTriangulation failed")
-	}
+	values := flattenGridValues(z)
 	levels := contourLevels(values, nil, 3, true)
 	mapping := resolveScalarMapValues(values, "viridis", nil, nil)
 	mapping.VMin = levels[0]
 	mapping.VMax = levels[len(levels)-1]
-	rawPolygons, _ := contourBandPolygons(tri, values, levels, ContourOptions{}, mapping, 0.45)
+	rawPolygons, _ := contourGridBandPolygons(x, y, z, levels, ContourOptions{}, mapping, 0.45)
 	if len(rawPolygons) == 0 || len(rawPolygons[0]) == 0 {
 		t.Fatal("expected raw contour band polygons")
 	}
 	want := ax.ProjectPoint(rawPolygons[0][0].X, rawPolygons[0][0].Y, offset)
-	if got := fill.Polygons[0][0]; !approx(got.X, want.X, 1e-12) || !approx(got.Y, want.Y, 1e-12) {
+	if got := fill.Paths[0].V[0]; !approx(got.X, want.X, 1e-12) || !approx(got.Y, want.Y, 1e-12) {
 		t.Fatalf("Contourf first point = %+v, want projection at explicit offset %+v", got, want)
+	}
+}
+
+func TestAxes3DContourfUsesProjectedCollectionZLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	x := []float64{0, 1}
+	y := []float64{0, 1}
+	z := [][]float64{
+		{0, 1},
+		{1, 2},
+	}
+	offset := -3.0
+	levelCount := 3
+	fill := ax.Contourf(x, y, z, PlotOptions{LevelCount: levelCount, Offset: &offset})
+	if fill == nil {
+		t.Fatal("Contourf returned nil")
+	}
+
+	values := flattenGridValues(z)
+	levels := contourLevels(values, nil, levelCount, true)
+	mapping := resolveScalarMapValues(values, "viridis", nil, nil)
+	mapping.VMin = levels[0]
+	mapping.VMax = levels[len(levels)-1]
+	rawPolygons, _ := contourGridBandPolygons(x, y, z, levels, ContourOptions{}, mapping, 0.45)
+	depth := 0.0
+	first := true
+	for _, polygon := range rawPolygons {
+		for _, pt := range polygon {
+			_, zDepth := ax.projectPointDepth(pt.X, pt.Y, offset)
+			if first || zDepth < depth {
+				depth = zDepth
+				first = false
+			}
+		}
+	}
+	if first {
+		t.Fatal("expected raw contour band polygons")
+	}
+	want := computed3DCollectionZ(depth)
+	if got := fill.Z(); !approx(got, want, 1e-12) {
+		t.Fatalf("Contourf zorder = %.12g, want computed projected zorder %.12g like Matplotlib Collection3D", got, want)
 	}
 }
 
@@ -669,8 +755,36 @@ func TestAxes3DContourfUsesStructuredGridBandPolygons(t *testing.T) {
 	if fill == nil {
 		t.Fatal("Contourf returned nil")
 	}
-	if got, want := len(fill.Polygons), 1; got != want {
-		t.Fatalf("Contourf polygons = %d, want one structured quad band polygon", got)
+	if got, want := len(fill.Paths), 1; got != want {
+		t.Fatalf("Contourf paths = %d, want one structured quad band path", got)
+	}
+}
+
+func TestAxes3DContourfGroupsBandsIntoCompoundPathsLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	fill := ax.Contourf(
+		[]float64{0, 1, 2},
+		[]float64{0, 1, 2},
+		[][]float64{
+			{0, 1, 0},
+			{1, 2, 1},
+			{0, 1, 0},
+		},
+		PlotOptions{Levels: []float64{0.5, 1.5}},
+	)
+	if fill == nil {
+		t.Fatal("Contourf returned nil")
+	}
+	if got, want := len(fill.Paths), 1; got != want {
+		t.Fatalf("Contourf paths = %d, want one compound path per filled contour band like Matplotlib", got)
+	}
+	if len(fill.Paths[0].C) == 0 || len(fill.Paths[0].V) <= 4 {
+		t.Fatalf("Contourf compound path = %+v, want multiple cell polygons grouped into one path", fill.Paths[0])
 	}
 }
 
@@ -691,12 +805,9 @@ func TestAxes3DContourProjectsLinesAtContourLevels(t *testing.T) {
 
 	levelCount := 3
 	got := ax.projectedContourSegments(x, y, z, levelCount)
-	tri, values, ok := contourGridTriangulation(z, []ContourOptions{{X: x, Y: y}})
-	if !ok {
-		t.Fatal("contourGridTriangulation failed")
-	}
+	values := flattenGridValues(z)
 	levels := contourLevels(values, nil, levelCount, false)
-	rawLines, rawLevels := contourPolylines(tri, values, levels)
+	rawLines, rawLevels := contourGridPolylines(x, y, z, levels)
 	want := make([][]Pt, len(rawLines))
 	for i, line := range rawLines {
 		want[i] = make([]Pt, len(line))
@@ -784,6 +895,94 @@ func TestAxes3DDrawsYAxisEndpointTickLabels(t *testing.T) {
 	}
 }
 
+func TestAxes3DFrameTextDrawsBeforeDataCollectionsLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(420, 320)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.Surface(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+	)
+
+	r := &axes3DDrawOrderRecorder{}
+	DrawFigure(fig, r)
+
+	textAt, dataAt := -1, -1
+	for i, event := range r.events {
+		if event == "text" && textAt < 0 {
+			textAt = i
+		}
+		if event == "data" && dataAt < 0 {
+			dataAt = i
+		}
+	}
+	if textAt < 0 || dataAt < 0 {
+		t.Fatalf("draw events = %v, want both 3D frame text and data collection draw events", r.events)
+	}
+	if !(textAt < dataAt) {
+		t.Fatalf("draw events = %v, want 3D axis/tick text before data collections like Matplotlib Axes3D.draw", r.events)
+	}
+}
+
+func TestAxes3DFrameUsesRCLineWidthsLikeMatplotlib(t *testing.T) {
+	gridWidth := 2.2
+	axisWidth := 1.7
+	fig := NewFigure(420, 320,
+		style.WithGridLineWidths(gridWidth, gridWidth),
+		style.WithAxisLineWidth(axisWidth),
+	)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.Surface(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+	)
+
+	r := &axes3DLineWidthRecorder{}
+	DrawFigure(fig, r)
+
+	if !containsFloat64(r.widths, gridWidth) {
+		t.Fatalf("3D frame stroke widths = %v, want grid linewidth from RC %.3g", r.widths, gridWidth)
+	}
+	if !containsFloat64(r.widths, axisWidth) {
+		t.Fatalf("3D frame stroke widths = %v, want axis linewidth from RC %.3g", r.widths, axisWidth)
+	}
+}
+
+func TestAxes3DFrameUsesRCColorsLikeMatplotlib(t *testing.T) {
+	gridColor := render.Color{R: 0.2, G: 0.3, B: 0.4, A: 1}
+	axisColor := render.Color{R: 0.6, G: 0.1, B: 0.2, A: 1}
+	fig := NewFigure(420, 320,
+		style.WithGridColors(gridColor, gridColor),
+		style.WithAxesEdgeColor(axisColor),
+	)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.Surface(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+	)
+
+	r := &axes3DLineWidthRecorder{}
+	DrawFigure(fig, r)
+
+	if !containsColor(r.colors, gridColor) {
+		t.Fatalf("3D frame stroke colors = %+v, want grid color from RC %+v", r.colors, gridColor)
+	}
+	if !containsColor(r.colors, axisColor) {
+		t.Fatalf("3D frame stroke colors = %+v, want axes edge color from RC %+v", r.colors, axisColor)
+	}
+}
+
 func TestAxes3DTickLabelsUseMatplotlibDataSpaceOffset(t *testing.T) {
 	fig := NewFigure(760, 560)
 	ax, err := fig.AddAxes3D(geom.Rect{
@@ -818,9 +1017,9 @@ func TestAxes3DTickLabelsUseMatplotlibDataSpaceOffset(t *testing.T) {
 	fontSize := ctx.RC.TickLabelSize("x")
 	expectedAnchor := expectedMatplotlib3DTickLabelAnchor(ax, ctx, 0, xTicks[0], frameMins, frameMaxs, mins, maxs)
 	layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
-	want := alignedSingleLineOrigin(expectedAnchor, layout, TextAlignCenter, textLayoutVAlignCenter)
+	want := alignedSingleLineOrigin(expectedAnchor, layout, TextAlignCenter, textLayoutVAlignTop)
 	if !approx(r.positions[0].X, want.X, 1e-9) || !approx(r.positions[0].Y, want.Y, 1e-9) {
-		t.Fatalf("first x tick label origin = %+v, want Matplotlib data-space offset origin %+v", r.positions[0], want)
+		t.Fatalf("first x tick label origin = %+v, want Matplotlib top-aligned data-space offset origin %+v", r.positions[0], want)
 	}
 }
 
@@ -833,6 +1032,69 @@ type axes3DTextRecorder struct {
 func (r *axes3DTextRecorder) DrawText(text string, pos geom.Pt, _ float64, _ render.Color) {
 	r.texts = append(r.texts, text)
 	r.positions = append(r.positions, pos)
+}
+
+func (r *axes3DTextRecorder) MeasureText(text string, size float64, _ string) render.TextMetrics {
+	return render.TextMetrics{
+		W:       float64(len(text)) * size * 0.5,
+		H:       size,
+		Ascent:  size * 0.8,
+		Descent: size * 0.2,
+	}
+}
+
+type axes3DDrawOrderRecorder struct {
+	render.NullRenderer
+	events []string
+}
+
+func (r *axes3DDrawOrderRecorder) Path(_ geom.Path, paint *render.Paint) {
+	if paint == nil || paint.Fill.A <= 0.8 {
+		return
+	}
+	if paint.Fill.R > 0.98 && paint.Fill.G > 0.98 && paint.Fill.B > 0.98 {
+		return
+	}
+	r.events = append(r.events, "data")
+}
+
+func (r *axes3DDrawOrderRecorder) DrawText(string, geom.Pt, float64, render.Color) {
+	r.events = append(r.events, "text")
+}
+
+type axes3DLineWidthRecorder struct {
+	render.NullRenderer
+	widths []float64
+	colors []render.Color
+}
+
+func (r *axes3DLineWidthRecorder) Path(_ geom.Path, paint *render.Paint) {
+	if paint == nil || paint.Stroke.A <= 0 || paint.LineWidth <= 0 {
+		return
+	}
+	r.widths = append(r.widths, paint.LineWidth)
+	r.colors = append(r.colors, paint.Stroke)
+}
+
+func containsFloat64(values []float64, want float64) bool {
+	for _, got := range values {
+		if approx(got, want, 1e-12) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsColor(values []render.Color, want render.Color) bool {
+	for _, got := range values {
+		if approx(got.R, want.R, 1e-12) &&
+			approx(got.G, want.G, 1e-12) &&
+			approx(got.B, want.B, 1e-12) &&
+			approx(got.A, want.A, 1e-12) {
+			return true
+		}
+	}
+	return false
 }
 
 func expectedMatplotlib3DTickLabelAnchor(ax *Axes3D, ctx *DrawContext, axis int, tick float64, mins, maxs, projMins, projMaxs vec3) geom.Pt {

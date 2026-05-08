@@ -473,6 +473,56 @@ func contourPolylines(tri Triangulation, values, levels []float64) ([][]geom.Pt,
 	return polylines, polylineLevels
 }
 
+func contourGridPolylines(x, y []float64, data [][]float64, levels []float64) ([][]geom.Pt, []float64) {
+	rows := len(data)
+	if rows < 2 || len(x) < 2 || len(y) < 2 {
+		return nil, nil
+	}
+	cols := len(data[0])
+	if cols < 2 || len(x) < cols || len(y) < rows {
+		return nil, nil
+	}
+	for row := 1; row < rows; row++ {
+		if len(data[row]) != cols {
+			return nil, nil
+		}
+	}
+
+	var polylines [][]geom.Pt
+	var polylineLevels []float64
+	for _, level := range levels {
+		var segments [][]geom.Pt
+		for row := 0; row+1 < rows; row++ {
+			for col := 0; col+1 < cols; col++ {
+				cellSegments := contourCellSegmentsForLevel(
+					[4]geom.Pt{
+						{X: x[col], Y: y[row]},
+						{X: x[col+1], Y: y[row]},
+						{X: x[col+1], Y: y[row+1]},
+						{X: x[col], Y: y[row+1]},
+					},
+					[4]float64{
+						data[row][col],
+						data[row][col+1],
+						data[row+1][col+1],
+						data[row+1][col],
+					},
+					level,
+				)
+				segments = append(segments, cellSegments...)
+			}
+		}
+		for _, polyline := range stitchContourSegments(segments) {
+			if len(polyline) < 2 {
+				continue
+			}
+			polylines = append(polylines, polyline)
+			polylineLevels = append(polylineLevels, level)
+		}
+	}
+	return polylines, polylineLevels
+}
+
 func contourBandPolygons(tri Triangulation, values, levels []float64, opt ContourOptions, mapping ScalarMapInfo, alpha float64) ([][]geom.Pt, []render.Color) {
 	polygons := [][]geom.Pt{}
 	colors := []render.Color{}
@@ -498,6 +548,70 @@ func contourBandPolygons(tri Triangulation, values, levels []float64, opt Contou
 		}
 	}
 	return polygons, colors
+}
+
+func contourCellSegmentsForLevel(points [4]geom.Pt, values [4]float64, level float64) [][]geom.Pt {
+	for _, value := range values {
+		if !isFinite(value) {
+			return nil
+		}
+	}
+
+	above := [4]bool{}
+	for i, value := range values {
+		above[i] = value >= level
+	}
+
+	edgePairs := [4][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 0}}
+	edgePoints := make([]geom.Pt, 4)
+	edgeHit := [4]bool{}
+	for edgeIdx, pair := range edgePairs {
+		aIdx, bIdx := pair[0], pair[1]
+		aValue, bValue := values[aIdx], values[bIdx]
+		if aValue == bValue {
+			continue
+		}
+		minValue, maxValue := math.Min(aValue, bValue), math.Max(aValue, bValue)
+		if level < minValue || level > maxValue {
+			continue
+		}
+		t := (level - aValue) / (bValue - aValue)
+		if t < 0 || t > 1 {
+			continue
+		}
+		edgePoints[edgeIdx] = interpolatePoint(points[aIdx], points[bIdx], t)
+		edgeHit[edgeIdx] = true
+	}
+
+	if above[0] == above[2] && above[1] == above[3] && above[0] != above[1] {
+		order := []int{3, 2, 1, 0}
+		if above[0] {
+			order = []int{0, 3, 2, 1}
+		}
+		polyline := make([]geom.Pt, 0, 4)
+		for _, edgeIdx := range order {
+			if edgeHit[edgeIdx] && !containsPoint(polyline, edgePoints[edgeIdx]) {
+				polyline = append(polyline, edgePoints[edgeIdx])
+			}
+		}
+		if len(polyline) >= 2 {
+			return [][]geom.Pt{polyline}
+		}
+	}
+
+	var hits []geom.Pt
+	for edgeIdx := range edgeHit {
+		if edgeHit[edgeIdx] && !containsPoint(hits, edgePoints[edgeIdx]) {
+			hits = append(hits, edgePoints[edgeIdx])
+		}
+	}
+	if len(hits) == 2 {
+		return [][]geom.Pt{hits}
+	}
+	if len(hits) == 4 {
+		return [][]geom.Pt{{hits[0], hits[1]}, {hits[2], hits[3]}}
+	}
+	return nil
 }
 
 func contourGridBandPolygons(x, y []float64, data [][]float64, levels []float64, opt ContourOptions, mapping ScalarMapInfo, alpha float64) ([][]geom.Pt, []render.Color) {

@@ -196,6 +196,14 @@ func (s *aggSurface) SetImageFilter(filter agglib.ImageFilter) {
 	s.painter.ImageFilter(filter)
 }
 
+func (s *aggSurface) SetBlendMode(mode agglib.BlendMode) {
+	s.painter.BlendMode(mode)
+}
+
+func (s *aggSurface) GetBlendMode() agglib.BlendMode {
+	return s.painter.GetBlendMode()
+}
+
 func (s *aggSurface) GetImageFilter() agglib.ImageFilter {
 	return s.painter.GetImageFilter()
 }
