@@ -384,10 +384,11 @@ func (r *Renderer) drawImageDirect(img render.Image, dst geom.Rect) {
 	}
 
 	agg := r.ctx
+	restoreImageBlend := r.applyImageBlend(img)
 	prevFilter := agg.GetImageFilter()
 	prevResample := agg.GetImageResample()
-	applyInterpolation(agg, img)
 	defer func() {
+		restoreImageBlend()
 		agg.SetImageFilter(prevFilter)
 		agg.SetImageResample(prevResample)
 	}()
@@ -407,6 +408,7 @@ func (r *Renderer) drawImageDirect(img render.Image, dst geom.Rect) {
 	if w <= 0 || h <= 0 {
 		return
 	}
+	applyInterpolation(agg, img, w, h)
 
 	_ = agg.DrawImageScaled(aggImg, x, y, w, h)
 }
@@ -431,10 +433,13 @@ func (r *Renderer) drawImageTransformedDirect(img render.Image, affine geom.Affi
 	}
 
 	agg := r.ctx
+	restoreImageBlend := r.applyImageBlend(img)
 	prevFilter := agg.GetImageFilter()
 	prevResample := agg.GetImageResample()
-	applyInterpolation(agg, img)
+	affineDispX, affineDispY := imageTransformDisplaySpan(img, affine)
+	applyInterpolation(agg, img, affineDispX, affineDispY)
 	defer func() {
+		restoreImageBlend()
 		agg.SetImageFilter(prevFilter)
 		agg.SetImageResample(prevResample)
 	}()
@@ -448,6 +453,44 @@ func (r *Renderer) drawImageTransformedDirect(img render.Image, affine geom.Affi
 		affine.F,
 	)
 	_ = agg.DrawImageTransformed(aggImg, transform)
+}
+
+func (r *Renderer) applyImageBlend(img render.Image) func() {
+	agg := r.ctx
+	if agg == nil || img == nil {
+		return func() {}
+	}
+
+	alpha := extractImageAlpha(img)
+	if alpha == 1 {
+		return func() {}
+	}
+
+	prevBlendMode := agg.GetImageBlendMode()
+	prevBlendColor := agg.GetImageBlendColor()
+	prevMasterAlpha := agg.GetMasterAlpha()
+
+	agg.SetImageBlendMode(agglib.BlendSrcOver)
+	alphaF := uint8(math.Round(alpha * 255))
+	agg.SetImageBlendColor(agglib.NewColor(255, 255, 255, alphaF))
+	agg.SetMasterAlpha(1)
+
+	return func() {
+		agg.SetImageBlendMode(prevBlendMode)
+		agg.SetImageBlendColor(prevBlendColor)
+		agg.SetMasterAlpha(prevMasterAlpha)
+	}
+}
+
+func extractImageAlpha(img render.Image) float64 {
+	if img == nil {
+		return 1
+	}
+	imageAlpha, ok := img.(render.ImageAlpha)
+	if !ok {
+		return 1
+	}
+	return clamp01(imageAlpha.Alpha())
 }
 
 // DrawMarkers renders one marker path at many display-space offsets.
@@ -1598,6 +1641,24 @@ func transformedImageDrawBounds(img render.Image, affine geom.Affine) (geom.Rect
 		affine.Apply(geom.Pt{Y: float64(h)}),
 		affine.Apply(geom.Pt{X: float64(w), Y: float64(h)}),
 	}, 2)
+}
+
+func imageTransformDisplaySpan(img render.Image, affine geom.Affine) (float64, float64) {
+	w, h := img.Size()
+	if w <= 0 || h <= 0 {
+		return 0, 0
+	}
+
+	bounds, ok := pointsBounds([]geom.Pt{
+		affine.Apply(geom.Pt{}),
+		affine.Apply(geom.Pt{X: float64(w)}),
+		affine.Apply(geom.Pt{Y: float64(h)}),
+		affine.Apply(geom.Pt{X: float64(w), Y: float64(h)}),
+	}, 0)
+	if !ok {
+		return 0, 0
+	}
+	return bounds.W(), bounds.H()
 }
 
 func gouraudTriangleBatchBounds(batch render.GouraudTriangleBatch) (geom.Rect, bool) {

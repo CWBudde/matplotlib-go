@@ -208,6 +208,30 @@ func (s *aggSurface) GetImageResample() agglib.ImageResample {
 	return s.painter.GetImageResample()
 }
 
+func (s *aggSurface) SetImageBlendMode(mode agglib.BlendMode) {
+	s.painter.ImageBlendMode(mode)
+}
+
+func (s *aggSurface) GetImageBlendMode() agglib.BlendMode {
+	return s.painter.GetImageBlendMode()
+}
+
+func (s *aggSurface) SetImageBlendColor(color agglib.Color) {
+	s.painter.ImageBlendColor(color)
+}
+
+func (s *aggSurface) GetImageBlendColor() agglib.Color {
+	return s.painter.GetImageBlendColor()
+}
+
+func (s *aggSurface) SetMasterAlpha(alpha float64) {
+	s.painter.MasterAlpha(alpha)
+}
+
+func (s *aggSurface) GetMasterAlpha() float64 {
+	return s.painter.GetMasterAlpha()
+}
+
 func (s *aggSurface) DrawImageScaled(img *agglib.Image, x, y, width, height float64) error {
 	if img == nil {
 		return errors.New("image is nil")

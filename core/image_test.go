@@ -183,6 +183,39 @@ func TestImageRasterizeUsesOriginAndSkipsNonFinite(t *testing.T) {
 	}
 }
 
+func TestImageRasterizeLeavesPixelAlphaUnscaledWhenImageAlphaApplies(t *testing.T) {
+	data := [][]float64{
+		{0, 1},
+	}
+	img := &Image2D{
+		Data:     data,
+		Colormap: "gray",
+		VMin:     0,
+		VMax:     1,
+		Alpha:    0.4,
+		Origin:   ImageOriginLower,
+	}
+
+	rendered, ok := img.rasterize()
+	if !ok {
+		t.Fatal("expected rasterization to succeed")
+	}
+
+	rgbaData, ok := rendered.(*render.ImageData)
+	if !ok {
+		t.Fatalf("expected render.ImageData, got %T", rendered)
+	}
+	if got := rgbaData.Alpha(); got != 0.4 {
+		t.Fatalf("image alpha = %v, want 0.4", got)
+	}
+
+	rgba := rgbaData.RGBA()
+	black := rgba.RGBAAt(0, 1)
+	if black.A != 255 {
+		t.Fatalf("expected rasterized black pixel alpha to remain 255, got %d", black.A)
+	}
+}
+
 func TestImage_DrawAngleZeroCallsImage(t *testing.T) {
 	i := &Image2D{
 		Data: [][]float64{

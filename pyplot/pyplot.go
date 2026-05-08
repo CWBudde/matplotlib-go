@@ -289,7 +289,7 @@ func Voxel(x, y, z, dx, dy, dz []float64, opts ...core.PlotOptions) *core.LineCo
 }
 
 // Trisurf delegates to the current 3D axes.
-func Trisurf(tri core.Triangulation, z []float64, opts ...core.PlotOptions) *core.LineCollection {
+func Trisurf(tri core.Triangulation, z []float64, opts ...core.PlotOptions) *core.PolyCollection {
 	ax := GCA3D()
 	if ax == nil {
 		return nil

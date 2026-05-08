@@ -347,8 +347,11 @@ type Axes struct {
 	XLabel string // x-axis label below ticks
 	YLabel string // y-axis label left of ticks
 
-	// Color cycling for multiple series
-	ColorCycle *color.ColorCycle
+	// Color cycling for multiple series. Matplotlib keeps separate cycles for
+	// line artists and shape/fill artists, so scatter markers do not advance
+	// the line cycle.
+	ColorCycle      *color.ColorCycle
+	PatchColorCycle *color.ColorCycle
 
 	aspectMode  string
 	aspectValue float64
@@ -466,20 +469,21 @@ func (f *Figure) addAxesWithProjection(r geom.Rect, proj Projection, opts ...sty
 		effective = v
 	}
 	ax := &Axes{
-		RectFraction: r,
-		RC:           rc,
-		XScale:       transform.NewLinear(0, 1),
-		YScale:       transform.NewLinear(0, 1),
-		projection:   cloneProjection(proj),
-		XAxis:        NewXAxis(),
-		YAxis:        NewYAxis(),
-		ShowFrame:    true,
-		ColorCycle:   color.NewColorCycle(effective.Palette()),
-		aspectMode:   "auto",
-		aspectValue:  1,
-		xLabelSide:   AxisBottom,
-		yLabelSide:   AxisLeft,
-		figure:       f,
+		RectFraction:    r,
+		RC:              rc,
+		XScale:          transform.NewLinear(0, 1),
+		YScale:          transform.NewLinear(0, 1),
+		projection:      cloneProjection(proj),
+		XAxis:           NewXAxis(),
+		YAxis:           NewYAxis(),
+		ShowFrame:       true,
+		ColorCycle:      color.NewColorCycle(effective.Palette()),
+		PatchColorCycle: color.NewColorCycle(effective.Palette()),
+		aspectMode:      "auto",
+		aspectValue:     1,
+		xLabelSide:      AxisBottom,
+		yLabelSide:      AxisLeft,
+		figure:          f,
 	}
 	if ax.projection == nil {
 		ax.projection, _ = lookupProjection("rectilinear")
@@ -1019,10 +1023,29 @@ func (a *Axes) PeekColor() render.Color {
 	return a.ColorCycle.Peek()
 }
 
+// NextPatchColor returns the next color in the shape/fill cycle.
+func (a *Axes) NextPatchColor() render.Color {
+	if a.PatchColorCycle == nil {
+		a.PatchColorCycle = color.NewColorCycle(a.resolvedRC().Palette())
+	}
+	return a.PatchColorCycle.Next()
+}
+
+// PeekPatchColor returns the current shape/fill color without advancing.
+func (a *Axes) PeekPatchColor() render.Color {
+	if a.PatchColorCycle == nil {
+		a.PatchColorCycle = color.NewColorCycle(a.resolvedRC().Palette())
+	}
+	return a.PatchColorCycle.Peek()
+}
+
 // ResetColorCycle resets the color cycle to the first color.
 func (a *Axes) ResetColorCycle() {
 	if a.ColorCycle != nil {
 		a.ColorCycle.Reset()
+	}
+	if a.PatchColorCycle != nil {
+		a.PatchColorCycle.Reset()
 	}
 }
 
@@ -1573,6 +1596,9 @@ func (a *Axes) applyStyleDefaults(rc style.RC) {
 	}
 	if a.ColorCycle == nil {
 		a.ColorCycle = color.NewColorCycle(rc.Palette())
+	}
+	if a.PatchColorCycle == nil {
+		a.PatchColorCycle = color.NewColorCycle(rc.Palette())
 	}
 }
 

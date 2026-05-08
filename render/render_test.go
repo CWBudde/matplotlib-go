@@ -106,3 +106,30 @@ func TestImageData_SetInterpolation(t *testing.T) {
 		t.Fatalf("after SetInterpolation: %q, want bilinear", img.Interpolation())
 	}
 }
+
+func TestImageData_DefaultAlphaIsOne(t *testing.T) {
+	img := NewImageData(image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	if got := img.Alpha(); got != 1 {
+		t.Fatalf("NewImageData alpha = %v, want 1", got)
+	}
+}
+
+func TestImageData_SetAlpha(t *testing.T) {
+	img := NewImageData(image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	img.SetAlpha(0.37)
+	if got := img.Alpha(); got != 0.37 {
+		t.Fatalf("after SetAlpha: %v, want 0.37", got)
+	}
+}
+
+func TestImageData_AlphaClamped(t *testing.T) {
+	img := NewImageData(image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	img.SetAlpha(1.5)
+	if got := img.Alpha(); got != 1 {
+		t.Fatalf("SetAlpha(1.5) = %v, want 1", got)
+	}
+	img.SetAlpha(-0.2)
+	if got := img.Alpha(); got != 0 {
+		t.Fatalf("SetAlpha(-0.2) = %v, want 0", got)
+	}
+}

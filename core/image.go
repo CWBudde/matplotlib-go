@@ -69,7 +69,6 @@ func (i *Image2D) rasterize() (render.Image, bool) {
 	}
 
 	cm := matcolor.GetColormap(i.Colormap)
-	alpha := clampOneToOne(i.Alpha)
 	img := image.NewRGBA(image.Rect(0, 0, cols, rows))
 
 	span := vmax - vmin
@@ -88,7 +87,6 @@ func (i *Image2D) rasterize() (render.Image, bool) {
 
 			n := (v - vmin) / span
 			c := cm.At(n)
-			c.A *= alpha
 
 			pixelY := row
 			if i.Origin == ImageOriginLower {
@@ -101,6 +99,7 @@ func (i *Image2D) rasterize() (render.Image, bool) {
 
 	data := render.NewImageData(img)
 	data.SetInterpolation(i.Interpolation)
+	data.SetAlpha(clampOneToOne(i.Alpha))
 	return data, true
 }
 

@@ -41,7 +41,7 @@ def mplot3d_terrain(out_dir):
     ax.contour(xx, yy, z, levels=8, colors="black", linewidths=0.6)
     ax.contourf(xx, yy, z, levels=8, zdir="z", offset=z.min() - 0.2, cmap="viridis", alpha=0.45)
     ax.plot_trisurf([0, 0.5, 1], [0, 0, 0.4], [0.1, 0.4, 0.9], triangles=[[0, 1, 2]], color="tab:orange", alpha=0.7)
-    ax.text(0.9, 0.1, 0.65, "3D demo")
+    ax.text2D(0.70, 0.62, "3D demo", transform=ax.transAxes)
 
     save(fig, out_dir, "mplot3d_terrain")
 

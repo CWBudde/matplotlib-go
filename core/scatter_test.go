@@ -56,6 +56,26 @@ func TestScatter2D_Draw(t *testing.T) {
 	}
 }
 
+func TestScatterUsesIndependentShapeColorCycle(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 1, Y: 1}})
+	palette := fig.RC.Palette()
+
+	firstLine := ax.Plot([]float64{0, 1}, []float64{0, 1})
+	scatter := ax.Scatter([]float64{0.5}, []float64{0.5})
+	secondLine := ax.Plot([]float64{0, 1}, []float64{1, 0})
+
+	if got, want := firstLine.Col, palette[0]; got != want {
+		t.Fatalf("first line color = %+v, want %+v", got, want)
+	}
+	if got, want := scatter.Color, palette[0]; got != want {
+		t.Fatalf("scatter color = %+v, want independent shape cycle first color %+v", got, want)
+	}
+	if got, want := secondLine.Col, palette[1]; got != want {
+		t.Fatalf("second line color = %+v, want line cycle second color %+v", got, want)
+	}
+}
+
 func TestScatter2D_EmptyData(t *testing.T) {
 	// Test with empty data
 	scatter := &Scatter2D{

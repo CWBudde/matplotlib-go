@@ -9,12 +9,14 @@ const defaultAutoScaleMargin = 0.05
 
 // PlotOptions holds optional parameters for plotting functions.
 type PlotOptions struct {
-	Color     *render.Color // if nil, uses automatic color cycling
-	LineWidth *float64      // if nil, uses default
-	Dashes    []float64     // dash pattern
-	DrawStyle *LineDrawStyle
-	Label     string   // series label for legend
-	Alpha     *float64 // alpha transparency
+	Color      *render.Color // if nil, uses automatic color cycling
+	LineWidth  *float64      // if nil, uses default
+	Dashes     []float64     // dash pattern
+	DrawStyle  *LineDrawStyle
+	Label      string   // series label for legend
+	Alpha      *float64 // alpha transparency
+	LevelCount int      // contour level count for contour-like plot types
+	Offset     *float64 // fixed projection offset for contour-like plot types
 }
 
 // Plot creates a line plot with automatic color cycling if no color is specified.
@@ -86,7 +88,7 @@ type ScatterOptions struct {
 	Label      string        // series label for legend
 }
 
-// Scatter creates a scatter plot with automatic color cycling if no color is specified.
+// Scatter creates a scatter plot with automatic shape/fill color cycling if no color is specified.
 func (a *Axes) Scatter(x, y []float64, opts ...ScatterOptions) *Scatter2D {
 	if len(x) == 0 || len(y) == 0 {
 		return nil
@@ -108,8 +110,8 @@ func (a *Axes) Scatter(x, y []float64, opts ...ScatterOptions) *Scatter2D {
 		opt = opts[0]
 	}
 
-	// Get color (automatic cycling if not specified)
-	color := a.NextColor()
+	// Get color (automatic shape/fill cycling if not specified)
+	color := a.NextPatchColor()
 	if opt.Color != nil {
 		color = *opt.Color
 	}

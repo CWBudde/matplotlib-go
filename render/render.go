@@ -146,6 +146,16 @@ type Image interface {
 	Interpolation() string
 }
 
+// ImageAlpha exposes an optional per-image scalar alpha multiplier.
+//
+// The value is interpreted in [0,1] and applied by renderers as a
+// pre-composite multiplier to RGBA image output. Keeping this as optional
+// avoids forcing all image types to implement alpha handling when they have no
+// caller-level multiplier.
+type ImageAlpha interface {
+	Alpha() float64
+}
+
 // RGBAImage is an optional renderer-facing image interface that exposes direct
 // RGBA pixel access. Renderers may use this for efficient conversion and
 // image-space transforms.
@@ -160,6 +170,8 @@ type RGBAImage interface {
 type ImageData struct {
 	rgba          *image.RGBA
 	interpolation string
+	alpha         float64
+	hasAlpha      bool
 }
 
 // NewImageData creates a new ImageData from an RGBA source image.
@@ -168,7 +180,11 @@ func NewImageData(img *image.RGBA) *ImageData {
 	if img == nil {
 		return &ImageData{rgba: image.NewRGBA(image.Rect(0, 0, 0, 0))}
 	}
-	return &ImageData{rgba: img}
+	return &ImageData{
+		rgba:     img,
+		alpha:    1,
+		hasAlpha: true,
+	}
 }
 
 // Size returns the raster dimensions in pixels.
@@ -201,6 +217,33 @@ func (i *ImageData) SetInterpolation(name string) {
 		return
 	}
 	i.interpolation = name
+}
+
+// Alpha returns the image-level scalar alpha multiplier in [0, 1].
+func (i *ImageData) Alpha() float64 {
+	if i == nil || !i.hasAlpha {
+		return 1
+	}
+	return i.alpha
+}
+
+// SetAlpha sets the image-level scalar alpha multiplier in [0, 1].
+func (i *ImageData) SetAlpha(alpha float64) {
+	if i == nil {
+		return
+	}
+	i.alpha = clamp01(alpha)
+	i.hasAlpha = true
+}
+
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
 
 // Renderer defines the core drawing verbs.

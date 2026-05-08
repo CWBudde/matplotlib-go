@@ -14,7 +14,9 @@ const (
 	default3DElevationDeg = 30
 	default3DDistance     = 10
 	default3DFocalLength  = 1
-	default3DDataMargin   = 1.0 / 48.0
+	default3DDataMargin   = 0.05
+	default3DComputedZ    = 2.5
+	default3DSurfaceCount = 50
 	default3DViewMin      = -0.095
 	default3DViewMax      = 0.09
 )
@@ -46,44 +48,46 @@ func (f *axes3DFrame) Draw(r render.Renderer, ctx *DrawContext) {
 	if !f.axes.hasData {
 		mins, maxs = vec3{0, 0, 0}, vec3{1, 1, 1}
 	}
+	frameMins, frameMaxs := axes3DFrameLimits(mins, maxs)
 
-	panes := [][]geom.Pt{
-		{
-			f.axes.ProjectPoint(mins[0], mins[1], mins[2]),
-			f.axes.ProjectPoint(maxs[0], mins[1], mins[2]),
-			f.axes.ProjectPoint(maxs[0], maxs[1], mins[2]),
-			f.axes.ProjectPoint(mins[0], maxs[1], mins[2]),
-		},
-		{
-			f.axes.ProjectPoint(mins[0], maxs[1], mins[2]),
-			f.axes.ProjectPoint(maxs[0], maxs[1], mins[2]),
-			f.axes.ProjectPoint(maxs[0], maxs[1], maxs[2]),
-			f.axes.ProjectPoint(mins[0], maxs[1], maxs[2]),
-		},
-		{
-			f.axes.ProjectPoint(mins[0], mins[1], mins[2]),
-			f.axes.ProjectPoint(mins[0], maxs[1], mins[2]),
-			f.axes.ProjectPoint(mins[0], maxs[1], maxs[2]),
-			f.axes.ProjectPoint(mins[0], mins[1], maxs[2]),
-		},
-	}
+	panes := f.axes.activePanePolygonsProjected(frameMins, frameMaxs, mins, maxs)
 	(&PolyCollection{
 		Polygons: panes,
 		PatchCollection: PatchCollection{
 			Collection: Collection{Coords: Coords(CoordData), Alpha: 1},
-			FaceColor:  render.Color{R: 0.96, G: 0.96, B: 0.96, A: 0.55},
+			FaceColors: axes3DPaneFaceColors(),
 			EdgeColor:  render.Color{A: 0},
 			LineJoin:   render.JoinMiter,
 			LineCap:    render.CapButt,
 		},
 	}).Draw(r, ctx)
 
-	segments := f.axes.frameSegments(mins, maxs)
+	segments := f.axes.frameSegmentsProjected(frameMins, frameMaxs, mins, maxs, mins, maxs)
 	(&LineCollection{
 		Collection: Collection{Coords: Coords(CoordData), Alpha: 1},
 		Segments:   segments,
 		Color:      render.Color{R: 0.70, G: 0.70, B: 0.70, A: 1},
-		LineWidth:  0.6,
+		LineWidth:  0.8,
+		LineJoin:   render.JoinMiter,
+		LineCap:    render.CapButt,
+	}).Draw(r, ctx)
+
+	axisLines := f.axes.axisLineSegmentsProjected(frameMins, frameMaxs, mins, maxs)
+	(&LineCollection{
+		Collection: Collection{Coords: Coords(CoordData), Alpha: 1},
+		Segments:   axisLines,
+		Color:      render.Color{R: 0, G: 0, B: 0, A: 1},
+		LineWidth:  0.8,
+		LineJoin:   render.JoinMiter,
+		LineCap:    render.CapButt,
+	}).Draw(r, ctx)
+
+	tickSegments := f.axes.axisTickSegmentsProjected(frameMins, frameMaxs, mins, maxs, mins, maxs)
+	(&LineCollection{
+		Collection: Collection{Coords: Coords(CoordData), Alpha: 1},
+		Segments:   tickSegments,
+		Color:      render.Color{R: 0, G: 0, B: 0, A: 1},
+		LineWidth:  0.8,
 		LineJoin:   render.JoinMiter,
 		LineCap:    render.CapButt,
 	}).Draw(r, ctx)
@@ -92,6 +96,14 @@ func (f *axes3DFrame) Draw(r render.Renderer, ctx *DrawContext) {
 func (f *axes3DFrame) Z() float64 { return -1000 }
 
 func (f *axes3DFrame) Bounds(*DrawContext) geom.Rect { return geom.Rect{} }
+
+func axes3DPaneFaceColors() []render.Color {
+	return []render.Color{
+		{R: 0.95, G: 0.95, B: 0.95, A: 0.5},
+		{R: 0.90, G: 0.90, B: 0.90, A: 0.5},
+		{R: 0.925, G: 0.925, B: 0.925, A: 0.5},
+	}
+}
 
 func (f *axes3DFrame) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	if f == nil || f.axes == nil || r == nil || ctx == nil {
@@ -105,8 +117,9 @@ func (f *axes3DFrame) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	if !f.axes.hasData {
 		mins, maxs = vec3{0, 0, 0}, vec3{1, 1, 1}
 	}
-	f.axes.draw3DTickLabels(textRen, r, ctx, mins, maxs)
-	f.axes.draw3DAxisLabels(textRen, r, ctx, mins, maxs)
+	frameMins, frameMaxs := axes3DFrameLimits(mins, maxs)
+	f.axes.draw3DTickLabels(textRen, r, ctx, frameMins, frameMaxs, mins, maxs)
+	f.axes.draw3DAxisLabels(textRen, r, ctx, frameMins, frameMaxs)
 }
 
 // NewAxes3D wraps an existing axes and configures 3D default view settings.
@@ -168,14 +181,18 @@ func (a *Axes3D) Scatter3D(x, y, z []float64, opts ...ScatterOptions) *Scatter2D
 
 	if len(opts) > 0 {
 		scatter := a.Scatter(x2, y2, opts[0])
+		scatter.z = a.points3DCollectionZ(x, y, z)
 		a.add3DReprojector(func() {
 			reprojectScatter3D(scatter, a.projectedData(x, y, z))
+			scatter.z = a.points3DCollectionZ(x, y, z)
 		}, limitsChanged)
 		return scatter
 	}
 	scatter := a.Scatter(x2, y2)
+	scatter.z = a.points3DCollectionZ(x, y, z)
 	a.add3DReprojector(func() {
 		reprojectScatter3D(scatter, a.projectedData(x, y, z))
+		scatter.z = a.points3DCollectionZ(x, y, z)
 	}, limitsChanged)
 	return scatter
 }
@@ -238,6 +255,7 @@ func (a *Axes3D) Wireframe(x, y []float64, z [][]float64, opts ...PlotOptions) *
 			Coords: Coords(CoordData),
 			Label:  label,
 			Alpha:  alpha,
+			z:      a.grid3DCollectionZ(x, y, z),
 		},
 		Segments:  segments,
 		Color:     color,
@@ -249,6 +267,7 @@ func (a *Axes3D) Wireframe(x, y []float64, z [][]float64, opts ...PlotOptions) *
 	a.add3DReprojector(func() {
 		if collection != nil {
 			collection.Segments = a.projectWireframeSegments(x, y, z)
+			collection.z = a.grid3DCollectionZ(x, y, z)
 		}
 	}, limitsChanged)
 	return collection
@@ -257,7 +276,11 @@ func (a *Axes3D) Wireframe(x, y []float64, z [][]float64, opts ...PlotOptions) *
 // Contour projects a structured z grid and emits a placeholder wireframe contour.
 func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *LineCollection {
 	limitsChanged := a.observe3DGrid(x, y, z)
-	segments := a.projectedContourSegments(x, y, z, 7)
+	levelCount := 7
+	if len(opts) > 0 && opts[0].LevelCount > 0 {
+		levelCount = opts[0].LevelCount
+	}
+	segments, segmentLevels, _, values, zorder := a.projectedContourLineData(x, y, z, levelCount)
 	if len(segments) == 0 {
 		return nil
 	}
@@ -266,10 +289,12 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 	lineWidth := 1.0
 	alpha := 1.0
 	label := ""
+	colorOverride := false
 	if len(opts) > 0 {
 		opt := opts[0]
 		if opt.Color != nil {
 			color = *opt.Color
+			colorOverride = true
 		}
 		if opt.LineWidth != nil {
 			lineWidth = *opt.LineWidth
@@ -280,14 +305,27 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 		label = opt.Label
 	}
 
+	colors := []render.Color(nil)
+	collectionAlpha := alpha
+	if !colorOverride {
+		mapping := resolveScalarMapValues(values, "viridis", nil, nil)
+		colors = make([]render.Color, len(segmentLevels))
+		for i, level := range segmentLevels {
+			colors[i] = mapping.Color(level, alpha)
+		}
+		collectionAlpha = 1
+	}
+
 	collection := &LineCollection{
 		Collection: Collection{
 			Coords: Coords(CoordData),
 			Label:  label,
-			Alpha:  alpha,
+			Alpha:  collectionAlpha,
+			z:      zorder,
 		},
 		Segments:  segments,
 		Color:     color,
+		Colors:    colors,
 		LineWidth: lineWidth,
 		LineJoin:  render.JoinRound,
 		LineCap:   render.CapRound,
@@ -295,7 +333,17 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			collection.Segments = a.projectedContourSegments(x, y, z, 7)
+			segments, segmentLevels, _, values, zorder := a.projectedContourLineData(x, y, z, levelCount)
+			collection.Segments = segments
+			if !colorOverride {
+				mapping := resolveScalarMapValues(values, "viridis", nil, nil)
+				colors := make([]render.Color, len(segmentLevels))
+				for i, level := range segmentLevels {
+					colors[i] = mapping.Color(level, alpha)
+				}
+				collection.Colors = colors
+			}
+			collection.z = zorder
 		}
 	}, limitsChanged)
 	return collection
@@ -306,7 +354,9 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 	limitsChanged := a.observe3DGrid(x, y, z)
 	alpha := 0.45
 	label := ""
+	levelCount := 7
 	colorOverride := (*render.Color)(nil)
+	offset := (*float64)(nil)
 	if len(opts) > 0 {
 		opt := opts[0]
 		if opt.Color != nil {
@@ -315,10 +365,14 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 		if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 			alpha = *opt.Alpha
 		}
+		if opt.LevelCount > 0 {
+			levelCount = opt.LevelCount
+		}
+		offset = opt.Offset
 		label = opt.Label
 	}
 
-	polygons, colors := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride)
+	polygons, colors := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, offset)
 	if len(polygons) == 0 {
 		return nil
 	}
@@ -339,7 +393,7 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			polygons, colors := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride)
+			polygons, colors := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, offset)
 			collection.Polygons = polygons
 			collection.FaceColors = colors
 		}
@@ -350,7 +404,7 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 // Surface draws a structured surface as projected, z-sorted quadrilateral faces.
 func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *PolyCollection {
 	limitsChanged := a.observe3DGrid(x, y, z)
-	polygons, faceColors := a.projectSurfacePolygons(x, y, z, opts...)
+	polygons, faceColors, zorder := a.projectSurfacePolygons(x, y, z, opts...)
 	if len(polygons) == 0 {
 		return nil
 	}
@@ -379,6 +433,7 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 				Coords: Coords(CoordData),
 				Label:  label,
 				Alpha:  1,
+				z:      zorder,
 			},
 			FaceColors: faceColors,
 			EdgeColor:  render.Color{R: 0.20, G: 0.20, B: 0.20, A: 0.35},
@@ -390,21 +445,44 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			polygons, faceColors := a.projectSurfacePolygons(x, y, z, opts...)
+			polygons, faceColors, zorder := a.projectSurfacePolygons(x, y, z, opts...)
 			for i := range faceColors {
 				faceColors[i].A *= alpha
 			}
 			collection.Polygons = polygons
 			collection.FaceColors = faceColors
+			collection.z = zorder
 		}
 	}, limitsChanged)
 	return collection
 }
 
 func (a *Axes3D) projectedContourSegments(x, y []float64, z [][]float64, levelCount int) [][]geom.Pt {
-	tri, values, ok := a.projectedContourTriangulation(x, y, z)
+	segments, _, _, _, _ := a.projectedContourLineData(x, y, z, levelCount)
+	return segments
+}
+
+func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, levelCount int) ([][]geom.Pt, []float64, []float64, []float64, float64) {
+	if a == nil || len(z) == 0 {
+		return nil, nil, nil, nil, defaultPatchZ
+	}
+	rows := len(z)
+	cols := len(z[0])
+	if cols == 0 || len(x) < cols || len(y) < rows {
+		return nil, nil, nil, nil, defaultPatchZ
+	}
+	for row := 1; row < rows; row++ {
+		if len(z[row]) != cols {
+			return nil, nil, nil, nil, defaultPatchZ
+		}
+	}
+
+	tri, values, ok := contourGridTriangulation(z, []ContourOptions{{
+		X: x[:cols],
+		Y: y[:rows],
+	}})
 	if !ok {
-		return nil
+		return nil, nil, nil, nil, defaultPatchZ
 	}
 	if levelCount <= 0 {
 		levelCount = 7
@@ -412,18 +490,30 @@ func (a *Axes3D) projectedContourSegments(x, y []float64, z [][]float64, levelCo
 
 	levels := contourLevels(values, nil, levelCount, false)
 	if len(levels) == 0 {
-		return nil
+		return nil, nil, nil, nil, defaultPatchZ
 	}
 
-	segments := make([][]geom.Pt, 0)
-	for _, level := range levels {
-		for _, polyline := range stitchContourSegments(contourSegmentsForLevel(tri, values, level)) {
-			if len(polyline) >= 2 {
-				segments = append(segments, polyline)
+	rawLines, rawLevels := contourPolylines(tri, values, levels)
+	segments := make([][]geom.Pt, 0, len(rawLines))
+	segmentLevels := make([]float64, 0, len(rawLines))
+	depth := math.Inf(1)
+	for i, polyline := range rawLines {
+		if len(polyline) < 2 {
+			continue
+		}
+		level := rawLevels[i]
+		projected := make([]geom.Pt, len(polyline))
+		for j, pt := range polyline {
+			var zDepth float64
+			projected[j], zDepth = a.projectPointDepth(pt.X, pt.Y, level)
+			if zDepth < depth {
+				depth = zDepth
 			}
 		}
+		segments = append(segments, projected)
+		segmentLevels = append(segmentLevels, level)
 	}
-	return segments
+	return segments, segmentLevels, levels, values, computed3DCollectionZ(depth)
 }
 
 type surfaceFace struct {
@@ -432,56 +522,66 @@ type surfaceFace struct {
 	depth   float64
 }
 
-func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...PlotOptions) ([][]geom.Pt, []render.Color) {
+func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...PlotOptions) ([][]geom.Pt, []render.Color, float64) {
 	if a == nil || len(z) == 0 {
-		return nil, nil
+		return nil, nil, 0
 	}
 	rows := len(z)
 	cols := len(z[0])
 	if cols == 0 || len(x) < cols || len(y) < rows {
-		return nil, nil
+		return nil, nil, 0
 	}
 	for row := 1; row < rows; row++ {
 		if len(z[row]) != cols {
-			return nil, nil
+			return nil, nil, 0
 		}
 	}
 
 	faces := make([]surfaceFace, 0, (rows-1)*(cols-1))
 	values := make([]float64, 0, (rows-1)*(cols-1))
-	for row := 0; row+1 < rows; row++ {
-		for col := 0; col+1 < cols; col++ {
-			corners := [4][3]float64{
-				{x[col], y[row], z[row][col]},
-				{x[col+1], y[row], z[row][col+1]},
-				{x[col+1], y[row+1], z[row+1][col+1]},
-				{x[col], y[row+1], z[row+1][col]},
-			}
-			polygon := make([]geom.Pt, 0, len(corners))
+	collectionDepth := math.Inf(1)
+	rowIndices := surfaceGridSampleIndices(rows, default3DSurfaceCount)
+	colIndices := surfaceGridSampleIndices(cols, default3DSurfaceCount)
+	for rowIdx := 0; rowIdx+1 < len(rowIndices); rowIdx++ {
+		row0 := rowIndices[rowIdx]
+		row1 := rowIndices[rowIdx+1]
+		for colIdx := 0; colIdx+1 < len(colIndices); colIdx++ {
+			col0 := colIndices[colIdx]
+			col1 := colIndices[colIdx+1]
+			polygon := make([]geom.Pt, 0, 2*(row1-row0)+2*(col1-col0))
 			value := 0.0
 			depth := 0.0
 			valid := true
-			for _, c := range corners {
-				if !isFinite3D(c[0], c[1], c[2]) {
-					valid = false
-					break
+			count := 0
+			surfacePatchPerimeter(row0, row1, col0, col1, func(row, col int) {
+				if !valid {
+					return
 				}
-				pt, zDepth := a.projectPointDepth(c[0], c[1], c[2])
+				zVal := z[row][col]
+				if !isFinite3D(x[col], y[row], zVal) {
+					valid = false
+					return
+				}
+				pt, zDepth := a.projectPointDepth(x[col], y[row], zVal)
 				polygon = append(polygon, pt)
-				value += c[2]
+				value += zVal
 				depth += zDepth
-			}
+				if zDepth < collectionDepth {
+					collectionDepth = zDepth
+				}
+				count++
+			})
 			if !valid {
 				continue
 			}
-			value /= float64(len(corners))
-			depth /= float64(len(corners))
+			value /= float64(count)
+			depth /= float64(count)
 			faces = append(faces, surfaceFace{polygon: polygon, value: value, depth: depth})
 			values = append(values, value)
 		}
 	}
 	if len(faces) == 0 {
-		return nil, nil
+		return nil, nil, 0
 	}
 
 	sort.SliceStable(faces, func(i, j int) bool {
@@ -504,10 +604,51 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 		}
 		colors[i] = cmap.At(mapping.Normalize(face.value))
 	}
-	return polygons, colors
+	return polygons, colors, computed3DCollectionZ(collectionDepth)
 }
 
-func (a *Axes3D) projectedContourFloorPolygons(x, y []float64, z [][]float64, alpha float64, colorOverride *render.Color) ([][]geom.Pt, []render.Color) {
+func surfaceGridSampleIndices(length, count int) []int {
+	if length <= 0 {
+		return nil
+	}
+	if count <= 0 {
+		count = default3DSurfaceCount
+	}
+	stride := int(math.Ceil(float64(length) / float64(count)))
+	if stride < 1 {
+		stride = 1
+	}
+
+	indices := make([]int, 0, (length+stride-1)/stride+1)
+	if (length-1)%stride == 0 {
+		for i := 0; i < length; i += stride {
+			indices = append(indices, i)
+		}
+		return indices
+	}
+
+	for i := 0; i < length-1; i += stride {
+		indices = append(indices, i)
+	}
+	return append(indices, length-1)
+}
+
+func surfacePatchPerimeter(row0, row1, col0, col1 int, emit func(row, col int)) {
+	for col := col0; col < col1; col++ {
+		emit(row0, col)
+	}
+	for row := row0; row < row1; row++ {
+		emit(row, col1)
+	}
+	for col := col1; col > col0; col-- {
+		emit(row1, col)
+	}
+	for row := row1; row > row0; row-- {
+		emit(row, col0)
+	}
+}
+
+func (a *Axes3D) projectedContourFloorPolygons(x, y []float64, z [][]float64, alpha float64, colorOverride *render.Color, levelCount int, offset *float64) ([][]geom.Pt, []render.Color) {
 	if a == nil || len(z) == 0 {
 		return nil, nil
 	}
@@ -528,44 +669,56 @@ func (a *Axes3D) projectedContourFloorPolygons(x, y []float64, z [][]float64, al
 		zMax += 0.5
 	}
 	floorZ := zMin - 0.2*(zMax-zMin)
+	if offset != nil && isFinite(*offset) {
+		floorZ = *offset
+	}
 
-	type floorCell struct {
-		polygon []geom.Pt
-		value   float64
+	tri, values, ok := contourGridTriangulation(z, []ContourOptions{{
+		X: x[:cols],
+		Y: y[:rows],
+	}})
+	if !ok {
+		return nil, nil
 	}
-	cells := make([]floorCell, 0, (rows-1)*(cols-1))
-	values := make([]float64, 0, (rows-1)*(cols-1))
-	for row := 0; row+1 < rows; row++ {
-		for col := 0; col+1 < cols; col++ {
-			value := (z[row][col] + z[row][col+1] + z[row+1][col+1] + z[row+1][col]) / 4
-			polygon := []geom.Pt{
-				a.ProjectPoint(x[col], y[row], floorZ),
-				a.ProjectPoint(x[col+1], y[row], floorZ),
-				a.ProjectPoint(x[col+1], y[row+1], floorZ),
-				a.ProjectPoint(x[col], y[row+1], floorZ),
-			}
-			cells = append(cells, floorCell{polygon: polygon, value: value})
-			values = append(values, value)
-		}
-	}
-	if len(cells) == 0 {
+	levels := contourLevels(values, nil, levelCount, true)
+	if len(levels) < 2 {
 		return nil, nil
 	}
 
 	mapping := resolveScalarMapValues(values, "viridis", nil, nil)
-	cmap := matcolor.GetColormap(mapping.Colormap)
-	polygons := make([][]geom.Pt, len(cells))
-	colors := make([]render.Color, len(cells))
-	for i, cell := range cells {
-		polygons[i] = cell.polygon
-		if colorOverride != nil {
-			colors[i] = *colorOverride
-		} else {
-			colors[i] = cmap.At(mapping.Normalize(cell.value))
-		}
-		colors[i].A *= alpha
+	mapping.VMin = levels[0]
+	mapping.VMax = levels[len(levels)-1]
+	opt := ContourOptions{}
+	if colorOverride != nil {
+		opt.Color = colorOverride
 	}
-	return polygons, colors
+	rawPolygons, colors := contourBandPolygons(tri, values, levels, opt, mapping, alpha)
+	if len(rawPolygons) == 0 {
+		return nil, nil
+	}
+
+	polygons := make([][]geom.Pt, 0, len(rawPolygons))
+	projectedColors := make([]render.Color, 0, len(colors))
+	for i, polygon := range rawPolygons {
+		if len(polygon) < 3 {
+			continue
+		}
+		projected := make([]geom.Pt, len(polygon))
+		for j, pt := range polygon {
+			projected[j] = a.ProjectPoint(pt.X, pt.Y, floorZ)
+		}
+		polygons = append(polygons, projected)
+		if i < len(colors) {
+			projectedColors = append(projectedColors, colors[i])
+		} else if colorOverride != nil {
+			color := *colorOverride
+			color.A *= alpha
+			projectedColors = append(projectedColors, color)
+		} else {
+			projectedColors = append(projectedColors, mapping.Color(0, 1))
+		}
+	}
+	return polygons, projectedColors
 }
 
 func zGridRange(z [][]float64) (float64, float64) {
@@ -682,8 +835,8 @@ func (a *Axes3D) projectedContourTriangulation(x, y []float64, z [][]float64) (T
 	return tri, values, true
 }
 
-// Trisurf projects a triangulated unstructured surface mesh as wireframe edges.
-func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *LineCollection {
+// Trisurf projects a triangulated unstructured surface mesh as filled polygons.
+func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *PolyCollection {
 	if a == nil || len(tri.X) == 0 {
 		return nil
 	}
@@ -710,69 +863,38 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *L
 		label = opt.Label
 	}
 
-	segments := a.projectTriangulationEdges(tri, z)
-	if len(segments) == 0 {
+	faceColor := color
+	faceColor.A *= alpha
+	faces, faceColors, faceZ := a.projectTriangulationFaces(tri, z, faceColor)
+	if len(faces) == 0 {
 		return nil
 	}
-	faces := a.projectTriangulationFaces(tri, z)
-	var faceCollection *PolyCollection
-	if len(faces) > 0 {
-		faceColor := color
-		faceColor.A *= alpha
-		faceCollection = &PolyCollection{
-			Polygons: faces,
-			PatchCollection: PatchCollection{
-				Collection: Collection{
-					Coords: Coords(CoordData),
-					Label:  label,
-					Alpha:  1,
-				},
-				FaceColor: faceColor,
-				EdgeColor: render.Color{R: color.R, G: color.G, B: color.B, A: 0.35 * alpha},
-				EdgeWidth: lineWidth,
-				LineJoin:  render.JoinMiter,
-				LineCap:   render.CapButt,
+	collection := &PolyCollection{
+		Polygons: faces,
+		PatchCollection: PatchCollection{
+			Collection: Collection{
+				Coords: Coords(CoordData),
+				Label:  label,
+				Alpha:  1,
+				z:      faceZ,
 			},
-		}
-		a.Add(faceCollection)
-	}
-
-	collection := &LineCollection{
-		Collection: Collection{
-			Coords: Coords(CoordData),
-			Label:  label,
-			Alpha:  alpha,
+			FaceColors: faceColors,
+			EdgeColor:  render.Color{A: 0},
+			EdgeWidth:  lineWidth,
+			LineJoin:   render.JoinMiter,
+			LineCap:    render.CapButt,
 		},
-		Segments:  segments,
-		Color:     color,
-		LineWidth: lineWidth,
-		LineJoin:  render.JoinRound,
-		LineCap:   render.CapRound,
 	}
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			collection.Segments = a.projectTriangulationEdges(tri, z)
-		}
-		if faceCollection != nil {
-			faceCollection.Polygons = a.projectTriangulationFaces(tri, z)
+			faces, faceColors, faceZ := a.projectTriangulationFaces(tri, z, faceColor)
+			collection.Polygons = faces
+			collection.FaceColors = faceColors
+			collection.z = faceZ
 		}
 	}, limitsChanged)
 	return collection
-}
-
-func sortedPair(a, b int) [2]int {
-	if a < b {
-		return [2]int{a, b}
-	}
-	return [2]int{b, a}
-}
-
-func reprojectLine3D(line *Line2D, points []geom.Pt) {
-	if line == nil {
-		return
-	}
-	line.XY = append(line.XY[:0], points...)
 }
 
 func reprojectScatter3D(scatter *Scatter2D, points []geom.Pt) {
@@ -782,80 +904,61 @@ func reprojectScatter3D(scatter *Scatter2D, points []geom.Pt) {
 	scatter.XY = append(scatter.XY[:0], points...)
 }
 
-func (a *Axes3D) projectTriangulationEdges(tri Triangulation, z []float64) [][]geom.Pt {
-	edgeSet := map[[2]int]struct{}{}
-	segments := make([][]geom.Pt, 0, len(tri.Triangles)*3)
-	for triIdx, t := range tri.Triangles {
-		if tri.masked(triIdx) {
-			continue
-		}
-		edges := [][2]int{
-			{t[0], t[1]},
-			{t[1], t[2]},
-			{t[2], t[0]},
-		}
-		for _, edge := range edges {
-			u := edge[0]
-			v := edge[1]
-			if u > v {
-				u, v = v, u
-			}
-			key := [2]int{u, v}
-			if _, ok := edgeSet[key]; ok {
-				continue
-			}
-			edgeSet[key] = struct{}{}
-
-			p0 := a.ProjectPoint(tri.X[t[0]], tri.Y[t[0]], z[t[0]])
-			p1 := a.ProjectPoint(tri.X[t[1]], tri.Y[t[1]], z[t[1]])
-			p2 := a.ProjectPoint(tri.X[t[2]], tri.Y[t[2]], z[t[2]])
-			switch key {
-			case sortedPair(t[0], t[1]):
-				segments = append(segments, []geom.Pt{p0, p1})
-			case sortedPair(t[1], t[2]):
-				segments = append(segments, []geom.Pt{p1, p2})
-			case sortedPair(t[0], t[2]):
-				segments = append(segments, []geom.Pt{p0, p2})
-			}
-		}
+func reprojectLine3D(line *Line2D, points []geom.Pt) {
+	if line == nil {
+		return
 	}
-	return segments
+	line.XY = append(line.XY[:0], points...)
 }
 
-func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64) [][]geom.Pt {
+func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseColor render.Color) ([][]geom.Pt, []render.Color, float64) {
 	type triFace struct {
 		polygon []geom.Pt
+		color   render.Color
 		depth   float64
 	}
 	faces := make([]triFace, 0, len(tri.Triangles))
+	collectionDepth := math.Inf(1)
 	for triIdx, t := range tri.Triangles {
 		if tri.masked(triIdx) {
 			continue
 		}
 		polygon := make([]geom.Pt, 0, 3)
+		points := [3]vec3{}
 		depth := 0.0
 		valid := true
-		for _, idx := range t {
+		for i, idx := range t {
 			if idx < 0 || idx >= len(tri.X) || idx >= len(tri.Y) || idx >= len(z) || !isFinite3D(tri.X[idx], tri.Y[idx], z[idx]) {
 				valid = false
 				break
 			}
+			points[i] = vec3{tri.X[idx], tri.Y[idx], z[idx]}
 			pt, zDepth := a.projectPointDepth(tri.X[idx], tri.Y[idx], z[idx])
 			polygon = append(polygon, pt)
 			depth += zDepth
+			if zDepth < collectionDepth {
+				collectionDepth = zDepth
+			}
 		}
 		if valid {
-			faces = append(faces, triFace{polygon: polygon, depth: depth / 3})
+			normal := points[0].sub(points[1]).cross(points[1].sub(points[2]))
+			faces = append(faces, triFace{
+				polygon: polygon,
+				color:   shade3DFaceColor(baseColor, normal),
+				depth:   depth / 3,
+			})
 		}
 	}
 	sort.SliceStable(faces, func(i, j int) bool {
 		return faces[i].depth > faces[j].depth
 	})
 	polygons := make([][]geom.Pt, len(faces))
+	colors := make([]render.Color, len(faces))
 	for i, face := range faces {
 		polygons[i] = face.polygon
+		colors[i] = face.color
 	}
-	return polygons
+	return polygons, colors, computed3DCollectionZ(collectionDepth)
 }
 
 func (a *Axes3D) projectBar3DSegments(x, y, z, dx, dy, dz []float64) [][]geom.Pt {
@@ -1000,6 +1103,13 @@ func shade3DFaceColor(color render.Color, normal vec3) render.Color {
 }
 
 func (a *Axes3D) frameSegments(mins, maxs vec3) [][]geom.Pt {
+	return a.frameSegmentsProjected(mins, maxs, mins, maxs, mins, maxs)
+}
+
+func (a *Axes3D) frameSegmentsProjected(mins, maxs, projMins, projMaxs, tickMins, tickMaxs vec3) [][]geom.Pt {
+	project := func(x, y, z float64) geom.Pt {
+		return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+	}
 	corner := func(xi, yi, zi int) geom.Pt {
 		x := mins[0]
 		if xi == 1 {
@@ -1013,7 +1123,7 @@ func (a *Axes3D) frameSegments(mins, maxs vec3) [][]geom.Pt {
 		if zi == 1 {
 			z = maxs[2]
 		}
-		return a.ProjectPoint(x, y, z)
+		return project(x, y, z)
 	}
 
 	edges := [][2][3]int{
@@ -1021,117 +1131,475 @@ func (a *Axes3D) frameSegments(mins, maxs vec3) [][]geom.Pt {
 		{{0, 0, 1}, {1, 0, 1}}, {{1, 0, 1}, {1, 1, 1}}, {{1, 1, 1}, {0, 1, 1}}, {{0, 1, 1}, {0, 0, 1}},
 		{{0, 0, 0}, {0, 0, 1}}, {{1, 0, 0}, {1, 0, 1}}, {{1, 1, 0}, {1, 1, 1}}, {{0, 1, 0}, {0, 1, 1}},
 	}
-	segments := make([][]geom.Pt, 0, len(edges)+36)
+	segments := make([][]geom.Pt, 0, len(edges)+18)
 	for _, edge := range edges {
 		p0 := corner(edge[0][0], edge[0][1], edge[0][2])
 		p1 := corner(edge[1][0], edge[1][1], edge[1][2])
 		segments = append(segments, []geom.Pt{p0, p1})
 	}
+	segments = append(segments, a.frameGridSegmentsProjected(mins, maxs, projMins, projMaxs, tickMins, tickMaxs)...)
+	return segments
+}
 
-	for _, x := range frameTicks(mins[0], maxs[0], 6) {
-		segments = append(segments,
-			[]geom.Pt{a.ProjectPoint(x, mins[1], mins[2]), a.ProjectPoint(x, maxs[1], mins[2])},
-			[]geom.Pt{a.ProjectPoint(x, maxs[1], mins[2]), a.ProjectPoint(x, maxs[1], maxs[2])},
-		)
+func (a *Axes3D) activePanePolygons(mins, maxs vec3) [][]geom.Pt {
+	return a.activePanePolygonsProjected(mins, maxs, mins, maxs)
+}
+
+func (a *Axes3D) activePanePolygonsProjected(mins, maxs, projMins, projMaxs vec3) [][]geom.Pt {
+	planes := [6][4][3]int{
+		{{0, 0, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 1}},
+		{{1, 0, 0}, {1, 1, 0}, {1, 1, 1}, {1, 0, 1}},
+		{{0, 0, 0}, {1, 0, 0}, {1, 0, 1}, {0, 0, 1}},
+		{{0, 1, 0}, {1, 1, 0}, {1, 1, 1}, {0, 1, 1}},
+		{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}},
+		{{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}},
 	}
-	for _, y := range frameTicks(mins[1], maxs[1], 6) {
-		segments = append(segments,
-			[]geom.Pt{a.ProjectPoint(mins[0], y, mins[2]), a.ProjectPoint(maxs[0], y, mins[2])},
-			[]geom.Pt{a.ProjectPoint(mins[0], y, mins[2]), a.ProjectPoint(mins[0], y, maxs[2])},
-		)
+	project := func(corner [3]int) geom.Pt {
+		x := mins[0]
+		if corner[0] == 1 {
+			x = maxs[0]
+		}
+		y := mins[1]
+		if corner[1] == 1 {
+			y = maxs[1]
+		}
+		z := mins[2]
+		if corner[2] == 1 {
+			z = maxs[2]
+		}
+		return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
 	}
-	for _, z := range frameTicks(mins[2], maxs[2], 6) {
-		segments = append(segments,
-			[]geom.Pt{a.ProjectPoint(mins[0], mins[1], z), a.ProjectPoint(mins[0], maxs[1], z)},
-			[]geom.Pt{a.ProjectPoint(mins[0], maxs[1], z), a.ProjectPoint(maxs[0], maxs[1], z)},
-		)
+
+	highs := a.activePaneHighsProjected(mins, maxs, projMins, projMaxs)
+	panes := make([][]geom.Pt, 0, 3)
+	for axis := range 3 {
+		planeIndex := 2 * axis
+		if highs[axis] {
+			planeIndex++
+		}
+		plane := planes[planeIndex]
+		polygon := make([]geom.Pt, len(plane))
+		for i, corner := range plane {
+			polygon[i] = project(corner)
+		}
+		panes = append(panes, polygon)
+	}
+	return panes
+}
+
+func (a *Axes3D) frameGridSegments(mins, maxs vec3) [][]geom.Pt {
+	return a.frameGridSegmentsProjected(mins, maxs, mins, maxs, mins, maxs)
+}
+
+func (a *Axes3D) axisLineSegmentsProjected(mins, maxs, projMins, projMaxs vec3) [][]geom.Pt {
+	project := func(p vec3) geom.Pt {
+		return project3DPointWithLimits(p[0], p[1], p[2], a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+	}
+	pairs := a.axisLineEdgePointPairs(mins, maxs, projMins, projMaxs)
+	segments := make([][]geom.Pt, 0, len(pairs))
+	for _, pair := range pairs {
+		segments = append(segments, []geom.Pt{project(pair[0]), project(pair[1])})
 	}
 	return segments
 }
 
-func frameTicks(minVal, maxVal float64, count int) []float64 {
-	if count <= 2 || minVal == maxVal {
-		return nil
+func (a *Axes3D) axisTickSegmentsProjected(mins, maxs, projMins, projMaxs, tickMins, tickMaxs vec3) [][]geom.Pt {
+	project := func(p vec3) geom.Pt {
+		return project3DPointWithLimits(p[0], p[1], p[2], a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
 	}
-	ticks := make([]float64, 0, count-2)
-	for i := 1; i+1 < count; i++ {
-		t := float64(i) / float64(count-1)
-		ticks = append(ticks, minVal+(maxVal-minVal)*t)
+	pairs := a.axisLineEdgePointPairs(mins, maxs, projMins, projMaxs)
+	highs := a.activePaneHighsProjected(mins, maxs, projMins, projMaxs)
+	tickDirs := [3]int{1, 0, 0}
+	segments := make([][]geom.Pt, 0, 24)
+	for axis, pair := range pairs {
+		tickDir := tickDirs[axis]
+		tickDelta := (tickMaxs[tickDir] - tickMins[tickDir]) / 12
+		if !highs[tickDir] {
+			tickDelta = -tickDelta
+		}
+		outward := pair[0][tickDir] + 0.1*tickDelta
+		inward := pair[0][tickDir] - 0.2*tickDelta
+		for _, tick := range frameAxisTicks(tickMins[axis], tickMaxs[axis]) {
+			p0 := pair[0]
+			p1 := pair[0]
+			p0[axis] = tick
+			p1[axis] = tick
+			p0[tickDir] = outward
+			p1[tickDir] = inward
+			segments = append(segments, []geom.Pt{project(p0), project(p1)})
+		}
 	}
-	return ticks
+	return segments
 }
 
-func frameTickValues(minVal, maxVal float64, count int) []float64 {
-	if count <= 1 || minVal == maxVal {
-		return []float64{minVal}
+func (a *Axes3D) axisLineEdgePointPairs(mins, maxs, projMins, projMaxs vec3) [][2]vec3 {
+	highs := a.activePaneHighsProjected(mins, maxs, projMins, projMaxs)
+	minmax := vec3{}
+	maxmin := vec3{}
+	for i := range 3 {
+		if highs[i] {
+			minmax[i] = maxs[i]
+			maxmin[i] = mins[i]
+		} else {
+			minmax[i] = mins[i]
+			maxmin[i] = maxs[i]
+		}
 	}
-	ticks := make([]float64, count)
-	for i := range count {
-		t := float64(i) / float64(count-1)
-		ticks[i] = minVal + (maxVal-minVal)*t
+
+	juggled := [3][3]int{
+		{1, 0, 2},
+		{0, 1, 2},
+		{0, 2, 1},
 	}
-	return ticks
+	pairs := make([][2]vec3, 0, 3)
+	for axis := range 3 {
+		p0 := minmax
+		p0[juggled[axis][0]] = maxmin[juggled[axis][0]]
+		p1 := p0
+		p1[juggled[axis][1]] = maxmin[juggled[axis][1]]
+		pairs = append(pairs, [2]vec3{p0, p1})
+	}
+	return pairs
 }
 
-func (a *Axes3D) draw3DTickLabels(textRen render.TextDrawer, r render.Renderer, ctx *DrawContext, mins, maxs vec3) {
-	fontSize := ctx.RC.TickLabelSize("x")
-	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
-	center := a.ProjectPoint((mins[0]+maxs[0])/2, (mins[1]+maxs[1])/2, (mins[2]+maxs[2])/2)
-
-	xTicks := frameAxisTicks(mins[0], maxs[0])
-	for i, tick := range xTicks {
-		a.draw3DLabelAt(textRen, r, ctx, format3DTick(tick, i, xTicks), a.ProjectPoint(tick, mins[1], mins[2]), center, 13, fontSize, textColor)
+func (a *Axes3D) frameGridSegmentsProjected(mins, maxs, projMins, projMaxs, tickMins, tickMaxs vec3) [][]geom.Pt {
+	project := func(p vec3) geom.Pt {
+		return project3DPointWithLimits(p[0], p[1], p[2], a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
 	}
-	yTicks := frameAxisTicks(mins[1], maxs[1])
-	for i, tick := range yTicks {
-		if i == 0 || i == len(yTicks)-1 {
+	highs := a.activePaneHighsProjected(mins, maxs, projMins, projMaxs)
+	minmax := vec3{}
+	maxmin := vec3{}
+	for i := range 3 {
+		if highs[i] {
+			minmax[i] = maxs[i]
+			maxmin[i] = mins[i]
+		} else {
+			minmax[i] = mins[i]
+			maxmin[i] = maxs[i]
+		}
+	}
+
+	segments := make([][]geom.Pt, 0, 18)
+	limits := [][2]float64{
+		{tickMins[0], tickMaxs[0]},
+		{tickMins[1], tickMaxs[1]},
+		{tickMins[2], tickMaxs[2]},
+	}
+	for index, lim := range limits {
+		for _, tick := range frameAxisTicks(lim[0], lim[1]) {
+			p0 := minmax
+			p1 := minmax
+			p2 := minmax
+			p0[index] = tick
+			p1[index] = tick
+			p2[index] = tick
+			first := (index + 1) % 3
+			second := (index + 2) % 3
+			p0[first] = maxmin[first]
+			p2[second] = maxmin[second]
+			segments = append(segments, []geom.Pt{project(p0), project(p1), project(p2)})
+		}
+	}
+	return segments
+}
+
+func (a *Axes3D) activePaneHighs(mins, maxs vec3) [3]bool {
+	return a.activePaneHighsProjected(mins, maxs, mins, maxs)
+}
+
+func (a *Axes3D) activePaneHighsProjected(mins, maxs, projMins, projMaxs vec3) [3]bool {
+	planes := [6][4]int{
+		{0, 3, 7, 4}, {1, 2, 6, 5},
+		{0, 1, 5, 4}, {3, 2, 6, 7},
+		{0, 1, 2, 3}, {4, 5, 6, 7},
+	}
+	corners := [8]vec3{
+		{mins[0], mins[1], mins[2]},
+		{maxs[0], mins[1], mins[2]},
+		{maxs[0], maxs[1], mins[2]},
+		{mins[0], maxs[1], mins[2]},
+		{mins[0], mins[1], maxs[2]},
+		{maxs[0], mins[1], maxs[2]},
+		{maxs[0], maxs[1], maxs[2]},
+		{mins[0], maxs[1], maxs[2]},
+	}
+	depths := [8]float64{}
+	for i, corner := range corners {
+		depths[i] = a.projectPointDepthWithProjectionLimits(corner[0], corner[1], corner[2], projMins, projMaxs)
+	}
+
+	means0 := [3]float64{}
+	means1 := [3]float64{}
+	highs := [3]bool{}
+	equals := [3]bool{}
+	equalCount := 0
+	for axis := range 3 {
+		means0[axis] = meanPlaneDepth(depths, planes[2*axis])
+		means1[axis] = meanPlaneDepth(depths, planes[2*axis+1])
+		highs[axis] = means0[axis] < means1[axis]
+		if math.Abs(means0[axis]-means1[axis]) <= math.Nextafter(1, 2)-1 {
+			equals[axis] = true
+			equalCount++
+		}
+	}
+	if equalCount == 2 {
+		vertical := -1
+		for i := range equals {
+			if !equals[i] {
+				vertical = i
+				break
+			}
+		}
+		switch vertical {
+		case 2:
+			highs[0], highs[1] = true, true
+		case 1:
+			highs[0], highs[2] = true, false
+		case 0:
+			highs[1], highs[2] = false, false
+		}
+	}
+	return highs
+}
+
+func meanPlaneDepth(depths [8]float64, plane [4]int) float64 {
+	return (depths[plane[0]] + depths[plane[1]] + depths[plane[2]] + depths[plane[3]]) / 4
+}
+
+func computed3DCollectionZ(projectedDepth float64) float64 {
+	if math.IsNaN(projectedDepth) || math.IsInf(projectedDepth, 0) {
+		return defaultPatchZ
+	}
+	return default3DComputedZ - projectedDepth
+}
+
+func (a *Axes3D) points3DCollectionZ(x, y, z []float64) float64 {
+	n := minLen(x, y, z)
+	depth := math.Inf(1)
+	for i := 0; i < n; i++ {
+		if !isFinite3D(x[i], y[i], z[i]) {
 			continue
 		}
-		a.draw3DLabelAt(textRen, r, ctx, format3DTick(tick, i, yTicks), a.ProjectPoint(maxs[0], tick, mins[2]), center, 13, fontSize, textColor)
+		_, zDepth := a.projectPointDepth(x[i], y[i], z[i])
+		if zDepth < depth {
+			depth = zDepth
+		}
 	}
-	zTicks := frameAxisTicks(mins[2], maxs[2])
+	return computed3DCollectionZ(depth)
+}
+
+func (a *Axes3D) grid3DCollectionZ(x, y []float64, z [][]float64) float64 {
+	if a == nil || len(z) == 0 {
+		return defaultPatchZ
+	}
+	rows := len(z)
+	cols := len(z[0])
+	if cols == 0 || len(x) < cols || len(y) < rows {
+		return defaultPatchZ
+	}
+	depth := math.Inf(1)
+	for row := 0; row < rows; row++ {
+		if len(z[row]) != cols {
+			return computed3DCollectionZ(depth)
+		}
+		for col := 0; col < cols; col++ {
+			if !isFinite3D(x[col], y[row], z[row][col]) {
+				continue
+			}
+			_, zDepth := a.projectPointDepth(x[col], y[row], z[row][col])
+			if zDepth < depth {
+				depth = zDepth
+			}
+		}
+	}
+	return computed3DCollectionZ(depth)
+}
+
+func (a *Axes3D) triangulation3DCollectionZ(tri Triangulation, z []float64) float64 {
+	if a == nil {
+		return defaultPatchZ
+	}
+	depth := math.Inf(1)
+	for triIdx, t := range tri.Triangles {
+		if tri.masked(triIdx) {
+			continue
+		}
+		for _, idx := range t {
+			if idx < 0 || idx >= len(tri.X) || idx >= len(tri.Y) || idx >= len(z) || !isFinite3D(tri.X[idx], tri.Y[idx], z[idx]) {
+				continue
+			}
+			_, zDepth := a.projectPointDepth(tri.X[idx], tri.Y[idx], z[idx])
+			if zDepth < depth {
+				depth = zDepth
+			}
+		}
+	}
+	return computed3DCollectionZ(depth)
+}
+
+func (a *Axes3D) bar3DCollectionZ(x, y, z, dx, dy, dz []float64) float64 {
+	n := minLen(x, y, z, dx, dy, dz)
+	depth := math.Inf(1)
+	for i := 0; i < n; i++ {
+		x0, x1 := x[i], x[i]+dx[i]
+		y0, y1 := y[i], y[i]+dy[i]
+		z0, z1 := z[i], z[i]+dz[i]
+		corners := [8][3]float64{
+			{x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0},
+			{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1},
+		}
+		for _, corner := range corners {
+			if !isFinite3D(corner[0], corner[1], corner[2]) {
+				continue
+			}
+			_, zDepth := a.projectPointDepth(corner[0], corner[1], corner[2])
+			if zDepth < depth {
+				depth = zDepth
+			}
+		}
+	}
+	return computed3DCollectionZ(depth)
+}
+
+func (a *Axes3D) projectPointDepthWithLimits(x, y, z float64, mins, maxs vec3) (geom.Pt, float64) {
+	if a == nil {
+		return geom.Pt{}, 0
+	}
+	if a.distance <= 0 {
+		return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs), z
+	}
+	m := default3DProjectionMatrix(a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs)
+	tx, ty, tz := transform3DPoint(m, x, y, z)
+	return geom.Pt{X: tx, Y: ty}, tz
+}
+
+func (a *Axes3D) projectPointDepthWithProjectionLimits(x, y, z float64, mins, maxs vec3) float64 {
+	if a.distance <= 0 {
+		return z
+	}
+	m := default3DProjectionMatrix(a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs)
+	_, _, tz := transform3DPoint(m, x, y, z)
+	return tz
+}
+
+func (a *Axes3D) draw3DTickLabels(textRen render.TextDrawer, r render.Renderer, ctx *DrawContext, mins, maxs, tickMins, tickMaxs vec3) {
+	fontSize := ctx.RC.TickLabelSize("x")
+	textColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+	centers, deltas := axes3DLabelCentersDeltas(ctx, tickMins, tickMaxs)
+	labelDeltas := vec3{}
+	for i := range 3 {
+		labelDeltas[i] = (defaultTickPadPt + 8) * deltas[i]
+	}
+	axisLines := a.axisLineEdgePointPairs(mins, maxs, tickMins, tickMaxs)
+	tickDirs := [3]int{1, 0, 0}
+
+	xTicks := frameAxisTicks(tickMins[0], tickMaxs[0])
+	for i, tick := range xTicks {
+		pos := axisLines[0][0]
+		pos[0] = tick
+		pos[tickDirs[0]] = axisLines[0][0][tickDirs[0]]
+		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 0), tickMins, tickMaxs)
+		draw3DTextAtAnchor(textRen, r, ctx, format3DTick(tick, i, xTicks), anchor, fontSize, textColor)
+	}
+	yTicks := frameAxisTicks(tickMins[1], tickMaxs[1])
+	for i, tick := range yTicks {
+		pos := axisLines[1][0]
+		pos[1] = tick
+		pos[tickDirs[1]] = axisLines[1][0][tickDirs[1]]
+		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 1), tickMins, tickMaxs)
+		draw3DTextAtAnchor(textRen, r, ctx, format3DTick(tick, i, yTicks), anchor, fontSize, textColor)
+	}
+	zTicks := frameAxisTicks(tickMins[2], tickMaxs[2])
 	for i, tick := range zTicks {
-		a.draw3DLabelAt(textRen, r, ctx, format3DTick(tick, i, zTicks), a.ProjectPoint(maxs[0], maxs[1], tick), center, 13, fontSize, textColor)
+		pos := axisLines[2][0]
+		pos[2] = tick
+		pos[tickDirs[2]] = axisLines[2][0][tickDirs[2]]
+		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 2), tickMins, tickMaxs)
+		draw3DTextAtAnchor(textRen, r, ctx, format3DTick(tick, i, zTicks), anchor, fontSize, textColor)
 	}
 }
 
 func (a *Axes3D) draw3DAxisLabels(textRen render.TextDrawer, r render.Renderer, ctx *DrawContext, mins, maxs vec3) {
 	fontSize := axisLabelFontSize(ctx)
 	textColor := ctx.RC.DefaultAxesLabelColor()
-	center := a.ProjectPoint((mins[0]+maxs[0])/2, (mins[1]+maxs[1])/2, (mins[2]+maxs[2])/2)
+	projMins, projMaxs := a.projectionLimits()
+	centers, deltas := axes3DLabelCentersDeltas(ctx, projMins, projMaxs)
+	labelDeltas := vec3{}
+	for i := range 3 {
+		labelDeltas[i] = (4 + 21) * deltas[i]
+	}
+	axisLines := a.axisLineEdgePointPairs(mins, maxs, projMins, projMaxs)
 	if a.XLabel != "" {
-		pos := a.ProjectPoint((mins[0]+maxs[0])/2, mins[1], mins[2])
-		a.draw3DLabelAt(textRen, r, ctx, a.XLabel, pos, center, 34, fontSize, textColor)
+		pos := midpoint3D(axisLines[0][0], axisLines[0][1])
+		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 0), projMins, projMaxs)
+		draw3DTextAtAnchor(textRen, r, ctx, a.XLabel, anchor, fontSize, textColor)
 	}
 	if a.YLabel != "" {
-		pos := a.ProjectPoint(maxs[0], (mins[1]+maxs[1])/2, mins[2])
-		a.draw3DLabelAt(textRen, r, ctx, a.YLabel, pos, center, 34, fontSize, textColor)
+		pos := midpoint3D(axisLines[1][0], axisLines[1][1])
+		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 1), projMins, projMaxs)
+		draw3DTextAtAnchor(textRen, r, ctx, a.YLabel, anchor, fontSize, textColor)
 	}
 }
 
-func (a *Axes3D) draw3DLabelAt(textRen render.TextDrawer, r render.Renderer, ctx *DrawContext, label string, projected, projectedCenter geom.Pt, pad, fontSize float64, textColor render.Color) {
+func axes3DLabelCentersDeltas(ctx *DrawContext, mins, maxs vec3) (vec3, vec3) {
+	centers := vec3{}
+	deltas := vec3{}
+	dpi := 100.0
+	clipWidth := 1.0
+	clipHeight := 1.0
+	if ctx != nil {
+		if ctx.RC.DPI > 0 {
+			dpi = ctx.RC.DPI
+		}
+		if ctx.Clip.W() > 0 {
+			clipWidth = ctx.Clip.W()
+		}
+		if ctx.Clip.H() > 0 {
+			clipHeight = ctx.Clip.H()
+		}
+	}
+	deltasPerPoint := 48 / (72 * (clipWidth + clipHeight) / dpi)
+	for i := range 3 {
+		centers[i] = (mins[i] + maxs[i]) / 2
+		deltas[i] = (maxs[i] - mins[i]) / 12 * deltasPerPoint
+	}
+	return centers, deltas
+}
+
+func move3DLabelFromCenter(pos, centers, deltas vec3, axis int) vec3 {
+	for i := range 3 {
+		if i == axis {
+			continue
+		}
+		if pos[i] < centers[i] {
+			pos[i] -= deltas[i]
+		} else {
+			pos[i] += deltas[i]
+		}
+	}
+	return pos
+}
+
+func midpoint3D(a, b vec3) vec3 {
+	return vec3{(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2}
+}
+
+func (a *Axes3D) project3DLabelAnchor(ctx *DrawContext, pos, projMins, projMaxs vec3) geom.Pt {
+	projected := project3DPointWithLimits(pos[0], pos[1], pos[2], a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+	return ctx.TransformFor(Coords(CoordData)).Apply(projected)
+}
+
+func draw3DTextAtAnchor(textRen render.TextDrawer, r render.Renderer, ctx *DrawContext, label string, anchor geom.Pt, fontSize float64, textColor render.Color) {
 	if label == "" {
 		return
 	}
-	tr := ctx.TransformFor(Coords(CoordData))
-	anchor := tr.Apply(projected)
-	center := tr.Apply(projectedCenter)
-	dx := anchor.X - center.X
-	dy := anchor.Y - center.Y
-	length := math.Hypot(dx, dy)
-	if length == 0 {
-		dy = -1
-		length = 1
-	}
-	anchor.X += pad * dx / length
-	anchor.Y += pad * dy / length
 	layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
 	origin := alignedSingleLineOrigin(anchor, layout, TextAlignCenter, textLayoutVAlignCenter)
 	drawDisplayText(textRen, label, origin, fontSize, textColor, ctx.RC.FontKey)
 }
 
 func frameAxisTicks(minVal, maxVal float64) []float64 {
-	ticks := AutoLocator{}.Ticks(minVal, maxVal, 8)
+	ticks := AutoLocator{}.Ticks(minVal, maxVal, 9)
 	if len(ticks) == 0 {
 		return nil
 	}
@@ -1198,11 +1666,12 @@ func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *Lin
 		faceColor.A *= 0.7
 	}
 	faces, faceColors := a.projectBar3DShadedFaces(x, y, z, dx, dy, dz, faceColor)
+	barZ := a.bar3DCollectionZ(x, y, z, dx, dy, dz)
 	if len(faces) > 0 {
 		faceCollection := &PolyCollection{
 			Polygons: faces,
 			PatchCollection: PatchCollection{
-				Collection: Collection{Coords: Coords(CoordData), Alpha: 1},
+				Collection: Collection{Coords: Coords(CoordData), Alpha: 1, z: barZ},
 				FaceColors: faceColors,
 				EdgeColor:  render.Color{A: 0},
 				LineJoin:   render.JoinMiter,
@@ -1215,6 +1684,7 @@ func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *Lin
 				faces, faceColors := a.projectBar3DShadedFaces(x, y, z, dx, dy, dz, faceColor)
 				faceCollection.Polygons = faces
 				faceCollection.FaceColors = faceColors
+				faceCollection.z = a.bar3DCollectionZ(x, y, z, dx, dy, dz)
 			}
 		}, limitsChanged)
 	}
@@ -1226,6 +1696,7 @@ func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *Lin
 			Coords: Coords(CoordData),
 			Label:  label,
 			Alpha:  alpha,
+			z:      barZ,
 		},
 		Segments:  segments,
 		Color:     color,
@@ -1237,6 +1708,7 @@ func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *Lin
 	a.add3DReprojector(func() {
 		if collection != nil {
 			collection.Segments = a.projectBar3DSegments(x, y, z, dx, dy, dz)
+			collection.z = a.bar3DCollectionZ(x, y, z, dx, dy, dz)
 		}
 	}, limitsChanged)
 	return collection
@@ -1336,6 +1808,15 @@ func (a *Axes3D) projectionLimits() (vec3, vec3) {
 		margin := (maxs[i] - mins[i]) * default3DDataMargin
 		mins[i] -= margin
 		maxs[i] += margin
+	}
+	return mins, maxs
+}
+
+func axes3DFrameLimits(mins, maxs vec3) (vec3, vec3) {
+	for i := range 3 {
+		delta := (maxs[i] - mins[i]) / 12
+		mins[i] -= 0.25 * delta
+		maxs[i] += 0.25 * delta
 	}
 	return mins, maxs
 }
@@ -1581,7 +2062,7 @@ func default3DProjectionMatrix(elevationDeg, azimuthDeg, distance float64, mins,
 
 func default3DBoxAspect() vec3 {
 	aspect := vec3{4, 4, 3}
-	scale := 1.8294640721620434 * 25.0 / 24.0 / aspect.norm()
+	scale := 1.8294640721620434 / aspect.norm()
 	return aspect.scale(scale)
 }
 

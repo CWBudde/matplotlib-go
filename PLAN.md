@@ -873,6 +873,156 @@ Latest text-parity note:
 
 ---
 
+# Phase 10: AGG-First Raster Plot Parity
+
+**Goal:** make the existing raster-heavy 2D plot categories behave like Matplotlib on the AGG backend before expanding the public plot vocabulary further.
+
+This phase tracks the plot categories that already exist in the Go port but are not yet fully supported at Matplotlib/RendererAgg fidelity. The reference source for these behaviors is `third_party/matplotlib/lib/matplotlib/backends/backend_agg.py`, `third_party/matplotlib/src/_backend_agg.*`, and the plot-type examples under `third_party/matplotlib/galleries/plot_types`.
+
+### 10.1 QuadMesh, PColor, PColorMesh, and Hist2D
+
+- [ ] Match Matplotlib `pcolor` / `pcolormesh` input-shape validation for scalar data, explicit edge coordinates, center coordinates, and mismatched dimensions.
+- [ ] Add shading policy parity for `flat`, `nearest`, `auto`, and `gouraud`, including how each mode derives cell geometry from input coordinates.
+- [ ] Preserve masked, NaN, Inf, bad, under, and over cell semantics through `QuadMesh`, `Colorbar`, and AGG draw batches.
+- [ ] Match AGG edge rendering for antialiasing, linewidth, snap, join, cap, and alpha accumulation on dense quad meshes.
+- [ ] Add focused Matplotlib-reference fixtures for `pcolor`, `pcolormesh(shading="nearest")`, `pcolormesh(shading="gouraud")`, masked quad meshes, and `hist2d` with weights/density.
+- [ ] Tighten `rendereragg_quad_mesh` thresholds once the native batch path matches upstream cell placement and blending.
+
+### 10.2 PathCollection and Large Scatter
+
+- [ ] Audit `PathCollection` batch routing against upstream `RendererAgg.draw_markers` and `draw_path_collection` fast-path selection for homogeneous and heterogeneous markers.
+- [ ] Match per-point facecolor, edgecolor, linewidth, alpha, snap, hatch, antialiasing, and transform handling for large scatter and mixed collections.
+- [ ] Add coverage for empty collections, all-masked collections, unfilled markers, `edgecolors="face"`-style behavior, and collection-level alpha combined with per-item alpha.
+- [ ] Tighten `rendereragg_large_scatter` and `rendereragg_mixed_collection` thresholds after collection placement and alpha accumulation match upstream.
+- [ ] Keep fallback-renderer behavior tested separately so GoBasic/SVG fallback paths do not hide missing AGG-native behavior.
+
+### 10.3 Images, Imshow, Matshow, and Spy
+
+- [x] Complete AGG image clipping for clip boxes and non-rectangular clip paths, including projected axes frames.
+- [x] Align image interpolation and resampling controls with Matplotlib names and fallback behavior (`nearest`, `none`, `bilinear`, `bicubic`, and rc/default policy); add scale-aware `auto`/`antialiased` resolution for direct and transformed draws.
+- [ ] Preserve image alpha, GC alpha, premultiplication, and background compositing semantics in the backend instead of pre-flattening in callers.
+- [ ] Match transformed image orientation, affine sampling, clipping, and interpolation against upstream `RendererAgg.draw_image`.
+- [ ] Add reference fixtures for clipped `imshow`, transformed `imshow`, alpha images, `matshow`, marker-mode `spy`, and image-mode `spy`.
+- [ ] Add direct buffer tests for RGBA/ARGB ordering, transparent backgrounds, and raw image export behavior.
+
+### 10.4 Filled Areas, Contours, and Alpha Accumulation
+
+- [ ] Track down remaining fill/hist alpha residuals called out in the current AGG notes and add fixture-specific diagnostics for repeated translucent overlaps.
+- [ ] Match filled polygon winding, self-intersection, clipping, and alpha accumulation for `fill_between`, `stackplot`, histogram fill variants, and filled contours.
+- [ ] Add contour topology cases for saddle points, masked triangles, holes, and contour bands that touch plot boundaries.
+- [ ] Make inline contour label erasure and rotated label placement match upstream display-space behavior across dense and sparse contours.
+
+**Exit Criteria:**
+
+- [ ] Raster-heavy 2D fixtures compare against Matplotlib references with the same strict thresholds used by line/bar/scatter basics, or have documented fixture-specific tolerances with root causes.
+- [ ] Existing plot categories no longer depend on backend fallbacks to appear complete when the AGG-native path is missing behavior.
+- [ ] `RendererAgg` batch fixtures cover marker, path collection, quad mesh, Gouraud, image, and clip-path paths with committed Go goldens and Matplotlib references.
+
+---
+
+# Phase 11: Color Mapping, Normalization & ScalarMappable Parity
+
+**Goal:** make color-mapped plot categories share a Matplotlib-like scalar mapping model instead of each artist carrying a partial `vmin`/`vmax` implementation.
+
+### 11.1 Normalization Model
+
+- [ ] Add a backend-independent `Normalize` model covering linear `Normalize`, `NoNorm`, `LogNorm`, `SymLogNorm`, `PowerNorm`, `TwoSlopeNorm`, `CenteredNorm`, and `BoundaryNorm`.
+- [ ] Preserve Matplotlib validation behavior for conflicting `norm`, `vmin`, and `vmax` inputs.
+- [ ] Add masked, bad, under, and over color handling in scalar mapping and colorbars.
+- [ ] Make `Image2D`, `QuadMesh`, `PolyCollection`, `ContourSet`, `HexbinCollection`, `TriColor`, and `StreamplotSet` expose consistent scalar-mappable state.
+
+### 11.2 Colormap and Colorbar Depth
+
+- [ ] Add colormap registration, reversal, copying, and bad/under/over color mutation APIs close enough for common Matplotlib migration paths.
+- [ ] Match colorbar tick locator/formatter behavior for linear, log, boundary, and categorical-like norms.
+- [ ] Support colorbar extension triangles/rectangles for under/over ranges.
+- [ ] Add reference fixtures for `BoundaryNorm` pcolormesh, `LogNorm` imshow, diverging `TwoSlopeNorm`, and colorbar extension behavior.
+
+### 11.3 Plot Category Integration
+
+- [ ] Route `imshow`, `matshow`, `pcolor`, `pcolormesh`, `contourf`, `tripcolor`, `hexbin`, `hist2d`, `quiver`, `barbs`, and `streamplot` through the shared normalizer.
+- [ ] Ensure legends and colorbars can infer scalar-mappable metadata consistently from all color-mapped artists.
+- [ ] Document unsupported normalization modes explicitly until they are implemented.
+
+**Exit Criteria:**
+
+- [ ] Color-mapped plot categories use the same normalization and colormap semantics.
+- [ ] Colorbar behavior is driven by scalar-mappable state rather than plot-specific shortcuts.
+- [ ] Matplotlib-reference fixtures cover linear, log, boundary, diverging, masked, bad, under, and over color behavior.
+
+---
+
+# Phase 12: Remaining 2D Plot API Surface
+
+**Goal:** close the remaining high-value 2D API gaps where Matplotlib has plot-category entry points but the Go port only has lower-level building blocks or no direct equivalent.
+
+### 12.1 Convenience Plot Entry Points
+
+- [ ] Add `SemilogX`, `SemilogY`, and `LogLog` helpers that mirror Matplotlib's scale-setting side effects while reusing `Axes.Plot`.
+- [ ] Add `PlotDate` or an explicit date-plot helper that preserves existing units/date converter behavior while matching Matplotlib's common migration path.
+- [ ] Add `Fill` for arbitrary closed polygon fills, distinct from `FillBetween` and patch helpers.
+- [ ] Add direct `BarH` convenience API if horizontal bars remain option-only in `Axes.Bar`.
+- [ ] Add pyplot wrappers for any object-oriented helpers already present but missing from `pyplot`.
+
+### 12.2 Signal and Spectrum Variants
+
+- [ ] Add `MagnitudeSpectrum`, `AngleSpectrum`, and `PhaseSpectrum` equivalents alongside existing `Specgram`, `PSD`, `CSD`, `Cohere`, `XCorr`, and `ACorr`.
+- [ ] Align FFT windowing, detrending, scaling, sides, and dB behavior with upstream `matplotlib.mlab`/`Axes` helper behavior where practical.
+- [ ] Add Matplotlib-reference fixtures for spectrum variants and representative parameter combinations.
+
+### 12.3 Statistical and Specialty Depth
+
+- [ ] Expand `ErrorBar` to support Matplotlib limit indicators (`uplims`, `lolims`, `xuplims`, `xlolims`) and asymmetric error shape validation.
+- [ ] Add deeper `BoxPlot` options: notch behavior, bootstrap/confidence intervals, custom medians/confidence intervals, whisker percentiles, and flier customization.
+- [ ] Expand `Violinplot` options for side selection, quantiles, custom bandwidth methods, and orientation aliases.
+- [ ] Expand `Pie` with label-rotation, normalization controls, shadow dictionaries, hatch support, and `pie_label`-style post-labeling.
+- [ ] Expand `Hexbin` with log bins, `xscale`/`yscale` behavior, marginal histograms, and reducer behavior beyond the current common reducers.
+
+**Exit Criteria:**
+
+- [ ] Common Matplotlib 2D plot-type entry points have either a direct Go API or an explicitly documented lower-level migration path.
+- [ ] New helpers are covered by unit tests and at least one Matplotlib-reference fixture per plot family.
+- [ ] Existing lower-level implementations are not duplicated by convenience wrappers.
+
+---
+
+# Phase 13: mplot3d Plot Category Completion
+
+**Goal:** move 3D support from a projection scaffold to first-class coverage of Matplotlib's mplot3d plot categories.
+
+The current implementation projects 3D data into 2D artists, which is useful for static AGG output but still falls short of the upstream `mpl_toolkits.mplot3d.axes3d.Axes3D` plot surface.
+
+### 13.1 Missing 3D Plot Families
+
+- [ ] Add `Axes3D.Quiver` for 3D vector fields with length normalization, arrow ratios, pivot behavior, and `axlim_clip`.
+- [ ] Add `Axes3D.ErrorBar` for x/y/z error ranges, caps, limit markers, and depth-aware drawing order.
+- [ ] Add `Axes3D.Stem` with line, marker, and baseline styling.
+- [ ] Add `Axes3D.FillBetween` for polygon bands between two 3D curves.
+- [ ] Add `Axes3D.Bar` compatibility for 2D bars projected into selected z directions, separate from full cuboid `Bar3D`.
+
+### 13.2 Existing 3D Plot Depth
+
+- [ ] Replace placeholder/simplified contour and contourf projection with Matplotlib-like level selection, `zdir`, `offset`, filled bands, and clipping behavior.
+- [ ] Expand `Surface` / `PlotSurfaceGrid` with stride/count sampling, facecolors, lighting, shade, antialiasing, `vmin`/`vmax`/`norm`, and colorbar-compatible scalar state.
+- [ ] Expand `Wireframe` with row/column stride and count behavior.
+- [ ] Expand `Trisurf` with colormap/norm support, triangle masking, edge/face styling, and depth sorting compatible with upstream examples.
+- [ ] Replace `Voxel` as bar-like prisms with Matplotlib-style boolean grid voxel input, facecolors, edgecolors, shade, and internal-face culling.
+
+### 13.3 3D Rendering and Axes Behavior
+
+- [ ] Add depth sorting and z-order rules for mixed 3D collections that match upstream static AGG output.
+- [ ] Add 3D axis limit, aspect, pane, grid, tick locator, label placement, and view-init parity for common gallery examples.
+- [ ] Add Matplotlib-reference fixtures for every upstream `galleries/plot_types/3D` family: plot3d, scatter3d, surface3d, wire3d, trisurf3d, bar3d, voxels, quiver3d, stem3d, and fill_between3d.
+- [ ] Keep 3D tests focused on static AGG output; interactive rotation belongs to Phase 9 unless a backend-specific viewer requires it.
+
+**Exit Criteria:**
+
+- [ ] Every Matplotlib plot-type gallery 3D category has a Go example, a golden image, and a Matplotlib reference image.
+- [ ] Existing 3D helpers expose scalar-mappable state where Matplotlib would support colorbars.
+- [ ] Mixed 3D scenes have deterministic depth ordering suitable for AGG golden tests.
+
+---
+
 # Development Guidelines
 
 ## Backend Strategy

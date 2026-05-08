@@ -31,6 +31,8 @@ func main() {
 	zeroWidth := 0.0
 	black := render.Color{R: 0, G: 0, B: 0, A: 1}
 	contourWidth := 0.6
+	contourLevels := 8
+	contourOffset := gridMin(z) - 0.2
 	orange := render.Color{R: 1.0, G: 0.4980392156862745, B: 0.054901960784313725, A: 1}
 	triAlpha := 0.7
 	ax.PlotSurfaceGrid(x, y, z, core.PlotOptions{LineWidth: &zeroWidth})
@@ -39,8 +41,8 @@ func main() {
 	// surface: a floor outline, sample points, a triangular patch, and text.
 	ax.Plot3D([]float64{0, 0.9, 0.9, 0, 0}, []float64{0, 0, 0.9, 0.9, 0}, []float64{-0.2, -0.2, -0.2, -0.2, -0.2}, core.PlotOptions{Color: &black})
 	ax.Scatter3D([]float64{0.2, 0.5, 0.8}, []float64{0.2, 0.5, 0.8}, []float64{0.3, 0.35, 0.2})
-	ax.Contour(x, y, z, core.PlotOptions{Color: &black, LineWidth: &contourWidth})
-	ax.Contourf(x, y, z)
+	ax.Contour(x, y, z, core.PlotOptions{Color: &black, LineWidth: &contourWidth, LevelCount: contourLevels})
+	ax.Contourf(x, y, z, core.PlotOptions{LevelCount: contourLevels, Offset: &contourOffset})
 
 	tri := core.Triangulation{
 		X:         []float64{0, 0.5, 1},
@@ -49,7 +51,7 @@ func main() {
 	}
 	triZ := []float64{0.1, 0.4, 0.9}
 	ax.Trisurf(tri, triZ, core.PlotOptions{Color: &orange, Alpha: &triAlpha})
-	ax.Text3D(0.9, 0.1, 0.65, "3D demo")
+	ax.Text(0.70, 0.62, "3D demo", core.TextOptions{Coords: core.Coords(core.CoordAxes)})
 
 	r, err := agg.New(900, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
@@ -59,6 +61,18 @@ func main() {
 	if err := r.SavePNG("mplot3d_terrain.png"); err != nil {
 		log.Fatalf("save PNG: %v", err)
 	}
+}
+
+func gridMin(values [][]float64) float64 {
+	minValue := math.Inf(1)
+	for _, row := range values {
+		for _, value := range row {
+			if value < minValue {
+				minValue = value
+			}
+		}
+	}
+	return minValue
 }
 
 func sinusoidalTerrain(xCount, yCount int) ([]float64, []float64, [][]float64) {
