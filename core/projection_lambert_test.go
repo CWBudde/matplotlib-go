@@ -38,3 +38,27 @@ func TestLambertProjectionRegistered(t *testing.T) {
 		t.Fatalf("lambert projection not registered: %v", err)
 	}
 }
+
+func TestLambertAxesUseEqualBoxAspect(t *testing.T) {
+	fig := NewFigure(400, 240)
+	ax, err := fig.AddAxesProjection(unitRect(), "lambert")
+	if err != nil {
+		t.Fatalf("AddAxesProjection(lambert): %v", err)
+	}
+
+	if !approx(ax.boxAspect, 1, 1e-12) {
+		t.Fatalf("lambert box aspect = %v, want 1", ax.boxAspect)
+	}
+}
+
+func TestLambertDefaultsHideLatitudeTickLabels(t *testing.T) {
+	fig := NewFigure(400, 240)
+	ax, err := fig.AddAxesProjection(unitRect(), "lambert")
+	if err != nil {
+		t.Fatalf("AddAxesProjection(lambert): %v", err)
+	}
+
+	if _, ok := ax.YAxis.Formatter.(NullFormatter); !ok {
+		t.Fatalf("lambert y-axis formatter = %T, want NullFormatter", ax.YAxis.Formatter)
+	}
+}

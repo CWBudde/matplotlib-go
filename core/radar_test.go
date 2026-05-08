@@ -75,6 +75,68 @@ func TestRadarFrameAndGridUsePolygonGeometry(t *testing.T) {
 	}
 }
 
+func TestRadarRadialLabelsUseMatplotlibDefaultOffsetFromNorth(t *testing.T) {
+	fig := NewFigure(400, 400)
+	ax, err := fig.AddRadarAxes(unitRect(), []string{"A", "B", "C", "D", "E"})
+	if err != nil {
+		t.Fatalf("AddRadarAxes: %v", err)
+	}
+	ax.YAxis.Locator = FixedLocator{TicksList: []float64{0.5}}
+	ax.YAxis.MinorLocator = nil
+	ax.YAxis.Formatter = FuncFormatter(func(float64) string { return "radial" })
+
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	center, outerRadius := polarCenterAndRadius(ax.adjustedLayout(fig))
+	r := &polarTextRenderer{}
+
+	ax.YAxis.DrawTickLabels(r, ctx)
+
+	if len(r.texts) != 1 {
+		t.Fatalf("expected one radial tick label, got %d (%v)", len(r.texts), r.texts)
+	}
+
+	labelAngle := math.Pi/2 + defaultPolarRadialLabelAngle
+	fontSize := tickLabelFontSize(ax.YAxis, ctx)
+	labelPadPx := tickLabelPadForSize(ax.YAxis.TickSize, ax.YAxis.MajorLabelStyle, ctx)
+	layout := measureSingleLineTextLayout(r, "radial", fontSize, ctx.RC.FontKey)
+	anchor := polarPixelPoint(center, outerRadius*0.5+labelPadPx, labelAngle)
+	hAlign, vAlign := polarTickLabelAlignments(labelAngle)
+	wantOrigin := alignedSingleLineOrigin(anchor, layout, hAlign, vAlign)
+
+	if !approx(r.origins[0].X, wantOrigin.X, 1e-6) || !approx(r.origins[0].Y, wantOrigin.Y, 1e-6) {
+		t.Fatalf("radial tick label origin = %+v, want %+v", r.origins[0], wantOrigin)
+	}
+}
+
+func TestRadarTitleClearsTopThetaLabel(t *testing.T) {
+	fig := NewFigure(400, 400)
+	ax, err := fig.AddRadarAxes(unitRect(), []string{"Speed", "Power", "Range", "Handling", "Comfort"})
+	if err != nil {
+		t.Fatalf("AddRadarAxes: %v", err)
+	}
+	ax.SetTitle("Radar Projection")
+
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	r := &polarTextRenderer{}
+	drawAxesLabels(ax, r, ctx, ax.adjustedLayout(fig), figureTextAlignment{})
+
+	if len(r.texts) != 1 || r.texts[0] != "Radar Projection" {
+		t.Fatalf("unexpected title draws: %v", r.texts)
+	}
+	titleLayout := measureSingleLineTextLayout(r, "Radar Projection", titleFontSize(ctx), ctx.RC.FontKey)
+	titleBounds, ok := textInkRect(r.origins[0], titleLayout)
+	if !ok {
+		t.Fatal("expected title bounds")
+	}
+	thetaBounds, ok := axisTickLabelBounds(ax.XAxis, r, ctx)
+	if !ok {
+		t.Fatal("expected theta tick label bounds")
+	}
+	if titleBounds.Max.Y > thetaBounds.Min.Y {
+		t.Fatalf("title overlaps top theta label: title=%+v theta=%+v", titleBounds, thetaBounds)
+	}
+}
+
 func TestRadarVariableCountValidation(t *testing.T) {
 	fig := NewFigure(400, 400)
 	if _, err := fig.AddRadarAxes(unitRect(), []string{"A", "B"}); err == nil {

@@ -701,7 +701,7 @@ Current slice landed:
 - [ ] Replace `lastFontKey`/`MeasureText` priming with explicit font properties or text draw context passed through the renderer-facing API.
 - [ ] Replace the temp-file DejaVu bootstrap with a font-resource strategy that can use embedded fonts, shipped fonts, and system fonts without leaking backend policy into draw calls.
 - [ ] Remove the GSV fallback as a normal parity path; keep it only as an explicit emergency fallback with test coverage and diagnostics.
-- [ ] Replace character-by-character vertical text with rotated/shaped glyph output where Matplotlib would rotate a text run.
+- [x] Replace character-by-character vertical text with rotated/shaped glyph output where Matplotlib would rotate a text run.
 - [ ] Match Matplotlib's glyph image compositing model for antialiased and mono glyph bitmaps, including color alpha application and clipping.
 - [ ] Broaden MathText parity beyond the lightweight parser:
   - [ ] compare parser/layout behavior directly against upstream `MathTextParser('path')`

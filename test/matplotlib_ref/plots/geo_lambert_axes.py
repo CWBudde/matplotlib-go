@@ -15,16 +15,14 @@ except ModuleNotFoundError:
 
 
 def geo_lambert_axes(out_dir):
-    fig = make_fig_px(720, 420)
-    ax = fig.add_axes(go_rect(0.10, 0.14, 0.92, 0.86), projection="lambert")
+    fig = make_fig_px(520, 520)
+    ax = fig.add_axes(go_rect(0.08, 0.10, 0.92, 0.88), projection="lambert")
     ax.set_title("Lambert Projection")
     ax.set_xlabel("longitude")
     ax.set_ylabel("latitude")
-    ax.set_xticks(np.arange(-150, 151, 30) * math.pi / 180.0)
-    ax.set_yticks(np.arange(-75, 76, 15) * math.pi / 180.0)
+    ax.set_xticks(np.arange(-120, 121, 30) * math.pi / 180.0)
     degree_formatter = matplotlib.ticker.FuncFormatter(lambda x, _: f"{round(x * 180.0 / math.pi):.0f}")
     ax.xaxis.set_major_formatter(degree_formatter)
-    ax.yaxis.set_major_formatter(degree_formatter)
 
     ax.xaxis.grid(True, color=(0.78, 0.80, 0.84, 1.0), linewidth=lw(0.8))
     ax.yaxis.grid(True, color=(0.78, 0.80, 0.84, 1.0), linewidth=lw(0.8))

@@ -1133,23 +1133,24 @@ func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, t
 	if text == "" || size <= 0 {
 		return
 	}
+	r.drawTextVerticalDirect(text, center, size, textColor)
+}
 
-	lineMetrics := r.MeasureText("M", size, "")
-	h := lineMetrics.H
-	if h <= 0 {
-		h = size
+func (r *Renderer) drawTextVerticalDirect(text string, center geom.Pt, size float64, textColor render.Color) {
+	if r.hasClipPath() {
+		metrics := r.MeasureText(text, size, "")
+		if metrics.W <= 0 || metrics.H <= 0 {
+			return
+		}
+		r.ctx.PushTransform()
+		defer r.ctx.PopTransform()
+		r.ctx.Translate(center.X, center.Y)
+		r.ctx.Rotate(-math.Pi / 2)
+		r.ctx.Translate(-center.X, -center.Y)
+		r.drawTextDirect(text, geom.Pt{X: center.X + metrics.Descent, Y: center.Y}, size, textColor)
+		return
 	}
-	runes := []rune(text)
-	totalH := float64(len(runes)) * h
-	y := center.Y - totalH/2 + h // start from top, offset by one line height
-
-	for _, ch := range runes {
-		s := string(ch)
-		w := r.MeasureText(s, size, "").W
-		x := center.X - w/2
-		r.DrawText(s, geom.Pt{X: x, Y: y}, size, textColor)
-		y += h
-	}
+	r.drawTextRotatedDirect(text, center, size, -math.Pi/2, textColor)
 }
 
 // GetImage returns the rendered image as a standard Go image.RGBA.

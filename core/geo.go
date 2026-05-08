@@ -53,7 +53,11 @@ func (p *geoProjection) ConfigureAxes(ax *Axes) {
 
 	ax.XScale = transform.NewLinear(-math.Pi, math.Pi)
 	ax.YScale = transform.NewLinear(-math.Pi/2, math.Pi/2)
-	_ = ax.SetBoxAspect(0.5)
+	boxAspect := 0.5
+	if p.Name() == "lambert" {
+		boxAspect = 1
+	}
+	_ = ax.SetBoxAspect(boxAspect)
 	ax.XAxis = NewXAxis()
 	ax.YAxis = NewYAxis()
 	ax.XAxisTop = nil
@@ -76,6 +80,9 @@ func (p *geoProjection) ConfigureAxes(ax *Axes) {
 	ax.YAxis.ShowSpine = false
 	ax.YAxis.ShowTicks = false
 	ax.YAxis.ShowLabels = true
+	if p.Name() == "lambert" {
+		ax.YAxis.Formatter = NullFormatter{}
+	}
 }
 
 func (p *geoProjection) DataToAxes(*Axes) transform.T {
