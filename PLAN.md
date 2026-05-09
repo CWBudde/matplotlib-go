@@ -898,7 +898,7 @@ Completed notes:
 - `Hist2D` now supports per-sample weights plus probability/density normalization over 2D bin area.
 - Colormaps now preserve explicit bad, under, and over colors for mesh scalar mapping; `MeshOptions.Mask` treats masked cells as bad values and excludes them from scalar range calculation.
 - Added committed Go goldens and Matplotlib references for `pcolor_flat`, `pcolormesh_nearest`, `pcolormesh_gouraud`, `pcolormesh_masked`, and `hist2d_weighted_density`.
-- Matplotlib-style colorbar slot placement now prevents manual-axes colorbars from shrinking parents twice; `hist2d_weighted_density` and `pcolormesh_gouraud` are RMSE-gated below 30 against Matplotlib references.
+- Matplotlib-style colorbar slot placement now preserves manual-axes default fraction slots while constrained managed axes use the resolved aspect-width slot; `hist2d_weighted_density` and `pcolormesh_gouraud` are RMSE-gated below 30 against Matplotlib references.
 
 ### 10.2 PathCollection and Large Scatter
 
@@ -937,9 +937,9 @@ Completed notes:
 ### 10.4 Filled Areas, Contours, and Alpha Accumulation
 
 - [x] Track down remaining fill/hist alpha residuals called out in the current AGG notes and add fixture-specific diagnostics for repeated translucent overlaps.
-- [ ] Match filled polygon winding, self-intersection, clipping, and alpha accumulation for `fill_between`, `stackplot`, histogram fill variants, and filled contours.
+- [x] Match filled polygon winding, self-intersection, clipping, and alpha accumulation for `fill_between`, `stackplot`, histogram fill variants, and filled contours.
 - [x] Add contour topology cases for saddle points, masked triangles, holes, and contour bands that touch plot boundaries.
-- [ ] Make inline contour label erasure and rotated label placement match upstream display-space behavior across dense and sparse contours.
+- [x] Make inline contour label erasure and rotated label placement match upstream display-space behavior across dense and sparse contours.
 
 Completed notes:
 
@@ -948,12 +948,20 @@ Completed notes:
 - Added structured contour topology coverage for filled saddle quads, interior holes, and boundary-touching contour bands, plus masked-triangle `tricontourf` coverage.
 - Split ambiguous filled saddle bands into separate Matplotlib-style polygons instead of emitting a self-intersecting hourglass path, and close boundary-touching band paths where Matplotlib does.
 - Inline contour label erasure now handles closed contours by cutting the wrapped segment across the path boundary, matching Matplotlib's display-space split behavior for labels near a closed-path seam.
+- Added focused inline contour label coverage for dense, sparse, and too-short contours; label erasure, style preservation, and rotated placement are verified in display-space units.
+- Verified filled-area, histogram, stackplot/stat, and filled-contour reference paths against Matplotlib with documented residuals: `fill_between` PSNR 53.13 / MeanAbs 0.21, `fill_stacked` PSNR 50.08 / MeanAbs 0.58, `hist_strategies` PSNR 50.98 / MeanAbs 0.24, `stat_variants` PSNR 53.34 / MeanAbs 0.23, and `mesh_contour_tri` PSNR 47.63 / MeanAbs 0.92.
 
 **Exit Criteria:**
 
-- [ ] Raster-heavy 2D fixtures compare against Matplotlib references with the same strict thresholds used by line/bar/scatter basics, or have documented fixture-specific tolerances with root causes.
-- [ ] Existing plot categories no longer depend on backend fallbacks to appear complete when the AGG-native path is missing behavior.
-- [ ] `RendererAgg` batch fixtures cover marker, path collection, quad mesh, Gouraud, image, and clip-path paths with committed Go goldens and Matplotlib references.
+- [x] Raster-heavy 2D fixtures compare against Matplotlib references with the same strict thresholds used by line/bar/scatter basics, or have documented fixture-specific tolerances with root causes.
+- [x] Existing plot categories no longer depend on backend fallbacks to appear complete when the AGG-native path is missing behavior.
+- [x] `RendererAgg` batch fixtures cover marker, path collection, quad mesh, Gouraud, image, and clip-path paths with committed Go goldens and Matplotlib references.
+
+Phase 10 closure notes:
+
+- Added `clip_path_batch` as the missing non-rectangular clip-path visual fixture. It applies a data-space path clip to a native AGG quad-mesh batch and has committed Go golden and Matplotlib reference images.
+- Phase 10 reference fixtures now cover pcolor/pcolormesh/Hist2D, large scatter/path collections, native quad mesh, Gouraud triangles, imshow/matshow/spy/image alpha, fill/hist/stack/contour, and clip-path batch behavior.
+- Fresh reference comparison for `clip_path_batch`: PSNR 50.40 / MeanAbs 0.34 / RMSE 3.93, thresholded at PSNR >= 45, MeanAbs <= 1, RMSE <= 6.
 
 ---
 

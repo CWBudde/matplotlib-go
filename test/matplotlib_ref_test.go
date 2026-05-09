@@ -294,6 +294,11 @@ func TestMpl_QuadMesh(t *testing.T) {
 func TestMpl_GouraudTriangles(t *testing.T) {
 	runMplTest(t, "gouraud_triangles", renderGouraudTriangles)
 }
+
+func TestMpl_ClipPathBatch(t *testing.T) {
+	runMplTest(t, "clip_path_batch", renderClipPathBatch)
+}
+
 func TestMpl_ErrorBars(t *testing.T)    { runMplTest(t, "errorbar_basic", renderErrorBars) }
 func TestMpl_TitleStrict(t *testing.T)  { runMplTest(t, "title_strict", renderTitleStrict) }
 func TestMpl_ImageHeatmap(t *testing.T) { runMplTest(t, "image_heatmap", renderImageHeatmap) }

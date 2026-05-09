@@ -341,7 +341,7 @@ func TestImage_DrawRotatedFallsBackToImage(t *testing.T) {
 	}
 }
 
-func TestImage2D_DrawPropagatesInterpolation(t *testing.T) {
+func TestImage2D_DrawPrefilteredBilinearUsesNearestRendererInterpolation(t *testing.T) {
 	bilinear := "bilinear"
 	ax := &Axes{}
 	img := ax.Image([][]float64{{0, 1}, {1, 0}}, ImageOptions{Interpolation: &bilinear})
@@ -365,6 +365,43 @@ func TestImage2D_DrawPropagatesInterpolation(t *testing.T) {
 
 	if rec.imageCalls != 1 {
 		t.Fatalf("imageCalls = %d, want 1", rec.imageCalls)
+	}
+	if rec.lastImageWidth <= 2 || rec.lastImageHeight <= 2 {
+		t.Fatalf("prefiltered image size = %dx%d, want destination-sized upsample", rec.lastImageWidth, rec.lastImageHeight)
+	}
+	if rec.lastInterpolation != "nearest" {
+		t.Fatalf("lastInterpolation = %q, want nearest for prefiltered bilinear raster", rec.lastInterpolation)
+	}
+}
+
+func TestImage2D_DrawPropagatesInterpolationWhenBackendResamples(t *testing.T) {
+	bilinear := "bilinear"
+	angle := 15.0
+	ax := &Axes{}
+	img := ax.Image([][]float64{{0, 1}, {1, 0}}, ImageOptions{
+		Interpolation: &bilinear,
+		Angle:         &angle,
+	})
+	if img == nil {
+		t.Fatal("Image returned nil")
+	}
+	img.XMax = 1
+	img.YMax = 1
+	img.Alpha = 1
+
+	rec := &imageSpyRenderer{}
+	ctx := createTestDrawContext()
+
+	if err := rec.Begin(geom.Rect{}); err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	img.Draw(rec, ctx)
+	if err := rec.End(); err != nil {
+		t.Fatalf("end: %v", err)
+	}
+
+	if rec.transformedCalls != 1 {
+		t.Fatalf("transformedCalls = %d, want 1", rec.transformedCalls)
 	}
 	if rec.lastInterpolation != "bilinear" {
 		t.Fatalf("lastInterpolation = %q, want bilinear", rec.lastInterpolation)
@@ -414,6 +451,8 @@ type imageSpyRenderer struct {
 	lastDst           geom.Rect
 	lastTransform     geom.Affine
 	lastInterpolation string
+	lastImageWidth    int
+	lastImageHeight   int
 }
 
 func (r *imageSpyRenderer) Begin(geom.Rect) error { return nil }
@@ -430,6 +469,7 @@ func (r *imageSpyRenderer) Image(img render.Image, dst geom.Rect) {
 	r.lastDst = dst
 	if img != nil {
 		r.lastInterpolation = img.Interpolation()
+		r.lastImageWidth, r.lastImageHeight = img.Size()
 	}
 }
 
@@ -439,6 +479,7 @@ func (r *imageSpyRenderer) ImageTransformed(img render.Image, dst geom.Rect, t g
 	r.lastTransform = t
 	if img != nil {
 		r.lastInterpolation = img.Interpolation()
+		r.lastImageWidth, r.lastImageHeight = img.Size()
 	}
 }
 func (r *imageSpyRenderer) GlyphRun(render.GlyphRun, render.Color) {}

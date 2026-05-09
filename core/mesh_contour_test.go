@@ -646,6 +646,65 @@ func TestContourInlineLabelErasesAcrossClosedPathBoundary(t *testing.T) {
 	}
 }
 
+func TestContourInlineLabelsCoverDenseSparseAndShortContours(t *testing.T) {
+	ctx := createTestDrawContext()
+	renderer := &contourTextRenderer{}
+	fontSize := 10.0
+
+	dense := make([]geom.Pt, 0, 41)
+	for i := 0; i <= 40; i++ {
+		x := float64(i) / 10
+		dense = append(dense, geom.Pt{X: x, Y: 2 + 0.05*math.Sin(x)})
+	}
+	sparse := []geom.Pt{
+		{X: 0, Y: 5},
+		{X: 4, Y: 5},
+	}
+	short := []geom.Pt{
+		{X: 0, Y: 8},
+		{X: 0.05, Y: 8},
+	}
+	lines := &LineCollection{
+		Segments: [][]geom.Pt{dense, sparse, short},
+		Colors: []render.Color{
+			{R: 1, A: 1},
+			{G: 1, A: 1},
+			{B: 1, A: 1},
+		},
+		LineWidths: []float64{1, 2, 3},
+	}
+
+	segments, colors, widths, labels := contourInlineLabelSegments(
+		lines,
+		[]float64{1, 2, 3},
+		ScalarFormatter{Prec: 0},
+		fontSize,
+		renderer,
+		ctx,
+	)
+	if got, want := len(labels), 2; got != want {
+		t.Fatalf("inline labels = %d, want dense and sparse labels only: %+v", got, labels)
+	}
+	if labels[0].Text != "1" || labels[1].Text != "2" {
+		t.Fatalf("inline label texts = %q, %q; want dense/sparse levels 1 and 2", labels[0].Text, labels[1].Text)
+	}
+	if len(segments) <= len(lines.Segments) {
+		t.Fatalf("segments were not split for inline erasure: got %d, original %d", len(segments), len(lines.Segments))
+	}
+	if len(colors) != len(segments) || len(widths) != len(segments) {
+		t.Fatalf("split line style arrays do not match segments: segments=%d colors=%d widths=%d", len(segments), len(colors), len(widths))
+	}
+	if !approx(labels[1].Angle, 0, 1e-12) {
+		t.Fatalf("sparse horizontal label angle = %v, want 0", labels[1].Angle)
+	}
+	for _, label := range labels {
+		screenPos := ctx.DataToPixel.Apply(label.Position)
+		if screenPos.X < 40 || screenPos.X > 460 || screenPos.Y < -60 || screenPos.Y > 460 {
+			t.Fatalf("label position %+v maps outside expected display area: %+v", label.Position, screenPos)
+		}
+	}
+}
+
 func TestContourRotatedTextAnchorKeepsCenterFixed(t *testing.T) {
 	center := geom.Pt{X: 100, Y: 200}
 	angle := math.Pi / 6

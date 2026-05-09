@@ -96,6 +96,7 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "mixed_collection", render: renderMixedCollection, minPSNR: 60.0, maxMeanAbs: 0.5, maxRMSE: 2.0},
 	{name: "quad_mesh", render: renderQuadMesh, minPSNR: 48.0, maxMeanAbs: 1.0, maxRMSE: 4.0},
 	{name: "gouraud_triangles", render: renderGouraudTriangles, minPSNR: 25.0, maxMeanAbs: 18.0},
+	{name: "clip_path_batch", render: renderClipPathBatch, minPSNR: 45.0, maxMeanAbs: 1.0, maxRMSE: 6.0},
 }
 
 func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {

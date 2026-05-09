@@ -180,10 +180,6 @@ func measuredGridOptions(fig *Figure, r render.Renderer, vp geom.Rect, grid *Gri
 
 	leftPx := leftMargins[0] + outerPadX + global.left
 	rightPx := rightMargins[len(rightMargins)-1] + outerPadX + global.right
-	if global.right > 0 && axesHaveColorbar(axes) {
-		// Colorbar margins already include Matplotlib's pad on the managed side.
-		rightPx = rightMargins[len(rightMargins)-1] + global.right
-	}
 	topPx := topMargins[0] + outerPadY + global.top
 	bottomPx := bottomMargins[len(bottomMargins)-1] + outerPadY + global.bottom
 
@@ -362,25 +358,6 @@ func figureColorbarMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engin
 	return margin
 }
 
-func axesHaveColorbar(axes []*Axes) bool {
-	for _, ax := range axes {
-		if ax == nil {
-			continue
-		}
-		if ax.figure != nil {
-			for _, candidate := range ax.figure.Children {
-				if candidate != nil && candidate.colorbarParent == ax {
-					return true
-				}
-			}
-		}
-		if ax.colorbarParent != nil {
-			return true
-		}
-	}
-	return false
-}
-
 func layoutPadPx(fig *Figure, engine LayoutEngine) float64 {
 	rc := fig.RC
 	if rc.DPI <= 0 {
@@ -449,14 +426,15 @@ func syncColorbarAxes(fig *Figure) {
 		ax.colorbarBase = base
 		padding := resolvedColorbarLayoutPadding(fig, base, ax.colorbarPadding)
 		width := resolvedColorbarWidth(fig, base, ax.colorbarWidth, resolvedColorbarAspect(ax.colorbarAspect))
-		parent.RectFraction = colorbarParentRect(base, width, padding)
+		useResolvedSlot := colorbarUsesResolvedSlot(fig, parent)
+		parent.RectFraction = colorbarParentRect(base, width, padding, useResolvedSlot)
 		ax.RectFraction = geom.Rect{
 			Min: geom.Pt{
-				X: colorbarSlotLeft(base),
+				X: colorbarSlotLeft(base, width, useResolvedSlot),
 				Y: parent.RectFraction.Min.Y,
 			},
 			Max: geom.Pt{
-				X: colorbarSlotLeft(base) + width,
+				X: colorbarSlotLeft(base, width, useResolvedSlot) + width,
 				Y: parent.RectFraction.Max.Y,
 			},
 		}

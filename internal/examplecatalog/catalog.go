@@ -101,6 +101,7 @@ var cases = []Case{
 	{ID: "mixed_collection", Topic: "raster", Title: "Mixed Path Collection", FixtureOnly: true},
 	{ID: "quad_mesh", Topic: "raster", Title: "Quad Mesh Batch", FixtureOnly: true},
 	{ID: "gouraud_triangles", Topic: "raster", Title: "Gouraud Triangles", FixtureOnly: true},
+	{ID: "clip_path_batch", Topic: "raster", Title: "Clip Path Batch", FixtureOnly: true},
 }
 
 // Cases returns every cataloged parity example/fixture.

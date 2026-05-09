@@ -27,6 +27,10 @@ func TestGouraudTriangles_Golden(t *testing.T) {
 	runGoldenTest(t, "gouraud_triangles", renderGouraudTriangles)
 }
 
+func TestClipPathBatch_Golden(t *testing.T) {
+	runGoldenTest(t, "clip_path_batch", renderClipPathBatch)
+}
+
 func renderLargeScatter() image.Image {
 	fig := core.NewFigure(980, 620)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.09, Y: 0.13}, Max: geom.Pt{X: 0.95, Y: 0.88}})
@@ -178,6 +182,20 @@ func renderGouraudTriangles() image.Image {
 	return renderFixtureFigure(fig, 980, 620)
 }
 
+func renderClipPathBatch() image.Image {
+	fig := core.NewFigure(980, 620)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.14}, Max: geom.Pt{X: 0.94, Y: 0.88}})
+	ax.SetTitle("RendererAgg clip path batch")
+	ax.SetXLim(0, 6)
+	ax.SetYLim(0, 5.4)
+	ax.XAxis.Locator = core.MultipleLocator{Base: 1}
+	ax.YAxis.Locator = core.MultipleLocator{Base: 1}
+	ax.AddYGrid()
+	ax.Add(&clipPathBatchFixtureArtist{})
+
+	return renderFixtureFigure(fig, 980, 620)
+}
+
 type gouraudFixtureArtist struct {
 	points    []geom.Pt
 	triangles [][3]int
@@ -221,6 +239,108 @@ func (a *gouraudFixtureArtist) Bounds(*core.DrawContext) geom.Rect {
 		bounds.Max.Y = math.Max(bounds.Max.Y, pt.Y)
 	}
 	return bounds
+}
+
+type clipPathBatchFixtureArtist struct{}
+
+func (a *clipPathBatchFixtureArtist) Draw(r render.Renderer, ctx *core.DrawContext) {
+	if ctx == nil {
+		return
+	}
+	drawer, ok := r.(render.QuadMeshDrawer)
+	if !ok {
+		return
+	}
+	tr := ctx.TransformFor(core.Coords(core.CoordData))
+	if tr == nil {
+		return
+	}
+
+	clip := transformFixturePath(clipBatchPath(), tr)
+	r.Save()
+	r.ClipPath(clip)
+	drawer.DrawQuadMesh(clipBatchQuadMesh(ctx))
+	r.Restore()
+
+	r.Path(clip, &render.Paint{
+		Stroke:    render.Color{R: 0.05, G: 0.08, B: 0.12, A: 1},
+		LineWidth: 2.0,
+		LineJoin:  render.JoinMiter,
+		LineCap:   render.CapButt,
+	})
+}
+
+func (a *clipPathBatchFixtureArtist) Z() float64 { return 0 }
+
+func (a *clipPathBatchFixtureArtist) Bounds(*core.DrawContext) geom.Rect {
+	return geom.Rect{Min: geom.Pt{X: 0.45, Y: 0.45}, Max: geom.Pt{X: 5.55, Y: 5.05}}
+}
+
+func clipBatchQuadMesh(ctx *core.DrawContext) render.QuadMeshBatch {
+	xEdges := []float64{0, 0.75, 1.5, 2.35, 3.1, 4.0, 4.85, 5.45, 6.0}
+	yEdges := []float64{0, 0.7, 1.55, 2.4, 3.2, 4.15, 5.4}
+	mapping := core.ScalarMapInfo{Colormap: "viridis", VMin: -0.35, VMax: 1.15}.Resolved()
+	tr := ctx.TransformFor(core.Coords(core.CoordData))
+	batch := render.QuadMeshBatch{Cells: make([]render.QuadMeshCell, 0, (len(xEdges)-1)*(len(yEdges)-1))}
+	for yi := 0; yi+1 < len(yEdges); yi++ {
+		for xi := 0; xi+1 < len(xEdges); xi++ {
+			cx := (xEdges[xi] + xEdges[xi+1]) * 0.5
+			cy := (yEdges[yi] + yEdges[yi+1]) * 0.5
+			value := 0.45 + 0.42*math.Sin(cx*1.15) + 0.33*math.Cos(cy*1.35) + 0.06*float64((xi+yi)%3)
+			local := [4]geom.Pt{
+				{X: xEdges[xi], Y: yEdges[yi]},
+				{X: xEdges[xi+1], Y: yEdges[yi]},
+				{X: xEdges[xi+1], Y: yEdges[yi+1]},
+				{X: xEdges[xi], Y: yEdges[yi+1]},
+			}
+			var quad [4]geom.Pt
+			for i, pt := range local {
+				quad[i] = tr.Apply(pt)
+			}
+			batch.Cells = append(batch.Cells, render.QuadMeshCell{
+				Quad:        quad,
+				Face:        mapping.Color(value, 0.84),
+				Edge:        render.Color{R: 0.97, G: 0.97, B: 0.97, A: 0.72},
+				LineWidth:   0.55,
+				Antialiased: true,
+			})
+		}
+	}
+	return batch
+}
+
+func clipBatchPath() geom.Path {
+	points := []geom.Pt{
+		{X: 0.55, Y: 1.10},
+		{X: 2.05, Y: 0.50},
+		{X: 3.10, Y: 1.05},
+		{X: 5.35, Y: 0.80},
+		{X: 4.70, Y: 2.45},
+		{X: 5.50, Y: 4.05},
+		{X: 3.70, Y: 3.80},
+		{X: 2.55, Y: 5.05},
+		{X: 1.75, Y: 3.55},
+		{X: 0.55, Y: 3.85},
+		{X: 1.20, Y: 2.35},
+	}
+	path := geom.Path{}
+	for i, pt := range points {
+		if i == 0 {
+			path.MoveTo(pt)
+		} else {
+			path.LineTo(pt)
+		}
+	}
+	path.Close()
+	return path
+}
+
+func transformFixturePath(path geom.Path, tr interface{ Apply(geom.Pt) geom.Pt }) geom.Path {
+	out := geom.Path{C: append([]geom.Cmd(nil), path.C...), V: make([]geom.Pt, len(path.V))}
+	for i, pt := range path.V {
+		out.V[i] = tr.Apply(pt)
+	}
+	return out
 }
 
 func renderFixtureFigure(fig *core.Figure, w, h int) image.Image {
