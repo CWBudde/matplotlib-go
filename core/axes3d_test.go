@@ -1328,6 +1328,65 @@ func TestAxes3DContourUsesLevelColorsByDefault(t *testing.T) {
 	}
 }
 
+func TestAxes3DContourSupportsMatplotlibZDirJuggling(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	contour := ax.Contour(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+		PlotOptions{Levels: []float64{0.5}, ZDir: "x"},
+	)
+	if contour == nil {
+		t.Fatal("Contour returned nil")
+	}
+	if got, want := len(contour.Segments), 1; got != want {
+		t.Fatalf("contour segment count = %d, want %d", got, want)
+	}
+	want := []Pt{
+		ax.ProjectPoint(0.5, 0, 0.5),
+		ax.ProjectPoint(0.5, 0.5, 1),
+		ax.ProjectPoint(0.5, 1, 1.5),
+	}
+	if !pointsEqual(contour.Segments[0], want, 1e-12) {
+		t.Fatalf("x-directed contour = %+v, want Matplotlib rotate_axes/juggle_axes contour %+v", contour.Segments[0], want)
+	}
+}
+
+func TestAxes3DContourUsesExplicitOffsetPlane(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	offset := -2.0
+	contour := ax.Contour(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+		PlotOptions{Levels: []float64{1}, Offset: &offset},
+	)
+	if contour == nil || len(contour.Segments) == 0 || len(contour.Segments[0]) == 0 {
+		t.Fatalf("Contour returned no segments: %+v", contour)
+	}
+
+	rawLines, _ := contourGridPolylines([]float64{0, 1}, []float64{0, 1}, [][]float64{{0, 1}, {1, 2}}, []float64{1})
+	if len(rawLines) == 0 || len(rawLines[0]) == 0 {
+		t.Fatal("expected raw contour line")
+	}
+	want := ax.ProjectPoint(rawLines[0][0].X, rawLines[0][0].Y, offset)
+	if got := contour.Segments[0][0]; !approx(got.X, want.X, 1e-12) || !approx(got.Y, want.Y, 1e-12) {
+		t.Fatalf("contour offset point = %+v, want explicit offset projection %+v", got, want)
+	}
+}
+
 func TestAxes3DContourZOrderUsesContourGeometry(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
@@ -1349,6 +1408,33 @@ func TestAxes3DContourZOrderUsesContourGeometry(t *testing.T) {
 	}
 	if !(surface.Z() > contour.Z()) {
 		t.Fatalf("surface zorder %.6g, contour zorder %.6g; want surface drawn over 3D contour lines like Matplotlib computed_zorder", surface.Z(), contour.Z())
+	}
+}
+
+func TestAxes3DContourfUsesFilledLevelMidpointsByDefault(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	fill := ax.Contourf(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+		PlotOptions{Levels: []float64{0, 1, 2}},
+	)
+	if fill == nil || len(fill.Paths) == 0 || len(fill.Paths[0].V) == 0 {
+		t.Fatalf("Contourf returned no paths: %+v", fill)
+	}
+
+	rawPolygons := contourGridBandPolygonsForLevel([]float64{0, 1}, []float64{0, 1}, [][]float64{{0, 1}, {1, 2}}, 0, 1)
+	if len(rawPolygons) == 0 || len(rawPolygons[0]) == 0 {
+		t.Fatal("expected raw first-band contour polygon")
+	}
+	want := ax.ProjectPoint(rawPolygons[0][0].X, rawPolygons[0][0].Y, 0.5)
+	if got := fill.Paths[0].V[0]; !approx(got.X, want.X, 1e-12) || !approx(got.Y, want.Y, 1e-12) {
+		t.Fatalf("contourf midpoint point = %+v, want projection at first-band midpoint %+v", got, want)
 	}
 }
 
@@ -1695,6 +1781,57 @@ func TestAxes3DTrisurfCreatesSinglePolyCollection(t *testing.T) {
 	}
 }
 
+func TestAxes3DTrisurfSkipsMaskedTriangles(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	tri := Triangulation{
+		X:         []float64{0, 1, 1, 0},
+		Y:         []float64{0, 0, 1, 1},
+		Triangles: [][3]int{{0, 1, 2}, {0, 2, 3}},
+		Mask:      []bool{false, true},
+	}
+	collection := ax.Trisurf(tri, []float64{0, 1, 2, 3})
+	if collection == nil {
+		t.Fatal("Trisurf returned nil")
+	}
+	if got, want := len(collection.Polygons), 1; got != want {
+		t.Fatalf("masked trisurf polygon count = %d, want %d visible triangle", got, want)
+	}
+}
+
+func TestAxes3DTrisurfUsesConfiguredEdgeColor(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	edge := render.Color{R: 0.2, G: 0.3, B: 0.4, A: 1}
+	width := 0.25
+	tri := Triangulation{
+		X:         []float64{0, 1, 0},
+		Y:         []float64{0, 0, 1},
+		Triangles: [][3]int{{0, 1, 2}},
+	}
+	collection := ax.Trisurf(tri, []float64{0, 1, 2}, PlotOptions{
+		EdgeColor: &edge,
+		EdgeWidth: &width,
+	})
+	if collection == nil {
+		t.Fatal("Trisurf returned nil")
+	}
+	if got := collection.EdgeColor; got != edge {
+		t.Fatalf("trisurf edge color = %+v, want %+v", got, edge)
+	}
+	if got := collection.EdgeWidth; got != width {
+		t.Fatalf("trisurf edge width = %v, want %v", got, width)
+	}
+}
+
 func TestAxes3DTrisurfShadesFaceColorsLikeMatplotlib(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
@@ -1717,6 +1854,29 @@ func TestAxes3DTrisurfShadesFaceColorsLikeMatplotlib(t *testing.T) {
 	}
 	if collection.FaceColors[0] == base {
 		t.Fatalf("trisurf face color = %+v, want Matplotlib-style shaded variant of %+v", collection.FaceColors[0], base)
+	}
+}
+
+func TestAxes3DVoxelsCullInternalFacesLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	voxels := ax.Voxels([][][]bool{
+		{{true}},
+		{{true}},
+	})
+	if got, want := len(voxels), 2; got != want {
+		t.Fatalf("voxel collection count = %d, want %d filled voxels", got, want)
+	}
+	totalFaces := 0
+	for _, voxel := range voxels {
+		totalFaces += len(voxel.Polygons)
+	}
+	if got, want := totalFaces, 10; got != want {
+		t.Fatalf("visible voxel face count = %d, want %d after internal-face culling", got, want)
 	}
 }
 

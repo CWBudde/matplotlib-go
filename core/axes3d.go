@@ -659,15 +659,8 @@ func (a *Axes3D) Wireframe(x, y []float64, z [][]float64, opts ...PlotOptions) *
 // Contour projects a structured z grid and emits a placeholder wireframe contour.
 func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *LineCollection {
 	limitsChanged := a.observe3DGrid(x, y, z)
-	levelCount := 7
-	var explicitLevels []float64
-	if len(opts) > 0 && opts[0].LevelCount > 0 {
-		levelCount = opts[0].LevelCount
-	}
-	if len(opts) > 0 && len(opts[0].Levels) > 0 {
-		explicitLevels = opts[0].Levels
-	}
-	segments, segmentLevels, _, values, zorder := a.projectedContourLineData(x, y, z, levelCount, explicitLevels)
+	opt := firstPlotOptions(opts)
+	segments, segmentLevels, levels, values, zorder := a.projectedContourLineData(x, y, z, opt)
 	if len(segments) == 0 {
 		return nil
 	}
@@ -677,25 +670,22 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 	alpha := 1.0
 	label := ""
 	colorOverride := false
-	if len(opts) > 0 {
-		opt := opts[0]
-		if opt.Color != nil {
-			color = *opt.Color
-			colorOverride = true
-		}
-		if opt.LineWidth != nil {
-			lineWidth = *opt.LineWidth
-		}
-		if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
-			alpha = *opt.Alpha
-		}
-		label = opt.Label
+	if opt.Color != nil {
+		color = *opt.Color
+		colorOverride = true
 	}
+	if opt.LineWidth != nil {
+		lineWidth = *opt.LineWidth
+	}
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+	label = opt.Label
 
 	colors := []render.Color(nil)
 	collectionAlpha := alpha
 	if !colorOverride {
-		mapping := resolveScalarMapValues(values, "viridis", nil, nil)
+		mapping := contourScalarMap(values, levels, opt)
 		colors = make([]render.Color, len(segmentLevels))
 		for i, level := range segmentLevels {
 			colors[i] = mapping.Color(level, alpha)
@@ -720,10 +710,10 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			segments, segmentLevels, _, values, zorder := a.projectedContourLineData(x, y, z, levelCount, explicitLevels)
+			segments, segmentLevels, levels, values, zorder := a.projectedContourLineData(x, y, z, opt)
 			collection.Segments = segments
 			if !colorOverride {
-				mapping := resolveScalarMapValues(values, "viridis", nil, nil)
+				mapping := contourScalarMap(values, levels, opt)
 				colors := make([]render.Color, len(segmentLevels))
 				for i, level := range segmentLevels {
 					colors[i] = mapping.Color(level, alpha)
@@ -738,47 +728,34 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 
 // Contourf projects a structured z grid and emits filled contour bands.
 func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *PolyCollection {
+	opt := firstPlotOptions(opts)
 	alpha := 0.45
 	label := ""
-	levelCount := 7
-	var explicitLevels []float64
-	colorOverride := (*render.Color)(nil)
-	offset := (*float64)(nil)
-	if len(opts) > 0 {
-		opt := opts[0]
-		if opt.Color != nil {
-			colorOverride = opt.Color
-		}
-		if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
-			alpha = *opt.Alpha
-		}
-		if opt.LevelCount > 0 {
-			levelCount = opt.LevelCount
-		}
-		if len(opt.Levels) > 0 {
-			explicitLevels = opt.Levels
-		}
-		offset = opt.Offset
-		label = opt.Label
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
 	}
-	limitsChanged := a.observe3DContourf(x, y, z, levelCount, explicitLevels)
+	label = opt.Label
+	limitsChanged := a.observe3DContourf(x, y, z, opt)
 
-	polygons, colors, zorder := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, explicitLevels, offset)
-	if len(polygons) == 0 {
+	paths, colors, zorder, mapping := a.projectedContourFillData(x, y, z, alpha, opt)
+	if len(paths) == 0 {
 		return nil
 	}
-	paths, pathColors := compoundContourPaths(polygons, colors)
 
 	collection := &PolyCollection{
 		PatchCollection: PatchCollection{
 			Collection: Collection{
-				Coords: Coords(CoordData),
-				Label:  label,
-				Alpha:  1,
-				z:      zorder,
+				Coords:   Coords(CoordData),
+				Label:    label,
+				Alpha:    1,
+				Colormap: mapping.Colormap,
+				Norm:     mapping.Norm,
+				VMin:     mapping.VMin,
+				VMax:     mapping.VMax,
+				z:        zorder,
 			},
 			Paths:      paths,
-			FaceColors: pathColors,
+			FaceColors: colors,
 			LineJoin:   render.JoinMiter,
 			LineCap:    render.CapButt,
 		},
@@ -786,11 +763,14 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			polygons, colors, zorder := a.projectedContourFloorPolygons(x, y, z, alpha, colorOverride, levelCount, explicitLevels, offset)
-			paths, pathColors := compoundContourPaths(polygons, colors)
+			paths, colors, zorder, mapping := a.projectedContourFillData(x, y, z, alpha, opt)
 			collection.Polygons = nil
 			collection.Paths = paths
-			collection.FaceColors = pathColors
+			collection.FaceColors = colors
+			collection.Colormap = mapping.Colormap
+			collection.Norm = mapping.Norm
+			collection.VMin = mapping.VMin
+			collection.VMax = mapping.VMax
 			collection.z = zorder
 		}
 	}, limitsChanged)
@@ -808,19 +788,26 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 	alpha := 0.85
 	label := ""
 	edgeWidth := 1.0
+	edgeColor := render.Color{A: 0}
 	if len(opts) > 0 {
 		opt := opts[0]
 		if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 			alpha = *opt.Alpha
 		}
-		if opt.LineWidth != nil && *opt.LineWidth >= 0 {
+		if opt.EdgeWidth != nil && *opt.EdgeWidth >= 0 {
+			edgeWidth = *opt.EdgeWidth
+		} else if opt.LineWidth != nil && *opt.LineWidth >= 0 {
 			edgeWidth = *opt.LineWidth
+		}
+		if opt.EdgeColor != nil {
+			edgeColor = *opt.EdgeColor
 		}
 		label = opt.Label
 	}
 	for i := range faceColors {
 		faceColors[i].A *= alpha
 	}
+	edgeColor.A *= alpha
 
 	collection := &PolyCollection{
 		Polygons: polygons,
@@ -836,7 +823,7 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 				z:        zorder,
 			},
 			FaceColors: faceColors,
-			EdgeColor:  render.Color{A: 0},
+			EdgeColor:  edgeColor,
 			EdgeWidth:  edgeWidth,
 			LineJoin:   render.JoinMiter,
 			LineCap:    render.CapButt,
@@ -862,36 +849,19 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 }
 
 func (a *Axes3D) projectedContourSegments(x, y []float64, z [][]float64, levelCount int) [][]geom.Pt {
-	segments, _, _, _, _ := a.projectedContourLineData(x, y, z, levelCount, nil)
+	segments, _, _, _, _ := a.projectedContourLineData(x, y, z, PlotOptions{LevelCount: levelCount})
 	return segments
 }
 
-func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, levelCount int, explicitLevels []float64) ([][]geom.Pt, []float64, []float64, []float64, float64) {
-	if a == nil || len(z) == 0 {
+func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, opt PlotOptions) ([][]geom.Pt, []float64, []float64, []float64, float64) {
+	if a == nil {
 		return nil, nil, nil, nil, defaultPatchZ
 	}
-	rows := len(z)
-	cols := len(z[0])
-	if cols == 0 || len(x) < cols || len(y) < rows {
+	zdir := normalized3DDir(opt.ZDir)
+	rawLines, rawLevels, levels, values, ok := a.contourLines3D(x, y, z, opt, zdir)
+	if !ok || len(rawLines) == 0 {
 		return nil, nil, nil, nil, defaultPatchZ
 	}
-	for row := 1; row < rows; row++ {
-		if len(z[row]) != cols {
-			return nil, nil, nil, nil, defaultPatchZ
-		}
-	}
-
-	values := flattenGridValues(z)
-	if levelCount <= 0 {
-		levelCount = 7
-	}
-
-	levels := contourLevels(values, explicitLevels, levelCount, false)
-	if len(levels) == 0 {
-		return nil, nil, nil, nil, defaultPatchZ
-	}
-
-	rawLines, rawLevels := contourGridPolylines(x[:cols], y[:rows], z, levels)
 	segments := make([][]geom.Pt, 0, len(rawLines))
 	segmentLevels := make([]float64, 0, len(rawLines))
 	depth := math.Inf(1)
@@ -902,8 +872,9 @@ func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, levelCo
 		level := rawLevels[i]
 		projected := make([]geom.Pt, len(polyline))
 		for j, pt := range polyline {
+			point3D := juggle3DPointSigned(pt.X, pt.Y, contourPlaneLevel(level, opt.Offset), "-"+zdir)
 			var zDepth float64
-			projected[j], zDepth = a.projectPointDepth(pt.X, pt.Y, level)
+			projected[j], zDepth = a.projectPointDepth(point3D[0], point3D[1], point3D[2])
 			if zDepth < depth {
 				depth = zDepth
 			}
@@ -917,7 +888,234 @@ func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, levelCo
 type surfaceFace struct {
 	polygon []geom.Pt
 	value   float64
+	color   render.Color
+	normal  vec3
 	depth   float64
+}
+
+func contourPlaneLevel(level float64, offset *float64) float64 {
+	if offset != nil && isFinite(*offset) {
+		return *offset
+	}
+	return level
+}
+
+func contourScalarMap(values, levels []float64, opt PlotOptions) ScalarMapInfo {
+	mapping := resolvePlotScalarMap(values, opt)
+	if len(levels) >= 2 && opt.VMin == nil && opt.VMax == nil {
+		mapping.VMin = levels[0]
+		mapping.VMax = levels[len(levels)-1]
+		if mapping.Norm == nil {
+			mapping.Norm = Normalize{VMin: mapping.VMin, VMax: mapping.VMax}
+		}
+	}
+	return mapping
+}
+
+func (a *Axes3D) contourLines3D(x, y []float64, z [][]float64, opt PlotOptions, zdir string) ([][]geom.Pt, []float64, []float64, []float64, bool) {
+	rows, cols, ok := validate3DGridContourInput(x, y, z)
+	if !ok {
+		return nil, nil, nil, nil, false
+	}
+	values := flattenGridValues(z)
+	levels := contourLevels(values, opt.Levels, opt.LevelCount, false)
+	if len(levels) == 0 {
+		return nil, nil, nil, nil, false
+	}
+	if zdir == "z" {
+		lines, lineLevels := contourGridPolylines(x[:cols], y[:rows], z, levels)
+		return lines, lineLevels, levels, values, true
+	}
+
+	tri, rotatedValues, ok := rotatedContourTriangulation(x[:cols], y[:rows], z, zdir)
+	if !ok {
+		return nil, nil, nil, nil, false
+	}
+	lines, lineLevels := contourPolylines(tri, rotatedValues, levels)
+	return lines, lineLevels, levels, rotatedValues, true
+}
+
+func (a *Axes3D) projectedContourFillData(x, y []float64, z [][]float64, alpha float64, opt PlotOptions) ([]geom.Path, []render.Color, float64, ScalarMapInfo) {
+	rows, cols, ok := validate3DGridContourInput(x, y, z)
+	if !ok {
+		return nil, nil, defaultPatchZ, ScalarMapInfo{}
+	}
+	values := flattenGridValues(z)
+	levels := contourLevels(values, opt.Levels, opt.LevelCount, true)
+	if len(levels) < 2 {
+		return nil, nil, defaultPatchZ, ScalarMapInfo{}
+	}
+	zdir := normalized3DDir(opt.ZDir)
+	mapping := contourScalarMap(values, levels, opt)
+	collectionDepth := math.Inf(1)
+	paths := make([]geom.Path, 0, len(levels)-1)
+	colors := make([]render.Color, 0, len(levels)-1)
+
+	var tri Triangulation
+	var rotatedValues []float64
+	if zdir != "z" {
+		var ok bool
+		tri, rotatedValues, ok = rotatedContourTriangulation(x[:cols], y[:rows], z, zdir)
+		if !ok {
+			return nil, nil, defaultPatchZ, ScalarMapInfo{}
+		}
+	}
+
+	for levelIdx := 0; levelIdx+1 < len(levels); levelIdx++ {
+		low := levels[levelIdx]
+		high := levels[levelIdx+1]
+		bandLevel := 0.5 * (low + high)
+		planeLevel := contourPlaneLevel(bandLevel, opt.Offset)
+		var rawPolygons [][]geom.Pt
+		if zdir == "z" {
+			rawPolygons = contourGridBandPolygonsForLevel(x[:cols], y[:rows], z, low, high)
+		} else {
+			rawPolygons = contourTriBandPolygons(tri, rotatedValues, low, high)
+		}
+		if len(rawPolygons) == 0 {
+			continue
+		}
+
+		projectedPolygons := make([][]geom.Pt, 0, len(rawPolygons))
+		for _, polygon := range rawPolygons {
+			if len(polygon) < 3 {
+				continue
+			}
+			projected := make([]geom.Pt, len(polygon))
+			for i, pt := range polygon {
+				point3D := juggle3DPointSigned(pt.X, pt.Y, planeLevel, "-"+zdir)
+				projectedPt, zDepth := a.projectPointDepth(point3D[0], point3D[1], point3D[2])
+				projected[i] = projectedPt
+				if zDepth < collectionDepth {
+					collectionDepth = zDepth
+				}
+			}
+			projectedPolygons = append(projectedPolygons, projected)
+		}
+		if len(projectedPolygons) == 0 {
+			continue
+		}
+		path := contourBoundaryPath(projectedPolygons)
+		if len(path.C) == 0 {
+			path = contourPolygonsPath(projectedPolygons)
+		}
+		if len(path.C) == 0 {
+			continue
+		}
+
+		color := mapping.Color(bandLevel, alpha)
+		if opt.Color != nil {
+			color = *opt.Color
+			color.A *= alpha
+		}
+		paths = append(paths, path)
+		colors = append(colors, color)
+	}
+	if len(paths) == 0 {
+		return nil, nil, defaultPatchZ, ScalarMapInfo{}
+	}
+	return paths, colors, computed3DCollectionZ(collectionDepth), mapping
+}
+
+func validate3DGridContourInput(x, y []float64, z [][]float64) (rows, cols int, ok bool) {
+	if len(z) == 0 {
+		return 0, 0, false
+	}
+	rows = len(z)
+	cols = len(z[0])
+	if cols == 0 || len(x) < cols || len(y) < rows {
+		return 0, 0, false
+	}
+	for row := 1; row < rows; row++ {
+		if len(z[row]) != cols {
+			return 0, 0, false
+		}
+	}
+	return rows, cols, true
+}
+
+func contourGridBandPolygonsForLevel(x, y []float64, data [][]float64, low, high float64) [][]geom.Pt {
+	rows := len(data)
+	if rows < 2 || len(x) < 2 || len(y) < 2 {
+		return nil
+	}
+	cols := len(data[0])
+	polygons := make([][]geom.Pt, 0)
+	for row := 0; row+1 < rows; row++ {
+		for col := 0; col+1 < cols; col++ {
+			polygons = append(polygons, contourCellBandPolygons(
+				[4]geom.Pt{
+					{X: x[col], Y: y[row]},
+					{X: x[col+1], Y: y[row]},
+					{X: x[col+1], Y: y[row+1]},
+					{X: x[col], Y: y[row+1]},
+				},
+				[4]float64{
+					data[row][col],
+					data[row][col+1],
+					data[row+1][col+1],
+					data[row+1][col],
+				},
+				low,
+				high,
+			)...)
+		}
+	}
+	return polygons
+}
+
+func contourTriBandPolygons(tri Triangulation, values []float64, low, high float64) [][]geom.Pt {
+	polygons := make([][]geom.Pt, 0)
+	for triIdx, triangle := range tri.Triangles {
+		if tri.masked(triIdx) {
+			continue
+		}
+		polygon := triangleBandPolygon(
+			[3]geom.Pt{tri.point(triangle[0]), tri.point(triangle[1]), tri.point(triangle[2])},
+			[3]float64{values[triangle[0]], values[triangle[1]], values[triangle[2]]},
+			low,
+			high,
+		)
+		if len(polygon) >= 3 {
+			polygons = append(polygons, polygon)
+		}
+	}
+	return polygons
+}
+
+func rotatedContourTriangulation(x, y []float64, z [][]float64, zdir string) (Triangulation, []float64, bool) {
+	rows, cols, ok := validate3DGridContourInput(x, y, z)
+	if !ok {
+		return Triangulation{}, nil, false
+	}
+	pointsX := make([]float64, 0, rows*cols)
+	pointsY := make([]float64, 0, rows*cols)
+	values := make([]float64, 0, rows*cols)
+	triangles := make([][3]int, 0, (rows-1)*(cols-1)*2)
+	mask := make([]bool, 0, (rows-1)*(cols-1)*2)
+	index := func(row, col int) int { return row*cols + col }
+
+	for row := 0; row < rows; row++ {
+		for col := 0; col < cols; col++ {
+			p := rotate3DPointAxes(x[col], y[row], z[row][col], zdir)
+			pointsX = append(pointsX, p[0])
+			pointsY = append(pointsY, p[1])
+			values = append(values, p[2])
+		}
+	}
+	for row := 0; row+1 < rows; row++ {
+		for col := 0; col+1 < cols; col++ {
+			p00 := index(row, col)
+			p10 := index(row, col+1)
+			p01 := index(row+1, col)
+			p11 := index(row+1, col+1)
+			t0 := [3]int{p00, p10, p11}
+			t1 := [3]int{p00, p11, p01}
+			triangles = append(triangles, t0, t1)
+			mask = append(mask, !triangleFinite(values, t0), !triangleFinite(values, t1))
+		}
+	}
+	return Triangulation{X: pointsX, Y: pointsY, Triangles: triangles, Mask: mask}, values, true
 }
 
 func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...PlotOptions) ([][]geom.Pt, []render.Color, float64, ScalarMapInfo) {
@@ -935,16 +1133,28 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 		}
 	}
 
+	opt := firstPlotOptions(opts)
 	faces := make([]surfaceFace, 0, (rows-1)*(cols-1))
 	values := make([]float64, 0, (rows-1)*(cols-1))
 	collectionDepth := math.Inf(1)
-	rowIndices, colIndices := surfaceSampleIndices(rows, cols, firstPlotOptions(opts))
+	rowIndices, colIndices := surfaceSampleIndices(rows, cols, opt)
+	defaultColor := a.NextColor()
+	useMapping := opt.Colormap != nil && *opt.Colormap != ""
+	useExplicitFaceColors := len(opt.FaceColors) > 0
+	shade := surfaceShadeEnabled(opt, useMapping)
 	for rowIdx := 0; rowIdx+1 < len(rowIndices); rowIdx++ {
 		row0 := rowIndices[rowIdx]
 		row1 := rowIndices[rowIdx+1]
 		for colIdx := 0; colIdx+1 < len(colIndices); colIdx++ {
 			col0 := colIndices[colIdx]
 			col1 := colIndices[colIdx+1]
+			corners := [4]vec3{
+				{x[col0], y[row0], z[row0][col0]},
+				{x[col1], y[row0], z[row0][col1]},
+				{x[col1], y[row1], z[row1][col1]},
+				{x[col0], y[row1], z[row1][col0]},
+			}
+			normal := corners[0].sub(corners[1]).cross(corners[1].sub(corners[2]))
 			polygon := make([]geom.Pt, 0, 2*(row1-row0)+2*(col1-col0))
 			value := 0.0
 			depth := 0.0
@@ -973,7 +1183,23 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 			}
 			value /= float64(count)
 			depth /= float64(count)
-			faces = append(faces, surfaceFace{polygon: polygon, value: value, depth: depth})
+			baseColor := defaultColor
+			switch {
+			case useExplicitFaceColors:
+				baseColor = faceColorAtIndex(opt.FaceColors, len(faces))
+			case opt.Color != nil:
+				baseColor = *opt.Color
+			}
+			if shade && !useMapping {
+				baseColor = shade3DFaceColor(baseColor, normal)
+			}
+			faces = append(faces, surfaceFace{
+				polygon: polygon,
+				value:   value,
+				color:   baseColor,
+				normal:  normal,
+				depth:   depth,
+			})
 			values = append(values, value)
 		}
 	}
@@ -985,20 +1211,19 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 		return faces[i].depth > faces[j].depth
 	})
 
-	colorOverride := (*render.Color)(nil)
-	if len(opts) > 0 && opts[0].Color != nil {
-		colorOverride = opts[0].Color
+	mapping := ScalarMapInfo{}
+	if useMapping {
+		mapping = resolvePlotScalarMap(values, opt)
 	}
-	mapping := resolvePlotScalarMap(values, firstPlotOptions(opts))
 	polygons := make([][]geom.Pt, len(faces))
 	colors := make([]render.Color, len(faces))
 	for i, face := range faces {
 		polygons[i] = face.polygon
-		if colorOverride != nil {
-			colors[i] = *colorOverride
-			continue
+		if useMapping {
+			colors[i] = mapping.Color(face.value, 1)
+		} else {
+			colors[i] = face.color
 		}
-		colors[i] = mapping.Color(face.value, 1)
 	}
 	return polygons, colors, computed3DCollectionZ(collectionDepth), mapping
 }
@@ -1453,16 +1678,23 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 	lineWidth := 1.0
 	alpha := 1.0
 	label := ""
+	edgeColor := render.Color{A: 0}
 	if len(opts) > 0 {
 		opt := opts[0]
 		if opt.Color != nil {
 			color = *opt.Color
 		}
-		if opt.LineWidth != nil {
+		if opt.EdgeWidth != nil {
+			lineWidth = *opt.EdgeWidth
+		} else if opt.LineWidth != nil {
 			lineWidth = *opt.LineWidth
 		}
 		if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 			alpha = *opt.Alpha
+		}
+		if opt.EdgeColor != nil {
+			edgeColor = *opt.EdgeColor
+			edgeColor.A *= alpha
 		}
 		label = opt.Label
 	}
@@ -1487,7 +1719,7 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 				z:        faceZ,
 			},
 			FaceColors: faceColors,
-			EdgeColor:  render.Color{A: 0},
+			EdgeColor:  edgeColor,
 			EdgeWidth:  lineWidth,
 			LineJoin:   render.JoinMiter,
 			LineCap:    render.CapButt,
@@ -1628,8 +1860,12 @@ func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseC
 	sort.SliceStable(faces, func(i, j int) bool {
 		return faces[i].depth > faces[j].depth
 	})
-	mapping := resolvePlotScalarMap(values, opt)
-	useMapping := opt.Color == nil
+	useMapping := opt.Colormap != nil && *opt.Colormap != ""
+	mapping := ScalarMapInfo{}
+	if useMapping {
+		mapping = resolvePlotScalarMap(values, opt)
+	}
+	shade := trisurfShadeEnabled(opt, useMapping)
 	polygons := make([][]geom.Pt, len(faces))
 	colors := make([]render.Color, len(faces))
 	for i, face := range faces {
@@ -1637,7 +1873,11 @@ func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseC
 		if useMapping {
 			colors[i] = mapping.Color(face.value, baseColor.A)
 		} else {
-			colors[i] = face.color
+			if shade {
+				colors[i] = face.color
+			} else {
+				colors[i] = baseColor
+			}
 		}
 	}
 	return polygons, colors, computed3DCollectionZ(collectionDepth), mapping
@@ -2408,6 +2648,17 @@ type Bar3DOptions struct {
 	Label     string
 }
 
+// VoxelOptions configures boolean-grid voxel rendering.
+type VoxelOptions struct {
+	FaceColor  *render.Color
+	FaceColors map[[3]int]render.Color
+	EdgeColor  *render.Color
+	EdgeColors map[[3]int]render.Color
+	Alpha      *float64
+	Shade      *bool
+	Label      string
+}
+
 // Bar3D draws a simple projected wireframe column for each x/y/z sample.
 func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *LineCollection {
 	n := minLen(x, y, z, dx, dy, dz)
@@ -2489,6 +2740,62 @@ func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *Lin
 	return collection
 }
 
+// Voxels renders a boolean occupancy grid as per-voxel face collections with
+// internal-face culling, matching Matplotlib's voxel artist model.
+func (a *Axes3D) Voxels(filled [][][]bool, opts ...VoxelOptions) map[[3]int]*PolyCollection {
+	if a == nil || a.Axes == nil {
+		return nil
+	}
+	_, _, _, ok := voxelGridShape(filled)
+	if !ok {
+		return nil
+	}
+
+	var opt VoxelOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+	limitsChanged := a.observe3DVoxels(filled)
+	projected := a.projectVoxelCollections(filled, opt, alpha)
+	if len(projected) == 0 {
+		return map[[3]int]*PolyCollection{}
+	}
+
+	collections := make(map[[3]int]*PolyCollection, len(projected))
+	for coord, voxel := range projected {
+		collection := &PolyCollection{
+			Polygons: voxel.polygons,
+			PatchCollection: PatchCollection{
+				Collection: Collection{Coords: Coords(CoordData), Label: opt.Label, Alpha: 1, z: voxel.zorder},
+				FaceColors: voxel.faceColors,
+				EdgeColor:  voxel.edgeColor,
+				LineJoin:   render.JoinMiter,
+				LineCap:    render.CapButt,
+			},
+		}
+		a.Add(collection)
+		collections[coord] = collection
+	}
+	a.add3DReprojector(func() {
+		refreshed := a.projectVoxelCollections(filled, opt, alpha)
+		for coord, collection := range collections {
+			voxel, ok := refreshed[coord]
+			if !ok {
+				continue
+			}
+			collection.Polygons = voxel.polygons
+			collection.FaceColors = voxel.faceColors
+			collection.EdgeColor = voxel.edgeColor
+			collection.z = voxel.zorder
+		}
+	}, limitsChanged)
+	return collections
+}
+
 // Voxel projects unstructured rectangular prisms as wireframe voxels.
 func (a *Axes3D) Voxel(x, y, z, dx, dy, dz []float64, opts ...PlotOptions) *LineCollection {
 	if len(opts) == 0 {
@@ -2508,6 +2815,232 @@ func (a *Axes3D) Voxel(x, y, z, dx, dy, dz []float64, opts ...PlotOptions) *Line
 	}
 	voxelOpts[0].Label = o.Label
 	return a.Bar3D(x, y, z, dx, dy, dz, voxelOpts...)
+}
+
+type projectedVoxelCollection struct {
+	polygons   [][]geom.Pt
+	faceColors []render.Color
+	edgeColor  render.Color
+	zorder     float64
+}
+
+func voxelGridShape(filled [][][]bool) (int, int, int, bool) {
+	if len(filled) == 0 || len(filled[0]) == 0 || len(filled[0][0]) == 0 {
+		return 0, 0, 0, false
+	}
+	nx, ny, nz := len(filled), len(filled[0]), len(filled[0][0])
+	for i := 0; i < nx; i++ {
+		if len(filled[i]) != ny {
+			return 0, 0, 0, false
+		}
+		for j := 0; j < ny; j++ {
+			if len(filled[i][j]) != nz {
+				return 0, 0, 0, false
+			}
+		}
+	}
+	return nx, ny, nz, true
+}
+
+func (a *Axes3D) observe3DVoxels(filled [][][]bool) bool {
+	nx, ny, nz, ok := voxelGridShape(filled)
+	if !ok {
+		return false
+	}
+	changed := false
+	for i := 0; i < nx; i++ {
+		for j := 0; j < ny; j++ {
+			for k := 0; k < nz; k++ {
+				if !filled[i][j][k] {
+					continue
+				}
+				if a.observe3DPoint(float64(i), float64(j), float64(k)) {
+					changed = true
+				}
+				if a.observe3DPoint(float64(i+1), float64(j+1), float64(k+1)) {
+					changed = true
+				}
+			}
+		}
+	}
+	return changed
+}
+
+func (a *Axes3D) projectVoxelCollections(filled [][][]bool, opt VoxelOptions, alpha float64) map[[3]int]projectedVoxelCollection {
+	nx, ny, nz, ok := voxelGridShape(filled)
+	if !ok {
+		return nil
+	}
+	defaultFaceColor := a.NextPatchColor()
+	if opt.FaceColor != nil {
+		defaultFaceColor = *opt.FaceColor
+	}
+	defaultFaceColor.A *= alpha
+	defaultEdgeColor := render.Color{}
+	if opt.EdgeColor != nil {
+		defaultEdgeColor = *opt.EdgeColor
+		defaultEdgeColor.A *= alpha
+	}
+	shade := true
+	if opt.Shade != nil {
+		shade = *opt.Shade
+	}
+
+	type voxelFace struct {
+		polygon []geom.Pt
+		color   render.Color
+		depth   float64
+	}
+	projected := map[[3]int]projectedVoxelCollection{}
+	for i := 0; i < nx; i++ {
+		for j := 0; j < ny; j++ {
+			for k := 0; k < nz; k++ {
+				if !filled[i][j][k] {
+					continue
+				}
+				coord := [3]int{i, j, k}
+				faceColor := defaultFaceColor
+				if color, ok := opt.FaceColors[coord]; ok {
+					faceColor = color
+					faceColor.A *= alpha
+				}
+				edgeColor := defaultEdgeColor
+				if color, ok := opt.EdgeColors[coord]; ok {
+					edgeColor = color
+					edgeColor.A *= alpha
+				}
+
+				faces := make([]voxelFace, 0, 6)
+				for _, raw := range voxelVisibleFaces(filled, i, j, k) {
+					polygon := make([]geom.Pt, len(raw.polygon))
+					depth := 0.0
+					for idx, point := range raw.polygon {
+						projectedPt, zDepth := a.projectPointDepth(point[0], point[1], point[2])
+						polygon[idx] = projectedPt
+						depth += zDepth
+					}
+					color := faceColor
+					if shade {
+						color = shade3DFaceColor(color, raw.normal)
+					}
+					faces = append(faces, voxelFace{
+						polygon: polygon,
+						color:   color,
+						depth:   depth / float64(len(raw.polygon)),
+					})
+				}
+				if len(faces) == 0 {
+					continue
+				}
+				sort.SliceStable(faces, func(aIdx, bIdx int) bool {
+					return faces[aIdx].depth > faces[bIdx].depth
+				})
+				polygons := make([][]geom.Pt, len(faces))
+				colors := make([]render.Color, len(faces))
+				minDepth := math.Inf(1)
+				for idx, face := range faces {
+					polygons[idx] = face.polygon
+					colors[idx] = face.color
+					if face.depth < minDepth {
+						minDepth = face.depth
+					}
+				}
+				projected[coord] = projectedVoxelCollection{
+					polygons:   polygons,
+					faceColors: colors,
+					edgeColor:  edgeColor,
+					zorder:     computed3DCollectionZ(minDepth),
+				}
+			}
+		}
+	}
+	return projected
+}
+
+type voxelRawFace struct {
+	polygon []vec3
+	normal  vec3
+}
+
+func voxelVisibleFaces(filled [][][]bool, i, j, k int) []voxelRawFace {
+	nx, ny, nz, _ := voxelGridShape(filled)
+	visible := make([]voxelRawFace, 0, 6)
+	neighbors := []struct {
+		delta  [3]int
+		normal vec3
+		face   []vec3
+	}{
+		{
+			delta:  [3]int{-1, 0, 0},
+			normal: vec3{-1, 0, 0},
+			face: []vec3{
+				{float64(i), float64(j), float64(k)},
+				{float64(i), float64(j + 1), float64(k)},
+				{float64(i), float64(j + 1), float64(k + 1)},
+				{float64(i), float64(j), float64(k + 1)},
+			},
+		},
+		{
+			delta:  [3]int{1, 0, 0},
+			normal: vec3{1, 0, 0},
+			face: []vec3{
+				{float64(i + 1), float64(j), float64(k)},
+				{float64(i + 1), float64(j), float64(k + 1)},
+				{float64(i + 1), float64(j + 1), float64(k + 1)},
+				{float64(i + 1), float64(j + 1), float64(k)},
+			},
+		},
+		{
+			delta:  [3]int{0, -1, 0},
+			normal: vec3{0, -1, 0},
+			face: []vec3{
+				{float64(i), float64(j), float64(k)},
+				{float64(i), float64(j), float64(k + 1)},
+				{float64(i + 1), float64(j), float64(k + 1)},
+				{float64(i + 1), float64(j), float64(k)},
+			},
+		},
+		{
+			delta:  [3]int{0, 1, 0},
+			normal: vec3{0, 1, 0},
+			face: []vec3{
+				{float64(i), float64(j + 1), float64(k)},
+				{float64(i + 1), float64(j + 1), float64(k)},
+				{float64(i + 1), float64(j + 1), float64(k + 1)},
+				{float64(i), float64(j + 1), float64(k + 1)},
+			},
+		},
+		{
+			delta:  [3]int{0, 0, -1},
+			normal: vec3{0, 0, -1},
+			face: []vec3{
+				{float64(i), float64(j), float64(k)},
+				{float64(i + 1), float64(j), float64(k)},
+				{float64(i + 1), float64(j + 1), float64(k)},
+				{float64(i), float64(j + 1), float64(k)},
+			},
+		},
+		{
+			delta:  [3]int{0, 0, 1},
+			normal: vec3{0, 0, 1},
+			face: []vec3{
+				{float64(i), float64(j), float64(k + 1)},
+				{float64(i), float64(j + 1), float64(k + 1)},
+				{float64(i + 1), float64(j + 1), float64(k + 1)},
+				{float64(i + 1), float64(j), float64(k + 1)},
+			},
+		},
+	}
+	for _, neighbor := range neighbors {
+		ni := i + neighbor.delta[0]
+		nj := j + neighbor.delta[1]
+		nk := k + neighbor.delta[2]
+		if ni >= 0 && ni < nx && nj >= 0 && nj < ny && nk >= 0 && nk < nz && filled[ni][nj][nk] {
+			continue
+		}
+		visible = append(visible, voxelRawFace{polygon: neighbor.face, normal: neighbor.normal})
+	}
+	return visible
 }
 
 // SetView updates the 3D viewing angles in degrees.
@@ -2664,7 +3197,7 @@ func (a *Axes3D) observe3DGrid(x, y []float64, z [][]float64) bool {
 	return changed
 }
 
-func (a *Axes3D) observe3DContourf(x, y []float64, z [][]float64, levelCount int, explicitLevels []float64) bool {
+func (a *Axes3D) observe3DContourf(x, y []float64, z [][]float64, opt PlotOptions) bool {
 	if a == nil || len(z) == 0 {
 		return false
 	}
@@ -2679,7 +3212,7 @@ func (a *Axes3D) observe3DContourf(x, y []float64, z [][]float64, levelCount int
 		}
 	}
 
-	levels := contourLevels(flattenGridValues(z), explicitLevels, levelCount, true)
+	levels := contourLevels(flattenGridValues(z), opt.Levels, opt.LevelCount, true)
 	if len(levels) < 2 {
 		return a.observe3DGrid(x, y, z)
 	}
@@ -2690,12 +3223,25 @@ func (a *Axes3D) observe3DContourf(x, y []float64, z [][]float64, levelCount int
 
 	minX, maxX := finiteRange(x[:cols])
 	minY, maxY := finiteRange(y[:rows])
-	minZ, maxZ := finiteRange(midpoints)
-	if !isFinite(minX) || !isFinite(maxX) || !isFinite(minY) || !isFinite(maxY) || !isFinite(minZ) || !isFinite(maxZ) {
+	minZ, maxZ := zGridRange(z)
+	minLevel, maxLevel := finiteRange(midpoints)
+	if !isFinite(minX) || !isFinite(maxX) || !isFinite(minY) || !isFinite(maxY) || !isFinite(minZ) || !isFinite(maxZ) || !isFinite(minLevel) || !isFinite(maxLevel) {
 		return false
 	}
-	changed := a.observe3DPoint(minX, minY, minZ)
-	if a.observe3DPoint(maxX, maxY, maxZ) {
+
+	minPoint := vec3{minX, minY, minZ}
+	maxPoint := vec3{maxX, maxY, maxZ}
+	switch normalized3DDir(opt.ZDir) {
+	case "x":
+		minPoint[0], maxPoint[0] = minLevel, maxLevel
+	case "y":
+		minPoint[1], maxPoint[1] = minLevel, maxLevel
+	default:
+		minPoint[2], maxPoint[2] = minLevel, maxLevel
+	}
+
+	changed := a.observe3DPoint(minPoint[0], minPoint[1], minPoint[2])
+	if a.observe3DPoint(maxPoint[0], maxPoint[1], maxPoint[2]) {
 		changed = true
 	}
 	return changed
@@ -2792,6 +3338,33 @@ func repeatColor(color render.Color, n int) []render.Color {
 	return colors
 }
 
+func faceColorAtIndex(colors []render.Color, idx int) render.Color {
+	if len(colors) == 0 {
+		return render.Color{}
+	}
+	if len(colors) == 1 {
+		return colors[0]
+	}
+	if idx < len(colors) {
+		return colors[idx]
+	}
+	return colors[len(colors)-1]
+}
+
+func surfaceShadeEnabled(opt PlotOptions, useMapping bool) bool {
+	if opt.Shade != nil {
+		return *opt.Shade
+	}
+	return !useMapping
+}
+
+func trisurfShadeEnabled(opt PlotOptions, useMapping bool) bool {
+	if opt.Shade != nil {
+		return *opt.Shade
+	}
+	return !useMapping
+}
+
 func resolvePlotScalarMap(values []float64, opt PlotOptions) ScalarMapInfo {
 	cmap := ""
 	if opt.Colormap != nil {
@@ -2810,20 +3383,39 @@ func resolvePlotScalarMap(values []float64, opt PlotOptions) ScalarMapInfo {
 }
 
 func normalized3DDir(dir string) string {
-	switch strings.ToLower(dir) {
+	dir = strings.ToLower(dir)
+	dir = strings.TrimPrefix(dir, "-")
+	switch dir {
 	case "x", "y", "z":
-		return strings.ToLower(dir)
+		return dir
 	default:
 		return "z"
 	}
 }
 
 func juggle3DPoint(x, y, z float64, zdir string) vec3 {
-	switch normalized3DDir(zdir) {
+	return juggle3DPointSigned(x, y, z, normalized3DDir(zdir))
+}
+
+func juggle3DPointSigned(x, y, z float64, zdir string) vec3 {
+	switch strings.ToLower(zdir) {
 	case "x":
 		return vec3{z, x, y}
 	case "y":
 		return vec3{x, z, y}
+	case "-x", "-y", "-z":
+		return rotate3DPointAxes(x, y, z, zdir)
+	default:
+		return vec3{x, y, z}
+	}
+}
+
+func rotate3DPointAxes(x, y, z float64, zdir string) vec3 {
+	switch strings.ToLower(zdir) {
+	case "x", "-y":
+		return vec3{y, z, x}
+	case "-x", "y":
+		return vec3{z, x, y}
 	default:
 		return vec3{x, y, z}
 	}

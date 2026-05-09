@@ -13,22 +13,28 @@ const defaultAutoScaleMargin = 0.05
 // PlotOptions holds optional parameters for plotting functions.
 type PlotOptions struct {
 	Color      *render.Color // if nil, uses automatic color cycling
-	LineWidth  *float64      // if nil, uses default
-	Dashes     []float64     // dash pattern
+	EdgeColor  *render.Color
+	LineWidth  *float64 // if nil, uses default
+	EdgeWidth  *float64
+	Dashes     []float64 // dash pattern
 	DrawStyle  *LineDrawStyle
 	Label      string   // series label for legend
 	Alpha      *float64 // alpha transparency
 	LevelCount int      // contour level count for contour-like plot types
 	Levels     []float64
+	ZDir       string
 	Offset     *float64 // fixed projection offset for contour-like plot types
 	RStride    *int     // row stride for 3D surface/wireframe sampling
 	CStride    *int     // column stride for 3D surface/wireframe sampling
 	RCount     *int     // maximum sampled row count for 3D surface/wireframe sampling
 	CCount     *int     // maximum sampled column count for 3D surface/wireframe sampling
-	Colormap   *string  // scalar colormap for mappable plot types
+	FaceColors []render.Color
+	Shade      *bool
+	Colormap   *string // scalar colormap for mappable plot types
 	Norm       ScalarNormalizer
 	VMin       *float64
 	VMax       *float64
+	AxLimClip  bool
 }
 
 // Plot creates a line plot with automatic color cycling if no color is specified.

@@ -313,21 +313,48 @@ func (c *Colorbar) Draw(r render.Renderer, ctx *DrawContext) {
 		})
 	}
 
-	for i := 0; i < gradientHeight; i++ {
-		t := (float64(i) + 0.5) / float64(gradientHeight)
-		col := cmap.AtValue(t)
-		col.A *= alpha
-
-		path := snappedFillRectPath(colorbarCellRect(ctx.Clip, i, gradientHeight))
-		if len(path.C) == 0 {
-			continue
+	if norm, ok := mapping.Norm.(BoundaryNorm); ok && len(norm.Boundaries) >= 2 {
+		vmin, vmax := mapping.VMin, mapping.VMax
+		span := vmax - vmin
+		if span != 0 {
+			for i := 0; i+1 < len(norm.Boundaries); i++ {
+				low := norm.Boundaries[i]
+				high := norm.Boundaries[i+1]
+				y0 := ctx.Clip.Max.Y - ctx.Clip.H()*((high-vmin)/span)
+				y1 := ctx.Clip.Max.Y - ctx.Clip.H()*((low-vmin)/span)
+				path := snappedFillRectPath(geom.Rect{
+					Min: geom.Pt{X: ctx.Clip.Min.X, Y: y0},
+					Max: geom.Pt{X: ctx.Clip.Max.X, Y: y1},
+				})
+				if len(path.C) == 0 {
+					continue
+				}
+				col := mapping.Color((low+high)*0.5, alpha)
+				r.Path(path, &render.Paint{
+					Fill:      col,
+					LineJoin:  render.JoinMiter,
+					LineCap:   render.CapButt,
+					Antialias: render.AntialiasDefault,
+				})
+			}
 		}
-		r.Path(path, &render.Paint{
-			Fill:      col,
-			LineJoin:  render.JoinMiter,
-			LineCap:   render.CapButt,
-			Antialias: render.AntialiasDefault,
-		})
+	} else {
+		for i := 0; i < gradientHeight; i++ {
+			t := (float64(i) + 0.5) / float64(gradientHeight)
+			col := cmap.AtValue(t)
+			col.A *= alpha
+
+			path := snappedFillRectPath(colorbarCellRect(ctx.Clip, i, gradientHeight))
+			if len(path.C) == 0 {
+				continue
+			}
+			r.Path(path, &render.Paint{
+				Fill:      col,
+				LineJoin:  render.JoinMiter,
+				LineCap:   render.CapButt,
+				Antialias: render.AntialiasDefault,
+			})
+		}
 	}
 
 	r.Path(outlinePath, &render.Paint{
