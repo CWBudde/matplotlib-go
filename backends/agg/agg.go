@@ -2296,7 +2296,11 @@ func clonePath(path geom.Path) geom.Path {
 
 func (r *Renderer) applyClipRect() {
 	if r.clipRect != nil {
-		r.ctx.ClipBox(r.clipRect.Min.X, r.clipRect.Min.Y, r.clipRect.Max.X, r.clipRect.Max.Y)
+		minX := math.Floor(r.clipRect.Min.X)
+		minY := math.Floor(r.clipRect.Min.Y)
+		maxX := math.Ceil(r.clipRect.Max.X)
+		maxY := math.Ceil(r.clipRect.Max.Y)
+		r.ctx.ClipBox(minX, minY, maxX, maxY)
 		return
 	}
 	r.ctx.ClipBox(0, 0, float64(r.width), float64(r.height))

@@ -826,14 +826,14 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 		Polygons: polygons,
 		PatchCollection: PatchCollection{
 			Collection: Collection{
-				Coords: Coords(CoordData),
-				Label:  label,
-				Alpha:  1,
+				Coords:   Coords(CoordData),
+				Label:    label,
+				Alpha:    1,
 				Colormap: mapping.Colormap,
 				Norm:     mapping.Norm,
 				VMin:     mapping.VMin,
 				VMax:     mapping.VMax,
-				z:      zorder,
+				z:        zorder,
 			},
 			FaceColors: faceColors,
 			EdgeColor:  render.Color{A: 0},
@@ -938,8 +938,7 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 	faces := make([]surfaceFace, 0, (rows-1)*(cols-1))
 	values := make([]float64, 0, (rows-1)*(cols-1))
 	collectionDepth := math.Inf(1)
-	rowIndices := surfaceGridSampleIndices(rows, default3DSurfaceCount)
-	colIndices := surfaceGridSampleIndices(cols, default3DSurfaceCount)
+	rowIndices, colIndices := surfaceSampleIndices(rows, cols, firstPlotOptions(opts))
 	for rowIdx := 0; rowIdx+1 < len(rowIndices); rowIdx++ {
 		row0 := rowIndices[rowIdx]
 		row1 := rowIndices[rowIdx+1]
@@ -1028,6 +1027,28 @@ func surfaceGridSampleIndices(length, count int) []int {
 		indices = append(indices, i)
 	}
 	return append(indices, length-1)
+}
+
+func surfaceSampleIndices(rows, cols int, opt PlotOptions) ([]int, []int) {
+	hasStride := opt.RStride != nil || opt.CStride != nil
+	if hasStride {
+		rstride, cstride := 10, 10
+		if opt.RStride != nil {
+			rstride = *opt.RStride
+		}
+		if opt.CStride != nil {
+			cstride = *opt.CStride
+		}
+		return steppedSampleIndices(rows, rstride), steppedSampleIndices(cols, cstride)
+	}
+	rcount, ccount := default3DSurfaceCount, default3DSurfaceCount
+	if opt.RCount != nil {
+		rcount = *opt.RCount
+	}
+	if opt.CCount != nil {
+		ccount = *opt.CCount
+	}
+	return surfaceGridSampleIndices(rows, rcount), surfaceGridSampleIndices(cols, ccount)
 }
 
 func surfacePatchPerimeter(row0, row1, col0, col1 int, emit func(row, col int)) {
@@ -1448,7 +1469,7 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 
 	faceColor := color
 	faceColor.A *= alpha
-	faces, faceColors, faceZ := a.projectTriangulationFaces(tri, z, faceColor)
+	faces, faceColors, faceZ, mapping := a.projectTriangulationFaces(tri, z, faceColor, firstPlotOptions(opts))
 	if len(faces) == 0 {
 		return nil
 	}
@@ -1456,10 +1477,14 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 		Polygons: faces,
 		PatchCollection: PatchCollection{
 			Collection: Collection{
-				Coords: Coords(CoordData),
-				Label:  label,
-				Alpha:  1,
-				z:      faceZ,
+				Coords:   Coords(CoordData),
+				Label:    label,
+				Alpha:    1,
+				Colormap: mapping.Colormap,
+				Norm:     mapping.Norm,
+				VMin:     mapping.VMin,
+				VMax:     mapping.VMax,
+				z:        faceZ,
 			},
 			FaceColors: faceColors,
 			EdgeColor:  render.Color{A: 0},
@@ -1471,9 +1496,13 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			faces, faceColors, faceZ := a.projectTriangulationFaces(tri, z, faceColor)
+			faces, faceColors, faceZ, mapping := a.projectTriangulationFaces(tri, z, faceColor, firstPlotOptions(opts))
 			collection.Polygons = faces
 			collection.FaceColors = faceColors
+			collection.Colormap = mapping.Colormap
+			collection.Norm = mapping.Norm
+			collection.VMin = mapping.VMin
+			collection.VMax = mapping.VMax
 			collection.z = faceZ
 		}
 	}, limitsChanged)
@@ -1551,13 +1580,15 @@ func depthShadedScatterColors(color render.Color, points []projectedScatterPoint
 	return colors
 }
 
-func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseColor render.Color) ([][]geom.Pt, []render.Color, float64) {
+func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseColor render.Color, opt PlotOptions) ([][]geom.Pt, []render.Color, float64, ScalarMapInfo) {
 	type triFace struct {
 		polygon []geom.Pt
+		value   float64
 		color   render.Color
 		depth   float64
 	}
 	faces := make([]triFace, 0, len(tri.Triangles))
+	values := make([]float64, 0, len(tri.Triangles))
 	collectionDepth := math.Inf(1)
 	for triIdx, t := range tri.Triangles {
 		if tri.masked(triIdx) {
@@ -1566,6 +1597,7 @@ func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseC
 		polygon := make([]geom.Pt, 0, 3)
 		points := [3]vec3{}
 		depth := 0.0
+		value := 0.0
 		valid := true
 		for i, idx := range t {
 			if idx < 0 || idx >= len(tri.X) || idx >= len(tri.Y) || idx >= len(z) || !isFinite3D(tri.X[idx], tri.Y[idx], z[idx]) {
@@ -1573,6 +1605,7 @@ func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseC
 				break
 			}
 			points[i] = vec3{tri.X[idx], tri.Y[idx], z[idx]}
+			value += z[idx]
 			pt, zDepth := a.projectPointDepth(tri.X[idx], tri.Y[idx], z[idx])
 			polygon = append(polygon, pt)
 			depth += zDepth
@@ -1581,24 +1614,33 @@ func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseC
 			}
 		}
 		if valid {
+			value /= 3
 			normal := points[0].sub(points[1]).cross(points[1].sub(points[2]))
 			faces = append(faces, triFace{
 				polygon: polygon,
+				value:   value,
 				color:   shade3DFaceColor(baseColor, normal),
 				depth:   depth / 3,
 			})
+			values = append(values, value)
 		}
 	}
 	sort.SliceStable(faces, func(i, j int) bool {
 		return faces[i].depth > faces[j].depth
 	})
+	mapping := resolvePlotScalarMap(values, opt)
+	useMapping := opt.Color == nil
 	polygons := make([][]geom.Pt, len(faces))
 	colors := make([]render.Color, len(faces))
 	for i, face := range faces {
 		polygons[i] = face.polygon
-		colors[i] = face.color
+		if useMapping {
+			colors[i] = mapping.Color(face.value, baseColor.A)
+		} else {
+			colors[i] = face.color
+		}
 	}
-	return polygons, colors, computed3DCollectionZ(collectionDepth)
+	return polygons, colors, computed3DCollectionZ(collectionDepth), mapping
 }
 
 func (a *Axes3D) projectBar3DSegments(x, y, z, dx, dy, dz []float64) [][]geom.Pt {
@@ -2748,6 +2790,23 @@ func repeatColor(color render.Color, n int) []render.Color {
 		colors[i] = color
 	}
 	return colors
+}
+
+func resolvePlotScalarMap(values []float64, opt PlotOptions) ScalarMapInfo {
+	cmap := ""
+	if opt.Colormap != nil {
+		cmap = *opt.Colormap
+	}
+	mapping, err := ResolveScalarMapValues(values, ScalarMapConfig{
+		Colormap: cmap,
+		Norm:     opt.Norm,
+		VMin:     opt.VMin,
+		VMax:     opt.VMax,
+	})
+	if err != nil {
+		return ScalarMapInfo{Colormap: resolvedColormapName(cmap)}.Resolved()
+	}
+	return mapping
 }
 
 func normalized3DDir(dir string) string {

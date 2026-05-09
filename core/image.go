@@ -47,12 +47,17 @@ func (i *Image2D) rasterize() (render.Image, bool) {
 }
 
 func (i *Image2D) rasterizeForRect(dst geom.Rect) (render.Image, bool) {
-	if i == nil || i.AngleDeg != 0 || i.Interpolation != "bilinear" {
+	if i == nil || i.AngleDeg != 0 {
 		return i.rasterize()
 	}
 	width := int(math.Round(math.Abs(dst.W())))
 	height := int(math.Round(math.Abs(dst.H())))
 	if width <= len(i.Data[0]) || height <= len(i.Data) {
+		return i.rasterize()
+	}
+	switch i.Interpolation {
+	case "", "nearest", "none", "bilinear":
+	default:
 		return i.rasterize()
 	}
 	return i.rasterizeToSize(width, height)
@@ -85,13 +90,8 @@ func (i *Image2D) rasterizeToSize(targetWidth, targetHeight int) (render.Image, 
 
 	if targetWidth != cols || targetHeight != rows {
 		for y := 0; y < targetHeight; y++ {
-			rowCoord := imageSourceCoord(y, targetHeight, rows)
-			if i.Origin == ImageOriginLower {
-				rowCoord = float64(rows-1) - rowCoord
-			}
 			for x := 0; x < targetWidth; x++ {
-				colCoord := imageSourceCoord(x, targetWidth, cols)
-				v, ok := bilinearScalarSample(i.Data, rowCoord, colCoord)
+				v, ok := i.scaledScalarValue(y, x, targetHeight, targetWidth, rows, cols)
 				if !ok {
 					continue
 				}
@@ -122,6 +122,43 @@ func (i *Image2D) rasterizeToSize(targetWidth, targetHeight int) (render.Image, 
 	data.SetInterpolation(i.Interpolation)
 	data.SetAlpha(clampOneToOne(i.Alpha))
 	return data, true
+}
+
+func (i *Image2D) scaledScalarValue(dstY, dstX, targetHeight, targetWidth, rows, cols int) (float64, bool) {
+	if i != nil && i.Interpolation == "bilinear" {
+		rowCoord := imageSourceCoord(dstY, targetHeight, rows)
+		if i.Origin == ImageOriginLower {
+			rowCoord = float64(rows-1) - rowCoord
+		}
+		colCoord := imageSourceCoord(dstX, targetWidth, cols)
+		return bilinearScalarSample(i.Data, rowCoord, colCoord)
+	}
+	row := scaledNearestIndex(dstY, targetHeight, rows)
+	col := scaledNearestIndex(dstX, targetWidth, cols)
+	if i != nil && i.Origin == ImageOriginLower {
+		row = rows - 1 - row
+	}
+	return scalarAt(i.Data, row, col)
+}
+
+func scaledNearestIndex(index, targetSize, sourceSize int) int {
+	if targetSize <= 0 || sourceSize <= 0 {
+		return 0
+	}
+	if index < 0 {
+		return 0
+	}
+	if index >= targetSize {
+		return sourceSize - 1
+	}
+	scaled := int(float64(index) * float64(sourceSize) / float64(targetSize))
+	if scaled < 0 {
+		return 0
+	}
+	if scaled >= sourceSize {
+		return sourceSize - 1
+	}
+	return scaled
 }
 
 func imageSourceCoord(index, targetSize, sourceSize int) float64 {

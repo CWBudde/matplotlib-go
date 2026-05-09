@@ -600,6 +600,25 @@ func TestAxes3DSurfaceUsesMatplotlibDefaultSampleCounts(t *testing.T) {
 	}
 }
 
+func TestAxes3DSurfaceSupportsRowColumnStridesLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	x, y, z := testGrid3D(5, 5)
+	rstride := 2
+	cstride := 2
+	collection := ax.Surface(x, y, z, PlotOptions{RStride: &rstride, CStride: &cstride})
+	if collection == nil {
+		t.Fatal("Surface returned nil")
+	}
+	if got, want := len(collection.Polygons), 4; got != want {
+		t.Fatalf("surface stride polygon count = %d, want 2x2 sampled patches", got)
+	}
+}
+
 func TestAxes3DSurfaceDefaultHasNoEdgeColorsLikeMatplotlibCmapSurface(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
