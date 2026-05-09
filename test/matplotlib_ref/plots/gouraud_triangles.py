@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Matplotlib reference plot for RendererAgg Gouraud triangle coverage."""
+"""Matplotlib reference plot for Gouraud triangle coverage."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ except ModuleNotFoundError:
     from common import *  # noqa: F401,F403
 
 
-def rendereragg_gouraud_triangles(out_dir):
+def gouraud_triangles(out_dir):
     fig = make_fig_px(980, 620)
     ax = fig.add_axes(go_rect(0.10, 0.14, 0.94, 0.88))
     ax.set_title("RendererAgg Gouraud triangles")
@@ -31,10 +31,10 @@ def rendereragg_gouraud_triangles(out_dir):
     values = np.array([0.05, 0.38, 0.82, 0.62, 1.00, 0.28], dtype=float)
     tri = mtri.Triangulation(x, y, triangles)
     ax.tripcolor(tri, values, shading="gouraud", cmap="viridis", vmin=0, vmax=1)
-    save(fig, out_dir, "rendereragg_gouraud_triangles")
+    save(fig, out_dir, "gouraud_triangles")
 
 
-PLOT = rendereragg_gouraud_triangles
+PLOT = gouraud_triangles
 
 
 def main():

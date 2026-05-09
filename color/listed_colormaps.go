@@ -57,8 +57,22 @@ const listedColormapRGB = "" +
 	"MYO/9QH3zwfs/Q/6Dz/qPfmo++yjzstP2m8+aU1/0pr5rPXxs9bsZ60vs9rfZrV/zOr8mtNdnNNbnsOuzeM25vGSeUPwC+E/EkZZ" +
 	"Cg=="
 
+const cividisColormapRGB = "" +
+	"eNoBAAP//AAiTgAjTwAkUQAlUwAlVAAmVgAnWAAoWQAoWwApXQAqXwAqYQArYgAsZAAsZgAtaAAuagAubAAvbQAwbwAwcAAxcAAx" +
+	"cQEycQUzcQgzcAw0cA81cBI1cBQ2cBY3cBg3bxo4bxw5bx46byA6byE7biM8biQ8biY9bic+bik/bio/bStAbS1BbS5BbS9CbTFD" +
+	"bTJDbTNEbTRFbDVFbDZGbDhHbDlIbDpIbDtJbDxKbD1KbD5LbD9MbEBMbEFNbEJObENObERPbEVQbEZRbEdRbEhSbElTbEpTbEtU" +
+	"bExVbE1VbE5WbE9XbFBXbFFYbVJZbVNabVRabVVbbVVcbVZcbVddbVhebVleblpfbltgblxhbl1hbl5ibl5jb19jb2Bkb2Flb2Jl" +
+	"b2NmcGRncGVocGVocGZpcGdqcWhqcWlrcWpscWttcmxtcmxucm1vcm5vc29wc3Bxc3FydHJydHJzdHN0dXR0dXV1dXZ2dnd3dnd3" +
+	"d3h4d3l5d3p6eHt6eHx7eH18eH58eH59eH9+eIB/eIF/eIKAeYOBeYSCeYWCeYaDeYeEeIiFeImFeIqGeIuHeIyIeI2IeI6JeI+K" +
+	"eJCLeJGLeJKMeJKNeJOOeJSOd5WPd5aQd5eRd5iSd5mSd5qTdpuUdpyVdp2Vdp6Wdp+XdaCYdaGZdaKZdaOadKSbdKWcdKacdKed" +
+	"c6iec6mfc6qgc6ugcqyhcq2icq6jca+kcbClcbGlcLOmcLSnb7Wob7apb7epbriqbrmrbbqsbbutbbyubL2ubL6va7+wa8CxasGy" +
+	"asKzacOzacS0aMW1aMa2Z8e3Z8i4Zsm5Zcu5Zcy6ZM27Y868Y8+9YtC+YtG/YdLAYNPAX9TBX9XCXtbDXdfEXNnFXNrGW9vHWtzI" +
+	"Wd3IWN7JWN/KV+DLVuHMVeLNVOTOU+XPUubQUefRUOjST+nTTurTTOvUS+3VSu7WSe/XSPDYRvHZRfLaRPPbQvXcQfbdP/fePvjf" +
+	"PPngOvvhOPziNv3jNP7kNP7lNf7mNv7oOE9AY+k="
+
 func init() {
 	listed := mustDecodeListedColormaps(listedColormapRGB)
+	listed["cividis"] = mustDecodeListedColormap(cividisColormapRGB)
 	for name, colors := range listed {
 		colormaps[name] = Colormap{name: name, listed: colors}
 	}
@@ -101,4 +115,34 @@ func mustDecodeListedColormaps(encoded string) map[string][]render.Color {
 		result[name] = colors
 	}
 	return result
+}
+
+func mustDecodeListedColormap(encoded string) []render.Color {
+	compressed, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		panic(err)
+	}
+	reader, err := zlib.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		panic(err)
+	}
+	defer reader.Close()
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		panic(err)
+	}
+	if len(raw) != listedColormapSize*3 {
+		panic("color: invalid listed colormap payload")
+	}
+	colors := make([]render.Color, listedColormapSize)
+	for i := range colors {
+		rgb := raw[i*3:]
+		colors[i] = render.Color{
+			R: float64(rgb[0]) / 255,
+			G: float64(rgb[1]) / 255,
+			B: float64(rgb[2]) / 255,
+			A: 1,
+		}
+	}
+	return colors
 }

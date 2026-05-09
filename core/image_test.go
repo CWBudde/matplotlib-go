@@ -217,6 +217,31 @@ func TestImageRasterizeLeavesPixelAlphaUnscaledWhenImageAlphaApplies(t *testing.
 	}
 }
 
+func TestImageRasterizeBilinearUpsamplingInterpolatesScalarData(t *testing.T) {
+	img := &Image2D{
+		Data:          [][]float64{{0, 1}},
+		Colormap:      "viridis",
+		VMin:          0,
+		VMax:          1,
+		Alpha:         1,
+		Origin:        ImageOriginUpper,
+		Interpolation: "bilinear",
+	}
+
+	rendered, ok := img.rasterizeToSize(3, 1)
+	if !ok {
+		t.Fatal("expected rasterization to succeed")
+	}
+	rgbaData, ok := rendered.(*render.ImageData)
+	if !ok {
+		t.Fatalf("expected render.ImageData, got %T", rendered)
+	}
+	center := rgbaData.RGBA().RGBAAt(1, 0)
+	if center.R != 32 || center.G != 144 || center.B != 140 {
+		t.Fatalf("center pixel = %+v, want viridis scalar midpoint", center)
+	}
+}
+
 func TestImage_DrawAngleZeroCallsImage(t *testing.T) {
 	i := &Image2D{
 		Data: [][]float64{

@@ -279,20 +279,20 @@ func TestMpl_Hist2DWeightedDensity(t *testing.T) {
 	runMplTest(t, "hist2d_weighted_density", renderHist2DWeightedDensity)
 }
 
-func TestMpl_RendererAggLargeScatter(t *testing.T) {
-	runMplTest(t, "rendereragg_large_scatter", renderRendererAggLargeScatter)
+func TestMpl_LargeScatter(t *testing.T) {
+	runMplTest(t, "large_scatter", renderLargeScatter)
 }
 
-func TestMpl_RendererAggMixedCollection(t *testing.T) {
-	runMplTest(t, "rendereragg_mixed_collection", renderRendererAggMixedCollection)
+func TestMpl_MixedCollection(t *testing.T) {
+	runMplTest(t, "mixed_collection", renderMixedCollection)
 }
 
-func TestMpl_RendererAggQuadMesh(t *testing.T) {
-	runMplTest(t, "rendereragg_quad_mesh", renderRendererAggQuadMesh)
+func TestMpl_QuadMesh(t *testing.T) {
+	runMplTest(t, "quad_mesh", renderQuadMesh)
 }
 
-func TestMpl_RendererAggGouraudTriangles(t *testing.T) {
-	runMplTest(t, "rendereragg_gouraud_triangles", renderRendererAggGouraudTriangles)
+func TestMpl_GouraudTriangles(t *testing.T) {
+	runMplTest(t, "gouraud_triangles", renderGouraudTriangles)
 }
 func TestMpl_ErrorBars(t *testing.T)    { runMplTest(t, "errorbar_basic", renderErrorBars) }
 func TestMpl_TitleStrict(t *testing.T)  { runMplTest(t, "title_strict", renderTitleStrict) }

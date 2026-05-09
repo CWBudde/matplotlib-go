@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Matplotlib reference plot for RendererAgg quad mesh coverage."""
+"""Matplotlib reference plot for quad mesh batch coverage."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ except ModuleNotFoundError:
     from common import *  # noqa: F401,F403
 
 
-def rendereragg_quad_mesh(out_dir):
+def quad_mesh(out_dir):
     fig = make_fig_px(980, 620)
     ax = fig.add_axes(go_rect(0.10, 0.14, 0.94, 0.88))
     ax.set_title("RendererAgg quad mesh")
@@ -43,10 +43,10 @@ def rendereragg_quad_mesh(out_dir):
         edgecolors=[(0.96, 0.96, 0.96, 1)],
         linewidth=lw(0.65),
     )
-    save(fig, out_dir, "rendereragg_quad_mesh")
+    save(fig, out_dir, "quad_mesh")
 
 
-PLOT = rendereragg_quad_mesh
+PLOT = quad_mesh
 
 
 def main():

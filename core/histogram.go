@@ -310,10 +310,14 @@ func (h *Hist2D) Draw(r render.Renderer, ctx *DrawContext) {
 	}
 
 	fillColor := h.Color
-	fillColor.A *= alpha
+	if h.Alpha > 0 && h.Alpha <= 1 {
+		fillColor.A = alpha
+	}
 
 	edgeColor := h.EdgeColor
-	edgeColor.A *= alpha
+	if h.Alpha > 0 && h.Alpha <= 1 {
+		edgeColor.A = alpha
+	}
 	if edgeColor.A == 0 && h.HistType != HistTypeBar {
 		edgeColor = fillColor
 	}

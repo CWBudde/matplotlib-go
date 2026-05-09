@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Matplotlib reference plot for RendererAgg mixed path collection coverage."""
+"""Matplotlib reference plot for mixed path collection coverage."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def star_path(cx, cy, r):
     return mpath.Path(verts)
 
 
-def rendereragg_mixed_collection(out_dir):
+def mixed_collection(out_dir):
     fig = make_fig_px(980, 620)
     ax = fig.add_axes(go_rect(0.10, 0.14, 0.94, 0.88))
     ax.set_title("RendererAgg mixed path collection")
@@ -98,10 +98,10 @@ def rendereragg_mixed_collection(out_dir):
         label="mixed collection",
     )
     ax.add_collection(collection)
-    save(fig, out_dir, "rendereragg_mixed_collection")
+    save(fig, out_dir, "mixed_collection")
 
 
-PLOT = rendereragg_mixed_collection
+PLOT = mixed_collection
 
 
 def main():

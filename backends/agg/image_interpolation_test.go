@@ -186,7 +186,35 @@ func TestAggImageRespectsImageAlphaState(t *testing.T) {
 	}
 }
 
-func TestAggImageAlphaScalesSourceAlphaOnly(t *testing.T) {
+func TestAggImageAlphaPremultipliesSourceRGB(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	src.Set(0, 0, color.RGBA{R: 80, G: 120, B: 200, A: 255})
+	data := render.NewImageData(src)
+	data.SetAlpha(0.5)
+
+	r, err := backends.Create(backends.AGG, backends.Config{Width: 4, Height: 4, DPI: 72})
+	if err != nil {
+		t.Fatalf("Create AGG: %v", err)
+	}
+	if err := r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 4, Y: 4}}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	r.Image(data, geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 4, Y: 4}})
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	aggR, ok := r.(*Renderer)
+	if !ok {
+		t.Fatalf("expected *agg.Renderer, got %T", r)
+	}
+	got := aggR.GetImage().RGBAAt(0, 0)
+	if math.Abs(float64(got.R)-168) > 2 || math.Abs(float64(got.G)-188) > 2 || math.Abs(float64(got.B)-228) > 2 {
+		t.Fatalf("alpha-composited color = %+v, want approx {168 188 228 255}", got)
+	}
+}
+
+func TestAggImageAlphaPremultipliesConvertedBuffer(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 1, 1))
 	src.SetRGBA(0, 0, color.RGBA{R: 80, G: 120, B: 200, A: 200})
 	data := render.NewImageData(src)
@@ -198,8 +226,8 @@ func TestAggImageAlphaScalesSourceAlphaOnly(t *testing.T) {
 	}
 	rgba := converted.ToGoImage()
 	got := rgba.RGBAAt(0, 0)
-	if got.R != 80 || got.G != 120 || got.B != 200 {
-		t.Fatalf("image alpha should not recolor RGB channels, got %+v", got)
+	if got.R != 31 || got.G != 47 || got.B != 78 {
+		t.Fatalf("image alpha should premultiply RGB channels, got %+v", got)
 	}
 	if got.A != 100 {
 		t.Fatalf("image alpha should scale source alpha, got %d want 100", got.A)

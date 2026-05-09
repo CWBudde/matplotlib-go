@@ -11,23 +11,23 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func TestRendererAggLargeScatter_Golden(t *testing.T) {
-	runGoldenTest(t, "rendereragg_large_scatter", renderRendererAggLargeScatter)
+func TestLargeScatter_Golden(t *testing.T) {
+	runGoldenTest(t, "large_scatter", renderLargeScatter)
 }
 
-func TestRendererAggMixedCollection_Golden(t *testing.T) {
-	runGoldenTest(t, "rendereragg_mixed_collection", renderRendererAggMixedCollection)
+func TestMixedCollection_Golden(t *testing.T) {
+	runGoldenTest(t, "mixed_collection", renderMixedCollection)
 }
 
-func TestRendererAggQuadMesh_Golden(t *testing.T) {
-	runGoldenTest(t, "rendereragg_quad_mesh", renderRendererAggQuadMesh)
+func TestQuadMesh_Golden(t *testing.T) {
+	runGoldenTest(t, "quad_mesh", renderQuadMesh)
 }
 
-func TestRendererAggGouraudTriangles_Golden(t *testing.T) {
-	runGoldenTest(t, "rendereragg_gouraud_triangles", renderRendererAggGouraudTriangles)
+func TestGouraudTriangles_Golden(t *testing.T) {
+	runGoldenTest(t, "gouraud_triangles", renderGouraudTriangles)
 }
 
-func renderRendererAggLargeScatter() image.Image {
+func renderLargeScatter() image.Image {
 	fig := core.NewFigure(980, 620)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.09, Y: 0.13}, Max: geom.Pt{X: 0.95, Y: 0.88}})
 	ax.SetTitle("RendererAgg marker batch")
@@ -63,7 +63,7 @@ func renderRendererAggLargeScatter() image.Image {
 	return renderFixtureFigure(fig, 980, 620)
 }
 
-func renderRendererAggMixedCollection() image.Image {
+func renderMixedCollection() image.Image {
 	fig := core.NewFigure(980, 620)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.14}, Max: geom.Pt{X: 0.94, Y: 0.88}})
 	ax.SetTitle("RendererAgg mixed path collection")
@@ -119,7 +119,7 @@ func renderRendererAggMixedCollection() image.Image {
 	return renderFixtureFigure(fig, 980, 620)
 }
 
-func renderRendererAggQuadMesh() image.Image {
+func renderQuadMesh() image.Image {
 	fig := core.NewFigure(980, 620)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.14}, Max: geom.Pt{X: 0.94, Y: 0.88}})
 	ax.SetTitle("RendererAgg quad mesh")
@@ -153,7 +153,7 @@ func renderRendererAggQuadMesh() image.Image {
 	return renderFixtureFigure(fig, 980, 620)
 }
 
-func renderRendererAggGouraudTriangles() image.Image {
+func renderGouraudTriangles() image.Image {
 	fig := core.NewFigure(980, 620)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.14}, Max: geom.Pt{X: 0.94, Y: 0.88}})
 	ax.SetTitle("RendererAgg Gouraud triangles")

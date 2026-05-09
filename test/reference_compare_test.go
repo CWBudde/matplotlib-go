@@ -70,8 +70,8 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "vector_fields", render: renderVectorFields, minPSNR: 41.5, maxMeanAbs: 3.0},
 	{name: "imshow_clipped", render: renderImshowClipped, minPSNR: 30.0, maxMeanAbs: 10.0},
 	{name: "imshow_transformed", render: renderImshowTransformed, minPSNR: 24.0, maxMeanAbs: 18.0, maxRMSE: 30.0},
-	{name: "image_alpha", render: renderImageAlpha, minPSNR: 30.0, maxMeanAbs: 16.0},
-	{name: "matshow_basic", render: renderMatshowBasic, minPSNR: 30.0, maxMeanAbs: 10.0},
+	{name: "image_alpha", render: renderImageAlpha, minPSNR: 30.0, maxMeanAbs: 16.0, maxRMSE: 10.0},
+	{name: "matshow_basic", render: renderMatshowBasic, minPSNR: 30.0, maxMeanAbs: 10.0, maxRMSE: 10.0},
 	{name: "spy_marker", render: renderSpyMarker, minPSNR: 28.0, maxMeanAbs: 12.0},
 	{name: "spy_image", render: renderSpyImage, minPSNR: 27.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
 	{name: "polar_axes", render: renderPolarAxes, minPSNR: 32.0, maxMeanAbs: 9.0},
@@ -92,10 +92,10 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "pcolormesh_gouraud", render: renderPColorMeshGouraud, minPSNR: 20.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
 	{name: "pcolormesh_masked", render: renderPColorMeshMasked, minPSNR: 28.0, maxMeanAbs: 15.0},
 	{name: "hist2d_weighted_density", render: renderHist2DWeightedDensity, minPSNR: 28.0, maxMeanAbs: 16.0, maxRMSE: 30.0},
-	{name: "rendereragg_large_scatter", render: renderRendererAggLargeScatter, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "rendereragg_mixed_collection", render: renderRendererAggMixedCollection, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "rendereragg_quad_mesh", render: renderRendererAggQuadMesh, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "rendereragg_gouraud_triangles", render: renderRendererAggGouraudTriangles, minPSNR: 25.0, maxMeanAbs: 18.0},
+	{name: "large_scatter", render: renderLargeScatter, minPSNR: 55.0, maxMeanAbs: 0.5, maxRMSE: 4.0},
+	{name: "mixed_collection", render: renderMixedCollection, minPSNR: 60.0, maxMeanAbs: 0.5, maxRMSE: 2.0},
+	{name: "quad_mesh", render: renderQuadMesh, minPSNR: 48.0, maxMeanAbs: 1.0, maxRMSE: 4.0},
+	{name: "gouraud_triangles", render: renderGouraudTriangles, minPSNR: 25.0, maxMeanAbs: 18.0},
 }
 
 func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {

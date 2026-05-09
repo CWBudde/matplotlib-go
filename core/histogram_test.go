@@ -112,6 +112,29 @@ func TestHist2D_Draw_Alpha(t *testing.T) {
 	}
 }
 
+func TestHist2D_Draw_AlphaOverridesColorAlpha(t *testing.T) {
+	hist := &Hist2D{
+		Data:      []float64{1, 2, 2, 3},
+		BinEdges:  []float64{1, 2, 3, 4},
+		Alpha:     0.6,
+		Color:     render.Color{R: 0.5, G: 0.5, B: 1, A: 0.25},
+		EdgeColor: render.Color{R: 0.1, G: 0.2, B: 0.3, A: 0.4},
+		EdgeWidth: 1,
+	}
+
+	r := &recordingRenderer{}
+	hist.Draw(r, createTestDrawContext())
+	if len(r.pathCalls) < 2 {
+		t.Fatalf("path calls = %d, want fill and stroke calls", len(r.pathCalls))
+	}
+	if got := r.pathCalls[0].paint.Fill.A; got != hist.Alpha {
+		t.Fatalf("drawn fill alpha = %v, want explicit alpha override %v", got, hist.Alpha)
+	}
+	if got := r.pathCalls[1].paint.Stroke.A; got != hist.Alpha {
+		t.Fatalf("drawn stroke alpha = %v, want explicit alpha override %v", got, hist.Alpha)
+	}
+}
+
 func TestHist2D_BinCounts_ExplicitEdges(t *testing.T) {
 	hist := &Hist2D{
 		Data:     []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
@@ -292,6 +315,29 @@ func TestAxes_Hist_Options(t *testing.T) {
 	}
 	if hist.Label != "test" {
 		t.Errorf("expected label 'test', got %q", hist.Label)
+	}
+}
+
+func TestAxesHistPreservesColorAlphaWhenAlphaOmitted(t *testing.T) {
+	fig := NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+
+	col := render.Color{R: 0.2, G: 0.4, B: 0.8, A: 0.35}
+	hist := ax.Hist([]float64{1, 2, 2, 3}, HistOptions{Color: &col})
+	if hist == nil {
+		t.Fatal("expected non-nil histogram")
+	}
+	if hist.Alpha != 0 {
+		t.Fatalf("omitted alpha stored Alpha = %v, want 0 sentinel", hist.Alpha)
+	}
+
+	r := &recordingRenderer{}
+	hist.Draw(r, createTestDrawContext())
+	if len(r.pathCalls) == 0 {
+		t.Fatal("expected histogram path calls")
+	}
+	if got := r.pathCalls[0].paint.Fill.A; got != col.A {
+		t.Fatalf("drawn fill alpha = %v, want color alpha %v", got, col.A)
 	}
 }
 

@@ -610,6 +610,35 @@ func TestDrawQuadMeshBatchDrawsCells(t *testing.T) {
 	}
 }
 
+func TestDrawQuadMeshSnapsFractionalRectilinearEdges(t *testing.T) {
+	r := mustNew(t, 40, 40)
+	if err := r.Begin(geom.Rect{Max: geom.Pt{X: 40, Y: 40}}); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+	ok := r.DrawQuadMesh(render.QuadMeshBatch{Cells: []render.QuadMeshCell{
+		{
+			Quad: [4]geom.Pt{
+				{X: 10.2, Y: 10.2},
+				{X: 25.2, Y: 10.2},
+				{X: 25.2, Y: 25.2},
+				{X: 10.2, Y: 25.2},
+			},
+			Edge:      render.Color{A: 1},
+			LineWidth: 1,
+		},
+	}})
+	if !ok {
+		t.Fatal("DrawQuadMesh returned false")
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End failed: %v", err)
+	}
+
+	if got := r.GetImage().RGBAAt(10, 15); got.R > 16 {
+		t.Fatalf("snapped quad mesh edge pixel = %+v, want nearly black", got)
+	}
+}
+
 func TestDrawGouraudTrianglesInterpolatesVertexColors(t *testing.T) {
 	r := mustNew(t, 60, 60)
 	if err := r.Begin(geom.Rect{Max: geom.Pt{X: 60, Y: 60}}); err != nil {

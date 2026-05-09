@@ -21,7 +21,7 @@ func (i *Image2D) Draw(r render.Renderer, ctx *DrawContext) {
 		return
 	}
 
-	raster, ok := i.rasterize()
+	raster, ok := i.rasterizeForRect(dst)
 	if !ok {
 		return
 	}
@@ -44,6 +44,22 @@ func (i *Image2D) Draw(r render.Renderer, ctx *DrawContext) {
 }
 
 func (i *Image2D) rasterize() (render.Image, bool) {
+	return i.rasterizeToSize(0, 0)
+}
+
+func (i *Image2D) rasterizeForRect(dst geom.Rect) (render.Image, bool) {
+	if i == nil || i.AngleDeg != 0 || i.Interpolation != "bilinear" {
+		return i.rasterize()
+	}
+	width := int(math.Round(math.Abs(dst.W())))
+	height := int(math.Round(math.Abs(dst.H())))
+	if width <= len(i.Data[0]) || height <= len(i.Data) {
+		return i.rasterize()
+	}
+	return i.rasterizeToSize(width, height)
+}
+
+func (i *Image2D) rasterizeToSize(targetWidth, targetHeight int) (render.Image, bool) {
 	rows := len(i.Data)
 	if rows == 0 {
 		return nil, false
@@ -58,6 +74,12 @@ func (i *Image2D) rasterize() (render.Image, bool) {
 	if cols == 0 {
 		return nil, false
 	}
+	if targetWidth <= 0 {
+		targetWidth = cols
+	}
+	if targetHeight <= 0 {
+		targetHeight = rows
+	}
 
 	vmin := i.VMin
 	vmax := i.VMax
@@ -69,11 +91,32 @@ func (i *Image2D) rasterize() (render.Image, bool) {
 	}
 
 	cm := matcolor.GetColormap(i.Colormap)
-	img := image.NewRGBA(image.Rect(0, 0, cols, rows))
+	img := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
 
 	span := vmax - vmin
 	if span == 0 {
 		span = 1
+	}
+	if targetWidth != cols || targetHeight != rows {
+		for y := 0; y < targetHeight; y++ {
+			rowCoord := imageSourceCoord(y, targetHeight, rows)
+			if i.Origin == ImageOriginLower {
+				rowCoord = float64(rows-1) - rowCoord
+			}
+			for x := 0; x < targetWidth; x++ {
+				colCoord := imageSourceCoord(x, targetWidth, cols)
+				v, ok := bilinearScalarSample(i.Data, rowCoord, colCoord)
+				if !ok {
+					continue
+				}
+				n := (v - vmin) / span
+				img.Set(x, y, toRGBAColor(cm.At(n)))
+			}
+		}
+		data := render.NewImageData(img)
+		data.SetInterpolation("nearest")
+		data.SetAlpha(clampOneToOne(i.Alpha))
+		return data, true
 	}
 	for row, values := range i.Data {
 		for col := 0; col < cols; col++ {
@@ -101,6 +144,60 @@ func (i *Image2D) rasterize() (render.Image, bool) {
 	data.SetInterpolation(i.Interpolation)
 	data.SetAlpha(clampOneToOne(i.Alpha))
 	return data, true
+}
+
+func imageSourceCoord(index, targetSize, sourceSize int) float64 {
+	if targetSize <= 0 || sourceSize <= 0 {
+		return 0
+	}
+	return (float64(index)+0.5)*float64(sourceSize)/float64(targetSize) - 0.5
+}
+
+func bilinearScalarSample(data [][]float64, rowCoord, colCoord float64) (float64, bool) {
+	rows := len(data)
+	if rows == 0 {
+		return 0, false
+	}
+	cols := 0
+	for _, row := range data {
+		if len(row) > cols {
+			cols = len(row)
+		}
+	}
+	if cols == 0 {
+		return 0, false
+	}
+
+	rowCoord = clampFloat(rowCoord, 0, float64(rows-1))
+	colCoord = clampFloat(colCoord, 0, float64(cols-1))
+	row0 := int(math.Floor(rowCoord))
+	col0 := int(math.Floor(colCoord))
+	row1 := minInt(row0+1, rows-1)
+	col1 := minInt(col0+1, cols-1)
+	wy := rowCoord - float64(row0)
+	wx := colCoord - float64(col0)
+
+	v00, ok00 := scalarAt(data, row0, col0)
+	v10, ok10 := scalarAt(data, row0, col1)
+	v01, ok01 := scalarAt(data, row1, col0)
+	v11, ok11 := scalarAt(data, row1, col1)
+	if !ok00 || !ok10 || !ok01 || !ok11 {
+		return 0, false
+	}
+	top := v00*(1-wx) + v10*wx
+	bottom := v01*(1-wx) + v11*wx
+	return top*(1-wy) + bottom*wy, true
+}
+
+func scalarAt(data [][]float64, row, col int) (float64, bool) {
+	if row < 0 || row >= len(data) || col < 0 || col >= len(data[row]) {
+		return 0, false
+	}
+	v := data[row][col]
+	if !isFinite(v) {
+		return 0, false
+	}
+	return v, true
 }
 
 func (i *Image2D) destinationRect(ctx *DrawContext) geom.Rect {
@@ -211,6 +308,13 @@ func minF(a, b float64) float64 {
 
 func maxF(a, b float64) float64 {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func minInt(a, b int) int {
+	if a < b {
 		return a
 	}
 	return b

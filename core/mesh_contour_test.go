@@ -378,6 +378,157 @@ func TestStructuredContourLineClipsSingleSaddleQuadLikeMatplotlib(t *testing.T) 
 	}
 }
 
+func TestStructuredContourBandSplitsSaddleQuadLikeMatplotlib(t *testing.T) {
+	grid := [][]float64{
+		{0, 1},
+		{1, 0},
+	}
+	levels := []float64{0.5, 1.5}
+	mapping := ScalarMapInfo{Colormap: "viridis", VMin: 0.5, VMax: 1.5}
+
+	polygons, _ := contourGridBandPolygons(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		grid,
+		levels,
+		ContourOptions{},
+		mapping,
+		1,
+	)
+	if got, want := len(polygons), 2; got != want {
+		t.Fatalf("structured saddle band polygons = %d, want two Matplotlib triangles: %+v", got, polygons)
+	}
+	want := [][]geom.Pt{
+		{
+			{X: 1, Y: 0},
+			{X: 1, Y: 0.5},
+			{X: 0.5, Y: 0},
+			{X: 1, Y: 0},
+		},
+		{
+			{X: 0.5, Y: 1},
+			{X: 0, Y: 1},
+			{X: 0, Y: 0.5},
+			{X: 0.5, Y: 1},
+		},
+	}
+	for i := range want {
+		if !pointsEqual(polygons[i], want[i], 1e-12) {
+			t.Fatalf("structured saddle polygon %d = %+v, want %+v", i, polygons[i], want[i])
+		}
+	}
+}
+
+func TestStructuredContourBandTouchesBoundaryLikeMatplotlib(t *testing.T) {
+	grid := [][]float64{
+		{0, 1},
+		{1, 2},
+	}
+	levels := []float64{0, 1}
+	mapping := ScalarMapInfo{Colormap: "viridis", VMin: 0, VMax: 1}
+
+	polygons, _ := contourGridBandPolygons(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		grid,
+		levels,
+		ContourOptions{},
+		mapping,
+		1,
+	)
+	if got, want := len(polygons), 1; got != want {
+		t.Fatalf("boundary-touching band polygons = %d, want one Matplotlib boundary path: %+v", got, polygons)
+	}
+	want := []geom.Pt{
+		{X: 1, Y: 0},
+		{X: 1, Y: 0},
+		{X: 0, Y: 1},
+		{X: 0, Y: 1},
+		{X: 0, Y: 0},
+		{X: 1, Y: 0},
+	}
+	if !pointsEqual(polygons[0], want, 1e-12) {
+		t.Fatalf("boundary-touching band polygon = %+v, want Matplotlib path %+v", polygons[0], want)
+	}
+}
+
+func TestStructuredContourBandLeavesInteriorHoleLikeMatplotlib(t *testing.T) {
+	grid := [][]float64{
+		{1, 1, 1},
+		{1, 0, 1},
+		{1, 1, 1},
+	}
+	levels := []float64{0.5, 1.5}
+	mapping := ScalarMapInfo{Colormap: "viridis", VMin: 0.5, VMax: 1.5}
+
+	polygons, _ := contourGridBandPolygons(
+		[]float64{0, 1, 2},
+		[]float64{0, 1, 2},
+		grid,
+		levels,
+		ContourOptions{},
+		mapping,
+		1,
+	)
+	if got, want := len(polygons), 4; got != want {
+		t.Fatalf("hole band polygons = %d, want four clipped cell polygons: %+v", got, polygons)
+	}
+	center := geom.Pt{X: 1, Y: 1}
+	for _, polygon := range polygons {
+		if pointInPolygon(center, polygon) {
+			t.Fatalf("interior hole center was filled by polygon: %+v", polygon)
+		}
+	}
+	holeBoundary := []geom.Pt{
+		{X: 1, Y: 0.5},
+		{X: 1.5, Y: 1},
+		{X: 1, Y: 1.5},
+		{X: 0.5, Y: 1},
+	}
+	for _, want := range holeBoundary {
+		if !contourPolygonsContainPoint(polygons, want) {
+			t.Fatalf("hole boundary point %+v missing from polygons: %+v", want, polygons)
+		}
+	}
+}
+
+func TestTriContourfSkipsMaskedTriangles(t *testing.T) {
+	tri := Triangulation{
+		X:         []float64{0, 1, 0, 1},
+		Y:         []float64{0, 0, 1, 1},
+		Triangles: [][3]int{{0, 1, 2}, {1, 3, 2}},
+		Mask:      []bool{true, false},
+	}
+	values := []float64{0, 1, 1, 2}
+	polygons, _ := contourBandPolygons(
+		tri,
+		values,
+		[]float64{0.5, 1.5},
+		ContourOptions{},
+		ScalarMapInfo{Colormap: "viridis", VMin: 0.5, VMax: 1.5},
+		1,
+	)
+	if got, want := len(polygons), 1; got != want {
+		t.Fatalf("masked tricontourf polygons = %d, want only unmasked triangle contribution: %+v", got, polygons)
+	}
+	for _, pt := range polygons[0] {
+		if pt == (geom.Pt{X: 0, Y: 0}) {
+			t.Fatalf("masked triangle-only point leaked into polygon: %+v", polygons[0])
+		}
+	}
+}
+
+func contourPolygonsContainPoint(polygons [][]geom.Pt, want geom.Pt) bool {
+	for _, polygon := range polygons {
+		for _, got := range polygon {
+			if sameContourPoint(got, want) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func TestTriangulationArtists(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{
@@ -460,6 +611,35 @@ func TestContourInlineLabelAngleUsesMatplotlibDisplayConvention(t *testing.T) {
 	angle, parts := splitContourPolylineForLabel(data, screen, 1, 4, 0)
 	if len(parts) == 0 {
 		t.Fatal("expected split contour parts")
+	}
+	if !approx(angle, math.Pi/4, 1e-12) {
+		t.Fatalf("angle = %v, want %v", angle, math.Pi/4)
+	}
+}
+
+func TestContourInlineLabelErasesAcrossClosedPathBoundary(t *testing.T) {
+	screen := []geom.Pt{
+		{X: 0, Y: 0},
+		{X: 10, Y: 0},
+		{X: 10, Y: 10},
+		{X: 0, Y: 10},
+		{X: 0, Y: 0},
+	}
+	data := append([]geom.Pt(nil), screen...)
+
+	angle, parts := splitContourPolylineForLabel(data, screen, 0, 4, 1)
+	if got, want := len(parts), 1; got != want {
+		t.Fatalf("closed contour split parts = %d, want %d: %+v", got, want, parts)
+	}
+	want := []geom.Pt{
+		{X: 3, Y: 0},
+		{X: 10, Y: 0},
+		{X: 10, Y: 10},
+		{X: 0, Y: 10},
+		{X: 0, Y: 3},
+	}
+	if !pointsEqual(parts[0], want, 1e-12) {
+		t.Fatalf("closed contour split = %+v, want %+v", parts[0], want)
 	}
 	if !approx(angle, math.Pi/4, 1e-12) {
 		t.Fatalf("angle = %v, want %v", angle, math.Pi/4)

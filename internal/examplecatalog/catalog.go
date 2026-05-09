@@ -97,10 +97,10 @@ var cases = []Case{
 	{ID: "pcolormesh_gouraud", Topic: "mesh", Title: "PColorMesh Gouraud", FixtureOnly: true},
 	{ID: "pcolormesh_masked", Topic: "mesh", Title: "PColorMesh Masked", FixtureOnly: true},
 	{ID: "hist2d_weighted_density", Topic: "mesh", Title: "Hist2D Weighted Density", FixtureOnly: true},
-	{ID: "rendereragg_large_scatter", Topic: "rendereragg", Title: "RendererAgg Marker Batch", FixtureOnly: true},
-	{ID: "rendereragg_mixed_collection", Topic: "rendereragg", Title: "RendererAgg Mixed Path Collection", FixtureOnly: true},
-	{ID: "rendereragg_quad_mesh", Topic: "rendereragg", Title: "RendererAgg Quad Mesh", FixtureOnly: true},
-	{ID: "rendereragg_gouraud_triangles", Topic: "rendereragg", Title: "RendererAgg Gouraud Triangles", FixtureOnly: true},
+	{ID: "large_scatter", Topic: "raster", Title: "Large Scatter Batch", FixtureOnly: true},
+	{ID: "mixed_collection", Topic: "raster", Title: "Mixed Path Collection", FixtureOnly: true},
+	{ID: "quad_mesh", Topic: "raster", Title: "Quad Mesh Batch", FixtureOnly: true},
+	{ID: "gouraud_triangles", Topic: "raster", Title: "Gouraud Triangles", FixtureOnly: true},
 }
 
 // Cases returns every cataloged parity example/fixture.

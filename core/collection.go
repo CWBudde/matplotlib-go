@@ -12,13 +12,14 @@ import (
 // As with Patch, this is an embedded base in Go rather than a directly
 // instantiable artist.
 type Collection struct {
-	Coords   CoordinateSpec
-	Label    string
-	Alpha    float64
-	Colormap string
-	VMin     float64
-	VMax     float64
-	z        float64
+	Coords    CoordinateSpec
+	Label     string
+	Alpha     float64
+	Antialias render.AntialiasMode
+	Colormap  string
+	VMin      float64
+	VMax      float64
+	z         float64
 }
 
 // PathCollection draws repeated or per-item paths with per-item offsets and
@@ -37,6 +38,12 @@ type PathCollection struct {
 	EdgeColor     render.Color
 	EdgeWidths    []float64
 	EdgeWidth     float64
+	Hatches       []string
+	Hatch         string
+	HatchColors   []render.Color
+	HatchColor    render.Color
+	HatchWidths   []float64
+	HatchWidth    float64
 	LineJoin      render.LineJoin
 	LineJoinSet   bool
 	LineCap       render.LineCap
@@ -133,6 +140,10 @@ func (c *Collection) alphaValue() float64 {
 	return c.Alpha
 }
 
+func (c *Collection) antialiased() bool {
+	return c == nil || c.Antialias != render.AntialiasOff
+}
+
 func (c *Collection) label() string {
 	if c == nil {
 		return ""
@@ -174,17 +185,27 @@ func (c *PathCollection) Draw(r render.Renderer, ctx *DrawContext) {
 		fill := c.faceColorAt(i)
 		edge := c.edgeColorAt(i)
 		width := c.edgeWidthAt(i)
+		hatch := stringAt(c.Hatch, c.Hatches, i)
+		hatchColor := patchAlphaColor(colorAt(c.HatchColor, c.HatchColors, i), c.alphaValue())
+		hatchWidth := widthAt(c.HatchWidth, c.HatchWidths, i)
 		if c.LineOnly {
 			if edge.A <= 0 {
 				edge = fill
 			}
 			fill.A = 0
 		}
-		if fill.A <= 0 && (width <= 0 || edge.A <= 0) {
+		if fill.A <= 0 && (width <= 0 || edge.A <= 0) && (hatch == "" || hatchColor.A <= 0) {
 			continue
 		}
 
 		paint := collectionPaint(fill, edge, width, c.lineJoin(), c.lineCap(), nil)
+		paint.Hatch = hatch
+		paint.HatchColor = hatchColor
+		paint.HatchLineWidth = hatchWidth
+		paint.HatchSpacing = 32
+		if !c.Collection.antialiased() {
+			paint.Antialias = render.AntialiasOff
+		}
 		r.Path(path, &paint)
 	}
 }
@@ -544,7 +565,7 @@ func (c *PathCollection) drawMarkers(r render.Renderer, ctx *DrawContext) bool {
 			Offset:      offset,
 			Transform:   geom.Affine{A: scale, D: scale},
 			Paint:       collectionPaint(fill, edge, width, c.lineJoin(), c.lineCap(), nil),
-			Antialiased: true,
+			Antialiased: c.Collection.antialiased(),
 		})
 	}
 	if len(batch.Items) == 0 {
@@ -557,6 +578,9 @@ func (c *PathCollection) singlePathMarkerOptimization() bool {
 	if c == nil || !c.PathInDisplay || len(c.Path.C) == 0 || len(c.Paths) > 0 {
 		return false
 	}
+	if c.hasHatches() {
+		return false
+	}
 	if len(c.Sizes) > 1 || len(c.FaceColors) > 1 || len(c.EdgeColors) > 1 || len(c.EdgeWidths) > 1 {
 		return false
 	}
@@ -566,6 +590,13 @@ func (c *PathCollection) singlePathMarkerOptimization() bool {
 func (c *PathCollection) drawPathCollection(r render.Renderer, ctx *DrawContext) bool {
 	drawer, ok := r.(render.PathCollectionDrawer)
 	if !ok || c == nil || ctx == nil {
+		return false
+	}
+	nativeHatch := false
+	if hatcher, ok := r.(render.NativeHatcher); ok {
+		nativeHatch = hatcher.SupportsNativeHatch()
+	}
+	if c.hasHatches() && !nativeHatch {
 		return false
 	}
 
@@ -587,19 +618,26 @@ func (c *PathCollection) drawPathCollection(r render.Renderer, ctx *DrawContext)
 		fill := c.faceColorAt(i)
 		edge := c.edgeColorAt(i)
 		width := c.edgeWidthAt(i)
+		hatch := stringAt(c.Hatch, c.Hatches, i)
+		hatchColor := patchAlphaColor(colorAt(c.HatchColor, c.HatchColors, i), c.alphaValue())
+		hatchWidth := widthAt(c.HatchWidth, c.HatchWidths, i)
 		if c.LineOnly {
 			if edge.A <= 0 {
 				edge = fill
 			}
 			fill.A = 0
 		}
-		if fill.A <= 0 && (width <= 0 || edge.A <= 0) {
+		if fill.A <= 0 && (width <= 0 || edge.A <= 0) && (hatch == "" || hatchColor.A <= 0) {
 			continue
 		}
 		batch.Items = append(batch.Items, render.PathCollectionItem{
-			Path:        path,
-			Paint:       collectionPaint(fill, edge, width, c.lineJoin(), c.lineCap(), nil),
-			Antialiased: true,
+			Path:         path,
+			Paint:        collectionPaint(fill, edge, width, c.lineJoin(), c.lineCap(), nil),
+			Hatch:        hatch,
+			HatchColor:   hatchColor,
+			HatchWidth:   hatchWidth,
+			HatchSpacing: 32,
+			Antialiased:  c.Collection.antialiased(),
 		})
 	}
 	if len(batch.Items) == 0 {
@@ -665,7 +703,7 @@ func (c *PatchCollection) drawPathCollection(r render.Renderer, ctx *DrawContext
 			HatchColor:   hatchColor,
 			HatchWidth:   hatchWidth,
 			HatchSpacing: 32,
-			Antialiased:  true,
+			Antialiased:  c.Collection.antialiased(),
 		})
 	}
 	if len(batch.Items) == 0 {
@@ -722,7 +760,7 @@ func (m *QuadMesh) drawQuadMesh(r render.Renderer, ctx *DrawContext) bool {
 					HatchColor:   hatchColor,
 					HatchWidth:   hatchWidth,
 					HatchSpacing: 32,
-					Antialiased:  true,
+					Antialiased:  m.Collection.antialiased(),
 				})
 			}
 			idx++
@@ -764,7 +802,7 @@ func (m *QuadMesh) drawGouraudMesh(r render.Renderer, ctx *DrawContext) bool {
 
 	batch := render.GouraudTriangleBatch{
 		Triangles:   make([]render.GouraudTriangle, 0, (rows-1)*(cols-1)*2),
-		Antialiased: true,
+		Antialiased: m.Collection.antialiased(),
 	}
 	for yi := 0; yi+1 < rows; yi++ {
 		for xi := 0; xi+1 < cols; xi++ {
@@ -801,6 +839,16 @@ func (c *PatchCollection) hasHatches() bool {
 	return len(c.Hatches) > 0 || len(c.HatchColors) > 0 || len(c.HatchWidths) > 0
 }
 
+func (c *PathCollection) hasHatches() bool {
+	if c == nil {
+		return false
+	}
+	if c.Hatch != "" || c.HatchColor.A > 0 || c.HatchWidth > 0 {
+		return true
+	}
+	return len(c.Hatches) > 0 || len(c.HatchColors) > 0 || len(c.HatchWidths) > 0
+}
+
 func collectionPaint(fill, edge render.Color, width float64, join render.LineJoin, cap render.LineCap, dashes []float64) render.Paint {
 	paint := render.Paint{
 		Fill:      fill,
@@ -809,6 +857,7 @@ func collectionPaint(fill, edge render.Color, width float64, join render.LineJoi
 		LineJoin:  join,
 		LineCap:   cap,
 		Dashes:    append([]float64(nil), dashes...),
+		Snap:      render.SnapAuto,
 	}
 	if width <= 0 || edge.A <= 0 {
 		paint.Stroke = render.Color{}

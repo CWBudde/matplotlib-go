@@ -544,6 +544,7 @@ func (r *Renderer) DrawQuadMesh(batch render.QuadMeshBatch) bool {
 			HatchColor:   cell.HatchColor,
 			HatchSpacing: cell.HatchSpacing,
 			Antialias:    render.AntialiasDefault,
+			Snap:         render.SnapOn,
 		}
 		if cell.HatchWidth > 0 {
 			paint.HatchLineWidth = cell.HatchWidth
@@ -2326,11 +2327,16 @@ func renderImageToAGG(img render.Image) (*agglib.Image, bool) {
 		srcOff := rgba.PixOffset(bounds.Min.X, bounds.Min.Y+y)
 		dstOff := y * stride
 		copy(data[dstOff:dstOff+stride], rgba.Pix[srcOff:srcOff+stride])
-		if alpha != 1 {
-			for x := 0; x < width; x++ {
-				aOff := dstOff + x*4 + 3
-				data[aOff] = uint8(float64(data[aOff]) * alpha)
+		for x := 0; x < width; x++ {
+			off := dstOff + x*4
+			effectiveAlpha := float64(data[off+3]) * alpha / 255
+			if effectiveAlpha >= 1 {
+				continue
 			}
+			data[off+0] = uint8(float64(data[off+0]) * effectiveAlpha)
+			data[off+1] = uint8(float64(data[off+1]) * effectiveAlpha)
+			data[off+2] = uint8(float64(data[off+2]) * effectiveAlpha)
+			data[off+3] = uint8(effectiveAlpha * 255)
 		}
 	}
 	return agglib.NewImage(data, width, height, stride), true

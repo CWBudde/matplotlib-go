@@ -656,7 +656,7 @@ Current slice landed:
 - Added `render.MarkerDrawer`, `render.PathCollectionDrawer`, `render.QuadMeshDrawer`, and `render.GouraudTriangleDrawer` optional interfaces; AGG implements all four, while GoBasic/SVG/Skia report renderer-neutral fallback support for decomposable collection batches.
 - Routed `PathCollection`, hatch-free `PatchCollection`, and hatch-free `QuadMesh` through native batch checks before falling back to existing per-path drawing.
 - Added backend capability status reporting (`unsupported`, `fallback`, `native`) plus unit coverage for core routing, AGG batch output, and Gouraud color interpolation.
-- Added Go golden and Matplotlib reference fixtures for `rendereragg_large_scatter`, `rendereragg_mixed_collection`, `rendereragg_quad_mesh`, and `rendereragg_gouraud_triangles`.
+- Added Go golden and Matplotlib reference fixtures for `large_scatter`, `mixed_collection`, `quad_mesh`, and `gouraud_triangles`.
 - Kept hatch-native AGG rendering, cached marker scanlines, and full Matplotlib path/raster pipeline behavior in Phase 8.1B/E as planned.
 
 ### 8.1B AGG Backend Parity: Clip, Path, and Raster Pipeline
@@ -720,7 +720,7 @@ Latest text-parity note:
 - A backend-call diagnostic (`MPL_GO_TEXT_DIAG=1 go test -tags freetype ./test -run TestBarBasicTextPlacementDiagnostic -v`) confirms the bar tick-label/title `DrawText` origins now match Matplotlib's `RendererAgg.draw_text` calls. Renderer-level diagnostics are byte-identical to Matplotlib for `"Basic Bars"` at both a fixed baseline and the actual title origin.
 - The residual `bar_basic_*` component mismatch after fixing text was split between tick-marker snapping, AGG plain-blender precision, draw order, and default build-path selection. Matplotlib draws ticks as snapped marker paths, so a 3.5 pt tick at 100 dpi behaves like a 5 px segment rather than the unsnapped `4.861 px` length. Go axis ticks now round tick lengths before building tick segments; the AGG backend now uses Matplotlib-style fixed plain RGBA blending; endpoint ticks now render before spines/frame like upstream; and native FreeType is enabled by default under cgo. In the normal cgo build, `bar_basic_frame`, `bar_basic_ticks`, `bar_basic_tick_labels`, `bar_basic_title`, full `bar_basic`, `bar_horizontal`, and `title_strict` now compare byte-identically to Matplotlib (`MaxDiff=0`, `PSNR=+Inf`).
 - Current non-text residuals are concentrated in broader artist/backend cases: fill/hist/quadmesh/large-collection coverage and alpha accumulation still differ visibly from upstream AGG, while the focused bar/title/scatter fixtures have reached byte-identical or one-LSB parity.
-- Lower-level AGG diagnostics now rule out marker-circle curve flattening, scanline AA coverage, and Matplotlib's patched plain RGBA blender for repeated translucent overlaps as the cause of the remaining `rendereragg_large_scatter` mismatch. The remaining scatter delta is therefore above those primitives: collection path placement/transform/snap/stroke behavior or another batch-routing policy. A direct `agg_go` pixfmt clipping bug was fixed for negative-start spans so direct lower-level callers now shorten spans and advance cover/color arrays correctly.
+- Lower-level AGG diagnostics now rule out marker-circle curve flattening, scanline AA coverage, and Matplotlib's patched plain RGBA blender for repeated translucent overlaps as the cause of the remaining `large_scatter` mismatch. The remaining scatter delta is therefore above those primitives: collection path placement/transform/snap/stroke behavior or another batch-routing policy. A direct `agg_go` pixfmt clipping bug was fixed for negative-start spans so direct lower-level callers now shorten spans and advance cover/color arrays correctly.
 
 ### 8.1D AGG Backend Parity: Images, Effects, and Buffer Management
 
@@ -885,9 +885,9 @@ This phase tracks the plot categories that already exist in the Go port but are 
 - [x] Add shading policy parity for `flat`, `nearest`, `auto`, and rectilinear `gouraud`, including how each mode derives cell geometry from input coordinates.
 - [x] Preserve NaN/Inf bad-cell transparency through `QuadMesh` color mapping and AGG draw batches; add weighted/density `hist2d` bin semantics.
 - [x] Extend masked, bad, under, and over cell semantics beyond the current linear colormap model through `QuadMesh`, `Colorbar`, and AGG draw batches.
-- [ ] Match AGG edge rendering for antialiasing, linewidth, snap, join, cap, and alpha accumulation on dense quad meshes.
+- [x] Match AGG edge rendering for antialiasing, linewidth, snap, join, cap, and alpha accumulation on dense quad meshes.
 - [x] Add focused Matplotlib-reference fixtures for `pcolor`, `pcolormesh(shading="nearest")`, `pcolormesh(shading="gouraud")`, masked quad meshes, and `hist2d` with weights/density.
-- [ ] Tighten `rendereragg_quad_mesh` thresholds once the native batch path matches upstream cell placement and blending.
+- [x] Tighten `quad_mesh` thresholds once the native batch path matches upstream cell placement and blending.
 
 Completed notes:
 
@@ -902,11 +902,19 @@ Completed notes:
 
 ### 10.2 PathCollection and Large Scatter
 
-- [ ] Audit `PathCollection` batch routing against upstream `RendererAgg.draw_markers` and `draw_path_collection` fast-path selection for homogeneous and heterogeneous markers.
-- [ ] Match per-point facecolor, edgecolor, linewidth, alpha, snap, hatch, antialiasing, and transform handling for large scatter and mixed collections.
-- [ ] Add coverage for empty collections, all-masked collections, unfilled markers, `edgecolors="face"`-style behavior, and collection-level alpha combined with per-item alpha.
-- [ ] Tighten `rendereragg_large_scatter` and `rendereragg_mixed_collection` thresholds after collection placement and alpha accumulation match upstream.
-- [ ] Keep fallback-renderer behavior tested separately so GoBasic/SVG fallback paths do not hide missing AGG-native behavior.
+- [x] Audit `PathCollection` batch routing against upstream `RendererAgg.draw_markers` and `draw_path_collection` fast-path selection for homogeneous and heterogeneous markers.
+- [x] Match per-point facecolor, edgecolor, linewidth, alpha, snap, hatch, antialiasing, and transform handling for large scatter and mixed collections.
+- [x] Add coverage for empty collections, all-masked collections, unfilled markers, `edgecolors="face"`-style behavior, and collection-level alpha combined with per-item alpha.
+- [x] Tighten `large_scatter` and `mixed_collection` thresholds after collection placement and alpha accumulation match upstream.
+- [x] Keep fallback-renderer behavior tested separately so GoBasic/SVG fallback paths do not hide missing AGG-native behavior.
+
+Completed notes:
+
+- `PathCollection` routing is now explicitly covered against the upstream selection policy: homogeneous single-marker state can use `draw_markers`, while varying transforms, colors, linewidths, or paths route through `draw_path_collection`.
+- Added focused collection tests for empty and all-invisible collections, line-only/unfilled marker stroke fallback, face-colored edges, and collection alpha combined with per-item face/edge alpha.
+- Collection batches now propagate `SnapAuto`, collection-level antialias-off, native hatch metadata, hatch alpha, path transforms, and per-item paint state through marker/path collection batches and fallback paths.
+- Added separate fallback coverage for heterogeneous path collections when native batch drawing declines.
+- Tightened `large_scatter` to PSNR >= 55, MeanAbs <= 0.5, RMSE <= 4 and `mixed_collection` to PSNR >= 60, MeanAbs <= 0.5, RMSE <= 2 against Matplotlib references.
 
 ### 10.3 Images, Imshow, Matshow, and Spy
 
@@ -928,10 +936,18 @@ Completed notes:
 
 ### 10.4 Filled Areas, Contours, and Alpha Accumulation
 
-- [ ] Track down remaining fill/hist alpha residuals called out in the current AGG notes and add fixture-specific diagnostics for repeated translucent overlaps.
+- [x] Track down remaining fill/hist alpha residuals called out in the current AGG notes and add fixture-specific diagnostics for repeated translucent overlaps.
 - [ ] Match filled polygon winding, self-intersection, clipping, and alpha accumulation for `fill_between`, `stackplot`, histogram fill variants, and filled contours.
-- [ ] Add contour topology cases for saddle points, masked triangles, holes, and contour bands that touch plot boundaries.
+- [x] Add contour topology cases for saddle points, masked triangles, holes, and contour bands that touch plot boundaries.
 - [ ] Make inline contour label erasure and rotated label placement match upstream display-space behavior across dense and sparse contours.
+
+Completed notes:
+
+- Added `TestAlphaResidualDiagnostics` for repeated translucent overlap cases, currently reporting axes-local residuals for `fill_stacked` and `hist_strategies` against Matplotlib references.
+- Fixed explicit alpha handling for filled areas and histograms so `Alpha` overrides embedded RGBA alpha consistently; omitted histogram alpha now preserves color alpha through the `Axes.Hist` wrapper.
+- Added structured contour topology coverage for filled saddle quads, interior holes, and boundary-touching contour bands, plus masked-triangle `tricontourf` coverage.
+- Split ambiguous filled saddle bands into separate Matplotlib-style polygons instead of emitting a self-intersecting hourglass path, and close boundary-touching band paths where Matplotlib does.
+- Inline contour label erasure now handles closed contours by cutting the wrapped segment across the path boundary, matching Matplotlib's display-space split behavior for labels near a closed-path seam.
 
 **Exit Criteria:**
 

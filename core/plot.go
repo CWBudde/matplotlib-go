@@ -215,7 +215,7 @@ func (a *Axes) Bar(x, heights []float64, opts ...BarOptions) *Bar2D {
 	}
 
 	// Get alpha
-	alpha := 1.0
+	alpha := 0.0
 	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 		alpha = *opt.Alpha
 	}
@@ -418,7 +418,7 @@ func (a *Axes) Hist(data []float64, opts ...HistOptions) *Hist2D {
 		edgeWidth = 1.5
 	}
 
-	alpha := 1.0
+	alpha := 0.0
 	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 		alpha = *opt.Alpha
 	}

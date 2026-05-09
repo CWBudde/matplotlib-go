@@ -637,7 +637,7 @@ func contourGridBandPolygons(x, y []float64, data [][]float64, levels []float64,
 		color := contourBandColor(low, high, levelIdx, opt, mapping, alpha)
 		for row := 0; row+1 < rows; row++ {
 			for col := 0; col+1 < cols; col++ {
-				polygon := contourCellBandPolygon(
+				cellPolygons := contourCellBandPolygons(
 					[4]geom.Pt{
 						{X: x[col], Y: y[row]},
 						{X: x[col+1], Y: y[row]},
@@ -653,15 +653,28 @@ func contourGridBandPolygons(x, y []float64, data [][]float64, levels []float64,
 					low,
 					high,
 				)
-				if len(polygon) < 3 {
-					continue
+				for _, polygon := range cellPolygons {
+					if len(polygon) < 3 {
+						continue
+					}
+					polygons = append(polygons, polygon)
+					colors = append(colors, color)
 				}
-				polygons = append(polygons, polygon)
-				colors = append(colors, color)
 			}
 		}
 	}
 	return polygons, colors
+}
+
+func contourCellBandPolygons(points [4]geom.Pt, values [4]float64, low, high float64) [][]geom.Pt {
+	if polygons := contourSaddleBandPolygons(points, values, low, high); len(polygons) > 0 {
+		return polygons
+	}
+	polygon := contourCellBandPolygon(points, values, low, high)
+	if len(polygon) < 3 {
+		return nil
+	}
+	return [][]geom.Pt{polygon}
 }
 
 func contourCellBandPolygon(points [4]geom.Pt, values [4]float64, low, high float64) []geom.Pt {
@@ -683,7 +696,69 @@ func contourCellBandPolygon(points [4]geom.Pt, values [4]float64, low, high floa
 	for i, vertex := range polygon {
 		out[i] = vertex.Point
 	}
-	return rotateContourPolygonToMatplotlibStart(out)
+	out = rotateContourPolygonToMatplotlibStart(out)
+	if contourPolygonHasConsecutiveDuplicate(out) && !contourPolygonClosed(out) {
+		out = append(out, out[0])
+	}
+	return out
+}
+
+func contourSaddleBandPolygons(points [4]geom.Pt, values [4]float64, low, high float64) [][]geom.Pt {
+	inBand := [4]bool{}
+	for i, value := range values {
+		if !isFinite(value) {
+			return nil
+		}
+		inBand[i] = value >= low && value <= high
+	}
+	if !(inBand[0] == inBand[2] && inBand[1] == inBand[3] && inBand[0] != inBand[1]) {
+		return nil
+	}
+
+	polygons := [][]geom.Pt{}
+	for i, inside := range inBand {
+		if !inside {
+			continue
+		}
+		prev := (i + 3) % 4
+		next := (i + 1) % 4
+		if !contourBandOutsideSameSide(values[prev], values[next], low, high) {
+			return nil
+		}
+		nextPoint, nextOK := contourBandBoundaryIntersection(points[i], values[i], points[next], values[next], low, high)
+		prevPoint, prevOK := contourBandBoundaryIntersection(points[i], values[i], points[prev], values[prev], low, high)
+		if !nextOK || !prevOK {
+			continue
+		}
+		polygon := rotateContourPolygonToMatplotlibStart([]geom.Pt{points[i], nextPoint, prevPoint})
+		if len(polygon) > 0 {
+			polygon = append(polygon, polygon[0])
+		}
+		polygons = append(polygons, polygon)
+	}
+	return polygons
+}
+
+func contourBandOutsideSameSide(a, b, low, high float64) bool {
+	return (a < low && b < low) || (a > high && b > high)
+}
+
+func contourBandBoundaryIntersection(insidePoint geom.Pt, insideValue float64, outsidePoint geom.Pt, outsideValue float64, low, high float64) (geom.Pt, bool) {
+	if !isFinite(insideValue) || !isFinite(outsideValue) || insideValue == outsideValue {
+		return geom.Pt{}, false
+	}
+	threshold := low
+	if outsideValue > high {
+		threshold = high
+	}
+	if outsideValue >= low && outsideValue <= high {
+		return geom.Pt{}, false
+	}
+	t := (threshold - insideValue) / (outsideValue - insideValue)
+	if t < 0 || t > 1 {
+		return geom.Pt{}, false
+	}
+	return interpolatePoint(insidePoint, outsidePoint, t), true
 }
 
 func contourSegmentsForLevel(tri Triangulation, values []float64, level float64) [][]geom.Pt {
@@ -781,6 +856,19 @@ func rotateContourPolygonToMatplotlibStart(points []geom.Pt) []geom.Pt {
 	out = append(out, points[start:]...)
 	out = append(out, points[:start]...)
 	return out
+}
+
+func contourPolygonHasConsecutiveDuplicate(points []geom.Pt) bool {
+	for i := 1; i < len(points); i++ {
+		if points[i] == points[i-1] {
+			return true
+		}
+	}
+	return false
+}
+
+func contourPolygonClosed(points []geom.Pt) bool {
+	return len(points) > 1 && points[0] == points[len(points)-1]
 }
 
 func clipContourPolygonMin(polygon []contourVertex, threshold float64) []contourVertex {
@@ -1073,6 +1161,9 @@ func splitContourPolylineForLabel(data, screen []geom.Pt, labelIdx int, labelWid
 	if total <= 0 {
 		return 0, nil
 	}
+	if contourPolylineClosed(screen) {
+		return splitClosedContourPolylineForLabel(data, screen, cpls, labelIdx, labelWidth, spacing)
+	}
 
 	center := cpls[labelIdx]
 	angleStart := clampFloat(center-labelWidth/2, 0, total)
@@ -1103,6 +1194,103 @@ func splitContourPolylineForLabel(data, screen []geom.Pt, labelIdx int, labelWid
 		}
 	}
 	return angle, parts
+}
+
+func splitClosedContourPolylineForLabel(data, screen []geom.Pt, cpls []float64, labelIdx int, labelWidth, spacing float64) (float64, [][]geom.Pt) {
+	total := cpls[len(cpls)-1]
+	gap := labelWidth + 2*spacing
+	if total <= 0 || gap >= total {
+		return 0, nil
+	}
+
+	center := cpls[labelIdx]
+	p0, ok0 := contourInterpolateAtClosedCPL(screen, cpls, center-labelWidth/2)
+	p1, ok1 := contourInterpolateAtClosedCPL(screen, cpls, center+labelWidth/2)
+	angle := 0.0
+	if ok0 && ok1 {
+		angle = normalizeLabelAngle(math.Atan2(-(p1.Y - p0.Y), p1.X-p0.X))
+	}
+
+	gapStart := center - labelWidth/2 - spacing
+	gapEnd := center + labelWidth/2 + spacing
+	part := contourClosedPolylineComplement(data, cpls, gapEnd, gapStart+total)
+	if len(part) < 2 {
+		return angle, nil
+	}
+	return angle, [][]geom.Pt{part}
+}
+
+func contourPolylineClosed(points []geom.Pt) bool {
+	return len(points) > 2 && sameContourPoint(points[0], points[len(points)-1])
+}
+
+func contourClosedPolylineComplement(data []geom.Pt, cpls []float64, start, end float64) []geom.Pt {
+	total := cpls[len(cpls)-1]
+	if total <= 0 {
+		return nil
+	}
+	for start < 0 {
+		start += total
+		end += total
+	}
+	for start >= total {
+		start -= total
+		end -= total
+	}
+	if end <= start {
+		end += total
+	}
+	if end-start <= 0 || end-start >= total {
+		return nil
+	}
+
+	startPt, ok := contourInterpolateAtClosedCPL(data, cpls, start)
+	if !ok {
+		return nil
+	}
+	out := []geom.Pt{startPt}
+
+	type closedVertex struct {
+		cpl float64
+		pt  geom.Pt
+	}
+	vertices := []closedVertex{}
+	base := math.Floor(start/total) - 1
+	for copyIdx := 0; copyIdx < 4; copyIdx++ {
+		offset := (base + float64(copyIdx)) * total
+		for i := 0; i < len(data); i++ {
+			vertexCPL := cpls[i] + offset
+			if vertexCPL <= start || vertexCPL >= end {
+				continue
+			}
+			vertices = append(vertices, closedVertex{cpl: vertexCPL, pt: data[i]})
+		}
+	}
+	sort.SliceStable(vertices, func(i, j int) bool {
+		return vertices[i].cpl < vertices[j].cpl
+	})
+	for _, vertex := range vertices {
+		out = appendContourPoint(out, vertex.pt)
+	}
+
+	endPt, ok := contourInterpolateAtClosedCPL(data, cpls, end)
+	if !ok {
+		return nil
+	}
+	out = appendContourPoint(out, endPt)
+	return out
+}
+
+func contourInterpolateAtClosedCPL(points []geom.Pt, cpls []float64, target float64) (geom.Pt, bool) {
+	total := cpls[len(cpls)-1]
+	if total <= 0 {
+		return geom.Pt{}, false
+	}
+	target = math.Mod(target, total)
+	if target < 0 {
+		target += total
+	}
+	return contourInterpolateAtCPL(points, cpls, target)
 }
 
 func contourRotatedTextAnchor(center geom.Pt, layout singleLineTextLayout, angle float64) geom.Pt {

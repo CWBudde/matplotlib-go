@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -44,6 +45,14 @@ type batchRecordingRenderer struct {
 	quadMeshBatches       []render.QuadMeshBatch
 	gouraudBatches        []render.GouraudTriangleBatch
 	returnNative          bool
+}
+
+type nativeHatchBatchRecordingRenderer struct {
+	batchRecordingRenderer
+}
+
+func (r *nativeHatchBatchRecordingRenderer) SupportsNativeHatch() bool {
+	return true
 }
 
 func (r *batchRecordingRenderer) DrawMarkers(batch render.MarkerBatch) bool {
@@ -99,25 +108,156 @@ func TestPathCollectionUsesMarkerBatchWhenAvailable(t *testing.T) {
 	}
 }
 
-func TestPathCollectionSkipsMarkerBatchForVaryingTransforms(t *testing.T) {
+func TestPathCollectionUsesPathCollectionBatchForVaryingPerItemStyle(t *testing.T) {
 	pc := &PathCollection{
+		Collection:    Collection{Alpha: 0.5},
 		Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
 		Offsets:       []geom.Pt{{X: 1, Y: 2}, {X: 4, Y: 5}},
 		Sizes:         []float64{2, 3},
 		PathInDisplay: true,
-		FaceColor:     render.Color{R: 1, A: 1},
-		EdgeColor:     render.Color{A: 1},
-		EdgeWidth:     1,
+		FaceColors: []render.Color{
+			{R: 1, G: 0.1, B: 0.2, A: 0.8},
+			{R: 0.2, G: 1, B: 0.3, A: 0.6},
+		},
+		EdgeColors: []render.Color{
+			{R: 0.3, G: 0.2, B: 0.1, A: 1},
+			{R: 0.1, G: 0.2, B: 0.3, A: 0.7},
+		},
+		EdgeWidths: []float64{1.25, 2.5},
 	}
 
 	r := &batchRecordingRenderer{returnNative: true}
 	pc.Draw(r, createTestDrawContext())
 
 	if len(r.markerBatches) != 0 {
-		t.Fatalf("marker batches = %d, want none for varying transforms", len(r.markerBatches))
+		t.Fatalf("marker batches = %d, want none for varying collection state", len(r.markerBatches))
 	}
 	if len(r.pathCollectionBatches) != 1 {
 		t.Fatalf("path collection batches = %d, want 1", len(r.pathCollectionBatches))
+	}
+	if len(r.pathCollectionBatches[0].Items) != 2 {
+		t.Fatalf("path collection items = %d, want 2", len(r.pathCollectionBatches[0].Items))
+	}
+	if len(r.pathCalls) != 0 {
+		t.Fatalf("fallback path calls = %d, want 0", len(r.pathCalls))
+	}
+
+	items := r.pathCollectionBatches[0].Items
+	if got, want := items[0].Paint.Fill.A, 0.4; math.Abs(got-want) > 1e-12 {
+		t.Fatalf("first fill alpha = %v, want %v", got, want)
+	}
+	if got, want := items[1].Paint.Stroke.A, 0.35; math.Abs(got-want) > 1e-12 {
+		t.Fatalf("second stroke alpha = %v, want %v", got, want)
+	}
+	if got, want := items[0].Paint.LineWidth, 1.25; got != want {
+		t.Fatalf("first linewidth = %v, want %v", got, want)
+	}
+	if got, want := items[1].Paint.LineWidth, 2.5; got != want {
+		t.Fatalf("second linewidth = %v, want %v", got, want)
+	}
+}
+
+func TestPathCollectionSkipsEmptyAndInvisibleCollections(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		pc   *PathCollection
+	}{
+		{
+			name: "empty",
+			pc:   &PathCollection{},
+		},
+		{
+			name: "all invisible",
+			pc: &PathCollection{
+				Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
+				Offsets:       []geom.Pt{{X: 1, Y: 2}, {X: 4, Y: 5}},
+				PathInDisplay: true,
+				FaceColors: []render.Color{
+					{R: 1, A: 0},
+					{G: 1, A: 0},
+				},
+				EdgeColors: []render.Color{
+					{A: 0},
+					{A: 0},
+				},
+				EdgeWidth: 2,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &batchRecordingRenderer{returnNative: true}
+			tc.pc.Draw(r, createTestDrawContext())
+
+			if len(r.markerBatches) != 0 || len(r.pathCollectionBatches) != 0 || len(r.pathCalls) != 0 {
+				t.Fatalf("expected no drawing, marker=%d collection=%d paths=%d", len(r.markerBatches), len(r.pathCollectionBatches), len(r.pathCalls))
+			}
+		})
+	}
+}
+
+func TestPathCollectionLineOnlyUsesFaceColorAsStrokeWhenEdgeUnset(t *testing.T) {
+	pc := &PathCollection{
+		Collection:    Collection{Alpha: 0.5},
+		Path:          polygonPath([]geom.Pt{{X: -0.5, Y: 0}, {X: 0.5, Y: 0}}, false),
+		Offsets:       []geom.Pt{{X: 1, Y: 2}},
+		Size:          2,
+		PathInDisplay: true,
+		FaceColor:     render.Color{R: 0.3, G: 0.4, B: 0.5, A: 0.8},
+		EdgeWidth:     1.5,
+		LineOnly:      true,
+	}
+
+	r := &batchRecordingRenderer{returnNative: true}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.markerBatches) != 1 {
+		t.Fatalf("marker batches = %d, want 1", len(r.markerBatches))
+	}
+	items := r.markerBatches[0].Items
+	if len(items) != 1 {
+		t.Fatalf("marker items = %d, want 1", len(items))
+	}
+	paint := items[0].Paint
+	if paint.Fill.A != 0 {
+		t.Fatalf("line-only fill alpha = %v, want 0", paint.Fill.A)
+	}
+	if got, want := paint.Stroke, (render.Color{R: 0.3, G: 0.4, B: 0.5, A: 0.4}); got != want {
+		t.Fatalf("line-only stroke = %+v, want %+v", got, want)
+	}
+	if got, want := paint.LineWidth, 1.5; got != want {
+		t.Fatalf("line-only linewidth = %v, want %v", got, want)
+	}
+}
+
+func TestPathCollectionEdgeColorsFaceStyleUsesFaceColorsForStroke(t *testing.T) {
+	faces := []render.Color{
+		{R: 0.8, G: 0.1, B: 0.2, A: 0.6},
+		{R: 0.1, G: 0.7, B: 0.3, A: 0.8},
+	}
+	pc := &PathCollection{
+		Collection:    Collection{Alpha: 0.5},
+		Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
+		Offsets:       []geom.Pt{{X: 1, Y: 2}, {X: 4, Y: 5}},
+		PathInDisplay: true,
+		FaceColors:    faces,
+		EdgeColors:    append([]render.Color(nil), faces...),
+		EdgeWidth:     1,
+	}
+
+	r := &batchRecordingRenderer{returnNative: true}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.pathCollectionBatches) != 1 {
+		t.Fatalf("path collection batches = %d, want 1", len(r.pathCollectionBatches))
+	}
+	items := r.pathCollectionBatches[0].Items
+	if len(items) != 2 {
+		t.Fatalf("path collection items = %d, want 2", len(items))
+	}
+	for i, item := range items {
+		if item.Paint.Stroke != item.Paint.Fill {
+			t.Fatalf("item %d stroke = %+v, want face-colored edge %+v", i, item.Paint.Stroke, item.Paint.Fill)
+		}
 	}
 }
 
@@ -140,6 +280,77 @@ func TestPathCollectionFallsBackWhenMarkerBatchDeclines(t *testing.T) {
 	}
 	if len(r.pathCalls) != 2 {
 		t.Fatalf("fallback path calls = %d, want 2", len(r.pathCalls))
+	}
+}
+
+func TestPathCollectionFallsBackWhenPathCollectionBatchDeclines(t *testing.T) {
+	pc := &PathCollection{
+		Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
+		Offsets:       []geom.Pt{{X: 1, Y: 2}, {X: 4, Y: 5}},
+		Sizes:         []float64{2, 3},
+		PathInDisplay: true,
+		FaceColors: []render.Color{
+			{R: 1, A: 1},
+			{G: 1, A: 1},
+		},
+	}
+
+	r := &batchRecordingRenderer{returnNative: false}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.markerBatches) != 0 {
+		t.Fatalf("marker batches = %d, want none for varying path collection", len(r.markerBatches))
+	}
+	if len(r.pathCollectionBatches) != 1 {
+		t.Fatalf("path collection batches = %d, want attempted native path collection", len(r.pathCollectionBatches))
+	}
+	if len(r.pathCalls) != 2 {
+		t.Fatalf("fallback path calls = %d, want 2", len(r.pathCalls))
+	}
+}
+
+func TestPathCollectionNativeBatchCarriesHatchAntialiasAndSnap(t *testing.T) {
+	pc := &PathCollection{
+		Collection:    Collection{Alpha: 0.5, Antialias: render.AntialiasOff},
+		Path:          polygonPath([]geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}}, true),
+		Offsets:       []geom.Pt{{X: 1, Y: 2}},
+		PathInDisplay: true,
+		FaceColor:     render.Color{R: 0.2, G: 0.3, B: 0.4, A: 1},
+		Hatch:         "/",
+		HatchColor:    render.Color{R: 1, A: 1},
+		HatchWidth:    1.25,
+	}
+
+	r := &nativeHatchBatchRecordingRenderer{
+		batchRecordingRenderer: batchRecordingRenderer{returnNative: true},
+	}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.markerBatches) != 0 {
+		t.Fatalf("marker batches = %d, want none for hatched path collection", len(r.markerBatches))
+	}
+	if len(r.pathCollectionBatches) != 1 {
+		t.Fatalf("path collection batches = %d, want 1", len(r.pathCollectionBatches))
+	}
+	items := r.pathCollectionBatches[0].Items
+	if len(items) != 1 {
+		t.Fatalf("path collection items = %d, want 1", len(items))
+	}
+	item := items[0]
+	if item.Hatch != "/" {
+		t.Fatalf("hatch = %q, want /", item.Hatch)
+	}
+	if got, want := item.HatchColor, (render.Color{R: 1, A: 0.5}); got != want {
+		t.Fatalf("hatch color = %+v, want %+v", got, want)
+	}
+	if item.HatchWidth != 1.25 {
+		t.Fatalf("hatch width = %v, want 1.25", item.HatchWidth)
+	}
+	if item.Antialiased {
+		t.Fatal("batch item antialias = true, want false")
+	}
+	if item.Paint.Snap != render.SnapAuto {
+		t.Fatalf("paint snap = %v, want SnapAuto", item.Paint.Snap)
 	}
 }
 
@@ -242,6 +453,48 @@ func TestPatchCollectionWithHatchKeepsFallbackPath(t *testing.T) {
 	}
 	if len(r.pathCalls) == 0 {
 		t.Fatal("hatched patch collection should draw via fallback path calls")
+	}
+}
+
+func TestPatchCollectionNativeBatchCarriesHatchAntialiasAndSnap(t *testing.T) {
+	pc := &PatchCollection{
+		Collection: Collection{Alpha: 0.5, Antialias: render.AntialiasOff},
+		Paths: []geom.Path{
+			patchRectPath(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 1, Y: 1}}),
+		},
+		FaceColor:  render.Color{R: 0.2, A: 1},
+		Hatch:      "x",
+		HatchColor: render.Color{G: 1, A: 1},
+		HatchWidth: 2,
+	}
+
+	r := &nativeHatchBatchRecordingRenderer{
+		batchRecordingRenderer: batchRecordingRenderer{returnNative: true},
+	}
+	pc.Draw(r, createTestDrawContext())
+
+	if len(r.pathCollectionBatches) != 1 {
+		t.Fatalf("path collection batches = %d, want 1", len(r.pathCollectionBatches))
+	}
+	items := r.pathCollectionBatches[0].Items
+	if len(items) != 1 {
+		t.Fatalf("batch items = %d, want 1", len(items))
+	}
+	item := items[0]
+	if item.Hatch != "x" {
+		t.Fatalf("hatch = %q, want x", item.Hatch)
+	}
+	if got, want := item.HatchColor, (render.Color{G: 1, A: 0.5}); got != want {
+		t.Fatalf("hatch color = %+v, want %+v", got, want)
+	}
+	if item.HatchWidth != 2 {
+		t.Fatalf("hatch width = %v, want 2", item.HatchWidth)
+	}
+	if item.Antialiased {
+		t.Fatal("batch item antialias = true, want false")
+	}
+	if item.Paint.Snap != render.SnapAuto {
+		t.Fatalf("paint snap = %v, want SnapAuto", item.Paint.Snap)
 	}
 }
 

@@ -62,7 +62,7 @@ func (f *Fill2D) Draw(r render.Renderer, ctx *DrawContext) {
 	// Get edge color with alpha
 	edgeColor := f.EdgeColor
 	if f.Alpha > 0 && f.Alpha <= 1 {
-		edgeColor.A *= f.Alpha
+		edgeColor.A = f.Alpha
 	}
 
 	// Create paint for fill area

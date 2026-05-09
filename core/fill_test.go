@@ -313,6 +313,26 @@ func TestFillPlotExplicitAlphaOverridesColorAlpha(t *testing.T) {
 	}
 }
 
+func TestFillPlotExplicitAlphaOverridesEdgeColorAlpha(t *testing.T) {
+	fill := &Fill2D{
+		X:         []float64{0, 1, 2},
+		Y1:        []float64{1, 2, 1},
+		Color:     render.Color{R: 0.3, G: 0.7, B: 0.9, A: 0.7},
+		EdgeColor: render.Color{R: 0.1, G: 0.2, B: 0.3, A: 0.25},
+		EdgeWidth: 1,
+		Alpha:     0.4,
+	}
+
+	r := &recordingRenderer{}
+	fill.Draw(r, createTestDrawContext())
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("path calls = %d, want 1", len(r.pathCalls))
+	}
+	if got := r.pathCalls[0].paint.Stroke.A; got != fill.Alpha {
+		t.Fatalf("drawn edge alpha = %v, want explicit alpha override %v", got, fill.Alpha)
+	}
+}
+
 func TestFillBetweenXPreservesColorAlphaWhenAlphaOmitted(t *testing.T) {
 	fig := NewFigure(320, 240)
 	ax := fig.AddAxes(unitRect())
