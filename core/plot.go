@@ -21,6 +21,14 @@ type PlotOptions struct {
 	LevelCount int      // contour level count for contour-like plot types
 	Levels     []float64
 	Offset     *float64 // fixed projection offset for contour-like plot types
+	RStride    *int     // row stride for 3D surface/wireframe sampling
+	CStride    *int     // column stride for 3D surface/wireframe sampling
+	RCount     *int     // maximum sampled row count for 3D surface/wireframe sampling
+	CCount     *int     // maximum sampled column count for 3D surface/wireframe sampling
+	Colormap   *string  // scalar colormap for mappable plot types
+	Norm       ScalarNormalizer
+	VMin       *float64
+	VMax       *float64
 }
 
 // Plot creates a line plot with automatic color cycling if no color is specified.

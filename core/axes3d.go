@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	matcolor "github.com/cwbudde/matplotlib-go/color"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
 )
@@ -229,6 +228,380 @@ func (a *Axes3D) Text3D(x, y, z float64, text string, opts ...TextOptions) *Text
 	return txt
 }
 
+// Stem3DOptions configures Axes3D.Stem3D.
+type Stem3DOptions struct {
+	Color           *render.Color
+	LineWidth       *float64
+	Marker          *MarkerType
+	MarkerPath      *geom.Path
+	MarkerSize      *float64
+	Bottom          *float64
+	Orientation     string
+	BaselineColor   *render.Color
+	BaselineWidth   *float64
+	MarkerEdgeColor *render.Color
+	MarkerEdgeWidth *float64
+	Label           string
+	Alpha           *float64
+}
+
+// FillBetween3DMode controls the polygon construction for 3D fill bands.
+type FillBetween3DMode string
+
+const (
+	FillBetween3DModeAuto    FillBetween3DMode = "auto"
+	FillBetween3DModeQuad    FillBetween3DMode = "quad"
+	FillBetween3DModePolygon FillBetween3DMode = "polygon"
+)
+
+// FillBetween3DOptions configures Axes3D.FillBetween3D.
+type FillBetween3DOptions struct {
+	Color     *render.Color
+	EdgeColor *render.Color
+	EdgeWidth *float64
+	Alpha     *float64
+	Label     string
+	Mode      FillBetween3DMode
+}
+
+// Quiver3DOptions configures Axes3D.Quiver.
+type Quiver3DOptions struct {
+	Color            *render.Color
+	LineWidth        *float64
+	Alpha            *float64
+	Label            string
+	Length           *float64
+	ArrowLengthRatio *float64
+	Pivot            string
+	Normalize        bool
+	AxLimClip        bool
+}
+
+// ErrorBar3DOptions configures Axes3D.ErrorBar3D.
+type ErrorBar3DOptions struct {
+	Color     *render.Color
+	LineWidth *float64
+	CapSize   *float64
+	Alpha     *float64
+	Label     string
+
+	XErrLower []float64
+	XErrUpper []float64
+	YErrLower []float64
+	YErrUpper []float64
+	ZErrLower []float64
+	ZErrUpper []float64
+}
+
+// Stem3D renders Matplotlib-style 3D stem lines, head markers, and a baseline.
+func (a *Axes3D) Stem3D(x, y, z []float64, opts ...Stem3DOptions) *StemContainer {
+	if a == nil || a.Axes == nil {
+		return nil
+	}
+	n := minLen(x, y, z)
+	if n <= 0 {
+		return nil
+	}
+
+	var opt Stem3DOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	orientation := normalized3DDir(opt.Orientation)
+	bottom := 0.0
+	if opt.Bottom != nil {
+		bottom = *opt.Bottom
+	}
+
+	limitsChanged := a.observe3DStemData(x[:n], y[:n], z[:n], bottom, orientation)
+	color := a.NextColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+	color.A *= alpha
+
+	lineWidth := 1.5
+	if opt.LineWidth != nil {
+		lineWidth = *opt.LineWidth
+	}
+	markerType := MarkerCircle
+	if opt.Marker != nil {
+		markerType = *opt.Marker
+	}
+	markerSize := 6.0
+	if opt.MarkerSize != nil {
+		markerSize = *opt.MarkerSize
+	}
+	markerEdgeColor := color
+	if opt.MarkerEdgeColor != nil {
+		markerEdgeColor = *opt.MarkerEdgeColor
+		markerEdgeColor.A *= alpha
+	}
+	markerEdgeWidth := lineWidth * 0.8
+	if opt.MarkerEdgeWidth != nil {
+		markerEdgeWidth = *opt.MarkerEdgeWidth
+	}
+	baselineColor := color
+	if opt.BaselineColor != nil {
+		baselineColor = *opt.BaselineColor
+		baselineColor.A *= alpha
+	}
+	baselineWidth := lineWidth
+	if opt.BaselineWidth != nil {
+		baselineWidth = *opt.BaselineWidth
+	}
+	markerPath := geom.Path{}
+	if opt.MarkerPath != nil {
+		markerPath = *opt.MarkerPath
+	}
+	if len(markerPath.C) == 0 {
+		scatter := Scatter2D{Marker: markerType}
+		markerPath = scatter.markerPrototypePath()
+	}
+
+	segments, baseline, offsets, zorder := a.projectStem3DGeometry(x[:n], y[:n], z[:n], bottom, orientation)
+	stems := &LineCollection{
+		Collection: Collection{Coords: Coords(CoordData), Label: opt.Label, Alpha: 1, z: zorder},
+		Segments:   segments,
+		Color:      color,
+		LineWidth:  lineWidth,
+		LineJoin:   render.JoinRound,
+		LineCap:    render.CapRound,
+	}
+	markers := &PathCollection{
+		Collection:    Collection{Coords: Coords(CoordData), Label: opt.Label, Alpha: 1, z: zorder + 0.05},
+		Path:          markerPath,
+		Offsets:       offsets,
+		Size:          markerSize * stemMarkerScale,
+		PathInDisplay: true,
+		FaceColor:     color,
+		EdgeColor:     markerEdgeColor,
+		EdgeWidth:     markerEdgeWidth,
+		LineOnly:      markerType == MarkerPlus || markerType == MarkerCross,
+	}
+	baselineArtist := &Line2D{
+		XY:    baseline,
+		W:     baselineWidth,
+		Col:   baselineColor,
+		Label: "",
+		z:     zorder - 0.05,
+	}
+
+	a.AddCollection(stems)
+	a.AddCollection(markers)
+	a.Add(baselineArtist)
+	a.add3DReprojector(func() {
+		segments, baseline, offsets, zorder := a.projectStem3DGeometry(x[:n], y[:n], z[:n], bottom, orientation)
+		stems.Segments = segments
+		stems.z = zorder
+		markers.Offsets = offsets
+		markers.z = zorder + 0.05
+		baselineArtist.XY = baseline
+		baselineArtist.z = zorder - 0.05
+	}, limitsChanged)
+
+	return &StemContainer{
+		MarkerCollection: markers,
+		StemLines:        stems,
+		Baseline:         baselineArtist,
+		Label:            opt.Label,
+	}
+}
+
+// Stem is the Matplotlib-compatible 3D stem entry point.
+func (a *Axes3D) Stem(x, y, z []float64, opts ...Stem3DOptions) *StemContainer {
+	return a.Stem3D(x, y, z, opts...)
+}
+
+// FillBetween3D fills bands between two 3D curves.
+func (a *Axes3D) FillBetween3D(x1, y1, z1, x2, y2, z2 []float64, opts ...FillBetween3DOptions) *PolyCollection {
+	if a == nil || a.Axes == nil {
+		return nil
+	}
+	n := minLen(x1, y1, z1, x2, y2, z2)
+	if n < 2 {
+		return nil
+	}
+
+	var opt FillBetween3DOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	limitsChanged := a.observe3DData(x1[:n], y1[:n], z1[:n])
+	if a.observe3DData(x2[:n], y2[:n], z2[:n]) {
+		limitsChanged = true
+	}
+
+	color := a.NextPatchColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+	color.A *= alpha
+	edgeColor := render.Color{}
+	if opt.EdgeColor != nil {
+		edgeColor = *opt.EdgeColor
+		edgeColor.A *= alpha
+	}
+	edgeWidth := 0.0
+	if opt.EdgeWidth != nil {
+		edgeWidth = *opt.EdgeWidth
+	}
+
+	polygons, zorder := a.projectFillBetween3DPolygons(x1[:n], y1[:n], z1[:n], x2[:n], y2[:n], z2[:n], opt.Mode)
+	if len(polygons) == 0 {
+		return nil
+	}
+	colors := repeatColor(color, len(polygons))
+	collection := &PolyCollection{
+		Polygons: polygons,
+		PatchCollection: PatchCollection{
+			Collection: Collection{Coords: Coords(CoordData), Label: opt.Label, Alpha: 1, z: zorder},
+			FaceColors: colors,
+			EdgeColor:  edgeColor,
+			EdgeWidth:  edgeWidth,
+			LineJoin:   render.JoinMiter,
+			LineCap:    render.CapButt,
+		},
+	}
+	a.Add(collection)
+	a.add3DReprojector(func() {
+		polygons, zorder := a.projectFillBetween3DPolygons(x1[:n], y1[:n], z1[:n], x2[:n], y2[:n], z2[:n], opt.Mode)
+		collection.Polygons = polygons
+		collection.FaceColors = repeatColor(color, len(polygons))
+		collection.z = zorder
+	}, limitsChanged)
+	return collection
+}
+
+// FillBetween is the Matplotlib-compatible 3D fill_between entry point.
+func (a *Axes3D) FillBetween(x1, y1, z1, x2, y2, z2 []float64, opts ...FillBetween3DOptions) *PolyCollection {
+	return a.FillBetween3D(x1, y1, z1, x2, y2, z2, opts...)
+}
+
+// Quiver plots a 3D vector field as projected shafts and arrowheads.
+func (a *Axes3D) Quiver(x, y, z, u, v, w []float64, opts ...Quiver3DOptions) *LineCollection {
+	if a == nil || a.Axes == nil {
+		return nil
+	}
+	n := minLen(x, y, z, u, v, w)
+	if n <= 0 {
+		return nil
+	}
+
+	var opt Quiver3DOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	limitsChanged := a.observeQuiver3DData(x[:n], y[:n], z[:n], u[:n], v[:n], w[:n], opt)
+	color := a.NextColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+	color.A *= alpha
+	lineWidth := 1.0
+	if opt.LineWidth != nil {
+		lineWidth = *opt.LineWidth
+	}
+
+	segments, zorder := a.projectQuiver3DSegments(x[:n], y[:n], z[:n], u[:n], v[:n], w[:n], opt)
+	if len(segments) == 0 {
+		return nil
+	}
+	collection := &LineCollection{
+		Collection: Collection{Coords: Coords(CoordData), Label: opt.Label, Alpha: 1, z: zorder},
+		Segments:   segments,
+		Color:      color,
+		LineWidth:  lineWidth,
+		LineJoin:   render.JoinMiter,
+		LineCap:    render.CapButt,
+	}
+	a.Add(collection)
+	a.add3DReprojector(func() {
+		segments, zorder := a.projectQuiver3DSegments(x[:n], y[:n], z[:n], u[:n], v[:n], w[:n], opt)
+		collection.Segments = segments
+		collection.z = zorder
+	}, limitsChanged)
+	return collection
+}
+
+// Quiver3D is an explicit alias for Quiver.
+func (a *Axes3D) Quiver3D(x, y, z, u, v, w []float64, opts ...Quiver3DOptions) *LineCollection {
+	return a.Quiver(x, y, z, u, v, w, opts...)
+}
+
+// ErrorBar3D plots projected x/y/z error ranges.
+func (a *Axes3D) ErrorBar3D(x, y, z, xErr, yErr, zErr []float64, opts ...ErrorBar3DOptions) *LineCollection {
+	if a == nil || a.Axes == nil {
+		return nil
+	}
+	n := minLen(x, y, z)
+	if n <= 0 {
+		return nil
+	}
+	var opt ErrorBar3DOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	if !validErrorValues(xErr, n) || !validErrorValues(yErr, n) || !validErrorValues(zErr, n) ||
+		!validErrorValues(opt.XErrLower, n) || !validErrorValues(opt.XErrUpper, n) ||
+		!validErrorValues(opt.YErrLower, n) || !validErrorValues(opt.YErrUpper, n) ||
+		!validErrorValues(opt.ZErrLower, n) || !validErrorValues(opt.ZErrUpper, n) {
+		return nil
+	}
+
+	limitsChanged := a.observe3DErrorBarData(x[:n], y[:n], z[:n], xErr, yErr, zErr, opt)
+	color := a.NextColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+	color.A *= alpha
+	lineWidth := 1.0
+	if opt.LineWidth != nil {
+		lineWidth = *opt.LineWidth
+	}
+
+	segments, zorder := a.projectErrorBar3DSegments(x[:n], y[:n], z[:n], xErr, yErr, zErr, opt)
+	if len(segments) == 0 {
+		return nil
+	}
+	collection := &LineCollection{
+		Collection: Collection{Coords: Coords(CoordData), Label: opt.Label, Alpha: 1, z: zorder},
+		Segments:   segments,
+		Color:      color,
+		LineWidth:  lineWidth,
+		LineJoin:   render.JoinMiter,
+		LineCap:    render.CapButt,
+	}
+	a.Add(collection)
+	a.add3DReprojector(func() {
+		segments, zorder := a.projectErrorBar3DSegments(x[:n], y[:n], z[:n], xErr, yErr, zErr, opt)
+		collection.Segments = segments
+		collection.z = zorder
+	}, limitsChanged)
+	return collection
+}
+
+// ErrorBar is the Matplotlib-compatible 3D errorbar entry point.
+func (a *Axes3D) ErrorBar(x, y, z, xErr, yErr, zErr []float64, opts ...ErrorBar3DOptions) *LineCollection {
+	return a.ErrorBar3D(x, y, z, xErr, yErr, zErr, opts...)
+}
+
 // PlotSurfaceGrid creates a filled surface from a structured z grid.
 func (a *Axes3D) PlotSurfaceGrid(x, y []float64, z [][]float64, opts ...PlotOptions) *PolyCollection {
 	return a.Surface(x, y, z, opts...)
@@ -237,7 +610,7 @@ func (a *Axes3D) PlotSurfaceGrid(x, y []float64, z [][]float64, opts ...PlotOpti
 // Wireframe draws a structured wireframe as line segments.
 func (a *Axes3D) Wireframe(x, y []float64, z [][]float64, opts ...PlotOptions) *LineCollection {
 	limitsChanged := a.observe3DGrid(x, y, z)
-	segments := a.projectWireframeSegments(x, y, z)
+	segments := a.projectWireframeSegments(x, y, z, opts...)
 	if len(segments) == 0 {
 		return nil
 	}
@@ -276,7 +649,7 @@ func (a *Axes3D) Wireframe(x, y []float64, z [][]float64, opts ...PlotOptions) *
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			collection.Segments = a.projectWireframeSegments(x, y, z)
+			collection.Segments = a.projectWireframeSegments(x, y, z, opts...)
 			collection.z = a.grid3DCollectionZ(x, y, z)
 		}
 	}, limitsChanged)
@@ -427,7 +800,7 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 // Surface draws a structured surface as projected, z-sorted quadrilateral faces.
 func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *PolyCollection {
 	limitsChanged := a.observe3DGrid(x, y, z)
-	polygons, faceColors, zorder := a.projectSurfacePolygons(x, y, z, opts...)
+	polygons, faceColors, zorder, mapping := a.projectSurfacePolygons(x, y, z, opts...)
 	if len(polygons) == 0 {
 		return nil
 	}
@@ -456,6 +829,10 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 				Coords: Coords(CoordData),
 				Label:  label,
 				Alpha:  1,
+				Colormap: mapping.Colormap,
+				Norm:     mapping.Norm,
+				VMin:     mapping.VMin,
+				VMax:     mapping.VMax,
 				z:      zorder,
 			},
 			FaceColors: faceColors,
@@ -468,12 +845,16 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 	a.Add(collection)
 	a.add3DReprojector(func() {
 		if collection != nil {
-			polygons, faceColors, zorder := a.projectSurfacePolygons(x, y, z, opts...)
+			polygons, faceColors, zorder, mapping := a.projectSurfacePolygons(x, y, z, opts...)
 			for i := range faceColors {
 				faceColors[i].A *= alpha
 			}
 			collection.Polygons = polygons
 			collection.FaceColors = faceColors
+			collection.Colormap = mapping.Colormap
+			collection.Norm = mapping.Norm
+			collection.VMin = mapping.VMin
+			collection.VMax = mapping.VMax
 			collection.z = zorder
 		}
 	}, limitsChanged)
@@ -539,18 +920,18 @@ type surfaceFace struct {
 	depth   float64
 }
 
-func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...PlotOptions) ([][]geom.Pt, []render.Color, float64) {
+func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...PlotOptions) ([][]geom.Pt, []render.Color, float64, ScalarMapInfo) {
 	if a == nil || len(z) == 0 {
-		return nil, nil, 0
+		return nil, nil, 0, ScalarMapInfo{}
 	}
 	rows := len(z)
 	cols := len(z[0])
 	if cols == 0 || len(x) < cols || len(y) < rows {
-		return nil, nil, 0
+		return nil, nil, 0, ScalarMapInfo{}
 	}
 	for row := 1; row < rows; row++ {
 		if len(z[row]) != cols {
-			return nil, nil, 0
+			return nil, nil, 0, ScalarMapInfo{}
 		}
 	}
 
@@ -598,7 +979,7 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 		}
 	}
 	if len(faces) == 0 {
-		return nil, nil, 0
+		return nil, nil, 0, ScalarMapInfo{}
 	}
 
 	sort.SliceStable(faces, func(i, j int) bool {
@@ -609,8 +990,7 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 	if len(opts) > 0 && opts[0].Color != nil {
 		colorOverride = opts[0].Color
 	}
-	mapping := resolveScalarMapValues(values, "viridis", nil, nil)
-	cmap := matcolor.GetColormap(mapping.Colormap)
+	mapping := resolvePlotScalarMap(values, firstPlotOptions(opts))
 	polygons := make([][]geom.Pt, len(faces))
 	colors := make([]render.Color, len(faces))
 	for i, face := range faces {
@@ -619,9 +999,9 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 			colors[i] = *colorOverride
 			continue
 		}
-		colors[i] = cmap.At(mapping.Normalize(face.value))
+		colors[i] = mapping.Color(face.value, 1)
 	}
-	return polygons, colors, computed3DCollectionZ(collectionDepth)
+	return polygons, colors, computed3DCollectionZ(collectionDepth), mapping
 }
 
 func surfaceGridSampleIndices(length, count int) []int {
@@ -1889,6 +2269,95 @@ func format3DTick(v float64, i int, ticks []float64) string {
 	return strings.ReplaceAll(formatScalarTickLabel(ScalarFormatter{Prec: 3}, v, step), "-", "\u2212")
 }
 
+// Bar3DPlaneOptions configures Axes3D.Bar, the projected 2D bar variant.
+type Bar3DPlaneOptions struct {
+	Color     *render.Color
+	Width     *float64
+	EdgeColor *render.Color
+	EdgeWidth *float64
+	Alpha     *float64
+	Baseline  *float64
+	Baselines []float64
+	Z         *float64
+	Zs        []float64
+	ZDir      string
+	Label     string
+}
+
+// Bar projects 2D bars into the plane orthogonal to ZDir, matching mplot3d's
+// 2D bar compatibility path rather than the cuboid Bar3D helper.
+func (a *Axes3D) Bar(x, heights []float64, opts ...Bar3DPlaneOptions) *PolyCollection {
+	if a == nil || a.Axes == nil {
+		return nil
+	}
+	n := minLen(x, heights)
+	if n <= 0 {
+		return nil
+	}
+
+	var opt Bar3DPlaneOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	width := 0.8
+	if opt.Width != nil {
+		width = *opt.Width
+	}
+	baseline := 0.0
+	if opt.Baseline != nil {
+		baseline = *opt.Baseline
+	}
+	z := 0.0
+	if opt.Z != nil {
+		z = *opt.Z
+	}
+	zdir := normalized3DDir(opt.ZDir)
+
+	limitsChanged := a.observe3DPlaneBars(x[:n], heights[:n], width, baseline, opt.Baselines, z, opt.Zs, zdir)
+	color := a.NextPatchColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+	alpha := 1.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+	color.A *= alpha
+	edgeColor := render.Color{}
+	if opt.EdgeColor != nil {
+		edgeColor = *opt.EdgeColor
+		edgeColor.A *= alpha
+	}
+	edgeWidth := 0.0
+	if opt.EdgeWidth != nil {
+		edgeWidth = *opt.EdgeWidth
+	}
+
+	polygons, zorder := a.project3DPlaneBars(x[:n], heights[:n], width, baseline, opt.Baselines, z, opt.Zs, zdir)
+	if len(polygons) == 0 {
+		return nil
+	}
+	collection := &PolyCollection{
+		Polygons: polygons,
+		PatchCollection: PatchCollection{
+			Collection: Collection{Coords: Coords(CoordData), Label: opt.Label, Alpha: 1, z: zorder},
+			FaceColors: repeatColor(color, len(polygons)),
+			EdgeColor:  edgeColor,
+			EdgeWidth:  edgeWidth,
+			LineJoin:   render.JoinMiter,
+			LineCap:    render.CapButt,
+		},
+	}
+	a.Add(collection)
+	a.add3DReprojector(func() {
+		polygons, zorder := a.project3DPlaneBars(x[:n], heights[:n], width, baseline, opt.Baselines, z, opt.Zs, zdir)
+		collection.Polygons = polygons
+		collection.FaceColors = repeatColor(color, len(polygons))
+		collection.z = zorder
+	}, limitsChanged)
+	return collection
+}
+
 // Bar3DOptions configures projected wireframe bars.
 type Bar3DOptions struct {
 	Color     *render.Color
@@ -2270,6 +2739,463 @@ func minLen(slices ...[]float64) int {
 	return n
 }
 
+func repeatColor(color render.Color, n int) []render.Color {
+	if n <= 0 {
+		return nil
+	}
+	colors := make([]render.Color, n)
+	for i := range colors {
+		colors[i] = color
+	}
+	return colors
+}
+
+func normalized3DDir(dir string) string {
+	switch strings.ToLower(dir) {
+	case "x", "y", "z":
+		return strings.ToLower(dir)
+	default:
+		return "z"
+	}
+}
+
+func juggle3DPoint(x, y, z float64, zdir string) vec3 {
+	switch normalized3DDir(zdir) {
+	case "x":
+		return vec3{z, x, y}
+	case "y":
+		return vec3{x, z, y}
+	default:
+		return vec3{x, y, z}
+	}
+}
+
+func (a *Axes3D) observe3DStemData(x, y, z []float64, bottom float64, orientation string) bool {
+	n := minLen(x, y, z)
+	changed := false
+	for i := 0; i < n; i++ {
+		start, end := stem3DLineEndpoints(x[i], y[i], z[i], bottom, orientation)
+		if a.observe3DPoint(start[0], start[1], start[2]) {
+			changed = true
+		}
+		if a.observe3DPoint(end[0], end[1], end[2]) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+func stem3DLineEndpoints(x, y, z, bottom float64, orientation string) (vec3, vec3) {
+	switch normalized3DDir(orientation) {
+	case "x":
+		return vec3{bottom, y, z}, vec3{x, y, z}
+	case "y":
+		return vec3{x, bottom, z}, vec3{x, y, z}
+	default:
+		return vec3{x, y, bottom}, vec3{x, y, z}
+	}
+}
+
+func (a *Axes3D) projectStem3DGeometry(x, y, z []float64, bottom float64, orientation string) ([][]geom.Pt, []geom.Pt, []geom.Pt, float64) {
+	n := minLen(x, y, z)
+	segments := make([][]geom.Pt, 0, n)
+	baseline := make([]geom.Pt, 0, n)
+	offsets := make([]geom.Pt, 0, n)
+	depth := math.Inf(1)
+	for i := 0; i < n; i++ {
+		start, end := stem3DLineEndpoints(x[i], y[i], z[i], bottom, orientation)
+		startPt, startDepth := a.projectPointDepth(start[0], start[1], start[2])
+		endPt, endDepth := a.projectPointDepth(end[0], end[1], end[2])
+		segments = append(segments, []geom.Pt{startPt, endPt})
+		baseline = append(baseline, startPt)
+		offsets = append(offsets, endPt)
+		if startDepth < depth {
+			depth = startDepth
+		}
+		if endDepth < depth {
+			depth = endDepth
+		}
+	}
+	return segments, baseline, offsets, computed3DCollectionZ(depth)
+}
+
+func (a *Axes3D) projectQuiver3DSegments(x, y, z, u, v, w []float64, opt Quiver3DOptions) ([][]geom.Pt, float64) {
+	return a.project3DLineSegments(quiver3DRawSegments(x, y, z, u, v, w, opt))
+}
+
+func (a *Axes3D) observeQuiver3DData(x, y, z, u, v, w []float64, opt Quiver3DOptions) bool {
+	changed := false
+	for _, segment := range quiver3DRawSegments(x, y, z, u, v, w, opt) {
+		for _, p := range segment {
+			if a.observe3DPoint(p[0], p[1], p[2]) {
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+func quiver3DRawSegments(x, y, z, u, v, w []float64, opt Quiver3DOptions) [][]vec3 {
+	n := minLen(x, y, z, u, v, w)
+	length := 1.0
+	if opt.Length != nil {
+		length = *opt.Length
+	}
+	arrowRatio := 0.3
+	if opt.ArrowLengthRatio != nil {
+		arrowRatio = *opt.ArrowLengthRatio
+	}
+	pivot := strings.ToLower(opt.Pivot)
+	if pivot != "middle" && pivot != "tip" {
+		pivot = "tail"
+	}
+
+	segments := make([][]vec3, 0, n*3)
+	for i := 0; i < n; i++ {
+		if !isFinite3D(x[i], y[i], z[i]) || !isFinite3D(u[i], v[i], w[i]) {
+			continue
+		}
+		vec := vec3{u[i], v[i], w[i]}
+		if opt.Normalize {
+			vec = vec.unit()
+		}
+		if vec.norm() == 0 {
+			continue
+		}
+		start, end := quiver3DShaft(vec3{x[i], y[i], z[i]}, vec, length, pivot)
+		segments = append(segments, []vec3{start, end})
+		headLen := length * arrowRatio
+		for _, headDir := range quiver3DHeadDirections(vec) {
+			segments = append(segments, []vec3{start, start.sub(headDir.scale(headLen))})
+		}
+	}
+	return segments
+}
+
+func quiver3DShaft(anchor, vec vec3, length float64, pivot string) (vec3, vec3) {
+	shaftStart := 0.0
+	shaftEnd := length
+	switch pivot {
+	case "tail":
+		shaftStart -= length
+		shaftEnd -= length
+	case "middle":
+		shaftStart -= length / 2
+		shaftEnd -= length / 2
+	}
+	return anchor.sub(vec.scale(shaftStart)), anchor.sub(vec.scale(shaftEnd))
+}
+
+func quiver3DHeadDirections(vec vec3) [2]vec3 {
+	axisNorm := math.Hypot(vec[0], vec[1])
+	axis := vec3{0, 1, 0}
+	if axisNorm != 0 {
+		axis = vec3{vec[1] / axisNorm, -vec[0] / axisNorm, 0}
+	}
+	angle := 15 * math.Pi / 180
+	return [2]vec3{
+		rotate3DVector(vec, axis, angle),
+		rotate3DVector(vec, axis, -angle),
+	}
+}
+
+func rotate3DVector(vec, axis vec3, angle float64) vec3 {
+	axis = axis.unit()
+	c := math.Cos(angle)
+	s := math.Sin(angle)
+	return vec.scale(c).add(axis.cross(vec).scale(s)).add(axis.scale(axis.dot(vec) * (1 - c)))
+}
+
+type projected3DPolygon struct {
+	polygon []geom.Pt
+	depth   float64
+}
+
+func (a *Axes3D) projectFillBetween3DPolygons(x1, y1, z1, x2, y2, z2 []float64, mode FillBetween3DMode) ([][]geom.Pt, float64) {
+	raw := fillBetween3DRawPolygons(x1, y1, z1, x2, y2, z2, mode)
+	return a.projectSorted3DPolygons(raw)
+}
+
+func fillBetween3DRawPolygons(x1, y1, z1, x2, y2, z2 []float64, mode FillBetween3DMode) [][]vec3 {
+	n := minLen(x1, y1, z1, x2, y2, z2)
+	if n < 2 {
+		return nil
+	}
+	if mode == "" || mode == FillBetween3DModeAuto {
+		if fillBetween3DCoplanar(x1[:n], y1[:n], z1[:n], x2[:n], y2[:n], z2[:n]) {
+			mode = FillBetween3DModePolygon
+		} else {
+			mode = FillBetween3DModeQuad
+		}
+	}
+	if mode == FillBetween3DModePolygon {
+		polygon := make([]vec3, 0, n*2)
+		for i := 0; i < n; i++ {
+			polygon = append(polygon, vec3{x1[i], y1[i], z1[i]})
+		}
+		for i := n - 1; i >= 0; i-- {
+			polygon = append(polygon, vec3{x2[i], y2[i], z2[i]})
+		}
+		return [][]vec3{polygon}
+	}
+
+	polygons := make([][]vec3, 0, n-1)
+	for i := 0; i+1 < n; i++ {
+		polygons = append(polygons, []vec3{
+			{x1[i], y1[i], z1[i]},
+			{x1[i+1], y1[i+1], z1[i+1]},
+			{x2[i+1], y2[i+1], z2[i+1]},
+			{x2[i], y2[i], z2[i]},
+		})
+	}
+	return polygons
+}
+
+func fillBetween3DCoplanar(x1, y1, z1, x2, y2, z2 []float64) bool {
+	points := make([]vec3, 0, len(x1)*2)
+	for i := range x1 {
+		points = append(points, vec3{x1[i], y1[i], z1[i]})
+	}
+	for i := range x2 {
+		points = append(points, vec3{x2[i], y2[i], z2[i]})
+	}
+	if len(points) < 4 {
+		return true
+	}
+	p0 := points[0]
+	normal := vec3{}
+	for i := 1; i+1 < len(points); i++ {
+		normal = points[i].sub(p0).cross(points[i+1].sub(p0))
+		if normal.norm() > 1e-12 {
+			break
+		}
+	}
+	if normal.norm() <= 1e-12 {
+		return true
+	}
+	for _, p := range points[1:] {
+		if math.Abs(p.sub(p0).dot(normal)) > 1e-12 {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *Axes3D) observe3DPlaneBars(x, heights []float64, width, baseline float64, baselines []float64, z float64, zs []float64, zdir string) bool {
+	changed := false
+	for _, polygon := range planeBar3DRawPolygons(x, heights, width, baseline, baselines, z, zs, zdir) {
+		for _, p := range polygon {
+			if a.observe3DPoint(p[0], p[1], p[2]) {
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+func (a *Axes3D) project3DPlaneBars(x, heights []float64, width, baseline float64, baselines []float64, z float64, zs []float64, zdir string) ([][]geom.Pt, float64) {
+	return a.projectSorted3DPolygons(planeBar3DRawPolygons(x, heights, width, baseline, baselines, z, zs, zdir))
+}
+
+func planeBar3DRawPolygons(x, heights []float64, width, baseline float64, baselines []float64, z float64, zs []float64, zdir string) [][]vec3 {
+	n := minLen(x, heights)
+	polygons := make([][]vec3, 0, n)
+	for i := 0; i < n; i++ {
+		base := baseline
+		if len(baselines) == 1 {
+			base = baselines[0]
+		} else if i < len(baselines) {
+			base = baselines[i]
+		}
+		zi := z
+		if len(zs) == 1 {
+			zi = zs[0]
+		} else if i < len(zs) {
+			zi = zs[i]
+		}
+		left := x[i] - width*0.5
+		right := x[i] + width*0.5
+		top := base + heights[i]
+		polygons = append(polygons, []vec3{
+			juggle3DPoint(left, base, zi, zdir),
+			juggle3DPoint(left, top, zi, zdir),
+			juggle3DPoint(right, top, zi, zdir),
+			juggle3DPoint(right, base, zi, zdir),
+		})
+	}
+	return polygons
+}
+
+func (a *Axes3D) observe3DErrorBarData(x, y, z, xErr, yErr, zErr []float64, opt ErrorBar3DOptions) bool {
+	changed := false
+	for _, segment := range errorBar3DRawSegments(x, y, z, xErr, yErr, zErr, opt) {
+		for _, p := range segment {
+			if a.observe3DPoint(p[0], p[1], p[2]) {
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+func (a *Axes3D) projectErrorBar3DSegments(x, y, z, xErr, yErr, zErr []float64, opt ErrorBar3DOptions) ([][]geom.Pt, float64) {
+	return a.project3DLineSegments(errorBar3DRawSegments(x, y, z, xErr, yErr, zErr, opt))
+}
+
+func errorBar3DRawSegments(x, y, z, xErr, yErr, zErr []float64, opt ErrorBar3DOptions) [][]vec3 {
+	n := minLen(x, y, z)
+	segments := make([][]vec3, 0, n*15)
+	caps := make([][]vec3, 0, n*12)
+	capHalf := 0.0
+	if opt.CapSize != nil && *opt.CapSize > 0 {
+		capHalf = *opt.CapSize * 0.5
+	}
+	appendAxis := func(center vec3, axis int, low, high float64) {
+		if low <= 0 && high <= 0 {
+			return
+		}
+		start := center
+		end := center
+		start[axis] -= low
+		end[axis] += high
+		segments = append(segments, []vec3{start, end})
+		if capHalf > 0 {
+			if low > 0 {
+				caps = append(caps, errorBar3DCapSegments(start, axis, capHalf)...)
+			}
+			if high > 0 {
+				caps = append(caps, errorBar3DCapSegments(end, axis, capHalf)...)
+			}
+		}
+	}
+	for i := 0; i < n; i++ {
+		center := vec3{x[i], y[i], z[i]}
+		xLow, xHigh := resolveErrorRange(xErr, opt.XErrLower, opt.XErrUpper, i)
+		yLow, yHigh := resolveErrorRange(yErr, opt.YErrLower, opt.YErrUpper, i)
+		zLow, zHigh := resolveErrorRange(zErr, opt.ZErrLower, opt.ZErrUpper, i)
+		appendAxis(center, 0, xLow, xHigh)
+		appendAxis(center, 1, yLow, yHigh)
+		appendAxis(center, 2, zLow, zHigh)
+	}
+	segments = append(segments, caps...)
+	return segments
+}
+
+func errorBar3DCapSegments(center vec3, axis int, half float64) [][]vec3 {
+	first := (axis + 1) % 3
+	second := (axis + 2) % 3
+	a0, a1 := center, center
+	a0[first] -= half
+	a1[first] += half
+	b0, b1 := center, center
+	b0[second] -= half
+	b1[second] += half
+	return [][]vec3{{a0, a1}, {b0, b1}}
+}
+
+func (a *Axes3D) projectSorted3DPolygons(raw [][]vec3) ([][]geom.Pt, float64) {
+	projected := make([]projected3DPolygon, 0, len(raw))
+	collectionDepth := math.Inf(1)
+	for _, polygon3D := range raw {
+		if len(polygon3D) < 3 {
+			continue
+		}
+		polygon := make([]geom.Pt, 0, len(polygon3D))
+		depth := 0.0
+		valid := true
+		for _, p := range polygon3D {
+			if !isFinite3D(p[0], p[1], p[2]) {
+				valid = false
+				break
+			}
+			pt, zDepth := a.projectPointDepth(p[0], p[1], p[2])
+			polygon = append(polygon, pt)
+			depth += zDepth
+			if zDepth < collectionDepth {
+				collectionDepth = zDepth
+			}
+		}
+		if valid {
+			projected = append(projected, projected3DPolygon{polygon: polygon, depth: depth / float64(len(polygon3D))})
+		}
+	}
+	sort.SliceStable(projected, func(i, j int) bool {
+		return projected[i].depth > projected[j].depth
+	})
+	polygons := make([][]geom.Pt, len(projected))
+	for i, item := range projected {
+		polygons[i] = item.polygon
+	}
+	return polygons, computed3DCollectionZ(collectionDepth)
+}
+
+func (a *Axes3D) projectSorted3DLineSegments(raw [][]vec3) ([][]geom.Pt, float64) {
+	type projectedSegment struct {
+		segment []geom.Pt
+		depth   float64
+	}
+	projected := make([]projectedSegment, 0, len(raw))
+	collectionDepth := math.Inf(1)
+	for _, segment3D := range raw {
+		if len(segment3D) < 2 {
+			continue
+		}
+		segment := make([]geom.Pt, 0, len(segment3D))
+		depth := 0.0
+		valid := true
+		for _, p := range segment3D {
+			if !isFinite3D(p[0], p[1], p[2]) {
+				valid = false
+				break
+			}
+			pt, zDepth := a.projectPointDepth(p[0], p[1], p[2])
+			segment = append(segment, pt)
+			depth += zDepth
+			if zDepth < collectionDepth {
+				collectionDepth = zDepth
+			}
+		}
+		if valid {
+			projected = append(projected, projectedSegment{segment: segment, depth: depth / float64(len(segment3D))})
+		}
+	}
+	sort.SliceStable(projected, func(i, j int) bool {
+		return projected[i].depth > projected[j].depth
+	})
+	segments := make([][]geom.Pt, len(projected))
+	for i, item := range projected {
+		segments[i] = item.segment
+	}
+	return segments, computed3DCollectionZ(collectionDepth)
+}
+
+func (a *Axes3D) project3DLineSegments(raw [][]vec3) ([][]geom.Pt, float64) {
+	segments := make([][]geom.Pt, 0, len(raw))
+	collectionDepth := math.Inf(1)
+	for _, segment3D := range raw {
+		if len(segment3D) < 2 {
+			continue
+		}
+		segment := make([]geom.Pt, 0, len(segment3D))
+		valid := true
+		for _, p := range segment3D {
+			if !isFinite3D(p[0], p[1], p[2]) {
+				valid = false
+				break
+			}
+			pt, zDepth := a.projectPointDepth(p[0], p[1], p[2])
+			segment = append(segment, pt)
+			if zDepth < collectionDepth {
+				collectionDepth = zDepth
+			}
+		}
+		if valid {
+			segments = append(segments, segment)
+		}
+	}
+	return segments, computed3DCollectionZ(collectionDepth)
+}
+
 func (a *Axes3D) projectedData(x, y, z []float64) []geom.Pt {
 	if a == nil || a.Axes == nil {
 		return nil
@@ -2293,7 +3219,7 @@ func (a *Axes3D) projectedData(x, y, z []float64) []geom.Pt {
 	return pts
 }
 
-func (a *Axes3D) projectWireframeSegments(x, y []float64, z [][]float64) [][]geom.Pt {
+func (a *Axes3D) projectWireframeSegments(x, y []float64, z [][]float64, opts ...PlotOptions) [][]geom.Pt {
 	if a == nil || len(z) == 0 {
 		return nil
 	}
@@ -2308,22 +3234,90 @@ func (a *Axes3D) projectWireframeSegments(x, y []float64, z [][]float64) [][]geo
 		}
 	}
 
-	segments := make([][]geom.Pt, 0, 2*(rows*(cols-1)+cols*(rows-1)))
-	for row := 0; row < rows; row++ {
-		for col := 0; col < cols-1; col++ {
-			p0 := a.ProjectPoint(x[col], y[row], z[row][col])
-			p1 := a.ProjectPoint(x[col+1], y[row], z[row][col+1])
-			segments = append(segments, []geom.Pt{p0, p1})
+	rowIndices, colIndices := wireframeSampleIndices(rows, cols, firstPlotOptions(opts))
+	segments := make([][]geom.Pt, 0, len(rowIndices)+len(colIndices))
+	for _, row := range rowIndices {
+		line := make([]geom.Pt, 0, cols)
+		for col := 0; col < cols; col++ {
+			line = append(line, a.ProjectPoint(x[col], y[row], z[row][col]))
+		}
+		if len(line) > 1 {
+			segments = append(segments, line)
 		}
 	}
-	for col := 0; col < cols; col++ {
-		for row := 0; row < rows-1; row++ {
-			p0 := a.ProjectPoint(x[col], y[row], z[row][col])
-			p1 := a.ProjectPoint(x[col], y[row+1], z[row+1][col])
-			segments = append(segments, []geom.Pt{p0, p1})
+	for _, col := range colIndices {
+		line := make([]geom.Pt, 0, rows)
+		for row := 0; row < rows; row++ {
+			line = append(line, a.ProjectPoint(x[col], y[row], z[row][col]))
+		}
+		if len(line) > 1 {
+			segments = append(segments, line)
 		}
 	}
 	return segments
+}
+
+func firstPlotOptions(opts []PlotOptions) PlotOptions {
+	if len(opts) == 0 {
+		return PlotOptions{}
+	}
+	return opts[0]
+}
+
+func wireframeSampleIndices(rows, cols int, opt PlotOptions) ([]int, []int) {
+	hasStride := opt.RStride != nil || opt.CStride != nil
+	rstride, cstride := 1, 1
+	if opt.RStride != nil {
+		rstride = *opt.RStride
+	}
+	if opt.CStride != nil {
+		cstride = *opt.CStride
+	}
+	if !hasStride {
+		rcount, ccount := default3DSurfaceCount, default3DSurfaceCount
+		if opt.RCount != nil {
+			rcount = *opt.RCount
+		}
+		if opt.CCount != nil {
+			ccount = *opt.CCount
+		}
+		rstride = samplingStrideFromCount(rows, rcount)
+		cstride = samplingStrideFromCount(cols, ccount)
+	}
+	return steppedSampleIndices(rows, rstride), steppedSampleIndices(cols, cstride)
+}
+
+func samplingStrideFromCount(length, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	stride := int(math.Ceil(float64(length) / float64(count)))
+	if stride < 1 {
+		return 1
+	}
+	return stride
+}
+
+func steppedSampleIndices(length, stride int) []int {
+	if length <= 0 || stride <= 0 {
+		return nil
+	}
+	if (length-1)%stride == 0 {
+		indices := make([]int, 0, (length+stride-1)/stride)
+		for i := 0; i < length; i += stride {
+			indices = append(indices, i)
+		}
+		return indices
+	}
+	indices := make([]int, 0, (length+stride-1)/stride+1)
+	for i := 0; i < length+stride; i += stride {
+		if i >= length {
+			indices = append(indices, length-1)
+			break
+		}
+		indices = append(indices, i)
+	}
+	return indices
 }
 
 func project3DPoint(x, y, z, elevationDeg, azimuthDeg, distance float64) geom.Pt {

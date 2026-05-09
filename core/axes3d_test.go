@@ -305,6 +305,52 @@ func TestAxes3DWireframeTreatsZRowsAsYAndColumnsAsX(t *testing.T) {
 	}
 }
 
+func TestAxes3DWireframeSupportsRowColumnStridesLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	x, y, z := testGrid3D(5, 5)
+	rstride := 2
+	cstride := 0
+	collection := ax.Wireframe(x, y, z, PlotOptions{RStride: &rstride, CStride: &cstride})
+	if collection == nil {
+		t.Fatal("Wireframe returned nil")
+	}
+	if got, want := len(collection.Segments), 3; got != want {
+		t.Fatalf("wireframe stride line count = %d, want sampled rows 0,2,4 only (%d)", got, want)
+	}
+	if got, want := len(collection.Segments[0]), 5; got != want {
+		t.Fatalf("wireframe row polyline length = %d, want full row length %d", got, want)
+	}
+	if got, want := collection.Segments[1][0], (Pt{X: 0, Y: 2}); got != want {
+		t.Fatalf("second sampled row starts at %+v, want row 2 start %+v", got, want)
+	}
+}
+
+func TestAxes3DWireframeSupportsRowColumnCountsLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	x, y, z := testGrid3D(9, 10)
+	rcount := 3
+	ccount := 4
+	collection := ax.Wireframe(x, y, z, PlotOptions{RCount: &rcount, CCount: &ccount})
+	if collection == nil {
+		t.Fatal("Wireframe returned nil")
+	}
+	if got, want := len(collection.Segments), 8; got != want {
+		t.Fatalf("wireframe count line count = %d, want 4 sampled rows + 4 sampled columns", got)
+	}
+}
+
 func TestAxes3DFrameSegmentsUseMatplotlibActiveGridPlanes(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
@@ -577,6 +623,317 @@ func TestAxes3DSurfaceDefaultHasNoEdgeColorsLikeMatplotlibCmapSurface(t *testing
 	}
 }
 
+func TestAxes3DSurfaceExposesScalarMapForColorbars(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	cmap := "plasma"
+	vmin := 0.0
+	vmax := 10.0
+	surface := ax.Surface(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 2}, {4, 6}},
+		PlotOptions{Colormap: &cmap, VMin: &vmin, VMax: &vmax},
+	)
+	if surface == nil {
+		t.Fatal("Surface returned nil")
+	}
+	mapping := surface.ScalarMap()
+	if mapping.Colormap != cmap || mapping.VMin != vmin || mapping.VMax != vmax {
+		t.Fatalf("surface scalar map = %+v, want cmap=%q range %.1f..%.1f", mapping, cmap, vmin, vmax)
+	}
+}
+
+func TestAxes3DTrisurfExposesConfiguredNorm(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	tri := Triangulation{
+		X:         []float64{0, 1, 0},
+		Y:         []float64{0, 0, 1},
+		Triangles: [][3]int{{0, 1, 2}},
+	}
+	cmap := "inferno"
+	surface := ax.Trisurf(tri, []float64{1, 10, 100}, PlotOptions{
+		Colormap: &cmap,
+		Norm:     LogNorm{VMin: 1, VMax: 100},
+	})
+	if surface == nil {
+		t.Fatal("Trisurf returned nil")
+	}
+	mapping := surface.ScalarMap()
+	if mapping.Colormap != cmap || mapping.Norm == nil || mapping.Norm.NormName() != "log" {
+		t.Fatalf("trisurf scalar map = %+v, want inferno/log norm", mapping)
+	}
+}
+
+func TestAxes3DStemProjectsBaselineStemsAndMarkers(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	bottom := -1.0
+	container := ax.Stem3D(
+		[]float64{0, 1},
+		[]float64{2, 3},
+		[]float64{4, 5},
+		Stem3DOptions{Bottom: &bottom},
+	)
+	if container == nil {
+		t.Fatal("Stem3D returned nil")
+	}
+	if got, want := len(container.StemLines.Segments), 2; got != want {
+		t.Fatalf("stem segment count = %d, want %d", got, want)
+	}
+	wantStem := []Pt{
+		ax.ProjectPoint(0, 2, bottom),
+		ax.ProjectPoint(0, 2, 4),
+	}
+	if !pointsEqual(container.StemLines.Segments[0], wantStem, 1e-12) {
+		t.Fatalf("first stem = %+v, want projected z-oriented stem %+v", container.StemLines.Segments[0], wantStem)
+	}
+	wantBaseline := []Pt{
+		ax.ProjectPoint(0, 2, bottom),
+		ax.ProjectPoint(1, 3, bottom),
+	}
+	if !pointsEqual(container.Baseline.XY, wantBaseline, 1e-12) {
+		t.Fatalf("stem baseline = %+v, want projected baseline %+v", container.Baseline.XY, wantBaseline)
+	}
+	if got, want := len(container.MarkerCollection.Offsets), 2; got != want {
+		t.Fatalf("stem marker count = %d, want %d", got, want)
+	}
+}
+
+func TestAxes3DStemSupportsMatplotlibOrientationJuggling(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	bottom := -2.0
+	container := ax.Stem3D(
+		[]float64{1},
+		[]float64{2},
+		[]float64{3},
+		Stem3DOptions{Bottom: &bottom, Orientation: "x"},
+	)
+	if container == nil {
+		t.Fatal("Stem3D returned nil")
+	}
+	want := []Pt{
+		ax.ProjectPoint(bottom, 2, 3),
+		ax.ProjectPoint(1, 2, 3),
+	}
+	if !pointsEqual(container.StemLines.Segments[0], want, 1e-12) {
+		t.Fatalf("x-oriented stem = %+v, want Matplotlib orientation='x' stem %+v", container.StemLines.Segments[0], want)
+	}
+}
+
+func TestAxes3DFillBetweenCreatesProjectedQuadBands(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	fill := ax.FillBetween3D(
+		[]float64{0, 1, 2},
+		[]float64{0, 0, 0},
+		[]float64{1, 1, 1},
+		[]float64{0, 1, 2},
+		[]float64{1, 1, 1},
+		[]float64{0, 0, 0},
+		FillBetween3DOptions{Mode: FillBetween3DModeQuad},
+	)
+	if fill == nil {
+		t.Fatal("FillBetween3D returned nil")
+	}
+	if got, want := len(fill.Polygons), 2; got != want {
+		t.Fatalf("FillBetween3D polygon count = %d, want one quad per adjacent pair (%d)", got, want)
+	}
+	wantFirst := []Pt{
+		ax.ProjectPoint(0, 0, 1),
+		ax.ProjectPoint(1, 0, 1),
+		ax.ProjectPoint(1, 1, 0),
+		ax.ProjectPoint(0, 1, 0),
+	}
+	if !pointsEqual(fill.Polygons[0], wantFirst, 1e-12) {
+		t.Fatalf("first fill polygon = %+v, want projected quad %+v", fill.Polygons[0], wantFirst)
+	}
+}
+
+func TestAxes3DBarProjects2DBarsIntoSelectedZDirection(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	width := 0.4
+	zs := []float64{2}
+	bars := ax.Bar(
+		[]float64{1},
+		[]float64{3},
+		Bar3DPlaneOptions{Width: &width, Zs: zs, ZDir: "y"},
+	)
+	if bars == nil {
+		t.Fatal("Axes3D.Bar returned nil")
+	}
+	if got, want := len(bars.Polygons), 1; got != want {
+		t.Fatalf("projected bar polygon count = %d, want %d", got, want)
+	}
+	want := []Pt{
+		ax.ProjectPoint(0.8, 2, 0),
+		ax.ProjectPoint(0.8, 2, 3),
+		ax.ProjectPoint(1.2, 2, 3),
+		ax.ProjectPoint(1.2, 2, 0),
+	}
+	if !pointsEqual(bars.Polygons[0], want, 1e-12) {
+		t.Fatalf("projected y-dir bar = %+v, want Matplotlib juggle_axes projection %+v", bars.Polygons[0], want)
+	}
+}
+
+func TestAxes3DQuiverUsesMatplotlibTailPivotGeometry(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	length := 2.0
+	q := ax.Quiver(
+		[]float64{0},
+		[]float64{0},
+		[]float64{0},
+		[]float64{1},
+		[]float64{0},
+		[]float64{0},
+		Quiver3DOptions{Length: &length, Pivot: "tail"},
+	)
+	if q == nil {
+		t.Fatal("Quiver returned nil")
+	}
+	if got, want := len(q.Segments), 3; got != want {
+		t.Fatalf("quiver segment count = %d, want shaft plus two arrowhead segments (%d)", got, want)
+	}
+	wantShaft := []Pt{
+		ax.ProjectPoint(2, 0, 0),
+		ax.ProjectPoint(0, 0, 0),
+	}
+	if !pointsEqual(q.Segments[0], wantShaft, 1e-12) {
+		t.Fatalf("quiver shaft = %+v, want Matplotlib tail-pivot shaft %+v", q.Segments[0], wantShaft)
+	}
+}
+
+func TestAxes3DQuiverNormalizesVectorsAndSupportsMiddlePivot(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	length := 4.0
+	q := ax.Quiver(
+		[]float64{0},
+		[]float64{0},
+		[]float64{0},
+		[]float64{2},
+		[]float64{0},
+		[]float64{0},
+		Quiver3DOptions{Length: &length, Normalize: true, Pivot: "middle"},
+	)
+	if q == nil {
+		t.Fatal("Quiver returned nil")
+	}
+	wantShaft := []Pt{
+		ax.ProjectPoint(2, 0, 0),
+		ax.ProjectPoint(-2, 0, 0),
+	}
+	if !pointsEqual(q.Segments[0], wantShaft, 1e-12) {
+		t.Fatalf("normalized middle-pivot shaft = %+v, want %+v", q.Segments[0], wantShaft)
+	}
+}
+
+func TestAxes3DErrorBarProjectsXYZRangesAndCaps(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+
+	capSize := 0.2
+	errs := ax.ErrorBar3D(
+		[]float64{1},
+		[]float64{2},
+		[]float64{3},
+		[]float64{0.5},
+		[]float64{0.25},
+		[]float64{1},
+		ErrorBar3DOptions{CapSize: &capSize},
+	)
+	if errs == nil {
+		t.Fatal("ErrorBar3D returned nil")
+	}
+	if got, want := len(errs.Segments), 15; got != want {
+		t.Fatalf("3D errorbar segment count = %d, want 3 bars plus 12 cap segments", got)
+	}
+	wantXRange := []Pt{
+		ax.ProjectPoint(0.5, 2, 3),
+		ax.ProjectPoint(1.5, 2, 3),
+	}
+	if !pointsEqual(errs.Segments[0], wantXRange, 1e-12) {
+		t.Fatalf("x error range = %+v, want projected x range %+v", errs.Segments[0], wantXRange)
+	}
+	wantZRange := []Pt{
+		ax.ProjectPoint(1, 2, 2),
+		ax.ProjectPoint(1, 2, 4),
+	}
+	if !pointsEqual(errs.Segments[2], wantZRange, 1e-12) {
+		t.Fatalf("z error range = %+v, want projected z range %+v", errs.Segments[2], wantZRange)
+	}
+}
+
+func TestAxes3DErrorBarUsesComputedDepthZOrder(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	low := ax.ErrorBar3D([]float64{0}, []float64{0}, []float64{0}, nil, nil, []float64{0.1})
+	high := ax.ErrorBar3D([]float64{0}, []float64{0}, []float64{1}, nil, nil, []float64{0.1})
+	if low == nil || high == nil {
+		t.Fatalf("expected errorbar collections, got low=%v high=%v", low, high)
+	}
+	if !(high.Z() > low.Z()) {
+		t.Fatalf("3D errorbar zorders = low %.6g high %.6g, want projected depth ordering", low.Z(), high.Z())
+	}
+}
+
 func projectPlaneCorners(ax *Axes3D, plane [4][3]int, mins, maxs vec3) []Pt {
 	points := make([]Pt, len(plane))
 	for i, corner := range plane {
@@ -635,6 +992,23 @@ func containsFloat64Approx(values []float64, want, tol float64) bool {
 		}
 	}
 	return false
+}
+
+func testGrid3D(cols, rows int) ([]float64, []float64, [][]float64) {
+	x := make([]float64, cols)
+	for i := range x {
+		x[i] = float64(i)
+	}
+	y := make([]float64, rows)
+	z := make([][]float64, rows)
+	for row := range rows {
+		y[row] = float64(row)
+		z[row] = make([]float64, cols)
+		for col := range cols {
+			z[row][col] = float64(row + col)
+		}
+	}
+	return x, y, z
 }
 
 func TestAxes3DContourAndContourfCreateCollections(t *testing.T) {

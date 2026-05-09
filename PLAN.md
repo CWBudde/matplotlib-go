@@ -1083,17 +1083,17 @@ The current implementation projects 3D data into 2D artists, which is useful for
 
 ### 13.1 Missing 3D Plot Families
 
-- [ ] Add `Axes3D.Quiver` for 3D vector fields with length normalization, arrow ratios, pivot behavior, and `axlim_clip`.
-- [ ] Add `Axes3D.ErrorBar` for x/y/z error ranges, caps, limit markers, and depth-aware drawing order.
-- [ ] Add `Axes3D.Stem` with line, marker, and baseline styling.
-- [ ] Add `Axes3D.FillBetween` for polygon bands between two 3D curves.
-- [ ] Add `Axes3D.Bar` compatibility for 2D bars projected into selected z directions, separate from full cuboid `Bar3D`.
+- [x] Add `Axes3D.Quiver` for 3D vector fields with length normalization, arrow ratios, pivot behavior, and `axlim_clip`.
+- [x] Add `Axes3D.ErrorBar` for x/y/z error ranges, caps, limit markers, and depth-aware drawing order.
+- [x] Add `Axes3D.Stem` with line, marker, and baseline styling.
+- [x] Add `Axes3D.FillBetween` for polygon bands between two 3D curves.
+- [x] Add `Axes3D.Bar` compatibility for 2D bars projected into selected z directions, separate from full cuboid `Bar3D`.
 
 ### 13.2 Existing 3D Plot Depth
 
 - [ ] Replace placeholder/simplified contour and contourf projection with Matplotlib-like level selection, `zdir`, `offset`, filled bands, and clipping behavior.
 - [ ] Expand `Surface` / `PlotSurfaceGrid` with stride/count sampling, facecolors, lighting, shade, antialiasing, `vmin`/`vmax`/`norm`, and colorbar-compatible scalar state.
-- [ ] Expand `Wireframe` with row/column stride and count behavior.
+- [x] Expand `Wireframe` with row/column stride and count behavior.
 - [ ] Expand `Trisurf` with colormap/norm support, triangle masking, edge/face styling, and depth sorting compatible with upstream examples.
 - [ ] Replace `Voxel` as bar-like prisms with Matplotlib-style boolean grid voxel input, facecolors, edgecolors, shade, and internal-face culling.
 
