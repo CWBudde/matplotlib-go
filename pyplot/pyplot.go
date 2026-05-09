@@ -238,6 +238,26 @@ func Plot(x, y []float64, opts ...core.PlotOptions) *core.Line2D {
 	return GCA().Plot(x, y, opts...)
 }
 
+// PlotDate delegates to the current axes.
+func PlotDate(x []time.Time, y []float64, opts ...core.PlotOptions) *core.Line2D {
+	return GCA().PlotDate(x, y, opts...)
+}
+
+// SemilogX delegates to the current axes.
+func SemilogX(x, y []float64, opts ...core.PlotOptions) *core.Line2D {
+	return GCA().SemilogX(x, y, opts...)
+}
+
+// SemilogY delegates to the current axes.
+func SemilogY(x, y []float64, opts ...core.PlotOptions) *core.Line2D {
+	return GCA().SemilogY(x, y, opts...)
+}
+
+// LogLog delegates to the current axes.
+func LogLog(x, y []float64, opts ...core.PlotOptions) *core.Line2D {
+	return GCA().LogLog(x, y, opts...)
+}
+
 // Scatter delegates to the current axes.
 func Scatter(x, y []float64, opts ...core.ScatterOptions) *core.Scatter2D {
 	return GCA().Scatter(x, y, opts...)
@@ -329,9 +349,19 @@ func Bar(x, heights []float64, opts ...core.BarOptions) *core.Bar2D {
 	return GCA().Bar(x, heights, opts...)
 }
 
+// BarH delegates to the current axes.
+func BarH(y, widths []float64, opts ...core.BarOptions) *core.Bar2D {
+	return GCA().BarH(y, widths, opts...)
+}
+
 // FillBetween delegates to the current axes.
 func FillBetween(x, y1, y2 []float64, opts ...core.FillOptions) *core.Fill2D {
 	return GCA().FillBetween(x, y1, y2, opts...)
+}
+
+// Fill delegates to the current axes.
+func Fill(x, y []float64, opts ...core.FillOptions) *core.PolyCollection {
+	return GCA().Fill(x, y, opts...)
 }
 
 // Hist delegates to the current axes.
@@ -387,6 +417,21 @@ func Specgram(samples []float64, opts ...core.SpecgramOptions) *core.SpecgramRes
 // PSD delegates to the current axes.
 func PSD(samples []float64, opts ...core.SignalSpectrumOptions) *core.SpectrumResult {
 	return GCA().PSD(samples, opts...)
+}
+
+// MagnitudeSpectrum delegates to the current axes.
+func MagnitudeSpectrum(samples []float64, opts ...core.SignalSpectrumOptions) *core.SpectrumResult {
+	return GCA().MagnitudeSpectrum(samples, opts...)
+}
+
+// AngleSpectrum delegates to the current axes.
+func AngleSpectrum(samples []float64, opts ...core.SignalSpectrumOptions) *core.SpectrumResult {
+	return GCA().AngleSpectrum(samples, opts...)
+}
+
+// PhaseSpectrum delegates to the current axes.
+func PhaseSpectrum(samples []float64, opts ...core.SignalSpectrumOptions) *core.SpectrumResult {
+	return GCA().PhaseSpectrum(samples, opts...)
 }
 
 // CSD delegates to the current axes.
@@ -487,6 +532,11 @@ func Streamplot(x, y []float64, u, v [][]float64, opts ...core.StreamplotOptions
 // Pie delegates to the current axes.
 func Pie(values []float64, opts ...core.PieOptions) *core.PieContainer {
 	return GCA().Pie(values, opts...)
+}
+
+// PieLabel delegates to the current axes.
+func PieLabel(container *core.PieContainer, labels []string, opts ...core.PieLabelOptions) []*core.Text {
+	return GCA().PieLabel(container, labels, opts...)
 }
 
 // Violinplot delegates to the current axes.

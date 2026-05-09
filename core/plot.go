@@ -1,8 +1,11 @@
 package core
 
 import (
+	"math"
+
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 const defaultAutoScaleMargin = 0.05
@@ -75,6 +78,59 @@ func (a *Axes) Plot(x, y []float64, opts ...PlotOptions) *Line2D {
 	a.Add(line)
 	a.autoScaleIfEnabled(defaultAutoScaleMargin)
 	return line
+}
+
+// SemilogX is a convenience wrapper for creating a line plot on a logarithmic
+// x-axis.
+func (a *Axes) SemilogX(x, y []float64, opts ...PlotOptions) *Line2D {
+	line := a.Plot(x, y, opts...)
+	if line == nil {
+		return nil
+	}
+	setLogScaleFromData(a, x, true)
+	return line
+}
+
+// SemilogY is a convenience wrapper for creating a line plot on a logarithmic
+// y-axis.
+func (a *Axes) SemilogY(x, y []float64, opts ...PlotOptions) *Line2D {
+	line := a.Plot(x, y, opts...)
+	if line == nil {
+		return nil
+	}
+	setLogScaleFromData(a, y, false)
+	return line
+}
+
+// LogLog is a convenience wrapper for creating a line plot on logarithmic x/y
+// axes.
+func (a *Axes) LogLog(x, y []float64, opts ...PlotOptions) *Line2D {
+	line := a.Plot(x, y, opts...)
+	if line == nil {
+		return nil
+	}
+	setLogScaleFromData(a, x, true)
+	setLogScaleFromData(a, y, false)
+	return line
+}
+
+func setLogScaleFromData(ax *Axes, values []float64, isX bool) {
+	minVal, maxVal := finiteRange(values)
+	if minVal <= 0 || maxVal <= 0 {
+		return
+	}
+	if minVal == maxVal {
+		minVal *= 0.95
+		maxVal *= 1.05
+		if minVal <= 0 {
+			minVal = math.SmallestNonzeroFloat64
+		}
+	}
+	if isX {
+		_ = ax.SetXScale("log", transform.WithScaleDomain(minVal, maxVal))
+		return
+	}
+	_ = ax.SetYScale("log", transform.WithScaleDomain(minVal, maxVal))
 }
 
 // ScatterOptions holds optional parameters for scatter plots.
@@ -251,9 +307,82 @@ func (a *Axes) Bar(x, heights []float64, opts ...BarOptions) *Bar2D {
 	return bar
 }
 
+// BarH creates a horizontal bar chart and sets orientation to horizontal.
+func (a *Axes) BarH(y, widths []float64, opts ...BarOptions) *Bar2D {
+	var opt BarOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	orientation := BarHorizontal
+	opt.Orientation = &orientation
+	return a.Bar(y, widths, opt)
+}
+
 // FillBetween is a convenience alias for FillBetweenPlot.
 func (a *Axes) FillBetween(x, y1, y2 []float64, opts ...FillOptions) *Fill2D {
 	return a.FillBetweenPlot(x, y1, y2, opts...)
+}
+
+// Fill creates an arbitrary closed polygon fill using data-space coordinates.
+func (a *Axes) Fill(x, y []float64, opts ...FillOptions) *PolyCollection {
+	if len(x) == 0 || len(y) == 0 {
+		return nil
+	}
+	n := minInt(len(x), len(y))
+	if n < 3 {
+		return nil
+	}
+
+	var opt FillOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	points := make([]geom.Pt, n)
+	for i := 0; i < n; i++ {
+		points[i] = geom.Pt{X: x[i], Y: y[i]}
+	}
+
+	color := a.NextColor()
+	if opt.Color != nil {
+		color = *opt.Color
+	}
+
+	edgeColor := render.Color{R: 0, G: 0, B: 0, A: 0}
+	if opt.EdgeColor != nil {
+		edgeColor = *opt.EdgeColor
+	}
+
+	edgeWidth := 0.0
+	if opt.EdgeWidth != nil {
+		edgeWidth = *opt.EdgeWidth
+	}
+
+	alpha := 0.0
+	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
+		alpha = *opt.Alpha
+	}
+
+	fill := &PolyCollection{
+		PatchCollection: PatchCollection{
+			Collection: Collection{
+				Label: opt.Label,
+				Alpha: 1,
+				z:     2,
+			},
+			FaceColors: []render.Color{color},
+			EdgeColor:  edgeColor,
+			EdgeWidth:  edgeWidth,
+		},
+		Polygons: [][]geom.Pt{points},
+	}
+
+	if alpha > 0 {
+		fill.FaceColors[0].A *= alpha
+	}
+	a.Add(fill)
+	a.autoScaleIfEnabled(defaultAutoScaleMargin)
+	return fill
 }
 
 // FillToBaseline is a convenience alias for FillToBaselinePlot.
@@ -450,9 +579,18 @@ type ErrorBarOptions struct {
 	CapSize   *float64      // cap size in pixels
 	Alpha     *float64      // alpha transparency
 	Label     string        // series label for legend
+
+	XErrLower []float64 // optional asymmetric lower x errors
+	XErrUpper []float64 // optional asymmetric upper x errors
+	YErrLower []float64 // optional asymmetric lower y errors
+	YErrUpper []float64 // optional asymmetric upper y errors
+	LoLimits  []bool    // y value is a lower limit; draw upward limit marker
+	UpLimits  []bool    // y value is an upper limit; draw downward limit marker
+	XLoLimits []bool    // x value is a lower limit; draw rightward limit marker
+	XUpLimits []bool    // x value is an upper limit; draw leftward limit marker
 }
 
-// ErrorBar renders symmetric error bars for x and/or y values.
+// ErrorBar renders symmetric or asymmetric error bars for x and/or y values.
 func (a *Axes) ErrorBar(x, y, xErr, yErr []float64, opts ...ErrorBarOptions) *ErrorBar {
 	if len(x) == 0 || len(y) == 0 {
 		return nil
@@ -487,6 +625,14 @@ func (a *Axes) ErrorBar(x, y, xErr, yErr []float64, opts ...ErrorBarOptions) *Er
 	if len(y) < n {
 		n = len(y)
 	}
+	if !validErrorValues(xErr, n) || !validErrorValues(yErr, n) ||
+		!validErrorValues(opt.XErrLower, n) || !validErrorValues(opt.XErrUpper, n) ||
+		!validErrorValues(opt.YErrLower, n) || !validErrorValues(opt.YErrUpper, n) ||
+		!validBoolValues(opt.LoLimits, n) || !validBoolValues(opt.UpLimits, n) ||
+		!validBoolValues(opt.XLoLimits, n) || !validBoolValues(opt.XUpLimits, n) {
+		return nil
+	}
+
 	pts := make([]geom.Pt, n)
 	for i := 0; i < n; i++ {
 		pts[i] = geom.Pt{X: x[i], Y: y[i]}
@@ -496,6 +642,14 @@ func (a *Axes) ErrorBar(x, y, xErr, yErr []float64, opts ...ErrorBarOptions) *Er
 		XY:        pts,
 		XErr:      xErr,
 		YErr:      yErr,
+		XErrLower: append([]float64(nil), opt.XErrLower...),
+		XErrUpper: append([]float64(nil), opt.XErrUpper...),
+		YErrLower: append([]float64(nil), opt.YErrLower...),
+		YErrUpper: append([]float64(nil), opt.YErrUpper...),
+		LoLimits:  append([]bool(nil), opt.LoLimits...),
+		UpLimits:  append([]bool(nil), opt.UpLimits...),
+		XLoLimits: append([]bool(nil), opt.XLoLimits...),
+		XUpLimits: append([]bool(nil), opt.XUpLimits...),
 		Color:     color,
 		LineWidth: lineWidth,
 		CapSize:   capSize,
@@ -504,6 +658,22 @@ func (a *Axes) ErrorBar(x, y, xErr, yErr []float64, opts ...ErrorBarOptions) *Er
 	}
 	a.Add(bar)
 	return bar
+}
+
+func validErrorValues(values []float64, n int) bool {
+	if len(values) == 0 || len(values) == 1 || len(values) == n {
+		for _, value := range values {
+			if value < 0 || !isFinite(value) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func validBoolValues(values []bool, n int) bool {
+	return len(values) == 0 || len(values) == 1 || len(values) == n
 }
 
 // BoxPlotOptions holds optional parameters for box plots.
@@ -524,6 +694,15 @@ type BoxPlotOptions struct {
 	Alpha        *float64      // alpha transparency
 	ShowFliers   *bool         // whether to draw outliers
 	Label        string        // series label for legend
+
+	Notch              *bool       // draw a notched box using the confidence interval
+	Bootstrap          int         // accepted for Matplotlib API parity; deterministic CI fallback is used
+	ConfidenceInterval *[2]float64 // custom median confidence interval for notches
+	CustomMedian       *float64    // override the computed median
+	WhiskerPercentiles *[2]float64 // percentile whisker range, e.g. [5, 95]
+	FlierMarker        *MarkerType // marker for outlier points
+	FlierEdgeColor     *render.Color
+	FlierEdgeWidth     *float64
 }
 
 // BoxPlotsOptions holds optional parameters for multi-series box plots.
@@ -544,6 +723,15 @@ type BoxPlotsOptions struct {
 	Alpha        *float64       // alpha transparency
 	ShowFliers   *bool          // whether to draw outliers
 	Labels       []string       // series labels for legend
+
+	Notch               *bool
+	Bootstrap           int
+	ConfidenceIntervals [][2]float64
+	CustomMedians       []float64
+	WhiskerPercentiles  *[2]float64
+	FlierMarker         *MarkerType
+	FlierEdgeColor      *render.Color
+	FlierEdgeWidth      *float64
 }
 
 // BoxPlot creates a box plot from raw sample data with automatic color cycling.
@@ -631,25 +819,49 @@ func (a *Axes) BoxPlot(data []float64, opts ...BoxPlotOptions) *BoxPlot2D {
 	if opt.ShowFliers != nil {
 		showFliers = *opt.ShowFliers
 	}
+	notch := false
+	if opt.Notch != nil {
+		notch = *opt.Notch
+	}
+	flierMarker := MarkerCircle
+	if opt.FlierMarker != nil {
+		flierMarker = *opt.FlierMarker
+	}
+	flierEdgeColor := flierColor
+	if opt.FlierEdgeColor != nil {
+		flierEdgeColor = *opt.FlierEdgeColor
+	}
+	flierEdgeWidth := 1.0
+	if opt.FlierEdgeWidth != nil {
+		flierEdgeWidth = *opt.FlierEdgeWidth
+	}
 
 	box := &BoxPlot2D{
-		Data:         data,
-		Position:     position,
-		Width:        width,
-		Color:        color,
-		EdgeColor:    edgeColor,
-		MedianColor:  medianColor,
-		WhiskerColor: whiskerColor,
-		CapColor:     capColor,
-		FlierColor:   flierColor,
-		EdgeWidth:    edgeWidth,
-		WhiskerWidth: whiskerWidth,
-		MedianWidth:  medianWidth,
-		CapWidth:     capWidth,
-		FlierSize:    flierSize,
-		Alpha:        alpha,
-		ShowFliers:   showFliers,
-		Label:        opt.Label,
+		Data:               data,
+		Position:           position,
+		Width:              width,
+		Color:              color,
+		EdgeColor:          edgeColor,
+		MedianColor:        medianColor,
+		WhiskerColor:       whiskerColor,
+		CapColor:           capColor,
+		FlierColor:         flierColor,
+		FlierEdgeColor:     flierEdgeColor,
+		EdgeWidth:          edgeWidth,
+		WhiskerWidth:       whiskerWidth,
+		MedianWidth:        medianWidth,
+		CapWidth:           capWidth,
+		FlierSize:          flierSize,
+		FlierEdgeWidth:     flierEdgeWidth,
+		Alpha:              alpha,
+		ShowFliers:         showFliers,
+		Notch:              notch,
+		Bootstrap:          opt.Bootstrap,
+		ConfidenceInterval: opt.ConfidenceInterval,
+		CustomMedian:       opt.CustomMedian,
+		WhiskerPercentiles: opt.WhiskerPercentiles,
+		FlierMarker:        flierMarker,
+		Label:              opt.Label,
 	}
 
 	a.Add(box)
@@ -675,20 +887,34 @@ func (a *Axes) BoxPlots(datasets [][]float64, opts ...BoxPlotsOptions) []*BoxPlo
 		}
 
 		boxOpt := BoxPlotOptions{
-			Position:     &position,
-			Width:        opt.Width,
-			EdgeColor:    opt.EdgeColor,
-			MedianColor:  opt.MedianColor,
-			WhiskerColor: opt.WhiskerColor,
-			CapColor:     opt.CapColor,
-			FlierColor:   opt.FlierColor,
-			EdgeWidth:    opt.EdgeWidth,
-			WhiskerWidth: opt.WhiskerWidth,
-			MedianWidth:  opt.MedianWidth,
-			CapWidth:     opt.CapWidth,
-			FlierSize:    opt.FlierSize,
-			Alpha:        opt.Alpha,
-			ShowFliers:   opt.ShowFliers,
+			Position:           &position,
+			Width:              opt.Width,
+			EdgeColor:          opt.EdgeColor,
+			MedianColor:        opt.MedianColor,
+			WhiskerColor:       opt.WhiskerColor,
+			CapColor:           opt.CapColor,
+			FlierColor:         opt.FlierColor,
+			EdgeWidth:          opt.EdgeWidth,
+			WhiskerWidth:       opt.WhiskerWidth,
+			MedianWidth:        opt.MedianWidth,
+			CapWidth:           opt.CapWidth,
+			FlierSize:          opt.FlierSize,
+			Alpha:              opt.Alpha,
+			ShowFliers:         opt.ShowFliers,
+			Notch:              opt.Notch,
+			Bootstrap:          opt.Bootstrap,
+			WhiskerPercentiles: opt.WhiskerPercentiles,
+			FlierMarker:        opt.FlierMarker,
+			FlierEdgeColor:     opt.FlierEdgeColor,
+			FlierEdgeWidth:     opt.FlierEdgeWidth,
+		}
+		if i < len(opt.ConfidenceIntervals) {
+			ci := opt.ConfidenceIntervals[i]
+			boxOpt.ConfidenceInterval = &ci
+		}
+		if i < len(opt.CustomMedians) && isFinite(opt.CustomMedians[i]) {
+			median := opt.CustomMedians[i]
+			boxOpt.CustomMedian = &median
 		}
 		if i < len(opt.Colors) {
 			boxOpt.Color = &opt.Colors[i]

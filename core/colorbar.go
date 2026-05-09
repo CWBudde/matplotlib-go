@@ -17,11 +17,14 @@ type ColorbarOptions struct {
 	Colormap *string
 	VMin     *float64
 	VMax     *float64
+	Extend   string
 }
 
 // Colorbar renders a vertical gradient keyed to a scalar colormap.
 type Colorbar struct {
+	Mapping     ScalarMapInfo
 	Colormap    string
+	Extend      string
 	Alpha       float64
 	BorderColor render.Color
 	BorderWidth float64
@@ -51,6 +54,7 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	cmap := mapping.Colormap
 	if cfg.Colormap != nil && *cfg.Colormap != "" {
 		cmap = *cfg.Colormap
+		mapping.Colormap = cmap
 	}
 	vmin := mapping.VMin
 	if cfg.VMin != nil {
@@ -62,6 +66,11 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	}
 	if vmin == vmax {
 		vmax = vmin + 1
+	}
+	mapping.VMin = vmin
+	mapping.VMax = vmax
+	if _, ok := mapping.Norm.(Normalize); ok && mapping.Norm != nil {
+		mapping.Norm = Normalize{VMin: vmin, VMax: vmax}
 	}
 
 	base := parent.RectFraction
@@ -92,7 +101,7 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	ax.colorbarBase = base
 	ax.ShowFrame = false
 	ax.SetXLim(0, 1)
-	ax.SetYLim(vmin, vmax)
+	configureColorbarScale(ax, mapping)
 
 	if ax.XAxis != nil {
 		ax.XAxis.ShowSpine = false
@@ -115,7 +124,9 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 	}
 
 	ax.Add(&Colorbar{
+		Mapping:     mapping,
 		Colormap:    cmap,
+		Extend:      normalizeColorbarExtend(cfg.Extend),
 		Alpha:       1,
 		BorderColor: f.RC.AxesEdgeColor,
 		BorderWidth: f.RC.AxisLineWidth,
@@ -186,6 +197,84 @@ func colorbarUsesResolvedSlot(fig *Figure, parent *Axes) bool {
 	return fig != nil && fig.layoutEngine == LayoutEngineConstrained && parent != nil && parent.subplotSpec != nil
 }
 
+func configureColorbarScale(ax *Axes, mapping ScalarMapInfo) {
+	if ax == nil {
+		return
+	}
+	vmin, vmax := mapping.VMin, mapping.VMax
+	switch norm := mapping.Norm.(type) {
+	case LogNorm:
+		base := 10.0
+		if vmin > 0 && vmax > 0 {
+			ax.SetYLimLog(vmin, vmax, base)
+		} else {
+			ax.SetYLim(vmin, vmax)
+		}
+		if right := ax.RightAxis(); right != nil {
+			right.Locator = LogLocator{Base: base}
+			right.Formatter = LogFormatter{Base: base}
+		}
+	case BoundaryNorm:
+		ax.SetYLim(vmin, vmax)
+		if right := ax.RightAxis(); right != nil {
+			right.Locator = FixedLocator{TicksList: append([]float64(nil), norm.Boundaries...)}
+			right.Formatter = ScalarFormatter{Prec: 6}
+		}
+	default:
+		ax.SetYLim(vmin, vmax)
+	}
+}
+
+func normalizeColorbarExtend(extend string) string {
+	switch extend {
+	case "min", "max", "both":
+		return extend
+	default:
+		return "neither"
+	}
+}
+
+type colorbarExtensionPath struct {
+	Path      geom.Path
+	OverRange bool
+}
+
+func colorbarExtensionPaths(clip geom.Rect, extend string) []colorbarExtensionPath {
+	extend = normalizeColorbarExtend(extend)
+	if extend == "neither" || clip.W() <= 0 || clip.H() <= 0 {
+		return nil
+	}
+	height := math.Min(clip.H()*0.05, clip.W()*0.5)
+	out := make([]colorbarExtensionPath, 0, 2)
+	if extend == "min" || extend == "both" {
+		out = append(out, colorbarExtensionPath{
+			OverRange: false,
+			Path: geom.Path{
+				V: []geom.Pt{
+					{X: clip.Min.X, Y: clip.Max.Y},
+					{X: clip.Max.X, Y: clip.Max.Y},
+					{X: (clip.Min.X + clip.Max.X) * 0.5, Y: clip.Max.Y + height},
+				},
+				C: []geom.Cmd{geom.MoveTo, geom.LineTo, geom.LineTo, geom.ClosePath},
+			},
+		})
+	}
+	if extend == "max" || extend == "both" {
+		out = append(out, colorbarExtensionPath{
+			OverRange: true,
+			Path: geom.Path{
+				V: []geom.Pt{
+					{X: clip.Min.X, Y: clip.Min.Y},
+					{X: (clip.Min.X + clip.Max.X) * 0.5, Y: clip.Min.Y - height},
+					{X: clip.Max.X, Y: clip.Min.Y},
+				},
+				C: []geom.Cmd{geom.MoveTo, geom.LineTo, geom.LineTo, geom.ClosePath},
+			},
+		})
+	}
+	return out
+}
+
 // Draw renders a vertical gradient across the colorbar axes.
 func (c *Colorbar) Draw(r render.Renderer, ctx *DrawContext) {
 	if c == nil || ctx == nil {
@@ -194,7 +283,11 @@ func (c *Colorbar) Draw(r render.Renderer, ctx *DrawContext) {
 
 	const gradientHeight = 256
 
-	cmap := matcolor.GetColormap(c.Colormap)
+	mapping := c.Mapping.Resolved()
+	if c.Colormap != "" {
+		mapping.Colormap = c.Colormap
+	}
+	cmap := matcolor.GetColormap(mapping.Colormap)
 	alpha := c.Alpha
 	if alpha <= 0 {
 		alpha = 1
@@ -205,9 +298,24 @@ func (c *Colorbar) Draw(r render.Renderer, ctx *DrawContext) {
 		outlinePath = snapped
 	}
 
+	for _, ext := range colorbarExtensionPaths(ctx.Clip, c.Extend) {
+		t := -1.0
+		if ext.OverRange {
+			t = 2
+		}
+		col := cmap.AtValue(t)
+		col.A *= alpha
+		r.Path(ext.Path, &render.Paint{
+			Fill:      col,
+			LineJoin:  render.JoinMiter,
+			LineCap:   render.CapButt,
+			Antialias: render.AntialiasDefault,
+		})
+	}
+
 	for i := 0; i < gradientHeight; i++ {
 		t := (float64(i) + 0.5) / float64(gradientHeight)
-		col := cmap.At(t)
+		col := cmap.AtValue(t)
 		col.A *= alpha
 
 		path := snappedFillRectPath(colorbarCellRect(ctx.Clip, i, gradientHeight))

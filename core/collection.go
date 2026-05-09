@@ -17,6 +17,7 @@ type Collection struct {
 	Alpha     float64
 	Antialias render.AntialiasMode
 	Colormap  string
+	Norm      ScalarNormalizer
 	VMin      float64
 	VMax      float64
 	z         float64
@@ -158,6 +159,7 @@ func (c Collection) ScalarMap() ScalarMapInfo {
 		Colormap: c.Colormap,
 		VMin:     c.VMin,
 		VMax:     c.VMax,
+		Norm:     c.Norm,
 	}
 }
 

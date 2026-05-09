@@ -23,6 +23,7 @@ type MeshOptions struct {
 	Mask      [][]bool
 	Shading   MeshShading
 	Colormap  *string
+	Norm      ScalarNormalizer
 	VMin      *float64
 	VMax      *float64
 	Alpha     *float64
@@ -39,6 +40,7 @@ type Hist2DOptions struct {
 	YBinEdges []float64
 	Weights   []float64
 	Norm      HistNorm
+	ColorNorm ScalarNormalizer
 	Colormap  *string
 	VMin      *float64
 	VMax      *float64
@@ -83,7 +85,15 @@ func (a *Axes) PColorMesh(data [][]float64, opts ...MeshOptions) *QuadMesh {
 		cmap = *opt.Colormap
 	}
 	scalarData := meshScalarData(data, opt.Mask)
-	mapping := resolveScalarMapGrid(scalarData, cmap, opt.VMin, opt.VMax)
+	mapping, err := ResolveScalarMapGrid(scalarData, ScalarMapConfig{
+		Colormap: cmap,
+		Norm:     opt.Norm,
+		VMin:     opt.VMin,
+		VMax:     opt.VMax,
+	})
+	if err != nil {
+		return nil
+	}
 	alpha := meshAlpha(opt.Alpha)
 	edgeWidth := 0.0
 	if opt.EdgeWidth != nil {
@@ -135,6 +145,7 @@ func (a *Axes) PColorMesh(data [][]float64, opts ...MeshOptions) *QuadMesh {
 				Label:    opt.Label,
 				Alpha:    1,
 				Colormap: mapping.Colormap,
+				Norm:     mapping.Norm,
 				VMin:     mapping.VMin,
 				VMax:     mapping.VMax,
 			},
@@ -382,6 +393,7 @@ func (a *Axes) Hist2D(x, y []float64, opts ...Hist2DOptions) *Hist2DResult {
 		XEdges:    xEdges,
 		YEdges:    yEdges,
 		Colormap:  opt.Colormap,
+		Norm:      opt.ColorNorm,
 		VMin:      opt.VMin,
 		VMax:      opt.VMax,
 		Alpha:     opt.Alpha,

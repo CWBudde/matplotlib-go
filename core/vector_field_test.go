@@ -49,6 +49,61 @@ func TestAxesQuiverGridScalarMap(t *testing.T) {
 	}
 }
 
+func TestAxesQuiverGridAcceptsSharedNorm(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+
+	q := ax.QuiverGrid(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{1, 0}, {0, -1}},
+		[][]float64{{0, 1}, {-1, 0}},
+		QuiverOptions{
+			CGrid: [][]float64{{1, 10}, {100, 1000}},
+			Norm:  LogNorm{VMin: 1, VMax: 1000},
+		},
+	)
+	if q == nil {
+		t.Fatal("expected quiver artist")
+	}
+	mapping := q.ScalarMap()
+	if mapping.Norm == nil || mapping.Norm.NormName() != "log" {
+		t.Fatalf("quiver norm = %#v, want log norm", mapping.Norm)
+	}
+	if got := mapping.Normalize(10); got < 0.32 || got > 0.34 {
+		t.Fatalf("log-normalized scalar 10 = %v, want about 1/3", got)
+	}
+}
+
+func TestAxesBarbsGridAcceptsSharedNorm(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+
+	b := ax.BarbsGrid(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{1, 0}, {0, -1}},
+		[][]float64{{0, 1}, {-1, 0}},
+		BarbsOptions{
+			CGrid: [][]float64{{1, 10}, {100, 1000}},
+			Norm:  LogNorm{VMin: 1, VMax: 1000},
+		},
+	)
+	if b == nil {
+		t.Fatal("expected barbs artist")
+	}
+	mapping := b.ScalarMap()
+	if mapping.Norm == nil || mapping.Norm.NormName() != "log" {
+		t.Fatalf("barbs norm = %#v, want log norm", mapping.Norm)
+	}
+}
+
 func TestQuiverPathsRespectPivot(t *testing.T) {
 	fig := NewFigure(400, 300)
 	ax := fig.AddAxes(geom.Rect{
@@ -288,6 +343,110 @@ func TestAxesStreamplotProducesLinesAndArrows(t *testing.T) {
 	}
 	if len(set.Arrows.Anchors) == 0 {
 		t.Fatal("expected sampled streamline arrows")
+	}
+}
+
+func TestAxesStreamplotAcceptsSharedNorm(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+
+	set := ax.Streamplot(
+		[]float64{0, 1, 2},
+		[]float64{0, 1, 2},
+		[][]float64{
+			{1, 1, 1},
+			{1, 1, 1},
+			{1, 1, 1},
+		},
+		[][]float64{
+			{0, 0, 0},
+			{0, 0, 0},
+			{0, 0, 0},
+		},
+		StreamplotOptions{
+			CGrid: [][]float64{
+				{1, 10, 100},
+				{1, 10, 100},
+				{1, 10, 100},
+			},
+			Norm:       LogNorm{VMin: 1, VMax: 100},
+			ArrowCount: intPtr(1),
+		},
+	)
+	if set == nil {
+		t.Fatal("expected streamplot set")
+	}
+	mapping := set.ScalarMap()
+	if mapping.Norm == nil || mapping.Norm.NormName() != "log" {
+		t.Fatalf("streamplot norm = %#v, want log norm", mapping.Norm)
+	}
+	if set.Lines == nil || len(set.Lines.Colors) == 0 {
+		t.Fatal("expected scalar-colored stream lines")
+	}
+}
+
+func TestAxesStreamplotColorbarUsesLineScalarMap(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+
+	set := ax.Streamplot(
+		[]float64{0, 1, 2},
+		[]float64{0, 1, 2},
+		[][]float64{
+			{1, 1, 1},
+			{1, 1, 1},
+			{1, 1, 1},
+		},
+		[][]float64{
+			{0, 0, 0},
+			{0, 0, 0},
+			{0, 0, 0},
+		},
+		StreamplotOptions{
+			CGrid: [][]float64{
+				{1, 10, 100},
+				{1, 10, 100},
+				{1, 10, 100},
+			},
+			Norm:       LogNorm{VMin: 1, VMax: 100},
+			ArrowCount: intPtr(0),
+		},
+	)
+	if set == nil {
+		t.Fatal("expected streamplot set")
+	}
+	cbAx := fig.AddColorbar(ax, set)
+	if cbAx == nil || len(cbAx.Artists) == 0 {
+		t.Fatal("expected colorbar for scalar-colored streamplot")
+	}
+	cb, ok := cbAx.Artists[0].(*Colorbar)
+	if !ok {
+		t.Fatalf("colorbar artist type = %T, want *Colorbar", cbAx.Artists[0])
+	}
+	if cb.Mapping.Norm == nil || cb.Mapping.Norm.NormName() != "log" {
+		t.Fatalf("colorbar norm = %#v, want log norm", cb.Mapping.Norm)
+	}
+}
+
+func TestStreamplotSetScalarMapDelegatesArrowMappable(t *testing.T) {
+	set := &StreamplotSet{
+		Arrows: &Quiver{
+			ScalarColors: []float64{1, 10, 100},
+			Colormap:     "viridis",
+			VMin:         1,
+			VMax:         100,
+			Norm:         LogNorm{VMin: 1, VMax: 100},
+		},
+	}
+	mapping := set.ScalarMap()
+	if mapping.Norm == nil || mapping.Norm.NormName() != "log" {
+		t.Fatalf("streamplot scalar norm = %#v, want log norm", mapping.Norm)
 	}
 }
 

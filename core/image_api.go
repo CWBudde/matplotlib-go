@@ -33,6 +33,7 @@ const imageDefaultZ = -1100
 // ImageOptions controls Image2D rendering.
 type ImageOptions struct {
 	Colormap *string
+	Norm     ScalarNormalizer
 	VMin     *float64
 	VMax     *float64
 	Alpha    *float64
@@ -60,6 +61,7 @@ type ImageOptions struct {
 type Image2D struct {
 	Data     [][]float64
 	Colormap string
+	Norm     ScalarNormalizer
 	VMin     float64
 	VMax     float64
 	Alpha    float64
@@ -104,6 +106,7 @@ func (i *Image2D) ScalarMap() ScalarMapInfo {
 		Colormap: i.Colormap,
 		VMin:     i.VMin,
 		VMax:     i.VMax,
+		Norm:     i.Norm,
 	}
 }
 
@@ -129,14 +132,6 @@ func (a *Axes) Image(data [][]float64, opts ...ImageOptions) *Image2D {
 		return nil
 	}
 
-	vmin, vmax := dataRange(data)
-	if opt.VMin != nil && !math.IsNaN(*opt.VMin) && !math.IsInf(*opt.VMin, 0) {
-		vmin = *opt.VMin
-	}
-	if opt.VMax != nil && !math.IsNaN(*opt.VMax) && !math.IsInf(*opt.VMax, 0) {
-		vmax = *opt.VMax
-	}
-
 	xMin := 0.0
 	xMax := float64(cols)
 	yMin := 0.0
@@ -158,6 +153,15 @@ func (a *Axes) Image(data [][]float64, opts ...ImageOptions) *Image2D {
 	cmap := "viridis"
 	if opt.Colormap != nil {
 		cmap = *opt.Colormap
+	}
+	mapping, err := ResolveScalarMapGrid(data, ScalarMapConfig{
+		Colormap: cmap,
+		Norm:     opt.Norm,
+		VMin:     opt.VMin,
+		VMax:     opt.VMax,
+	})
+	if err != nil {
+		return nil
 	}
 
 	alpha := 1.0
@@ -189,9 +193,10 @@ func (a *Axes) Image(data [][]float64, opts ...ImageOptions) *Image2D {
 
 	image := &Image2D{
 		Data:          data,
-		Colormap:      cmap,
-		VMin:          vmin,
-		VMax:          vmax,
+		Colormap:      mapping.Colormap,
+		Norm:          mapping.Norm,
+		VMin:          mapping.VMin,
+		VMax:          mapping.VMax,
 		Alpha:         alpha,
 		XMin:          xMin,
 		XMax:          xMax,

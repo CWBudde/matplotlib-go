@@ -124,6 +124,38 @@ func TestRegisterColormap_NormalizesNameAndClampsStops(t *testing.T) {
 	}
 }
 
+func TestColormapCopyReversedAndMutatorsAreIndependent(t *testing.T) {
+	low := render.Color{R: 0.1, A: 1}
+	high := render.Color{B: 0.9, A: 1}
+	base := NewColormap("copy-source", []ColorStop{
+		{Pos: 0, Color: low},
+		{Pos: 1, Color: high},
+	})
+
+	copyMap := base.Copy("copy-target")
+	copyMap.SetBad(render.Color{G: 1, A: 1})
+	if copyMap.Name() != "copy-target" {
+		t.Fatalf("copy name = %q, want copy-target", copyMap.Name())
+	}
+	if got := copyMap.AtValue(math.NaN()); got != (render.Color{G: 1, A: 1}) {
+		t.Fatalf("copy bad color = %#v", got)
+	}
+	if got := base.AtValue(math.NaN()); got.A != 0 {
+		t.Fatalf("base bad color changed through copy: %#v", got)
+	}
+
+	reversed := base.Reversed("copy-source_r")
+	if reversed.Name() != "copy-source_r" {
+		t.Fatalf("reversed name = %q, want copy-source_r", reversed.Name())
+	}
+	if got := reversed.At(0); got != high {
+		t.Fatalf("reversed low endpoint = %#v, want original high %#v", got, high)
+	}
+	if got := reversed.At(1); got != low {
+		t.Fatalf("reversed high endpoint = %#v, want original low %#v", got, low)
+	}
+}
+
 func TestColormapAtValueUsesBadUnderAndOverColors(t *testing.T) {
 	bad := render.Color{R: 0.7, G: 0.7, B: 0.7, A: 0.4}
 	under := render.Color{R: 0.1, G: 0.2, B: 0.9, A: 1}

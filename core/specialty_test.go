@@ -82,6 +82,67 @@ func TestAxesHexbinAggregatesValues(t *testing.T) {
 	}
 }
 
+func TestAxesHexbinExposesConfiguredNorm(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+
+	hex := ax.Hexbin(
+		[]float64{0.1, 0.2, 0.85},
+		[]float64{0.1, 0.2, 0.8},
+		HexbinOptions{
+			GridSizeX: 2,
+			GridSizeY: 2,
+			C:         []float64{1, 10, 100},
+			Reduce:    "mean",
+			Norm:      LogNorm{VMin: 1, VMax: 100},
+			Extent: &geom.Rect{
+				Min: geom.Pt{X: 0, Y: 0},
+				Max: geom.Pt{X: 1, Y: 1},
+			},
+		},
+	)
+	if hex == nil {
+		t.Fatal("expected hexbin collection")
+	}
+	mapping := hex.ScalarMap()
+	if mapping.Norm == nil || mapping.Norm.NormName() != "log" {
+		t.Fatalf("hexbin norm = %#v, want log norm", mapping.Norm)
+	}
+}
+
+func TestAxesHexbinLogBinsReducersAndMarginals(t *testing.T) {
+	ax := NewFigure(640, 480).AddAxes(geom.Rect{})
+
+	hex := ax.Hexbin(
+		[]float64{0.1, 0.3, 0.8},
+		[]float64{0.1, 0.4, 0.9},
+		HexbinOptions{
+			GridSizeX: 2,
+			GridSizeY: 2,
+			C:         []float64{2, 9, 5},
+			Reduce:    "max",
+			Bins:      "log",
+			Marginals: true,
+			Extent: &geom.Rect{
+				Min: geom.Pt{X: 0, Y: 0},
+				Max: geom.Pt{X: 2, Y: 2},
+			},
+		},
+	)
+	if hex == nil {
+		t.Fatal("expected hexbin collection")
+	}
+	if hex.ScalarMap().Norm == nil || hex.ScalarMap().Norm.NormName() != "log" {
+		t.Fatalf("hexbin bins=log norm = %#v, want log", hex.ScalarMap().Norm)
+	}
+	if hex.HBar == nil || hex.VBar == nil {
+		t.Fatal("expected marginal bar collections")
+	}
+}
+
 func TestAxesPieCreatesWedgesAndLabels(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{
@@ -113,6 +174,37 @@ func TestAxesPieCreatesWedgesAndLabels(t *testing.T) {
 	}
 }
 
+func TestAxesPieAdvancedOptionsAndPieLabel(t *testing.T) {
+	ax := NewFigure(640, 480).AddAxes(geom.Rect{})
+	normalize := false
+	pie := ax.Pie([]float64{0.25, 0.25}, PieOptions{
+		Labels:       []string{"A", "B"},
+		Normalize:    &normalize,
+		RotateLabels: true,
+		Hatches:      []string{"/", "x"},
+		Shadow:       true,
+	})
+	if pie == nil {
+		t.Fatal("expected partial pie")
+	}
+	if pie.Wedges[0].Theta2 != 90 {
+		t.Fatalf("first unnormalized wedge ends at %v, want 90", pie.Wedges[0].Theta2)
+	}
+	if pie.Wedges[0].Hatch != "/" || pie.Wedges[1].Hatch != "x" {
+		t.Fatalf("hatches = %q, %q", pie.Wedges[0].Hatch, pie.Wedges[1].Hatch)
+	}
+	if len(pie.Shadows) != 2 {
+		t.Fatalf("shadows = %d, want 2", len(pie.Shadows))
+	}
+	if len(pie.LabelAngles) != 2 || pie.LabelAngles[0] == 0 {
+		t.Fatalf("label rotations = %v, want populated", pie.LabelAngles)
+	}
+	added := ax.PieLabel(pie, []string{"one", "two"}, PieLabelOptions{Distance: 0.8, Rotate: true})
+	if len(added) != 2 {
+		t.Fatalf("PieLabel added %d labels, want 2", len(added))
+	}
+}
+
 func TestAxesViolinplotAddsCollections(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{
@@ -141,6 +233,29 @@ func TestAxesViolinplotAddsCollections(t *testing.T) {
 	}
 	if violins.Extrema == nil || len(violins.Extrema.Segments) != 6 {
 		t.Fatalf("expected extrema segments, got %d", len(violins.Extrema.Segments))
+	}
+}
+
+func TestAxesViolinplotSideOrientationQuantilesAndBandwidthMethod(t *testing.T) {
+	ax := NewFigure(640, 480).AddAxes(geom.Rect{})
+	violins := ax.Violinplot([][]float64{
+		{1, 2, 3, 4, 5},
+	}, ViolinOptions{
+		Orientation:     "horizontal",
+		Side:            "high",
+		Quantiles:       [][]float64{{0.25, 0.75}},
+		BandwidthMethod: "scott",
+	})
+	if violins == nil || violins.Bodies == nil || len(violins.Bodies.Polygons) != 1 {
+		t.Fatal("expected horizontal violin body")
+	}
+	for _, pt := range violins.Bodies.Polygons[0] {
+		if pt.Y < 1 {
+			t.Fatalf("side=high should not extend below position, got point %+v", pt)
+		}
+	}
+	if violins.Quantiles == nil || len(violins.Quantiles.Segments) != 2 {
+		t.Fatalf("quantile segments = %#v, want 2", violins.Quantiles)
 	}
 }
 

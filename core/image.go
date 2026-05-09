@@ -5,7 +5,6 @@ import (
 	"image/color"
 	"math"
 
-	matcolor "github.com/cwbudde/matplotlib-go/color"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
 )
@@ -81,22 +80,9 @@ func (i *Image2D) rasterizeToSize(targetWidth, targetHeight int) (render.Image, 
 		targetHeight = rows
 	}
 
-	vmin := i.VMin
-	vmax := i.VMax
-	if !isFinite(vmin) || !isFinite(vmax) {
-		vmin, vmax = dataRange(i.Data)
-	}
-	if vmin == vmax {
-		vmax = vmin + 1
-	}
-
-	cm := matcolor.GetColormap(i.Colormap)
+	mapping := i.ScalarMap().Resolved()
 	img := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
 
-	span := vmax - vmin
-	if span == 0 {
-		span = 1
-	}
 	if targetWidth != cols || targetHeight != rows {
 		for y := 0; y < targetHeight; y++ {
 			rowCoord := imageSourceCoord(y, targetHeight, rows)
@@ -109,8 +95,7 @@ func (i *Image2D) rasterizeToSize(targetWidth, targetHeight int) (render.Image, 
 				if !ok {
 					continue
 				}
-				n := (v - vmin) / span
-				img.Set(x, y, toRGBAColor(cm.At(n)))
+				img.Set(x, y, toRGBAColor(mapping.Color(v, 1)))
 			}
 		}
 		data := render.NewImageData(img)
@@ -124,19 +109,12 @@ func (i *Image2D) rasterizeToSize(targetWidth, targetHeight int) (render.Image, 
 				continue
 			}
 			v := values[col]
-			if !isFinite(v) {
-				continue
-			}
-
-			n := (v - vmin) / span
-			c := cm.At(n)
-
 			pixelY := row
 			if i.Origin == ImageOriginLower {
 				pixelY = rows - 1 - row
 			}
 
-			img.Set(col, pixelY, toRGBAColor(c))
+			img.Set(col, pixelY, toRGBAColor(mapping.Color(v, 1)))
 		}
 	}
 

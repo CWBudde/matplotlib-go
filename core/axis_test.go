@@ -200,6 +200,41 @@ func TestAxes_SetScalePreservesDomainAndConfiguresLogDefaults(t *testing.T) {
 	}
 }
 
+func TestAxesSemilogConvenienceWrappers(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(unitRect())
+	if line := ax.SemilogX([]float64{1, 10, 100}, []float64{1, 2, 3}); line == nil {
+		t.Fatal("SemilogX() returned nil")
+	}
+	if _, ok := ax.XScale.(transform.Log); !ok {
+		t.Fatalf("SemilogX x scale = %T, want transform.Log", ax.XScale)
+	}
+	if _, ok := ax.YScale.(transform.Linear); !ok {
+		t.Fatalf("SemilogX y scale = %T, want transform.Linear", ax.YScale)
+	}
+
+	fig = NewFigure(800, 600)
+	ax = fig.AddAxes(unitRect())
+	if line := ax.SemilogY([]float64{1, 2, 3}, []float64{1, 10, 100}); line == nil {
+		t.Fatal("SemilogY() returned nil")
+	}
+	if _, ok := ax.YScale.(transform.Log); !ok {
+		t.Fatalf("SemilogY y scale = %T, want transform.Log", ax.YScale)
+	}
+
+	fig = NewFigure(800, 600)
+	ax = fig.AddAxes(unitRect())
+	if line := ax.LogLog([]float64{1, 10, 100}, []float64{1, 10, 100}); line == nil {
+		t.Fatal("LogLog() returned nil")
+	}
+	if _, ok := ax.XScale.(transform.Log); !ok {
+		t.Fatalf("LogLog x scale = %T, want transform.Log", ax.XScale)
+	}
+	if _, ok := ax.YScale.(transform.Log); !ok {
+		t.Fatalf("LogLog y scale = %T, want transform.Log", ax.YScale)
+	}
+}
+
 func TestAxes_SetScaleUpdatesSharedRoot(t *testing.T) {
 	root := &Axes{
 		XScale: transform.NewLinear(-5, 15),

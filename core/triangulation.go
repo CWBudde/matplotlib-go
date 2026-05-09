@@ -26,6 +26,7 @@ type TriPlotOptions struct {
 // TriColorOptions configures tripcolor rendering.
 type TriColorOptions struct {
 	Colormap  *string
+	Norm      ScalarNormalizer
 	VMin      *float64
 	VMax      *float64
 	Alpha     *float64
@@ -136,7 +137,15 @@ func (a *Axes) TriColor(tri Triangulation, values []float64, opts ...TriColorOpt
 	if opt.Colormap != nil {
 		cmap = *opt.Colormap
 	}
-	mapping := resolveScalarMapValues(triangleValues, cmap, opt.VMin, opt.VMax)
+	mapping, err := ResolveScalarMapValues(triangleValues, ScalarMapConfig{
+		Colormap: cmap,
+		Norm:     opt.Norm,
+		VMin:     opt.VMin,
+		VMax:     opt.VMax,
+	})
+	if err != nil {
+		return nil
+	}
 	alpha := meshAlpha(opt.Alpha)
 
 	edgeColor := render.Color{}
@@ -177,6 +186,7 @@ func (a *Axes) TriColor(tri Triangulation, values []float64, opts ...TriColorOpt
 				Label:    opt.Label,
 				Alpha:    1,
 				Colormap: mapping.Colormap,
+				Norm:     mapping.Norm,
 				VMin:     mapping.VMin,
 				VMax:     mapping.VMax,
 			},

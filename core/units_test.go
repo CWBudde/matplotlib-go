@@ -41,6 +41,26 @@ func TestAxesPlotUnits_ConfiguresDateAxis(t *testing.T) {
 	}
 }
 
+func TestAxesPlotDate_ConfiguresDateAxis(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	dates := []time.Time{
+		time.Date(2024, time.March, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, time.March, 2, 0, 0, 0, 0, time.UTC),
+	}
+
+	line := ax.PlotDate(dates, []float64{1, 4})
+	if line == nil {
+		t.Fatal("PlotDate() returned nil")
+	}
+	if got := line.XY[0].X; got != timeToDateNumber(dates[0]) {
+		t.Fatalf("PlotDate converted x[0] = %v, want %v", got, timeToDateNumber(dates[0]))
+	}
+	if _, ok := ax.XAxis.Locator.(DateLocator); !ok {
+		t.Fatalf("x-axis locator = %T, want DateLocator", ax.XAxis.Locator)
+	}
+}
+
 func TestAxesBarUnits_ConfiguresCategoricalXAxis(t *testing.T) {
 	fig := NewFigure(800, 600)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})

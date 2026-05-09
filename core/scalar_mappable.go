@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"math"
 
 	matcolor "github.com/cwbudde/matplotlib-go/color"
@@ -19,12 +20,32 @@ type ScalarMapInfo struct {
 	Colormap string
 	VMin     float64
 	VMax     float64
+	Norm     ScalarNormalizer
+}
+
+func scalarMapConfigured(m ScalarMapInfo) bool {
+	return m.Colormap != "" || m.Norm != nil
+}
+
+// ScalarMapConfig describes user-facing scalar-map inputs.
+type ScalarMapConfig struct {
+	Colormap string
+	Norm     ScalarNormalizer
+	VMin     *float64
+	VMax     *float64
 }
 
 // Resolved returns a copy with sane defaults for downstream consumers.
 func (m ScalarMapInfo) Resolved() ScalarMapInfo {
 	if m.Colormap == "" {
 		m.Colormap = "viridis"
+	}
+	if m.Norm != nil {
+		if vmin, vmax := m.Norm.Range(); isFinite(vmin) && isFinite(vmax) {
+			m.VMin = vmin
+			m.VMax = vmax
+		}
+		return m
 	}
 	if !isFinite(m.VMin) || !isFinite(m.VMax) {
 		m.VMin = 0
@@ -33,17 +54,14 @@ func (m ScalarMapInfo) Resolved() ScalarMapInfo {
 	if m.VMin == m.VMax {
 		m.VMax = m.VMin + 1
 	}
+	m.Norm = Normalize{VMin: m.VMin, VMax: m.VMax}
 	return m
 }
 
 // Normalize maps a scalar into the colormap domain.
 func (m ScalarMapInfo) Normalize(v float64) float64 {
 	m = m.Resolved()
-	span := m.VMax - m.VMin
-	if span == 0 {
-		return 0
-	}
-	return clamp01((v - m.VMin) / span)
+	return clamp01(m.normalizeRaw(v))
 }
 
 // Color maps a scalar into a display color using the configured colormap.
@@ -56,6 +74,9 @@ func (m ScalarMapInfo) Color(v, alpha float64) render.Color {
 
 func (m ScalarMapInfo) normalizeRaw(v float64) float64 {
 	m = m.Resolved()
+	if m.Norm != nil {
+		return m.Norm.Map(v)
+	}
 	span := m.VMax - m.VMin
 	if span == 0 {
 		return 0
@@ -63,34 +84,62 @@ func (m ScalarMapInfo) normalizeRaw(v float64) float64 {
 	return (v - m.VMin) / span
 }
 
-func resolveScalarMapGrid(data [][]float64, cmap string, vmin, vmax *float64) ScalarMapInfo {
+// ResolveScalarMapValues resolves colormap and norm configuration for scalar values.
+func ResolveScalarMapValues(values []float64, cfg ScalarMapConfig) (ScalarMapInfo, error) {
+	minValue, maxValue := finiteRange(values)
+	return resolveScalarMapRange(minValue, maxValue, cfg)
+}
+
+// ResolveScalarMapGrid resolves colormap and norm configuration for a scalar grid.
+func ResolveScalarMapGrid(data [][]float64, cfg ScalarMapConfig) (ScalarMapInfo, error) {
 	minValue, maxValue := dataRange(data)
-	if vmin != nil && isFinite(*vmin) {
-		minValue = *vmin
+	return resolveScalarMapRange(minValue, maxValue, cfg)
+}
+
+func resolveScalarMapRange(minValue, maxValue float64, cfg ScalarMapConfig) (ScalarMapInfo, error) {
+	if cfg.Norm != nil && (cfg.VMin != nil || cfg.VMax != nil) {
+		return ScalarMapInfo{}, fmt.Errorf("cannot pass vmin/vmax with an explicit norm")
 	}
-	if vmax != nil && isFinite(*vmax) {
-		maxValue = *vmax
+
+	norm := cfg.Norm
+	if norm == nil {
+		vmin := math.NaN()
+		vmax := math.NaN()
+		if cfg.VMin != nil && isFinite(*cfg.VMin) {
+			vmin = *cfg.VMin
+		}
+		if cfg.VMax != nil && isFinite(*cfg.VMax) {
+			vmax = *cfg.VMax
+		}
+		norm = Normalize{VMin: vmin, VMax: vmax}
 	}
+	norm = norm.Autoscale([]float64{minValue, maxValue})
+	if err := norm.Validate(); err != nil {
+		return ScalarMapInfo{}, err
+	}
+	vmin, vmax := norm.Range()
 	return ScalarMapInfo{
-		Colormap: resolvedColormapName(cmap),
-		VMin:     minValue,
-		VMax:     maxValue,
-	}.Resolved()
+		Colormap: resolvedColormapName(cfg.Colormap),
+		VMin:     vmin,
+		VMax:     vmax,
+		Norm:     norm,
+	}.Resolved(), nil
+}
+
+func resolveScalarMapGrid(data [][]float64, cmap string, vmin, vmax *float64) ScalarMapInfo {
+	mapping, err := ResolveScalarMapGrid(data, ScalarMapConfig{Colormap: cmap, VMin: vmin, VMax: vmax})
+	if err != nil {
+		return ScalarMapInfo{Colormap: resolvedColormapName(cmap)}.Resolved()
+	}
+	return mapping
 }
 
 func resolveScalarMapValues(values []float64, cmap string, vmin, vmax *float64) ScalarMapInfo {
-	minValue, maxValue := finiteRange(values)
-	if vmin != nil && isFinite(*vmin) {
-		minValue = *vmin
+	mapping, err := ResolveScalarMapValues(values, ScalarMapConfig{Colormap: cmap, VMin: vmin, VMax: vmax})
+	if err != nil {
+		return ScalarMapInfo{Colormap: resolvedColormapName(cmap)}.Resolved()
 	}
-	if vmax != nil && isFinite(*vmax) {
-		maxValue = *vmax
-	}
-	return ScalarMapInfo{
-		Colormap: resolvedColormapName(cmap),
-		VMin:     minValue,
-		VMax:     maxValue,
-	}.Resolved()
+	return mapping
 }
 
 func resolvedColormapName(name string) string {

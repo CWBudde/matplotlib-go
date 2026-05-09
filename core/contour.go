@@ -17,6 +17,7 @@ type ContourOptions struct {
 	Levels         []float64
 	LevelCount     int
 	Colormap       *string
+	Norm           ScalarNormalizer
 	Colors         []render.Color
 	Color          *render.Color
 	LineWidth      *float64
@@ -233,10 +234,19 @@ func (a *Axes) buildContourSet(tri Triangulation, values []float64, filled bool,
 	if opt.Colormap != nil {
 		cmapName = *opt.Colormap
 	}
-	mapping := resolveScalarMapValues(values, cmapName, nil, nil)
+	mapping, err := ResolveScalarMapValues(values, ScalarMapConfig{
+		Colormap: cmapName,
+		Norm:     opt.Norm,
+	})
+	if err != nil {
+		return nil
+	}
 	if filled {
-		mapping.VMin = levels[0]
-		mapping.VMax = levels[len(levels)-1]
+		if opt.Norm == nil {
+			mapping.Norm = Normalize{VMin: levels[0], VMax: levels[len(levels)-1]}
+			mapping.VMin = levels[0]
+			mapping.VMax = levels[len(levels)-1]
+		}
 	}
 
 	set := &ContourSet{
@@ -260,6 +270,10 @@ func (a *Axes) buildContourSet(tri Triangulation, values []float64, filled bool,
 				vmin = mapping.VMin
 				vmax = mapping.VMax
 			}
+			norm := mapping.Norm
+			if cmap == "" {
+				norm = nil
+			}
 			set.Fills = &PolyCollection{
 				PatchCollection: PatchCollection{
 					Collection: Collection{
@@ -267,6 +281,7 @@ func (a *Axes) buildContourSet(tri Triangulation, values []float64, filled bool,
 						Label:    opt.Label,
 						Alpha:    1,
 						Colormap: cmap,
+						Norm:     norm,
 						VMin:     vmin,
 						VMax:     vmax,
 					},

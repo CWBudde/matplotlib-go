@@ -10,24 +10,32 @@ import (
 
 // BoxPlot2D renders a single statistical box plot for one dataset.
 type BoxPlot2D struct {
-	Data         []float64    // raw sample values
-	Position     float64      // x position of the box center in data units
-	Width        float64      // box width in data units
-	Color        render.Color // box fill color
-	EdgeColor    render.Color // box outline color
-	MedianColor  render.Color // median line color
-	WhiskerColor render.Color // whisker and cap color
-	CapColor     render.Color // whisker cap color
-	FlierColor   render.Color // outlier marker color
-	EdgeWidth    float64      // box outline width in pixels
-	WhiskerWidth float64      // whisker/cap line width in pixels
-	MedianWidth  float64      // median line width in pixels
-	CapWidth     float64      // cap length in data units
-	FlierSize    float64      // outlier marker radius in pixels
-	Alpha        float64      // alpha transparency (0-1, 0 means 1.0)
-	ShowFliers   bool         // whether to draw outliers
-	Label        string       // series label for legend
-	z            float64      // z-order
+	Data               []float64    // raw sample values
+	Position           float64      // x position of the box center in data units
+	Width              float64      // box width in data units
+	Color              render.Color // box fill color
+	EdgeColor          render.Color // box outline color
+	MedianColor        render.Color // median line color
+	WhiskerColor       render.Color // whisker and cap color
+	CapColor           render.Color // whisker cap color
+	FlierColor         render.Color // outlier marker color
+	FlierEdgeColor     render.Color
+	EdgeWidth          float64 // box outline width in pixels
+	WhiskerWidth       float64 // whisker/cap line width in pixels
+	MedianWidth        float64 // median line width in pixels
+	CapWidth           float64 // cap length in data units
+	FlierSize          float64 // outlier marker radius in pixels
+	FlierEdgeWidth     float64
+	Alpha              float64 // alpha transparency (0-1, 0 means 1.0)
+	ShowFliers         bool    // whether to draw outliers
+	Notch              bool    // whether to draw a notched median confidence interval
+	Bootstrap          int     // stored for API parity; deterministic CI fallback is used
+	ConfidenceInterval *[2]float64
+	CustomMedian       *float64
+	WhiskerPercentiles *[2]float64
+	FlierMarker        MarkerType
+	Label              string  // series label for legend
+	z                  float64 // z-order
 
 	computed bool
 	hasData  bool
@@ -42,6 +50,8 @@ type boxPlotStats struct {
 	q3           float64
 	lowerWhisker float64
 	upperWhisker float64
+	ciLow        float64
+	ciHigh       float64
 	outliers     []float64
 }
 
@@ -63,7 +73,7 @@ func (b *BoxPlot2D) compute() {
 	}
 
 	sort.Float64s(finite)
-	b.stats = computeBoxPlotStats(finite)
+	b.stats = b.computeBoxPlotStats(finite)
 	b.hasData = true
 }
 
@@ -103,6 +113,42 @@ func computeBoxPlotStats(sorted []float64) boxPlotStats {
 	}
 
 	return stats
+}
+
+func (b *BoxPlot2D) computeBoxPlotStats(sorted []float64) boxPlotStats {
+	stats := computeBoxPlotStats(sorted)
+	if b.CustomMedian != nil && isFinite(*b.CustomMedian) {
+		stats.median = *b.CustomMedian
+	}
+	if b.WhiskerPercentiles != nil {
+		lo := math.Min(b.WhiskerPercentiles[0], b.WhiskerPercentiles[1])
+		hi := math.Max(b.WhiskerPercentiles[0], b.WhiskerPercentiles[1])
+		lo = math.Max(0, math.Min(100, lo))
+		hi = math.Max(0, math.Min(100, hi))
+		stats.lowerWhisker = percentileSorted(sorted, lo)
+		stats.upperWhisker = percentileSorted(sorted, hi)
+		stats.outliers = stats.outliers[:0]
+		for _, v := range sorted {
+			if v < stats.lowerWhisker || v > stats.upperWhisker {
+				stats.outliers = append(stats.outliers, v)
+			}
+		}
+	}
+	stats.ciLow, stats.ciHigh = boxPlotMedianCI(sorted, stats)
+	if b.ConfidenceInterval != nil && isFinite(b.ConfidenceInterval[0]) && isFinite(b.ConfidenceInterval[1]) {
+		stats.ciLow = math.Min(b.ConfidenceInterval[0], b.ConfidenceInterval[1])
+		stats.ciHigh = math.Max(b.ConfidenceInterval[0], b.ConfidenceInterval[1])
+	}
+	return stats
+}
+
+func boxPlotMedianCI(sorted []float64, stats boxPlotStats) (float64, float64) {
+	iqr := stats.q3 - stats.q1
+	if len(sorted) == 0 || iqr <= 0 || !isFinite(iqr) {
+		return stats.median, stats.median
+	}
+	delta := 1.57 * iqr / math.Sqrt(float64(len(sorted)))
+	return stats.median - delta, stats.median + delta
 }
 
 func percentileSorted(sorted []float64, p float64) float64 {
@@ -171,6 +217,10 @@ func (b *BoxPlot2D) Draw(r render.Renderer, ctx *DrawContext) {
 	if flierSize <= 0 {
 		flierSize = 3.5
 	}
+	flierEdgeWidth := b.FlierEdgeWidth
+	if flierEdgeWidth <= 0 {
+		flierEdgeWidth = math.Max(1.0, whiskerWidth*0.6)
+	}
 	alpha := b.Alpha
 	if alpha <= 0 {
 		alpha = 1.0
@@ -185,11 +235,12 @@ func (b *BoxPlot2D) Draw(r render.Renderer, ctx *DrawContext) {
 	whiskerColor := applyAlpha(b.WhiskerColor, alpha)
 	capColor := applyAlpha(b.CapColor, alpha)
 	flierColor := applyAlpha(b.FlierColor, alpha)
+	flierEdgeColor := applyAlpha(b.FlierEdgeColor, alpha)
 
 	xLeft := b.Position - boxWidth/2
 	xRight := b.Position + boxWidth/2
 
-	boxPath := rectPath(ctx, geom.Pt{X: xLeft, Y: b.stats.q1}, geom.Pt{X: xRight, Y: b.stats.q3})
+	boxPath := b.boxPath(ctx, xLeft, xRight)
 	if len(boxPath.C) > 0 {
 		paint := render.Paint{
 			Fill:     boxColor,
@@ -241,16 +292,60 @@ func (b *BoxPlot2D) Draw(r render.Renderer, ctx *DrawContext) {
 		}
 		flierPaint := render.Paint{
 			Fill:      flierColor,
-			Stroke:    flierColor,
-			LineWidth: math.Max(1.0, whiskerWidth*0.6),
+			Stroke:    flierEdgeColor,
+			LineWidth: flierEdgeWidth,
 			LineJoin:  render.JoinRound,
 			LineCap:   render.CapRound,
 		}
+		marker := b.FlierMarker
+		if marker == 0 {
+			marker = MarkerCircle
+		}
+		scatter := Scatter2D{Marker: marker}
 		for _, v := range b.stats.outliers {
 			pt := ctx.DataToPixel.Apply(geom.Pt{X: b.Position, Y: v})
-			r.Path(circlePath(pt, flierSize), &flierPaint)
+			r.Path(scatter.createMarkerPath(pt, flierSize), &flierPaint)
 		}
 	}
+}
+
+func (b *BoxPlot2D) boxPath(ctx *DrawContext, xLeft, xRight float64) geom.Path {
+	if !b.Notch {
+		return rectPath(ctx, geom.Pt{X: xLeft, Y: b.stats.q1}, geom.Pt{X: xRight, Y: b.stats.q3})
+	}
+	xMid := b.Position
+	notchInset := (xRight - xLeft) * 0.25
+	ciLow := math.Max(b.stats.q1, math.Min(b.stats.q3, b.stats.ciLow))
+	ciHigh := math.Max(b.stats.q1, math.Min(b.stats.q3, b.stats.ciHigh))
+	points := []geom.Pt{
+		{X: xLeft, Y: b.stats.q1},
+		{X: xRight, Y: b.stats.q1},
+		{X: xRight, Y: ciLow},
+		{X: xMid + notchInset, Y: b.stats.median},
+		{X: xRight, Y: ciHigh},
+		{X: xRight, Y: b.stats.q3},
+		{X: xLeft, Y: b.stats.q3},
+		{X: xLeft, Y: ciHigh},
+		{X: xMid - notchInset, Y: b.stats.median},
+		{X: xLeft, Y: ciLow},
+	}
+	return polygonDisplayPath(ctx, points, true)
+}
+
+func polygonDisplayPath(ctx *DrawContext, points []geom.Pt, closed bool) geom.Path {
+	path := geom.Path{}
+	for i, pt := range points {
+		if i == 0 {
+			path.C = append(path.C, geom.MoveTo)
+		} else {
+			path.C = append(path.C, geom.LineTo)
+		}
+		path.V = append(path.V, ctx.DataToPixel.Apply(pt))
+	}
+	if closed && len(points) > 0 {
+		path.C = append(path.C, geom.ClosePath)
+	}
+	return path
 }
 
 func applyAlpha(c render.Color, alpha float64) render.Color {

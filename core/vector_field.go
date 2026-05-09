@@ -29,6 +29,7 @@ type QuiverOptions struct {
 	C              []float64
 	CGrid          [][]float64
 	Colormap       *string
+	Norm           ScalarNormalizer
 	VMin           *float64
 	VMax           *float64
 	Alpha          *float64
@@ -79,6 +80,7 @@ type Quiver struct {
 
 	Label    string
 	Colormap string
+	Norm     ScalarNormalizer
 	VMin     float64
 	VMax     float64
 	z        float64
@@ -137,6 +139,7 @@ type BarbsOptions struct {
 	C          []float64
 	CGrid      [][]float64
 	Colormap   *string
+	Norm       ScalarNormalizer
 	VMin       *float64
 	VMax       *float64
 	Alpha      *float64
@@ -181,6 +184,7 @@ type Barbs struct {
 
 	Label    string
 	Colormap string
+	Norm     ScalarNormalizer
 	VMin     float64
 	VMax     float64
 	z        float64
@@ -191,6 +195,11 @@ type StreamplotOptions struct {
 	Density              float64
 	DensityX             float64
 	DensityY             float64
+	CGrid                [][]float64
+	Colormap             *string
+	Norm                 ScalarNormalizer
+	VMin                 *float64
+	VMax                 *float64
 	StartPoints          []geom.Pt
 	MinLength            *float64
 	MaxLength            *float64
@@ -264,6 +273,15 @@ func (a *Axes) Quiver(x, y, u, v []float64, opts ...QuiverOptions) *Quiver {
 	if opt.EdgeColor != nil {
 		edgeColor = *opt.EdgeColor
 	}
+	mapping, err := ResolveScalarMapValues(scalars, ScalarMapConfig{
+		Colormap: scalarColormap(opt.Colormap),
+		Norm:     opt.Norm,
+		VMin:     opt.VMin,
+		VMax:     opt.VMax,
+	})
+	if err != nil {
+		return nil
+	}
 
 	q := &Quiver{
 		Anchors:        anchors,
@@ -287,9 +305,10 @@ func (a *Axes) Quiver(x, y, u, v []float64, opts ...QuiverOptions) *Quiver {
 		MinShaft:       optionFloat(opt.MinShaft, 1),
 		MinLength:      optionFloat(opt.MinLength, 1),
 		Label:          opt.Label,
-		Colormap:       scalarColormap(opt.Colormap),
-		VMin:           scalarVMin(opt.C, scalars, opt.VMin),
-		VMax:           scalarVMax(opt.C, scalars, opt.VMax),
+		Colormap:       mapping.Colormap,
+		Norm:           mapping.Norm,
+		VMin:           mapping.VMin,
+		VMax:           mapping.VMax,
 		z:              optionFloat(opt.ZOrder, 1),
 	}
 	if opt.Scale != nil && *opt.Scale > 0 {
@@ -323,6 +342,15 @@ func (a *Axes) quiverFromFlattened(anchors []geom.Pt, u, v, scalars []float64, o
 	if opt.Color != nil {
 		color = *opt.Color
 	}
+	mapping, err := ResolveScalarMapValues(scalars, ScalarMapConfig{
+		Colormap: scalarColormap(opt.Colormap),
+		Norm:     opt.Norm,
+		VMin:     opt.VMin,
+		VMax:     opt.VMax,
+	})
+	if err != nil {
+		return nil
+	}
 	q := &Quiver{
 		Anchors:        anchors,
 		U:              append([]float64(nil), u...),
@@ -345,9 +373,10 @@ func (a *Axes) quiverFromFlattened(anchors []geom.Pt, u, v, scalars []float64, o
 		MinShaft:       optionFloat(opt.MinShaft, 1),
 		MinLength:      optionFloat(opt.MinLength, 1),
 		Label:          opt.Label,
-		Colormap:       scalarColormap(opt.Colormap),
-		VMin:           scalarVMin(opt.C, scalars, opt.VMin),
-		VMax:           scalarVMax(opt.C, scalars, opt.VMax),
+		Colormap:       mapping.Colormap,
+		Norm:           mapping.Norm,
+		VMin:           mapping.VMin,
+		VMax:           mapping.VMax,
 		z:              optionFloat(opt.ZOrder, 1),
 	}
 	if opt.Scale != nil && *opt.Scale > 0 {
@@ -423,6 +452,15 @@ func (a *Axes) Barbs(x, y, u, v []float64, opts ...BarbsOptions) *Barbs {
 	if opt.FlagColor != nil {
 		flagColor = *opt.FlagColor
 	}
+	mapping, err := ResolveScalarMapValues(scalars, ScalarMapConfig{
+		Colormap: scalarColormap(opt.Colormap),
+		Norm:     opt.Norm,
+		VMin:     opt.VMin,
+		VMax:     opt.VMax,
+	})
+	if err != nil {
+		return nil
+	}
 
 	b := &Barbs{
 		Anchors:      anchors,
@@ -444,9 +482,10 @@ func (a *Axes) Barbs(x, y, u, v []float64, opts ...BarbsOptions) *Barbs {
 		Rounding:     optionBool(opt.Rounding, true),
 		Flip:         normalizeFlipSlice(opt.FlipBarb, opt.Flip, len(anchors)),
 		Label:        opt.Label,
-		Colormap:     scalarColormap(opt.Colormap),
-		VMin:         scalarVMin(opt.C, scalars, opt.VMin),
-		VMax:         scalarVMax(opt.C, scalars, opt.VMax),
+		Colormap:     mapping.Colormap,
+		Norm:         mapping.Norm,
+		VMin:         mapping.VMin,
+		VMax:         mapping.VMax,
 		z:            optionFloat(opt.ZOrder, 1),
 	}
 	a.Add(b)
@@ -482,6 +521,15 @@ func (a *Axes) BarbsGrid(x, y []float64, u, v [][]float64, opts ...BarbsOptions)
 	if opt.FlagColor != nil {
 		flagColor = *opt.FlagColor
 	}
+	mapping, err := ResolveScalarMapValues(scalars, ScalarMapConfig{
+		Colormap: scalarColormap(opt.Colormap),
+		Norm:     opt.Norm,
+		VMin:     opt.VMin,
+		VMax:     opt.VMax,
+	})
+	if err != nil {
+		return nil
+	}
 
 	b := &Barbs{
 		Anchors:      anchors,
@@ -503,9 +551,10 @@ func (a *Axes) BarbsGrid(x, y []float64, u, v [][]float64, opts ...BarbsOptions)
 		Rounding:     optionBool(opt.Rounding, true),
 		Flip:         normalizeFlipSlice(opt.FlipBarb, opt.Flip, len(anchors)),
 		Label:        opt.Label,
-		Colormap:     scalarColormap(opt.Colormap),
-		VMin:         scalarVMin(opt.C, scalars, opt.VMin),
-		VMax:         scalarVMax(opt.C, scalars, opt.VMax),
+		Colormap:     mapping.Colormap,
+		Norm:         mapping.Norm,
+		VMin:         mapping.VMin,
+		VMax:         mapping.VMax,
 		z:            optionFloat(opt.ZOrder, 1),
 	}
 	a.Add(b)
@@ -542,6 +591,23 @@ func (a *Axes) Streamplot(x, y []float64, u, v [][]float64, opts ...StreamplotOp
 		u: cloneMatrix(u),
 		v: cloneMatrix(v),
 	}
+	var mapping ScalarMapInfo
+	hasScalarColors := len(opt.CGrid) > 0
+	if hasScalarColors {
+		if !sameGridShape(opt.CGrid, len(y), len(x)) {
+			return nil
+		}
+		var err error
+		mapping, err = ResolveScalarMapGrid(opt.CGrid, ScalarMapConfig{
+			Colormap: scalarColormap(opt.Colormap),
+			Norm:     opt.Norm,
+			VMin:     opt.VMin,
+			VMax:     opt.VMax,
+		})
+		if err != nil {
+			return nil
+		}
+	}
 	trajectories := computeStreamTrajectories(grid, opt, densityX, densityY)
 	if len(trajectories) == 0 {
 		return nil
@@ -556,8 +622,12 @@ func (a *Axes) Streamplot(x, y []float64, u, v [][]float64, opts ...StreamplotOp
 
 	lines := &LineCollection{
 		Collection: Collection{
-			Coords: Coords(CoordData),
-			z:      z,
+			Coords:   Coords(CoordData),
+			Colormap: mapping.Colormap,
+			Norm:     mapping.Norm,
+			VMin:     mapping.VMin,
+			VMax:     mapping.VMax,
+			z:        z,
 		},
 		Color:     color,
 		LineWidth: lineWidth,
@@ -565,6 +635,16 @@ func (a *Axes) Streamplot(x, y []float64, u, v [][]float64, opts ...StreamplotOp
 	}
 	for _, trajectory := range trajectories {
 		lines.Segments = append(lines.Segments, trajectory.points)
+		if hasScalarColors {
+			value, ok := streamScalarAverage(grid, opt.CGrid, trajectory.points)
+			if !ok {
+				value = math.NaN()
+			}
+			lines.Colors = append(lines.Colors, mapping.Color(value, 1))
+		}
+	}
+	if hasScalarColors {
+		lines.Color = render.Color{}
 	}
 
 	arrowColor := color
@@ -578,10 +658,22 @@ func (a *Axes) Streamplot(x, y []float64, u, v [][]float64, opts ...StreamplotOp
 	}
 
 	arrowAnchors, arrowU, arrowV := sampleStreamArrows(trajectories, arrowCount)
+	arrowScalars := []float64(nil)
+	if hasScalarColors {
+		arrowScalars = make([]float64, len(arrowAnchors))
+		for i, anchor := range arrowAnchors {
+			value, ok := interpolateStreamScalar(grid, opt.CGrid, anchor)
+			if !ok {
+				value = math.NaN()
+			}
+			arrowScalars[i] = value
+		}
+	}
 	arrows := &Quiver{
 		Anchors:        arrowAnchors,
 		U:              arrowU,
 		V:              arrowV,
+		ScalarColors:   arrowScalars,
 		Color:          arrowColor,
 		EdgeColor:      render.Color{},
 		EdgeWidth:      0,
@@ -595,6 +687,10 @@ func (a *Axes) Streamplot(x, y []float64, u, v [][]float64, opts ...StreamplotOp
 		HeadAxisLength: 4.5,
 		MinShaft:       1,
 		MinLength:      1,
+		Colormap:       mapping.Colormap,
+		Norm:           mapping.Norm,
+		VMin:           mapping.VMin,
+		VMax:           mapping.VMax,
 		z:              z,
 		forceLengthPx:  12 * arrowSize,
 	}
@@ -638,7 +734,7 @@ func (q *Quiver) ScalarMap() ScalarMapInfo {
 	if q == nil || len(q.ScalarColors) == 0 {
 		return ScalarMapInfo{}
 	}
-	return ScalarMapInfo{Colormap: q.Colormap, VMin: q.VMin, VMax: q.VMax}
+	return ScalarMapInfo{Colormap: q.Colormap, Norm: q.Norm, VMin: q.VMin, VMax: q.VMax}
 }
 
 func (q *Quiver) legendEntry() (legendEntry, bool) {
@@ -1136,7 +1232,7 @@ func (b *Barbs) ScalarMap() ScalarMapInfo {
 	if b == nil || len(b.ScalarColors) == 0 {
 		return ScalarMapInfo{}
 	}
-	return ScalarMapInfo{Colormap: b.Colormap, VMin: b.VMin, VMax: b.VMax}
+	return ScalarMapInfo{Colormap: b.Colormap, Norm: b.Norm, VMin: b.VMin, VMax: b.VMax}
 }
 
 func (b *Barbs) legendEntry() (legendEntry, bool) {
@@ -1349,6 +1445,24 @@ func (s *StreamplotSet) Z() float64 {
 	return s.z
 }
 
+// ScalarMap exposes scalar color mapping when streamplot arrows or lines carry one.
+func (s *StreamplotSet) ScalarMap() ScalarMapInfo {
+	if s == nil {
+		return ScalarMapInfo{}
+	}
+	if s.Arrows != nil {
+		if mapping := s.Arrows.ScalarMap(); scalarMapConfigured(mapping) {
+			return mapping
+		}
+	}
+	if s.Lines != nil && len(s.Lines.Colors) > 0 {
+		if mapping := s.Lines.Collection.ScalarMap(); scalarMapConfigured(mapping) {
+			return mapping
+		}
+	}
+	return ScalarMapInfo{}
+}
+
 func (s *StreamplotSet) legendEntry() (legendEntry, bool) {
 	if s == nil || s.Label == "" || s.Lines == nil {
 		return legendEntry{}, false
@@ -1526,6 +1640,52 @@ func interpolateStreamVector(grid streamplotGrid, point geom.Pt) (float64, float
 	v0 := v00*(1-tx) + v10*tx
 	v1 := v01*(1-tx) + v11*tx
 	return u0*(1-ty) + u1*ty, v0*(1-ty) + v1*ty, true
+}
+
+func streamScalarAverage(grid streamplotGrid, scalars [][]float64, points []geom.Pt) (float64, bool) {
+	sum := 0.0
+	count := 0
+	for _, point := range points {
+		value, ok := interpolateStreamScalar(grid, scalars, point)
+		if !ok {
+			continue
+		}
+		sum += value
+		count++
+	}
+	if count == 0 {
+		return 0, false
+	}
+	return sum / float64(count), true
+}
+
+func interpolateStreamScalar(grid streamplotGrid, scalars [][]float64, point geom.Pt) (float64, bool) {
+	if !pointInsideGrid(point, grid) || !sameGridShape(scalars, len(grid.y), len(grid.x)) {
+		return 0, false
+	}
+	ix := locateInterval(grid.x, point.X)
+	iy := locateInterval(grid.y, point.Y)
+	if ix < 0 || iy < 0 {
+		return 0, false
+	}
+	x0, x1 := grid.x[ix], grid.x[ix+1]
+	y0, y1 := grid.y[iy], grid.y[iy+1]
+	tx := 0.0
+	if x1 != x0 {
+		tx = (point.X - x0) / (x1 - x0)
+	}
+	ty := 0.0
+	if y1 != y0 {
+		ty = (point.Y - y0) / (y1 - y0)
+	}
+	c00, c10 := scalars[iy][ix], scalars[iy][ix+1]
+	c01, c11 := scalars[iy+1][ix], scalars[iy+1][ix+1]
+	if !isFinite(c00) || !isFinite(c10) || !isFinite(c01) || !isFinite(c11) {
+		return 0, false
+	}
+	c0 := c00*(1-tx) + c10*tx
+	c1 := c01*(1-tx) + c11*tx
+	return c0*(1-ty) + c1*ty, true
 }
 
 func pointInsideGrid(point geom.Pt, grid streamplotGrid) bool {

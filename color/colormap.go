@@ -32,6 +32,42 @@ func (c Colormap) Name() string {
 	return c.name
 }
 
+// Copy returns an independent copy of the colormap.
+func (c Colormap) Copy(name string) Colormap {
+	out := c
+	out.name = normalizeColormapName(name)
+	if out.name == "" {
+		out.name = c.name
+	}
+	out.stops = append([]ColorStop(nil), c.stops...)
+	out.listed = append([]render.Color(nil), c.listed...)
+	return out
+}
+
+// Reversed returns an independent copy with the colormap direction reversed.
+func (c Colormap) Reversed(name string) Colormap {
+	out := c.Copy(name)
+	if out.name == c.name {
+		out.name = c.name + "_r"
+	}
+	if len(out.listed) > 0 {
+		for i, j := 0, len(out.listed)-1; i < j; i, j = i+1, j-1 {
+			out.listed[i], out.listed[j] = out.listed[j], out.listed[i]
+		}
+	}
+	if len(out.stops) > 0 {
+		rev := make([]ColorStop, len(out.stops))
+		for i, stop := range out.stops {
+			rev[len(out.stops)-1-i] = ColorStop{
+				Pos:   1 - stop.Pos,
+				Color: stop.Color,
+			}
+		}
+		out.stops = rev
+	}
+	return out
+}
+
 // At returns a color for normalized input t in [0,1].
 // Interpolation is component-wise in normalized render.Color space.
 func (c Colormap) At(t float64) render.Color {
@@ -105,6 +141,15 @@ func (c Colormap) WithBad(color render.Color) Colormap {
 	return c
 }
 
+// SetBad configures the bad-value color in place.
+func (c *Colormap) SetBad(color render.Color) {
+	if c == nil {
+		return
+	}
+	c.bad = color
+	c.hasBad = true
+}
+
 // WithUnder returns a copy of the colormap with a configured under-range color.
 func (c Colormap) WithUnder(color render.Color) Colormap {
 	c.under = color
@@ -112,11 +157,29 @@ func (c Colormap) WithUnder(color render.Color) Colormap {
 	return c
 }
 
+// SetUnder configures the under-range color in place.
+func (c *Colormap) SetUnder(color render.Color) {
+	if c == nil {
+		return
+	}
+	c.under = color
+	c.hasUnder = true
+}
+
 // WithOver returns a copy of the colormap with a configured over-range color.
 func (c Colormap) WithOver(color render.Color) Colormap {
 	c.over = color
 	c.hasOver = true
 	return c
+}
+
+// SetOver configures the over-range color in place.
+func (c *Colormap) SetOver(color render.Color) {
+	if c == nil {
+		return
+	}
+	c.over = color
+	c.hasOver = true
 }
 
 // NewColormap creates a new linear colormap from color stops.

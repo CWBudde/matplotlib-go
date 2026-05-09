@@ -1,8 +1,9 @@
 module github.com/cwbudde/matplotlib-go
 
-go 1.24.0
+go 1.25.0
 
 require (
+	github.com/cwbudde/algo-fft v0.0.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	golang.org/x/image v0.30.0 // pinned to commit c574db581976698ac047466629eeeb7b17bb49dd for determinism
@@ -30,5 +31,7 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/cwbudde/algo-fft => ../algo-fft
 
 replace github.com/cwbudde/agg_go => ../agg_go

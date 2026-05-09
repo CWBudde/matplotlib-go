@@ -159,6 +159,26 @@ func TestHorizontalBarAutoScaleUsesStickyBaseline(t *testing.T) {
 	}
 }
 
+func TestAxesBarHForcesHorizontalOrientation(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	vertical := BarVertical
+
+	bar := ax.BarH([]float64{0, 1}, []float64{4, 7}, BarOptions{
+		Orientation: &vertical,
+		Label:       "horizontal",
+	})
+	if bar == nil {
+		t.Fatal("BarH() returned nil")
+	}
+	if bar.Orientation != BarHorizontal {
+		t.Fatalf("BarH orientation = %v, want BarHorizontal", bar.Orientation)
+	}
+	if bar.Label != "horizontal" {
+		t.Fatalf("BarH label = %q, want horizontal", bar.Label)
+	}
+}
+
 func TestBar2D_VariableWidthsAndColors(t *testing.T) {
 	// Test with variable widths and colors
 	bar := &Bar2D{

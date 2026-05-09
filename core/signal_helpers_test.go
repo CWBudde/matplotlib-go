@@ -92,6 +92,111 @@ func TestAxesSignalAnalysisHelpers(t *testing.T) {
 	}
 }
 
+func TestAxesSpectrumVariants(t *testing.T) {
+	x := sineWave(5, 64, 128, math.Pi/6)
+	opts := SignalSpectrumOptions{
+		Fs:   64,
+		NFFT: 64,
+	}
+
+	fig := NewFigure(400, 300)
+	ax := fig.AddAxes(unitRect())
+	mag := ax.MagnitudeSpectrum(x, opts)
+	if mag == nil || mag.Line == nil {
+		t.Fatal("MagnitudeSpectrum() returned nil")
+	}
+	if got := dominantLineFrequency(mag); math.Abs(got-5) > 1 {
+		t.Fatalf("MagnitudeSpectrum dominant frequency = %v, want about 5", got)
+	}
+
+	fig = NewFigure(400, 300)
+	ax = fig.AddAxes(unitRect())
+	angle := ax.AngleSpectrum(x, opts)
+	if angle == nil || angle.Line == nil {
+		t.Fatal("AngleSpectrum() returned nil")
+	}
+	if len(angle.Frequencies) != 33 || len(angle.Values) != 33 {
+		t.Fatalf("AngleSpectrum bins = (%d, %d), want 33", len(angle.Frequencies), len(angle.Values))
+	}
+	for _, value := range angle.Values {
+		if value < -math.Pi || value > math.Pi {
+			t.Fatalf("AngleSpectrum value = %v, want within [-pi, pi]", value)
+		}
+	}
+
+	fig = NewFigure(400, 300)
+	ax = fig.AddAxes(unitRect())
+	phase := ax.PhaseSpectrum(x, opts)
+	if phase == nil || phase.Line == nil {
+		t.Fatal("PhaseSpectrum() returned nil")
+	}
+	if len(phase.Frequencies) != 33 || len(phase.Values) != 33 {
+		t.Fatalf("PhaseSpectrum bins = (%d, %d), want 33", len(phase.Frequencies), len(phase.Values))
+	}
+}
+
+func TestMagnitudeSpectrumSidesScaleAndFrequencyOffset(t *testing.T) {
+	samples := make([]float64, 8)
+	for i := range samples {
+		samples[i] = math.Cos(2 * math.Pi * float64(i) / float64(len(samples)))
+	}
+
+	freqs, values := computeMagnitudeSpectrum(samples, SignalSpectrumOptions{
+		Fs:     8,
+		Window: "none",
+		Sides:  SignalSpectrumSidesTwoSided,
+		Scale:  SignalSpectrumScaleDB,
+		Fc:     10,
+	})
+
+	wantFreqs := []float64{6, 7, 8, 9, 10, 11, 12, 13}
+	if len(freqs) != len(wantFreqs) {
+		t.Fatalf("frequency count = %d, want %d", len(freqs), len(wantFreqs))
+	}
+	for i, want := range wantFreqs {
+		if math.Abs(freqs[i]-want) > 1e-12 {
+			t.Fatalf("freq[%d] = %v, want %v", i, freqs[i], want)
+		}
+	}
+
+	wantPeak := 20 * math.Log10(0.5)
+	if math.Abs(values[3]-wantPeak) > 1e-10 {
+		t.Fatalf("negative peak magnitude dB = %v, want %v", values[3], wantPeak)
+	}
+	if math.Abs(values[5]-wantPeak) > 1e-10 {
+		t.Fatalf("positive peak magnitude dB = %v, want %v", values[5], wantPeak)
+	}
+}
+
+func TestSpectrumDetrendMeanRemovesConstantComponent(t *testing.T) {
+	freqs, values := computeMagnitudeSpectrum([]float64{3, 3, 3, 3}, SignalSpectrumOptions{
+		Fs:      4,
+		Window:  "none",
+		Detrend: SignalDetrendMean,
+	})
+	if len(freqs) != 3 || len(values) != 3 {
+		t.Fatalf("spectrum size = (%d, %d), want 3", len(freqs), len(values))
+	}
+	for i, value := range values {
+		if math.Abs(value) > 1e-12 {
+			t.Fatalf("detrended magnitude[%d] = %v, want 0", i, value)
+		}
+	}
+}
+
+func TestUnwrapPhaseAngles(t *testing.T) {
+	angles := []float64{0, 3.0, -3.0, -2.8, 2.9}
+
+	unwrapPhaseAngles(angles)
+
+	want := []float64{0, 3.0, -3.0 + 2*math.Pi, -2.8 + 2*math.Pi, 2.9}
+	for i := range want {
+		if math.Abs(angles[i]-want[i]) > 1e-12 {
+			t.Fatalf("unwrapped angle[%d] = %v, want %v", i, angles[i], want[i])
+		}
+	}
+}
+
 func dominantFrequency(freqs []float64, spectrum [][]float64) float64 {
 	bestIndex := -1
 	bestValue := math.Inf(-1)

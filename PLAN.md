@@ -971,29 +971,51 @@ Phase 10 closure notes:
 
 ### 11.1 Normalization Model
 
-- [ ] Add a backend-independent `Normalize` model covering linear `Normalize`, `NoNorm`, `LogNorm`, `SymLogNorm`, `PowerNorm`, `TwoSlopeNorm`, `CenteredNorm`, and `BoundaryNorm`.
-- [ ] Preserve Matplotlib validation behavior for conflicting `norm`, `vmin`, and `vmax` inputs.
-- [ ] Add masked, bad, under, and over color handling in scalar mapping and colorbars.
-- [ ] Make `Image2D`, `QuadMesh`, `PolyCollection`, `ContourSet`, `HexbinCollection`, `TriColor`, and `StreamplotSet` expose consistent scalar-mappable state.
+- [x] Add a backend-independent `Normalize` model covering linear `Normalize`, `NoNorm`, `LogNorm`, `SymLogNorm`, `PowerNorm`, `TwoSlopeNorm`, `CenteredNorm`, and `BoundaryNorm`.
+- [x] Preserve Matplotlib validation behavior for conflicting `norm`, `vmin`, and `vmax` inputs.
+- [x] Add masked, bad, under, and over color handling in scalar mapping; colorbar extension rendering remains tracked in 11.2.
+- [x] Make `Image2D`, `QuadMesh`, `PolyCollection`, `ContourSet`, `HexbinCollection`, `TriColor`, and `StreamplotSet` expose consistent scalar-mappable state.
+
+Completed notes:
+
+- Added `core.ScalarNormalizer` and backend-independent norm implementations for linear, no-op/index, log, symlog, power, diverging/two-slope, centered, and boundary normalization.
+- Added `ScalarMapConfig`/`ResolveScalarMapValues`/`ResolveScalarMapGrid` so explicit norms autoscale through a shared path and `norm` with `vmin`/`vmax` is rejected consistently.
+- Routed `Image2D`, `PColorMesh`/`QuadMesh`, `Hist2D`, `TriColor`, `ContourSet` fills, `HexbinCollection`, collection scalar metadata, and `StreamplotSet` scalar metadata through shared scalar-map state.
+- Reused colormap bad/under/over support from scalar mapping so masked and non-finite mesh/image values no longer require plot-specific fallbacks; colorbar under/over extension geometry and norm-specific ticks remain in 11.2.
 
 ### 11.2 Colormap and Colorbar Depth
 
-- [ ] Add colormap registration, reversal, copying, and bad/under/over color mutation APIs close enough for common Matplotlib migration paths.
-- [ ] Match colorbar tick locator/formatter behavior for linear, log, boundary, and categorical-like norms.
-- [ ] Support colorbar extension triangles/rectangles for under/over ranges.
-- [ ] Add reference fixtures for `BoundaryNorm` pcolormesh, `LogNorm` imshow, diverging `TwoSlopeNorm`, and colorbar extension behavior.
+- [x] Add colormap registration, reversal, copying, and bad/under/over color mutation APIs close enough for common Matplotlib migration paths.
+- [x] Match colorbar tick locator/formatter behavior for linear, log, boundary, and categorical-like norms.
+- [x] Support colorbar extension triangles/rectangles for under/over ranges.
+- [x] Add reference fixtures for `BoundaryNorm` pcolormesh, `LogNorm` imshow, diverging `TwoSlopeNorm`, and colorbar extension behavior.
+
+Completed notes:
+
+- Added `Colormap.Copy`, `Colormap.Reversed`, and in-place `SetBad`/`SetUnder`/`SetOver` methods while preserving the existing immutable `WithBad`/`WithUnder`/`WithOver` helpers and runtime registration path.
+- Colorbars now retain scalar-mappable `ScalarMapInfo`, configure right-side log ticks/formatters for `LogNorm`, and use boundary values as fixed colorbar ticks for `BoundaryNorm`.
+- Added colorbar extension drawing for `Extend: "min"`, `"max"`, and `"both"` with under/over colormap colors.
+- Added focused unit coverage for colormap copy/reversal/mutation APIs, log and boundary colorbar tick configuration, and colorbar extension geometry.
+- Added committed Go golden and Matplotlib reference fixtures for `boundarynorm_pcolormesh`, `lognorm_imshow`, `twoslope_norm_image`, and `colorbar_extensions`. Fresh reference comparisons: `boundarynorm_pcolormesh` PSNR 42.08 / MeanAbs 4.49, `lognorm_imshow` PSNR 41.95 / MeanAbs 5.03, `twoslope_norm_image` PSNR 41.25 / MeanAbs 3.81, `colorbar_extensions` PSNR 42.79 / MeanAbs 3.14.
 
 ### 11.3 Plot Category Integration
 
-- [ ] Route `imshow`, `matshow`, `pcolor`, `pcolormesh`, `contourf`, `tripcolor`, `hexbin`, `hist2d`, `quiver`, `barbs`, and `streamplot` through the shared normalizer.
-- [ ] Ensure legends and colorbars can infer scalar-mappable metadata consistently from all color-mapped artists.
-- [ ] Document unsupported normalization modes explicitly until they are implemented.
+- [x] Route `imshow`, `matshow`, `pcolor`, `pcolormesh`, `contourf`, `tripcolor`, `hexbin`, `hist2d`, `quiver`, `barbs`, and `streamplot` through the shared normalizer.
+- [x] Ensure legends and colorbars can infer scalar-mappable metadata consistently from all color-mapped artists.
+- [x] Document unsupported normalization modes explicitly until they are implemented.
+
+Completed notes:
+
+- Added `Norm` forwarding to `MatShowOptions`/`ImShowOptions` and routed both helpers through the shared `Image2D` scalar-map path.
+- Routed scalar-colored `Quiver`, `QuiverGrid`, `Barbs`, and `BarbsGrid` through `ResolveScalarMapValues`, preserving norm metadata for legends and colorbars.
+- Added streamplot scalar coloring via `CGrid`, with scalar interpolation along streamline segments and arrows, and a line-collection scalar-map fallback when arrows are disabled.
+- The Phase 11 built-in normalizer set is implemented: linear `Normalize`, `NoNorm`, `LogNorm`, `SymLogNorm`, `PowerNorm`, `TwoSlopeNorm`, `CenteredNorm`, and `BoundaryNorm`. Custom Matplotlib norm subclasses do not have a direct porting layer; Go callers can implement `ScalarNormalizer` explicitly.
 
 **Exit Criteria:**
 
-- [ ] Color-mapped plot categories use the same normalization and colormap semantics.
-- [ ] Colorbar behavior is driven by scalar-mappable state rather than plot-specific shortcuts.
-- [ ] Matplotlib-reference fixtures cover linear, log, boundary, diverging, masked, bad, under, and over color behavior.
+- [x] Color-mapped plot categories use the same normalization and colormap semantics.
+- [x] Colorbar behavior is driven by scalar-mappable state rather than plot-specific shortcuts.
+- [x] Matplotlib-reference fixtures cover linear, log, boundary, diverging, masked, bad, under, and over color behavior.
 
 ---
 
@@ -1003,31 +1025,53 @@ Phase 10 closure notes:
 
 ### 12.1 Convenience Plot Entry Points
 
-- [ ] Add `SemilogX`, `SemilogY`, and `LogLog` helpers that mirror Matplotlib's scale-setting side effects while reusing `Axes.Plot`.
-- [ ] Add `PlotDate` or an explicit date-plot helper that preserves existing units/date converter behavior while matching Matplotlib's common migration path.
-- [ ] Add `Fill` for arbitrary closed polygon fills, distinct from `FillBetween` and patch helpers.
-- [ ] Add direct `BarH` convenience API if horizontal bars remain option-only in `Axes.Bar`.
-- [ ] Add pyplot wrappers for any object-oriented helpers already present but missing from `pyplot`.
+- [x] Add `SemilogX`, `SemilogY`, and `LogLog` helpers that mirror Matplotlib's scale-setting side effects while reusing `Axes.Plot`.
+- [x] Add `PlotDate` or an explicit date-plot helper that preserves existing units/date converter behavior while matching Matplotlib's common migration path.
+- [x] Add `Fill` for arbitrary closed polygon fills, distinct from `FillBetween` and patch helpers.
+- [x] Add direct `BarH` convenience API if horizontal bars remain option-only in `Axes.Bar`.
+- [x] Add pyplot wrappers for any object-oriented helpers already present but missing from `pyplot`.
 
 ### 12.2 Signal and Spectrum Variants
 
-- [ ] Add `MagnitudeSpectrum`, `AngleSpectrum`, and `PhaseSpectrum` equivalents alongside existing `Specgram`, `PSD`, `CSD`, `Cohere`, `XCorr`, and `ACorr`.
-- [ ] Align FFT windowing, detrending, scaling, sides, and dB behavior with upstream `matplotlib.mlab`/`Axes` helper behavior where practical.
-- [ ] Add Matplotlib-reference fixtures for spectrum variants and representative parameter combinations.
+- [x] Add `MagnitudeSpectrum`, `AngleSpectrum`, and `PhaseSpectrum` equivalents alongside existing `Specgram`, `PSD`, `CSD`, `Cohere`, `XCorr`, and `ACorr`.
+- [x] Align FFT windowing, detrending, scaling, sides, and dB behavior with upstream `matplotlib.mlab`/`Axes` helper behavior where practical.
+- [x] Add Matplotlib-reference fixtures for spectrum variants and representative parameter combinations.
+
+Current slice:
+
+- Added object-oriented and pyplot convenience wrappers for `semilogx`, `semilogy`, `loglog`, `plot_date`, `fill`, and `barh`, backed by existing plot, units, polygon collection, and bar implementations.
+- Added one-sided `magnitude_spectrum`, `angle_spectrum`, and unwrapped `phase_spectrum` helpers over the existing FFT utility path, with focused unit coverage for frequency bins and phase unwrapping.
+- Aligned spectrum variants with Matplotlib's single-segment helper path: full-input FFT by default, `Fs`/`Fc`, Hanning or named windowing, mean/linear detrending, one-sided/two-sided frequency selection, and linear/dB magnitude scaling. FFT execution is now backed by the local `../algo-fft` module, and the repository Go floor is raised to 1.25 accordingly.
+- Added `spectrum_variants` Go golden and Matplotlib-reference fixture covering magnitude dB scaling, two-sided angle spectra with `Fc`, and one-sided unwrapped phase spectra.
 
 ### 12.3 Statistical and Specialty Depth
 
-- [ ] Expand `ErrorBar` to support Matplotlib limit indicators (`uplims`, `lolims`, `xuplims`, `xlolims`) and asymmetric error shape validation.
-- [ ] Add deeper `BoxPlot` options: notch behavior, bootstrap/confidence intervals, custom medians/confidence intervals, whisker percentiles, and flier customization.
-- [ ] Expand `Violinplot` options for side selection, quantiles, custom bandwidth methods, and orientation aliases.
-- [ ] Expand `Pie` with label-rotation, normalization controls, shadow dictionaries, hatch support, and `pie_label`-style post-labeling.
-- [ ] Expand `Hexbin` with log bins, `xscale`/`yscale` behavior, marginal histograms, and reducer behavior beyond the current common reducers.
+- [x] Expand `ErrorBar` to support Matplotlib limit indicators (`uplims`, `lolims`, `xuplims`, `xlolims`) and asymmetric error shape validation.
+- [x] Add deeper `BoxPlot` options: notch behavior, bootstrap/confidence intervals, custom medians/confidence intervals, whisker percentiles, and flier customization.
+- [x] Expand `Violinplot` options for side selection, quantiles, custom bandwidth methods, and orientation aliases.
+- [x] Expand `Pie` with label-rotation, normalization controls, shadow dictionaries, hatch support, and `pie_label`-style post-labeling.
+- [x] Expand `Hexbin` with log bins, `xscale`/`yscale` behavior, marginal histograms, and reducer behavior beyond the current common reducers.
+
+Current slice:
+
+- Added asymmetric `ErrorBar` range fields, per-point limit flags, and validation for negative or shape-mismatched error arrays.
+- Added `BoxPlot` notch/stat override fields, custom confidence intervals and medians, percentile whiskers, and flier marker/edge styling.
+- Added `Violinplot` horizontal orientation aliases, low/high/both side selection, quantile line collections, and Scott/Silverman/numeric bandwidth method selection.
+- Added `Pie` normalization control, wedge hatching, simple shadow wedges, stored label rotation angles, and `PieLabel`/`pyplot.PieLabel` post-labeling.
+- Added `Hexbin` log-bin normalization, log-scale axis side effects, min/max reducers, bin discretization, and optional marginal bar collections.
 
 **Exit Criteria:**
 
-- [ ] Common Matplotlib 2D plot-type entry points have either a direct Go API or an explicitly documented lower-level migration path.
-- [ ] New helpers are covered by unit tests and at least one Matplotlib-reference fixture per plot family.
-- [ ] Existing lower-level implementations are not duplicated by convenience wrappers.
+- [x] Common Matplotlib 2D plot-type entry points have either a direct Go API or an explicitly documented lower-level migration path.
+- [x] New helpers are covered by unit tests and at least one Matplotlib-reference fixture per plot family.
+- [x] Existing lower-level implementations are not duplicated by convenience wrappers.
+
+Exit notes:
+
+- Phase 12 plot families now have direct object-oriented APIs and pyplot wrappers where stateful coverage is expected: semilog/loglog/date/fill/barh, spectrum variants, errorbar depth, boxplot depth, violin depth, pie label helpers, and hexbin depth.
+- Unit coverage spans the new direct helpers and option paths, including asymmetric errorbar limits, boxplot statistical overrides, violin side/orientation/quantiles, pie post-labeling, and hexbin log/reducer/marginal handling.
+- Matplotlib-reference coverage includes existing basic family fixtures plus `spectrum_variants` and `phase12_specialty_depth`, the latter exercising the Phase 12.3 errorbar, boxplot, violin, pie, and hexbin depth paths in one reference image.
+- Convenience wrappers continue to delegate to the lower-level artists/builders rather than duplicating rendering implementations.
 
 ---
 

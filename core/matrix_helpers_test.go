@@ -46,6 +46,22 @@ func TestAxesMatShowConfiguresMatrixView(t *testing.T) {
 	}
 }
 
+func TestAxesMatShowAcceptsSharedNorm(t *testing.T) {
+	fig := NewFigure(400, 300)
+	ax := fig.AddAxes(unitRect())
+
+	img := ax.MatShow([][]float64{
+		{1, 10},
+		{100, 1000},
+	}, MatShowOptions{Norm: LogNorm{VMin: 1, VMax: 1000}})
+	if img == nil {
+		t.Fatal("MatShow() returned nil")
+	}
+	if img.Norm == nil || img.Norm.NormName() != "log" {
+		t.Fatalf("MatShow norm = %#v, want log norm", img.Norm)
+	}
+}
+
 func TestAxesImShowKeepsBottomXAxis(t *testing.T) {
 	fig := NewFigure(400, 300)
 	ax := fig.AddAxes(unitRect())
@@ -71,6 +87,22 @@ func TestAxesImShowKeepsBottomXAxis(t *testing.T) {
 	}
 	if ax.XAxisTop != nil {
 		t.Fatal("ImShow() should not create a top x-axis")
+	}
+}
+
+func TestAxesImShowAcceptsSharedNorm(t *testing.T) {
+	fig := NewFigure(400, 300)
+	ax := fig.AddAxes(unitRect())
+
+	img := ax.ImShow([][]float64{
+		{1, 10},
+		{100, 1000},
+	}, ImShowOptions{Norm: LogNorm{VMin: 1, VMax: 1000}})
+	if img == nil {
+		t.Fatal("ImShow() returned nil")
+	}
+	if img.Norm == nil || img.Norm.NormName() != "log" {
+		t.Fatalf("ImShow norm = %#v, want log norm", img.Norm)
 	}
 }
 

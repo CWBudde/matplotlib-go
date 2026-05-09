@@ -10,6 +10,7 @@ import (
 // MatShowOptions configures Axes.MatShow.
 type MatShowOptions struct {
 	Colormap     *string
+	Norm         ScalarNormalizer
 	VMin         *float64
 	VMax         *float64
 	Alpha        *float64
@@ -24,6 +25,7 @@ type MatShowOptions struct {
 // (third_party/matplotlib/lib/matplotlib/axes/_axes.py:6149).
 type ImShowOptions struct {
 	Colormap *string
+	Norm     ScalarNormalizer
 	VMin     *float64
 	VMax     *float64
 	Alpha    *float64
@@ -36,8 +38,6 @@ type ImShowOptions struct {
 	// Interpolation selects the resampling filter (e.g. "nearest",
 	// "bilinear", "bicubic"). Empty defers to the renderer default.
 	Interpolation *string
-	// TODO(plan #3 task 3): add Norm Normalizer once log/symlog
-	// normalizers exist. Linear scaling is already covered by VMin/VMax.
 }
 
 // SpyOptions configures Axes.Spy.
@@ -92,6 +92,9 @@ func (a *Axes) MatShow(data [][]float64, opts ...MatShowOptions) *Image2D {
 		if opt.Colormap != nil {
 			cfg.Colormap = opt.Colormap
 		}
+		if opt.Norm != nil {
+			cfg.Norm = opt.Norm
+		}
 		if opt.VMin != nil {
 			cfg.VMin = opt.VMin
 		}
@@ -118,6 +121,7 @@ func (a *Axes) MatShow(data [][]float64, opts ...MatShowOptions) *Image2D {
 	yMax := float64(rows) - 0.5
 	img := a.Image(data, ImageOptions{
 		Colormap: cfg.Colormap,
+		Norm:     cfg.Norm,
 		VMin:     cfg.VMin,
 		VMax:     cfg.VMax,
 		Alpha:    cfg.Alpha,
@@ -164,6 +168,9 @@ func (a *Axes) ImShow(data [][]float64, opts ...ImShowOptions) *Image2D {
 		if opt.Colormap != nil {
 			cfg.Colormap = opt.Colormap
 		}
+		if opt.Norm != nil {
+			cfg.Norm = opt.Norm
+		}
 		if opt.VMin != nil {
 			cfg.VMin = opt.VMin
 		}
@@ -196,6 +203,7 @@ func (a *Axes) ImShow(data [][]float64, opts ...ImShowOptions) *Image2D {
 	}
 	img := a.Image(data, ImageOptions{
 		Colormap:      cfg.Colormap,
+		Norm:          cfg.Norm,
 		VMin:          cfg.VMin,
 		VMax:          cfg.VMax,
 		Alpha:         cfg.Alpha,

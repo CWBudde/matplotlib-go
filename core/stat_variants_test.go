@@ -71,6 +71,40 @@ func TestAxesBoxPlots_CreatesMultipleBoxes(t *testing.T) {
 	}
 }
 
+func TestAxesBoxPlot_AdvancedStatOptions(t *testing.T) {
+	ax := NewFigure(640, 360).AddAxes(geom.Rect{})
+	notch := true
+	ci := [2]float64{2.8, 3.2}
+	median := 3.0
+	whis := [2]float64{0, 100}
+	marker := MarkerDiamond
+	edge := render.Color{R: 0.2, G: 0.1, B: 0.8, A: 1}
+	edgeWidth := 1.75
+
+	box := ax.BoxPlot([]float64{1, 2, 3, 4, 100}, BoxPlotOptions{
+		Notch:              &notch,
+		ConfidenceInterval: &ci,
+		CustomMedian:       &median,
+		WhiskerPercentiles: &whis,
+		FlierMarker:        &marker,
+		FlierEdgeColor:     &edge,
+		FlierEdgeWidth:     &edgeWidth,
+	})
+	if box == nil {
+		t.Fatal("expected box plot")
+	}
+	box.ensureComputed()
+	if !box.Notch || box.stats.median != median || box.stats.ciLow != ci[0] || box.stats.ciHigh != ci[1] {
+		t.Fatalf("advanced stats not applied: notch=%v stats=%+v", box.Notch, box.stats)
+	}
+	if box.stats.lowerWhisker != 1 || box.stats.upperWhisker != 100 || len(box.stats.outliers) != 0 {
+		t.Fatalf("percentile whiskers not applied: %+v", box.stats)
+	}
+	if box.FlierMarker != marker || box.FlierEdgeColor != edge || box.FlierEdgeWidth != edgeWidth {
+		t.Fatalf("flier customization not applied: marker=%v edge=%+v width=%v", box.FlierMarker, box.FlierEdgeColor, box.FlierEdgeWidth)
+	}
+}
+
 func TestAxesECDF_ComputesSortedStepData(t *testing.T) {
 	ax := NewFigure(640, 360).AddAxes(geom.Rect{})
 

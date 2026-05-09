@@ -168,6 +168,16 @@ func (a *Axes) PlotUnits(xVals, yVals any, opts ...PlotOptions) (*Line2D, error)
 	return a.Plot(x, y, opts...), nil
 }
 
+// PlotDate plots date-time x-values against numeric y-values and configures the
+// x-axis with date locators/formatters.
+func (a *Axes) PlotDate(xVals []time.Time, yVals []float64, opts ...PlotOptions) *Line2D {
+	line, err := a.PlotUnits(xVals, yVals, opts...)
+	if err != nil {
+		return nil
+	}
+	return line
+}
+
 // ScatterUnits converts non-float slice data using the axis units machinery
 // and then draws a standard scatter artist.
 func (a *Axes) ScatterUnits(xVals, yVals any, opts ...ScatterOptions) (*Scatter2D, error) {

@@ -148,3 +148,39 @@ func TestAxes_ErrorBar_Options(t *testing.T) {
 		t.Errorf("expected alpha %v, got %v", alpha, errBar.Alpha)
 	}
 }
+
+func TestAxes_ErrorBar_AsymmetricLimitsAndValidation(t *testing.T) {
+	ax := NewFigure(640, 360).AddAxes(geom.Rect{})
+
+	errBar := ax.ErrorBar(
+		[]float64{10},
+		[]float64{5},
+		[]float64{1},
+		[]float64{2},
+		ErrorBarOptions{
+			XErrLower: []float64{2},
+			XErrUpper: []float64{3},
+			YErrLower: []float64{1},
+			YErrUpper: []float64{4},
+			XLoLimits: []bool{true},
+			UpLimits:  []bool{true},
+		},
+	)
+	if errBar == nil {
+		t.Fatal("expected asymmetric errorbar")
+	}
+	if got, want := errBar.XErrLower[0], 2.0; got != want {
+		t.Fatalf("x lower = %v, want %v", got, want)
+	}
+	bounds := errBar.Bounds(nil)
+	if bounds.Min.X != 10 || bounds.Max.X != 13 || bounds.Min.Y != 4 || bounds.Max.Y != 5 {
+		t.Fatalf("bounds = %+v, want x[10,13] y[4,5]", bounds)
+	}
+
+	if got := ax.ErrorBar([]float64{1, 2}, []float64{1, 2}, []float64{-1}, nil); got != nil {
+		t.Fatal("negative symmetric errors should be rejected")
+	}
+	if got := ax.ErrorBar([]float64{1, 2}, []float64{1, 2}, nil, nil, ErrorBarOptions{YErrUpper: []float64{1, 2, 3}}); got != nil {
+		t.Fatal("asymmetric errors with invalid length should be rejected")
+	}
+}

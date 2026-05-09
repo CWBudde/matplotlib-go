@@ -108,6 +108,85 @@ func TestColorbarDrawRendersGradientAndTickLabels(t *testing.T) {
 	}
 }
 
+func TestFigureAddColorbarUsesLogNormTicks(t *testing.T) {
+	fig := NewFigure(900, 600)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.10, Y: 0.12},
+		Max: geom.Pt{X: 0.78, Y: 0.88},
+	})
+	img := ax.Image([][]float64{
+		{1, 10},
+		{10, 100},
+	}, ImageOptions{Norm: LogNorm{VMin: 1, VMax: 100}})
+
+	cbAx := fig.AddColorbar(ax, img)
+	if cbAx == nil {
+		t.Fatal("expected colorbar axes")
+	}
+	if _, ok := cbAx.YAxisRight.Locator.(LogLocator); !ok {
+		t.Fatalf("right colorbar locator = %T, want LogLocator", cbAx.YAxisRight.Locator)
+	}
+	if _, ok := cbAx.YAxisRight.Formatter.(LogFormatter); !ok {
+		t.Fatalf("right colorbar formatter = %T, want LogFormatter", cbAx.YAxisRight.Formatter)
+	}
+	yMin, yMax := cbAx.YScale.Domain()
+	if yMin != 1 || yMax != 100 {
+		t.Fatalf("log colorbar domain = %v..%v, want 1..100", yMin, yMax)
+	}
+}
+
+func TestFigureAddColorbarUsesBoundaryNormTicks(t *testing.T) {
+	fig := NewFigure(900, 600)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.10, Y: 0.12},
+		Max: geom.Pt{X: 0.78, Y: 0.88},
+	})
+	mesh := ax.PColorMesh([][]float64{{0.5, 1.5}}, MeshOptions{
+		Norm: BoundaryNorm{Boundaries: []float64{0, 1, 2}, NColors: 3},
+	})
+
+	cbAx := fig.AddColorbar(ax, mesh)
+	if cbAx == nil {
+		t.Fatal("expected colorbar axes")
+	}
+	loc, ok := cbAx.YAxisRight.Locator.(FixedLocator)
+	if !ok {
+		t.Fatalf("right colorbar locator = %T, want FixedLocator", cbAx.YAxisRight.Locator)
+	}
+	want := []float64{0, 1, 2}
+	if len(loc.TicksList) != len(want) {
+		t.Fatalf("boundary ticks = %v, want %v", loc.TicksList, want)
+	}
+	for i := range want {
+		if loc.TicksList[i] != want[i] {
+			t.Fatalf("boundary tick %d = %v, want %v", i, loc.TicksList[i], want[i])
+		}
+	}
+}
+
+func TestColorbarDrawAddsExtensionTriangles(t *testing.T) {
+	var r colorbarRecordingRenderer
+	clip := geom.Rect{
+		Min: geom.Pt{X: 10, Y: 20},
+		Max: geom.Pt{X: 42, Y: 80},
+	}
+
+	(&Colorbar{
+		Mapping:     ScalarMapInfo{Colormap: "gray", VMin: 0, VMax: 1}.Resolved(),
+		Extend:      "both",
+		Alpha:       1,
+		BorderColor: render.Color{A: 1},
+		BorderWidth: 1,
+	}).Draw(&r, &DrawContext{Clip: clip})
+
+	if len(r.paths) != 259 {
+		t.Fatalf("path count = %d, want 256 cells plus 2 extensions plus outline", len(r.paths))
+	}
+	if len(r.paths[0].V) < 3 || len(r.paths[1].V) < 3 {
+		t.Fatalf("extension paths should be triangles, got first lens %d and %d", len(r.paths[0].V), len(r.paths[1].V))
+	}
+}
+
 func TestColorbarDrawSnapsRangeLegendToPixels(t *testing.T) {
 	var r colorbarRecordingRenderer
 	clip := geom.Rect{

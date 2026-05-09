@@ -3,6 +3,8 @@ package core
 import (
 	"math"
 	"math/cmplx"
+
+	algofft "github.com/cwbudde/algo-fft"
 )
 
 // SpecgramOptions configures Axes.Specgram.
@@ -23,12 +25,44 @@ type SpecgramOptions struct {
 // SignalSpectrumOptions configures PSD/CSD/coherence helpers.
 type SignalSpectrumOptions struct {
 	Fs       float64
+	Fc       float64
 	NFFT     int
 	NOverlap int
 	PadTo    int
 	Window   string
+	Detrend  SignalDetrend
+	Sides    SignalSpectrumSides
+	Scale    SignalSpectrumScale
 	PlotOptions
 }
+
+// SignalDetrend configures per-segment detrending before FFT calculation.
+type SignalDetrend string
+
+const (
+	SignalDetrendNone   SignalDetrend = "none"
+	SignalDetrendMean   SignalDetrend = "mean"
+	SignalDetrendLinear SignalDetrend = "linear"
+)
+
+// SignalSpectrumSides configures whether FFT helpers return one or both sides
+// of the spectrum.
+type SignalSpectrumSides string
+
+const (
+	SignalSpectrumSidesDefault  SignalSpectrumSides = ""
+	SignalSpectrumSidesOneSided SignalSpectrumSides = "onesided"
+	SignalSpectrumSidesTwoSided SignalSpectrumSides = "twosided"
+)
+
+// SignalSpectrumScale configures magnitude-spectrum value scaling.
+type SignalSpectrumScale string
+
+const (
+	SignalSpectrumScaleDefault SignalSpectrumScale = ""
+	SignalSpectrumScaleLinear  SignalSpectrumScale = "linear"
+	SignalSpectrumScaleDB      SignalSpectrumScale = "dB"
+)
 
 // CorrelationOptions configures Axes.XCorr and Axes.ACorr.
 type CorrelationOptions struct {
@@ -130,6 +164,49 @@ func (a *Axes) PSD(samples []float64, opts ...SignalSpectrumOptions) *SpectrumRe
 	samples = finiteSeries(samples)
 	freqs, psd := computePSD(samples, cfg)
 	return plotSpectrumResult(a, freqs, psd, cfg.PlotOptions)
+}
+
+// MagnitudeSpectrum computes a one-sided FFT magnitude spectrum and plots it.
+func (a *Axes) MagnitudeSpectrum(samples []float64, opts ...SignalSpectrumOptions) *SpectrumResult {
+	cfg := SignalSpectrumOptions{}
+	if len(opts) > 0 {
+		cfg = opts[0]
+	}
+	samples = finiteSeries(samples)
+	freqs, values := computeMagnitudeSpectrum(samples, cfg)
+	a.SetXLabel("Frequency")
+	if cfg.Scale == SignalSpectrumScaleDB {
+		a.SetYLabel("Magnitude (dB)")
+	} else {
+		a.SetYLabel("Magnitude (energy)")
+	}
+	return plotSpectrumResult(a, freqs, values, cfg.PlotOptions)
+}
+
+// AngleSpectrum computes a one-sided FFT phase angle spectrum in radians.
+func (a *Axes) AngleSpectrum(samples []float64, opts ...SignalSpectrumOptions) *SpectrumResult {
+	cfg := SignalSpectrumOptions{}
+	if len(opts) > 0 {
+		cfg = opts[0]
+	}
+	samples = finiteSeries(samples)
+	freqs, values := computeAngleSpectrum(samples, cfg)
+	a.SetXLabel("Frequency")
+	a.SetYLabel("Angle (radians)")
+	return plotSpectrumResult(a, freqs, values, cfg.PlotOptions)
+}
+
+// PhaseSpectrum computes a one-sided unwrapped FFT phase spectrum in radians.
+func (a *Axes) PhaseSpectrum(samples []float64, opts ...SignalSpectrumOptions) *SpectrumResult {
+	cfg := SignalSpectrumOptions{}
+	if len(opts) > 0 {
+		cfg = opts[0]
+	}
+	samples = finiteSeries(samples)
+	freqs, values := computePhaseSpectrum(samples, cfg)
+	a.SetXLabel("Frequency")
+	a.SetYLabel("Phase (radians)")
+	return plotSpectrumResult(a, freqs, values, cfg.PlotOptions)
 }
 
 // CSD computes the magnitude of the cross spectral density estimate and plots it.
@@ -301,6 +378,158 @@ func computeCSDMagnitude(x, y []float64, opts SignalSpectrumOptions) ([]float64,
 		out[i] /= float64(len(segmentsX))
 	}
 	return fftFrequencies(cfg.Fs, cfg.PadTo), out
+}
+
+func computeMagnitudeSpectrum(samples []float64, opts SignalSpectrumOptions) ([]float64, []float64) {
+	freqs, coeffs := computeSingleSpectrum(samples, opts)
+	if len(coeffs) == 0 {
+		return nil, nil
+	}
+	window := signalWindow(opts.Window, resolvedSingleSpectrumNFFT(len(samples), opts.NFFT))
+	scale := windowSum(window)
+	out := make([]float64, len(coeffs))
+	for i, coeff := range coeffs {
+		value := cmplx.Abs(coeff) / scale
+		if opts.Scale == SignalSpectrumScaleDB {
+			if value <= 0 {
+				value = -120
+			} else {
+				value = 20 * math.Log10(value)
+			}
+		}
+		out[i] = value
+	}
+	return freqs, out
+}
+
+func computeAngleSpectrum(samples []float64, opts SignalSpectrumOptions) ([]float64, []float64) {
+	freqs, coeffs := computeSingleSpectrum(samples, opts)
+	if len(coeffs) == 0 {
+		return nil, nil
+	}
+	out := make([]float64, len(coeffs))
+	for i, coeff := range coeffs {
+		out[i] = cmplx.Phase(coeff)
+	}
+	return freqs, out
+}
+
+func computePhaseSpectrum(samples []float64, opts SignalSpectrumOptions) ([]float64, []float64) {
+	freqs, angles := computeAngleSpectrum(samples, opts)
+	if len(angles) == 0 {
+		return nil, nil
+	}
+	unwrapPhaseAngles(angles)
+	return freqs, angles
+}
+
+func unwrapPhaseAngles(angles []float64) {
+	if len(angles) < 2 {
+		return
+	}
+	offset := 0.0
+	previousRaw := angles[0]
+	for i := 1; i < len(angles); i++ {
+		raw := angles[i]
+		delta := raw - previousRaw
+		if delta > math.Pi {
+			offset -= 2 * math.Pi
+		} else if delta < -math.Pi {
+			offset += 2 * math.Pi
+		}
+		angles[i] = raw + offset
+		previousRaw = raw
+	}
+}
+
+func computeSingleSpectrum(samples []float64, opts SignalSpectrumOptions) ([]float64, []complex128) {
+	fs, nfft, padTo, ok := resolveSingleSpectrumParams(len(samples), opts.Fs, opts.NFFT, opts.PadTo)
+	if !ok {
+		return nil, nil
+	}
+	segment := singleSegment(samples, nfft)
+	segment = detrendSeries(segment, opts.Detrend)
+	segment = applyWindow(segment, signalWindow(opts.Window, nfft))
+	coeffs := fullDFT(segment, padTo)
+	freqs, coeffs := selectSpectrumSides(coeffs, fs, opts.Fc, opts.Sides)
+	return freqs, coeffs
+}
+
+func resolveSingleSpectrumParams(length int, fs float64, nfft, padTo int) (float64, int, int, bool) {
+	if length < 2 {
+		return 0, 0, 0, false
+	}
+	if fs <= 0 {
+		fs = 2
+	}
+	if nfft <= 0 {
+		nfft = length
+	}
+	if nfft < 2 {
+		return 0, 0, 0, false
+	}
+	if padTo < nfft {
+		padTo = nfft
+	}
+	return fs, nfft, padTo, true
+}
+
+func resolvedSingleSpectrumNFFT(length, nfft int) int {
+	if nfft > 0 {
+		return nfft
+	}
+	return length
+}
+
+func singleSegment(samples []float64, nfft int) []float64 {
+	segment := make([]float64, nfft)
+	copy(segment, samples)
+	return segment
+}
+
+func detrendSeries(values []float64, mode SignalDetrend) []float64 {
+	out := append([]float64(nil), values...)
+	switch mode {
+	case SignalDetrendMean:
+		mean := 0.0
+		for _, value := range out {
+			mean += value
+		}
+		mean /= float64(len(out))
+		for i := range out {
+			out[i] -= mean
+		}
+	case SignalDetrendLinear:
+		n := float64(len(out))
+		if n <= 1 {
+			for i := range out {
+				out[i] = 0
+			}
+			return out
+		}
+		xMean := (n - 1) * 0.5
+		yMean := 0.0
+		for _, value := range out {
+			yMean += value
+		}
+		yMean /= n
+		variance := 0.0
+		covariance := 0.0
+		for i, value := range out {
+			dx := float64(i) - xMean
+			variance += dx * dx
+			covariance += dx * (value - yMean)
+		}
+		if variance == 0 {
+			return out
+		}
+		slope := covariance / variance
+		intercept := yMean - slope*xMean
+		for i := range out {
+			out[i] -= slope*float64(i) + intercept
+		}
+	}
+	return out
 }
 
 func computeCoherence(x, y []float64, opts SignalSpectrumOptions) ([]float64, []float64) {
@@ -547,6 +776,17 @@ func windowPower(window []float64) float64 {
 	return sum
 }
 
+func windowSum(window []float64) float64 {
+	sum := 0.0
+	for _, value := range window {
+		sum += value
+	}
+	if sum == 0 {
+		return 1
+	}
+	return sum
+}
+
 func fftFrequencies(fs float64, n int) []float64 {
 	count := n/2 + 1
 	freqs := make([]float64, count)
@@ -572,6 +812,67 @@ func oneSidedDFTCross(x, y []float64, n int) []complex128 {
 	for i := range out {
 		out[i] = fx[i] * cmplx.Conj(fy[i])
 	}
+	return out
+}
+
+func fullDFT(samples []float64, n int) []complex128 {
+	input := make([]complex128, n)
+	for i, value := range samples {
+		if i >= n {
+			break
+		}
+		input[i] = complex(value, 0)
+	}
+	out := make([]complex128, n)
+	plan, err := algofft.NewPlan64(n)
+	if err != nil {
+		return nil
+	}
+	if err := plan.Forward(out, input); err != nil {
+		return nil
+	}
+	return out
+}
+
+func selectSpectrumSides(coeffs []complex128, fs, fc float64, sides SignalSpectrumSides) ([]float64, []complex128) {
+	n := len(coeffs)
+	if n == 0 {
+		return nil, nil
+	}
+	if sides == SignalSpectrumSidesTwoSided {
+		return twoSidedFrequencies(fs, fc, n), twoSidedCoefficients(coeffs)
+	}
+	count := n/2 + 1
+	freqs := make([]float64, count)
+	out := make([]complex128, count)
+	for i := 0; i < count; i++ {
+		freqs[i] = fc + float64(i)*fs/float64(n)
+		out[i] = coeffs[i]
+	}
+	return freqs, out
+}
+
+func twoSidedFrequencies(fs, fc float64, n int) []float64 {
+	freqs := make([]float64, n)
+	start := -n / 2
+	if n%2 != 0 {
+		start = -(n - 1) / 2
+	}
+	for i := range freqs {
+		freqs[i] = fc + float64(start+i)*fs/float64(n)
+	}
+	return freqs
+}
+
+func twoSidedCoefficients(coeffs []complex128) []complex128 {
+	n := len(coeffs)
+	center := n / 2
+	if n%2 != 0 {
+		center = (n-1)/2 + 1
+	}
+	out := make([]complex128, 0, n)
+	out = append(out, coeffs[center:]...)
+	out = append(out, coeffs[:center]...)
 	return out
 }
 

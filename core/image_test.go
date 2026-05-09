@@ -99,6 +99,18 @@ func TestAxesImage_CustomOptions(t *testing.T) {
 	}
 }
 
+func TestAxesImageRejectsNormWithVMinOrVMax(t *testing.T) {
+	vmin := 0.0
+	ax := &Axes{}
+	img := ax.Image([][]float64{{1, 2}}, ImageOptions{
+		Norm: Normalize{VMin: 1, VMax: 2},
+		VMin: &vmin,
+	})
+	if img != nil {
+		t.Fatal("expected image construction to reject explicit norm with vmin")
+	}
+}
+
 func TestImage2D_InterpolationField(t *testing.T) {
 	bilinear := "bilinear"
 	ax := &Axes{}
@@ -119,6 +131,43 @@ func TestImage2D_InterpolationDefaultsEmpty(t *testing.T) {
 	}
 	if img.Interpolation != "" {
 		t.Fatalf("default Interpolation = %q, want empty", img.Interpolation)
+	}
+}
+
+func TestImageRasterizeUsesConfiguredLogNorm(t *testing.T) {
+	cmap := "gray"
+	ax := &Axes{}
+	img := ax.Image([][]float64{{1, 10, 100}}, ImageOptions{
+		Colormap: &cmap,
+		Norm:     LogNorm{VMin: 1, VMax: 100},
+	})
+	if img == nil {
+		t.Fatal("expected image artist")
+	}
+	if img.Norm == nil || img.Norm.NormName() != "log" {
+		t.Fatalf("image norm = %#v, want log norm", img.Norm)
+	}
+
+	rendered, ok := img.rasterize()
+	if !ok {
+		t.Fatal("expected rasterization to succeed")
+	}
+	rgbaData, ok := rendered.(*render.ImageData)
+	if !ok {
+		t.Fatalf("expected render.ImageData, got %T", rendered)
+	}
+	pix := rgbaData.RGBA()
+	left := pix.RGBAAt(0, 0)
+	mid := pix.RGBAAt(1, 0)
+	right := pix.RGBAAt(2, 0)
+	if left.R != 0 || left.G != 0 || left.B != 0 {
+		t.Fatalf("log-norm low pixel = %+v, want black", left)
+	}
+	if mid.R < 126 || mid.R > 128 || mid.G < 126 || mid.G > 128 || mid.B < 126 || mid.B > 128 {
+		t.Fatalf("log-norm middle pixel = %+v, want mid gray", mid)
+	}
+	if right.R != 255 || right.G != 255 || right.B != 255 {
+		t.Fatalf("log-norm high pixel = %+v, want white", right)
 	}
 }
 

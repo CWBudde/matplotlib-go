@@ -257,6 +257,35 @@ func TestFillToBaseline(t *testing.T) {
 	}
 }
 
+func TestAxesFillCreatesClosedPolygonCollection(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	color := render.Color{R: 0.2, G: 0.4, B: 0.6, A: 0.5}
+	edge := render.Color{R: 0.1, G: 0.1, B: 0.1, A: 1}
+	edgeWidth := 1.5
+
+	fill := ax.Fill(
+		[]float64{0, 2, 1},
+		[]float64{0, 0, 3},
+		FillOptions{Color: &color, EdgeColor: &edge, EdgeWidth: &edgeWidth, Label: "triangle"},
+	)
+	if fill == nil {
+		t.Fatal("Fill() returned nil")
+	}
+	if len(fill.Polygons) != 1 || len(fill.Polygons[0]) != 3 {
+		t.Fatalf("Fill polygon size = %v, want one triangle", fill.Polygons)
+	}
+	if fill.FaceColors[0] != color {
+		t.Fatalf("Fill face color = %v, want %v", fill.FaceColors[0], color)
+	}
+	if fill.EdgeColor != edge || fill.EdgeWidth != edgeWidth {
+		t.Fatalf("Fill edge style = (%v, %v), want (%v, %v)", fill.EdgeColor, fill.EdgeWidth, edge, edgeWidth)
+	}
+	if fill.Label != "triangle" {
+		t.Fatalf("Fill label = %q, want triangle", fill.Label)
+	}
+}
+
 func TestFillPlotPreservesColorAlphaWhenAlphaOmitted(t *testing.T) {
 	fig := NewFigure(320, 240)
 	ax := fig.AddAxes(unitRect())

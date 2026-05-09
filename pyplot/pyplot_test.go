@@ -11,6 +11,7 @@ import (
 	"github.com/cwbudde/matplotlib-go/core"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/style"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 func TestFigureRegistryTracksCurrentFigureAndAxes(t *testing.T) {
@@ -100,6 +101,63 @@ func TestStatefulHelpersDelegateToCurrentAxes(t *testing.T) {
 	}
 }
 
+func TestConveniencePlotHelpersDelegateToCurrentAxes(t *testing.T) {
+	resetForTests()
+
+	dates := []time.Time{
+		time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, time.January, 2, 0, 0, 0, 0, time.UTC),
+	}
+	if line := PlotDate(dates, []float64{1, 2}); line == nil {
+		t.Fatal("PlotDate() returned nil")
+	}
+	if _, ok := GCA().XAxis.Locator.(core.DateLocator); !ok {
+		t.Fatalf("PlotDate x-axis locator = %T, want DateLocator", GCA().XAxis.Locator)
+	}
+
+	resetForTests()
+	if line := SemilogX([]float64{1, 10}, []float64{1, 2}); line == nil {
+		t.Fatal("SemilogX() returned nil")
+	}
+	if _, ok := GCA().XScale.(transform.Log); !ok {
+		t.Fatalf("SemilogX x scale = %T, want transform.Log", GCA().XScale)
+	}
+
+	resetForTests()
+	if line := SemilogY([]float64{1, 2}, []float64{1, 10}); line == nil {
+		t.Fatal("SemilogY() returned nil")
+	}
+	if _, ok := GCA().YScale.(transform.Log); !ok {
+		t.Fatalf("SemilogY y scale = %T, want transform.Log", GCA().YScale)
+	}
+
+	resetForTests()
+	if line := LogLog([]float64{1, 10}, []float64{1, 10}); line == nil {
+		t.Fatal("LogLog() returned nil")
+	}
+	if _, ok := GCA().XScale.(transform.Log); !ok {
+		t.Fatalf("LogLog x scale = %T, want transform.Log", GCA().XScale)
+	}
+	if _, ok := GCA().YScale.(transform.Log); !ok {
+		t.Fatalf("LogLog y scale = %T, want transform.Log", GCA().YScale)
+	}
+
+	resetForTests()
+	if bar := BarH([]float64{0, 1}, []float64{3, 4}); bar == nil || bar.Orientation != core.BarHorizontal {
+		t.Fatalf("BarH() = %#v, want horizontal bar", bar)
+	}
+	if fill := Fill([]float64{0, 1, 0}, []float64{0, 0, 1}); fill == nil {
+		t.Fatal("Fill() returned nil")
+	}
+	pie := Pie([]float64{1, 2}, core.PieOptions{Labels: []string{"A", "B"}})
+	if pie == nil {
+		t.Fatal("Pie() returned nil")
+	}
+	if labels := PieLabel(pie, []string{"one", "two"}); len(labels) != 2 {
+		t.Fatalf("PieLabel() returned %d labels, want 2", len(labels))
+	}
+}
+
 func TestColorbarUsesCurrentAxesAndFigure(t *testing.T) {
 	resetForTests()
 
@@ -182,6 +240,15 @@ func TestMatrixAndSignalHelpersDelegateToCurrentAxes(t *testing.T) {
 	}
 	if psd := PSD([]float64{0, 1, 0, -1, 0, 1, 0, -1}, core.SignalSpectrumOptions{NFFT: 4}); psd == nil {
 		t.Fatal("PSD() returned nil")
+	}
+	if mag := MagnitudeSpectrum([]float64{0, 1, 0, -1, 0, 1, 0, -1}, core.SignalSpectrumOptions{NFFT: 4}); mag == nil {
+		t.Fatal("MagnitudeSpectrum() returned nil")
+	}
+	if angle := AngleSpectrum([]float64{0, 1, 0, -1, 0, 1, 0, -1}, core.SignalSpectrumOptions{NFFT: 4}); angle == nil {
+		t.Fatal("AngleSpectrum() returned nil")
+	}
+	if phase := PhaseSpectrum([]float64{0, 1, 0, -1, 0, 1, 0, -1}, core.SignalSpectrumOptions{NFFT: 4}); phase == nil {
+		t.Fatal("PhaseSpectrum() returned nil")
 	}
 	if csd := CSD([]float64{0, 1, 0, -1}, []float64{0, 1, 0, -1}, core.SignalSpectrumOptions{NFFT: 4}); csd == nil {
 		t.Fatal("CSD() returned nil")

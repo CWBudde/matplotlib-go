@@ -205,6 +205,9 @@ func TestMpl_HistBasic(t *testing.T)      { runMplTest(t, "hist_basic", renderHi
 func TestMpl_HistDensity(t *testing.T)    { runMplTest(t, "hist_density", renderHistDensity) }
 func TestMpl_HistStrategies(t *testing.T) { runMplTest(t, "hist_strategies", renderHistStrategies) }
 func TestMpl_BoxPlotBasic(t *testing.T)   { runMplTest(t, "boxplot_basic", renderBoxPlotBasic) }
+func TestMpl_Phase12SpecialtyDepth(t *testing.T) {
+	runMplTest(t, "phase12_specialty_depth", renderPhase12SpecialtyDepth)
+}
 func TestMpl_AxesTopRightInverted(t *testing.T) {
 	runMplTest(t, "axes_top_right_inverted", renderAxesTopRightInverted)
 }
@@ -235,8 +238,11 @@ func TestMpl_AnnotationComposition(t *testing.T) {
 func TestMpl_PatchShowcase(t *testing.T)  { runMplTest(t, "patch_showcase", renderPatchShowcase) }
 func TestMpl_MeshContourTri(t *testing.T) { runMplTest(t, "mesh_contour_tri", renderMeshContourTri) }
 func TestMpl_PlotVariants(t *testing.T)   { runMplTest(t, "plot_variants", renderPlotVariants) }
-func TestMpl_StatVariants(t *testing.T)   { runMplTest(t, "stat_variants", renderStatVariants) }
-func TestMpl_StemPlot(t *testing.T)       { runMplTest(t, "stem_plot", renderStemPlot) }
+func TestMpl_SpectrumVariants(t *testing.T) {
+	runMplTest(t, "spectrum_variants", renderSpectrumVariants)
+}
+func TestMpl_StatVariants(t *testing.T) { runMplTest(t, "stat_variants", renderStatVariants) }
+func TestMpl_StemPlot(t *testing.T)     { runMplTest(t, "stem_plot", renderStemPlot) }
 func TestMpl_SpecialtyArtists(t *testing.T) {
 	runMplTest(t, "specialty_artists", renderSpecialtyArtists)
 }
@@ -277,6 +283,22 @@ func TestMpl_PColorMeshMasked(t *testing.T) {
 
 func TestMpl_Hist2DWeightedDensity(t *testing.T) {
 	runMplTest(t, "hist2d_weighted_density", renderHist2DWeightedDensity)
+}
+
+func TestMpl_BoundaryNormPColorMesh(t *testing.T) {
+	runMplTest(t, "boundarynorm_pcolormesh", renderBoundaryNormPColorMesh)
+}
+
+func TestMpl_LogNormImshow(t *testing.T) {
+	runMplTest(t, "lognorm_imshow", renderLogNormImshow)
+}
+
+func TestMpl_TwoSlopeNormImage(t *testing.T) {
+	runMplTest(t, "twoslope_norm_image", renderTwoSlopeNormImage)
+}
+
+func TestMpl_ColorbarExtensions(t *testing.T) {
+	runMplTest(t, "colorbar_extensions", renderColorbarExtensions)
 }
 
 func TestMpl_LargeScatter(t *testing.T) {

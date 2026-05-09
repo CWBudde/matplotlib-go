@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -45,8 +46,15 @@ type HexbinOptions struct {
 	Extent    *geom.Rect
 	C         []float64
 	Reduce    string
+	Bins      string
+	BinCount  int
+	BinEdges  []float64
+	XScale    string
+	YScale    string
+	Marginals bool
 	MinCount  int
 	Colormap  string
+	Norm      ScalarNormalizer
 	VMin      *float64
 	VMax      *float64
 	Alpha     float64
@@ -61,11 +69,20 @@ type HexbinCollection struct {
 	BinCenters []geom.Pt
 	Values     []float64
 	Counts     []float64
+	HBar       *PolyCollection
+	VBar       *PolyCollection
 }
 
 type hexbinKey struct {
 	lattice  int
 	row, col int
+}
+
+type hexbinBin struct {
+	center geom.Pt
+	count  float64
+	sum    float64
+	values []float64
 }
 
 // PieOptions configures Axes.Pie.
@@ -81,6 +98,15 @@ type PieOptions struct {
 	AutoPct          string
 	LabelDistance    float64
 	PctDistance      float64
+	RotateLabels     bool
+	Normalize        *bool
+	Hatch            string
+	Hatches          []string
+	HatchColor       render.Color
+	HatchWidth       float64
+	Shadow           bool
+	ShadowOffset     geom.Pt
+	ShadowColor      render.Color
 	EdgeColor        *render.Color
 	LineWidth        float64
 	Alpha            float64
@@ -90,34 +116,48 @@ type PieOptions struct {
 
 // PieContainer groups the wedge and text artists created by Axes.Pie.
 type PieContainer struct {
-	Wedges   []*Wedge
-	Labels   []*Text
-	AutoText []*Text
+	Wedges      []*Wedge
+	Shadows     []*Wedge
+	Labels      []*Text
+	AutoText    []*Text
+	LabelAngles []float64
+}
+
+type PieLabelOptions struct {
+	Distance  float64
+	Rotate    bool
+	Alignment string
+	Coords    CoordinateSpec
 }
 
 // ViolinOptions configures Axes.Violinplot.
 type ViolinOptions struct {
-	Positions   []float64
-	Widths      []float64
-	Colors      []render.Color
-	EdgeColor   *render.Color
-	EdgeWidth   float64
-	Alpha       float64
-	Bandwidth   float64
-	Points      int
-	LineColor   *render.Color
-	ShowMeans   *bool
-	ShowMedians *bool
-	ShowExtrema *bool
-	Label       string
+	Positions       []float64
+	Widths          []float64
+	Colors          []render.Color
+	EdgeColor       *render.Color
+	EdgeWidth       float64
+	Alpha           float64
+	Bandwidth       float64
+	BandwidthMethod string
+	Points          int
+	Orientation     string
+	Side            string
+	Quantiles       [][]float64
+	LineColor       *render.Color
+	ShowMeans       *bool
+	ShowMedians     *bool
+	ShowExtrema     *bool
+	Label           string
 }
 
 // ViolinContainer groups the collections created by Axes.Violinplot.
 type ViolinContainer struct {
-	Bodies  *PolyCollection
-	Means   *LineCollection
-	Medians *LineCollection
-	Extrema *LineCollection
+	Bodies    *PolyCollection
+	Means     *LineCollection
+	Medians   *LineCollection
+	Quantiles *LineCollection
+	Extrema   *LineCollection
 }
 
 // TableOptions configures Axes.Table.
@@ -1089,10 +1129,13 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 			cfg.LineWidth = 0.75
 		}
 	}
+	xscale := normalizeHexScale(cfg.XScale)
+	yscale := normalizeHexScale(cfg.YScale)
 
 	extent := cfg.Extent
 	if extent == nil {
-		rect := finitePointRect(x[:n], y[:n])
+		tx, ty := specialtyHexbinScaledPoints(x[:n], y[:n], xscale, yscale)
+		rect := finitePointRect(tx, ty)
 		extent = &rect
 	}
 	if extent.W() == 0 {
@@ -1123,15 +1166,9 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		yStep = 1
 	}
 
-	type bin struct {
-		center geom.Pt
-		count  float64
-		sum    float64
-	}
-
-	bins := map[hexbinKey]*bin{}
+	bins := map[hexbinKey]*hexbinBin{}
 	for i := range n {
-		xi, yi := x[i], y[i]
+		xi, yi := specialtyHexbinScaledPoint(x[i], y[i], xscale, yscale)
 		if !isFinite(xi) || !isFinite(yi) {
 			continue
 		}
@@ -1141,7 +1178,7 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		}
 		entry := bins[k]
 		if entry == nil {
-			entry = &bin{
+			entry = &hexbinBin{
 				center: center,
 			}
 			bins[k] = entry
@@ -1149,6 +1186,7 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		entry.count++
 		if i < len(cfg.C) && isFinite(cfg.C[i]) {
 			entry.sum += cfg.C[i]
+			entry.values = append(entry.values, cfg.C[i])
 		} else {
 			entry.sum += 1
 		}
@@ -1184,25 +1222,32 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		}
 		value := entry.count
 		if len(cfg.C) > 0 {
-			switch cfg.Reduce {
-			case "sum":
-				value = entry.sum
-			case "count":
-				value = entry.count
-			default:
-				value = entry.sum / entry.count
-			}
+			value = reduceHexbinValues(entry, cfg.Reduce)
 		}
-		polygons = append(polygons, specialtyHexagon(entry.center, rx, ry))
+		center := specialtyHexbinUnscalePoint(entry.center, xscale, yscale)
+		polygons = append(polygons, specialtyHexagon(center, rx, ry))
 		values = append(values, value)
 		counts = append(counts, entry.count)
-		centers = append(centers, entry.center)
+		centers = append(centers, center)
 	}
 	if len(polygons) == 0 {
 		return nil
 	}
+	values = applyHexbinBins(values, cfg)
+	norm := cfg.Norm
+	if strings.EqualFold(cfg.Bins, "log") && norm == nil {
+		norm = LogNorm{VMin: math.NaN(), VMax: math.NaN()}
+	}
 
-	mapping := resolveScalarMapValues(values, cfg.Colormap, cfg.VMin, cfg.VMax)
+	mapping, err := ResolveScalarMapValues(values, ScalarMapConfig{
+		Colormap: cfg.Colormap,
+		Norm:     norm,
+		VMin:     cfg.VMin,
+		VMax:     cfg.VMax,
+	})
+	if err != nil {
+		return nil
+	}
 	faceColors := make([]render.Color, len(values))
 	for i, value := range values {
 		faceColors[i] = mapping.Color(value, cfg.Alpha)
@@ -1222,6 +1267,7 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 					Label:    cfg.Label,
 					Alpha:    1,
 					Colormap: mapping.Colormap,
+					Norm:     mapping.Norm,
 					VMin:     mapping.VMin,
 					VMax:     mapping.VMax,
 					z:        2,
@@ -1237,7 +1283,22 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 		Values:     values,
 		Counts:     counts,
 	}
+	if cfg.Marginals {
+		collection.HBar, collection.VBar = specialtyHexbinMarginals(x[:n], y[:n], cfg, mapping)
+		if collection.HBar != nil {
+			a.AddCollection(collection.HBar)
+		}
+		if collection.VBar != nil {
+			a.AddCollection(collection.VBar)
+		}
+	}
 	a.AddCollection(collection)
+	if xscale == "log" {
+		_ = a.SetXScale("log")
+	}
+	if yscale == "log" {
+		_ = a.SetYScale("log")
+	}
 	return collection
 }
 
@@ -1281,12 +1342,16 @@ func (a *Axes) Pie(values []float64, opts ...PieOptions) *PieContainer {
 	total := 0.0
 	filtered := make([]float64, len(values))
 	for i, value := range values {
-		if value > 0 && isFinite(value) {
+		if value >= 0 && isFinite(value) {
 			filtered[i] = value
 			total += value
 		}
 	}
 	if total == 0 {
+		return nil
+	}
+	normalize := specialtyBool(cfg.Normalize, true)
+	if !normalize && total > 1 {
 		return nil
 	}
 
@@ -1302,7 +1367,10 @@ func (a *Axes) Pie(values []float64, opts ...PieOptions) *PieContainer {
 		if value <= 0 {
 			continue
 		}
-		fraction := value / total
+		fraction := value
+		if normalize {
+			fraction = value / total
+		}
 		span := fraction * 360
 		end := theta + span
 		if !counterClockwise {
@@ -1316,14 +1384,52 @@ func (a *Axes) Pie(values []float64, opts ...PieOptions) *PieContainer {
 		}
 		color := colorAt(a.NextColor(), cfg.Colors, i)
 		color.A *= clampOneToOne(cfg.Alpha)
+		hatchColor := cfg.HatchColor
+		if hatchColor == (render.Color{}) {
+			hatchColor = edgeColor
+		}
+		hatchWidth := cfg.HatchWidth
+		if hatchWidth <= 0 {
+			hatchWidth = 1
+		}
+		if cfg.Shadow {
+			shadowOffset := cfg.ShadowOffset
+			if shadowOffset == (geom.Pt{}) {
+				shadowOffset = geom.Pt{X: -0.02 * cfg.Radius, Y: -0.02 * cfg.Radius}
+			}
+			shadowColor := cfg.ShadowColor
+			if shadowColor == (render.Color{}) {
+				shadowColor = render.Color{R: 0, G: 0, B: 0, A: 0.25}
+			}
+			shadow := &Wedge{
+				Patch: Patch{
+					FaceColor: shadowColor,
+					EdgeColor: render.Color{},
+					Alpha:     1,
+					Label:     "_nolegend_",
+					z:         1.8,
+				},
+				Center: geom.Pt{X: cfg.Center.X + offset.X + shadowOffset.X, Y: cfg.Center.Y + offset.Y + shadowOffset.Y},
+				Radius: cfg.Radius,
+				Width:  cfg.Width,
+				Theta1: theta,
+				Theta2: end,
+				Coords: cfg.Coords,
+			}
+			a.AddPatch(shadow)
+			container.Shadows = append(container.Shadows, shadow)
+		}
 		wedge := &Wedge{
 			Patch: Patch{
-				FaceColor: color,
-				EdgeColor: edgeColor,
-				EdgeWidth: cfg.LineWidth,
-				Alpha:     1,
-				Label:     stringAt("", cfg.Labels, i),
-				z:         2,
+				FaceColor:  color,
+				EdgeColor:  edgeColor,
+				EdgeWidth:  cfg.LineWidth,
+				Alpha:      1,
+				Label:      stringAt("", cfg.Labels, i),
+				Hatch:      stringAt(cfg.Hatch, cfg.Hatches, i),
+				HatchColor: hatchColor,
+				HatchWidth: hatchWidth,
+				z:          2,
 			},
 			Center: geom.Pt{X: cfg.Center.X + offset.X, Y: cfg.Center.Y + offset.Y},
 			Radius: cfg.Radius,
@@ -1338,6 +1444,7 @@ func (a *Axes) Pie(values []float64, opts ...PieOptions) *PieContainer {
 		if label := stringAt("", cfg.Labels, i); label != "" {
 			labelPt := piePoint(wedge.Center, cfg.Radius*cfg.LabelDistance, mid)
 			clipOn := false
+			container.LabelAngles = append(container.LabelAngles, pieLabelRotation(mid, cfg.RotateLabels))
 			container.Labels = append(container.Labels, a.Text(labelPt.X, labelPt.Y, label, TextOptions{
 				Coords: cfg.Coords,
 				HAlign: pieAlign(mid),
@@ -1372,6 +1479,54 @@ func (a *Axes) Pie(values []float64, opts ...PieOptions) *PieContainer {
 	return container
 }
 
+// PieLabel adds labels to an existing pie container, mirroring Matplotlib's pie_label helper.
+func (a *Axes) PieLabel(container *PieContainer, labels []string, opts ...PieLabelOptions) []*Text {
+	if a == nil || container == nil || len(container.Wedges) == 0 {
+		return nil
+	}
+	cfg := PieLabelOptions{
+		Distance:  0.6,
+		Alignment: "auto",
+		Coords:    Coords(CoordData),
+	}
+	if len(opts) > 0 {
+		cfg = opts[0]
+		if cfg.Distance <= 0 {
+			cfg.Distance = 0.6
+		}
+		if cfg.Coords == (CoordinateSpec{}) {
+			cfg.Coords = Coords(CoordData)
+		}
+	}
+	out := make([]*Text, 0, len(container.Wedges))
+	for i, wedge := range container.Wedges {
+		if wedge == nil {
+			continue
+		}
+		label := stringAt("", labels, i)
+		if label == "" {
+			continue
+		}
+		mid := (wedge.Theta1 + wedge.Theta2) / 2
+		pt := piePoint(wedge.Center, wedge.Radius*cfg.Distance, mid)
+		clipOn := false
+		align := pieAlign(mid)
+		if strings.EqualFold(cfg.Alignment, "center") {
+			align = TextAlignCenter
+		}
+		txt := a.Text(pt.X, pt.Y, label, TextOptions{
+			Coords: cfg.Coords,
+			HAlign: align,
+			VAlign: TextVAlignMiddle,
+			ClipOn: &clipOn,
+		})
+		out = append(out, txt)
+		container.Labels = append(container.Labels, txt)
+		container.LabelAngles = append(container.LabelAngles, pieLabelRotation(mid, cfg.Rotate))
+	}
+	return out
+}
+
 // Violinplot draws one violin body per dataset and optional summary lines.
 func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContainer {
 	if a == nil || len(data) == 0 {
@@ -1400,6 +1555,9 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 	medianSegments := make([][]geom.Pt, 0, len(data))
 	meanSegments := make([][]geom.Pt, 0, len(data))
 	extremaSegments := make([][]geom.Pt, 0, len(data)*3)
+	quantileSegments := make([][]geom.Pt, 0, len(data))
+	orientation := normalizeViolinOrientation(cfg.Orientation)
+	side := normalizeViolinSide(cfg.Side)
 
 	for i, series := range data {
 		values := specialtyFiniteValues(series)
@@ -1413,7 +1571,7 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 		}
 		position := floatAt(cfg.Positions, i, float64(i+1))
 		stats := specialtyViolinStats(values)
-		grid, density := specialtyKDE(values, cfg.Points, cfg.Bandwidth)
+		grid, density := specialtyKDE(values, cfg.Points, cfg.Bandwidth, cfg.BandwidthMethod)
 		if len(grid) == 0 || len(density) == 0 {
 			continue
 		}
@@ -1428,17 +1586,24 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 			maxDensity = 1
 		}
 
-		left := make([]geom.Pt, 0, len(grid))
-		right := make([]geom.Pt, 0, len(grid))
+		lowSide := make([]geom.Pt, 0, len(grid))
+		highSide := make([]geom.Pt, 0, len(grid))
 		for j := range grid {
 			halfWidth := density[j] / maxDensity * width * 0.5
-			left = append(left, geom.Pt{X: position - halfWidth, Y: grid[j]})
-			right = append(right, geom.Pt{X: position + halfWidth, Y: grid[j]})
+			lowOffset := -halfWidth
+			highOffset := halfWidth
+			if side == "high" {
+				lowOffset = 0
+			} else if side == "low" {
+				highOffset = 0
+			}
+			lowSide = append(lowSide, violinPoint(position+lowOffset, grid[j], orientation))
+			highSide = append(highSide, violinPoint(position+highOffset, grid[j], orientation))
 		}
-		polygon := make([]geom.Pt, 0, len(left)+len(right))
-		polygon = append(polygon, left...)
-		for j := len(right) - 1; j >= 0; j-- {
-			polygon = append(polygon, right[j])
+		polygon := make([]geom.Pt, 0, len(lowSide)+len(highSide))
+		polygon = append(polygon, lowSide...)
+		for j := len(highSide) - 1; j >= 0; j-- {
+			polygon = append(polygon, highSide[j])
 		}
 		polygons = append(polygons, polygon)
 
@@ -1447,22 +1612,19 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 		faceColors = append(faceColors, color)
 
 		if specialtyBool(cfg.ShowMeans, false) {
-			meanSegments = append(meanSegments, []geom.Pt{
-				{X: position - width*0.25, Y: stats.mean},
-				{X: position + width*0.25, Y: stats.mean},
-			})
+			meanSegments = append(meanSegments, violinPerpSegment(position, width, stats.mean, orientation, side))
 		}
 		if specialtyBool(cfg.ShowMedians, true) {
-			medianSegments = append(medianSegments, []geom.Pt{
-				{X: position - width*0.3, Y: stats.median},
-				{X: position + width*0.3, Y: stats.median},
-			})
+			medianSegments = append(medianSegments, violinPerpSegment(position, width*1.2, stats.median, orientation, side))
+		}
+		for _, q := range violinQuantiles(cfg.Quantiles, i, values) {
+			quantileSegments = append(quantileSegments, violinPerpSegment(position, width, q, orientation, side))
 		}
 		if specialtyBool(cfg.ShowExtrema, true) {
 			extremaSegments = append(extremaSegments,
-				[]geom.Pt{{X: position, Y: stats.min}, {X: position, Y: stats.max}},
-				[]geom.Pt{{X: position - width*0.25, Y: stats.min}, {X: position + width*0.25, Y: stats.min}},
-				[]geom.Pt{{X: position - width*0.25, Y: stats.max}, {X: position + width*0.25, Y: stats.max}},
+				violinParallelSegment(position, stats.min, stats.max, orientation),
+				violinPerpSegment(position, width, stats.min, orientation, side),
+				violinPerpSegment(position, width, stats.max, orientation, side),
 			)
 		}
 	}
@@ -1512,6 +1674,16 @@ func (a *Axes) Violinplot(data [][]float64, opts ...ViolinOptions) *ViolinContai
 			LineCap:    render.CapRound,
 		}
 		a.AddCollection(container.Medians)
+	}
+	if len(quantileSegments) > 0 {
+		container.Quantiles = &LineCollection{
+			Collection: Collection{Alpha: 1, z: 2.32},
+			Segments:   quantileSegments,
+			Color:      lineColor,
+			LineWidth:  math.Max(cfg.EdgeWidth, 1.25),
+			LineCap:    render.CapRound,
+		}
+		a.AddCollection(container.Quantiles)
 	}
 	if len(extremaSegments) > 0 {
 		container.Extrema = &LineCollection{
@@ -1933,7 +2105,7 @@ func specialtyViolinStats(values []float64) specialtyViolinSummary {
 	}
 }
 
-func specialtyKDE(values []float64, points int, bandwidth float64) ([]float64, []float64) {
+func specialtyKDE(values []float64, points int, bandwidth float64, methods ...string) ([]float64, []float64) {
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -1955,7 +2127,20 @@ func specialtyKDE(values []float64, points int, bandwidth float64) ([]float64, [
 			variance += diff * diff
 		}
 		std := math.Sqrt(variance / float64(len(values)))
-		bandwidth = 1.06 * std * math.Pow(float64(len(values)), -0.2)
+		factor := 1.06
+		if len(methods) > 0 {
+			switch strings.ToLower(strings.TrimSpace(methods[0])) {
+			case "scott":
+				factor = 1
+			case "silverman", "":
+				factor = 1.06
+			default:
+				if parsed, err := strconv.ParseFloat(methods[0], 64); err == nil && parsed > 0 {
+					factor = parsed
+				}
+			}
+		}
+		bandwidth = factor * std * math.Pow(float64(len(values)), -0.2)
 		if bandwidth <= 0 || !isFinite(bandwidth) {
 			bandwidth = (maxValue - minValue) / 12
 		}
@@ -1979,6 +2164,241 @@ func specialtyKDE(values []float64, points int, bandwidth float64) ([]float64, [
 		density[i] = sum / (float64(len(values)) * bandwidth * math.Sqrt(2*math.Pi))
 	}
 	return grid, density
+}
+
+func normalizeHexScale(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "log") {
+		return "log"
+	}
+	return "linear"
+}
+
+func specialtyHexbinScaledPoints(x, y []float64, xscale, yscale string) ([]float64, []float64) {
+	n := min(len(x), len(y))
+	tx := make([]float64, n)
+	ty := make([]float64, n)
+	for i := range n {
+		tx[i], ty[i] = specialtyHexbinScaledPoint(x[i], y[i], xscale, yscale)
+	}
+	return tx, ty
+}
+
+func specialtyHexbinScaledPoint(x, y float64, xscale, yscale string) (float64, float64) {
+	if xscale == "log" {
+		if x <= 0 {
+			x = math.NaN()
+		} else {
+			x = math.Log10(x)
+		}
+	}
+	if yscale == "log" {
+		if y <= 0 {
+			y = math.NaN()
+		} else {
+			y = math.Log10(y)
+		}
+	}
+	return x, y
+}
+
+func specialtyHexbinUnscalePoint(pt geom.Pt, xscale, yscale string) geom.Pt {
+	if xscale == "log" {
+		pt.X = math.Pow(10, pt.X)
+	}
+	if yscale == "log" {
+		pt.Y = math.Pow(10, pt.Y)
+	}
+	return pt
+}
+
+func reduceHexbinValues(entry *hexbinBin, reduce string) float64 {
+	if entry == nil {
+		return math.NaN()
+	}
+	switch strings.ToLower(strings.TrimSpace(reduce)) {
+	case "sum":
+		return entry.sum
+	case "count", "len":
+		return entry.count
+	case "min", "minimum":
+		if len(entry.values) == 0 {
+			return math.NaN()
+		}
+		out := entry.values[0]
+		for _, v := range entry.values[1:] {
+			out = math.Min(out, v)
+		}
+		return out
+	case "max", "maximum", "amax":
+		if len(entry.values) == 0 {
+			return math.NaN()
+		}
+		out := entry.values[0]
+		for _, v := range entry.values[1:] {
+			out = math.Max(out, v)
+		}
+		return out
+	default:
+		if entry.count == 0 {
+			return math.NaN()
+		}
+		return entry.sum / entry.count
+	}
+}
+
+func applyHexbinBins(values []float64, cfg HexbinOptions) []float64 {
+	if cfg.BinCount <= 0 && len(cfg.BinEdges) == 0 {
+		return values
+	}
+	out := append([]float64(nil), values...)
+	edges := append([]float64(nil), cfg.BinEdges...)
+	if len(edges) == 0 && cfg.BinCount > 1 {
+		minValue, maxValue := finiteRange(out)
+		if isFinite(minValue) && isFinite(maxValue) && minValue != maxValue {
+			steps := cfg.BinCount - 1
+			for i := 0; i < steps; i++ {
+				edges = append(edges, minValue+(maxValue-minValue)*float64(i)/float64(steps))
+			}
+		}
+	}
+	if len(edges) == 0 {
+		return out
+	}
+	slices.Sort(edges)
+	for i, value := range out {
+		out[i] = float64(slices.IndexFunc(edges, func(edge float64) bool {
+			return value < edge
+		}))
+		if out[i] < 0 {
+			out[i] = float64(len(edges))
+		}
+	}
+	return out
+}
+
+func specialtyHexbinMarginals(x, y []float64, cfg HexbinOptions, mapping ScalarMapInfo) (*PolyCollection, *PolyCollection) {
+	extent := cfg.Extent
+	if extent == nil {
+		rect := finitePointRect(x, y)
+		extent = &rect
+	}
+	gridX := max(1, cfg.GridSizeX)
+	gridY := cfg.GridSizeY
+	if gridY <= 0 {
+		gridY = max(1, int(float64(gridX)/math.Sqrt(3)))
+	}
+	hbar := specialtyMarginalBars(x, extent.Min.X, extent.Max.X, gridX, true, mapping, cfg.Alpha)
+	vbar := specialtyMarginalBars(y, extent.Min.Y, extent.Max.Y, gridY, false, mapping, cfg.Alpha)
+	return hbar, vbar
+}
+
+func specialtyMarginalBars(values []float64, minValue, maxValue float64, bins int, horizontal bool, mapping ScalarMapInfo, alpha float64) *PolyCollection {
+	if bins <= 0 || minValue == maxValue {
+		return nil
+	}
+	counts := make([]float64, bins)
+	step := (maxValue - minValue) / float64(bins)
+	for _, value := range values {
+		if !isFinite(value) {
+			continue
+		}
+		idx := int(math.Floor((value - minValue) / step))
+		if idx < 0 || idx >= bins {
+			continue
+		}
+		counts[idx]++
+	}
+	polys := make([][]geom.Pt, 0, bins)
+	colors := make([]render.Color, 0, bins)
+	maxCount := 0.0
+	for _, count := range counts {
+		maxCount = math.Max(maxCount, count)
+	}
+	if maxCount == 0 {
+		return nil
+	}
+	for i, count := range counts {
+		if count == 0 {
+			continue
+		}
+		a := minValue + float64(i)*step
+		b := a + step
+		thick := 0.05 * count / maxCount
+		if horizontal {
+			polys = append(polys, []geom.Pt{{X: a, Y: 0}, {X: b, Y: 0}, {X: b, Y: thick}, {X: a, Y: thick}})
+		} else {
+			polys = append(polys, []geom.Pt{{X: 0, Y: a}, {X: thick, Y: a}, {X: thick, Y: b}, {X: 0, Y: b}})
+		}
+		colors = append(colors, mapping.Color(count, alpha))
+	}
+	if len(polys) == 0 {
+		return nil
+	}
+	return &PolyCollection{
+		PatchCollection: PatchCollection{
+			Collection: Collection{Alpha: 1, z: 1.9},
+			FaceColors: colors,
+			EdgeColor:  render.Color{},
+			EdgeWidth:  0,
+		},
+		Polygons: polys,
+	}
+}
+
+func normalizeViolinOrientation(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "horizontal", "h", "x":
+		return "horizontal"
+	default:
+		return "vertical"
+	}
+}
+
+func normalizeViolinSide(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "low", "left", "bottom":
+		return "low"
+	case "high", "right", "top":
+		return "high"
+	default:
+		return "both"
+	}
+}
+
+func violinPoint(posAxis, valueAxis float64, orientation string) geom.Pt {
+	if orientation == "horizontal" {
+		return geom.Pt{X: valueAxis, Y: posAxis}
+	}
+	return geom.Pt{X: posAxis, Y: valueAxis}
+}
+
+func violinPerpSegment(position, width, value float64, orientation, side string) []geom.Pt {
+	low := position - width*0.25
+	high := position + width*0.25
+	if side == "low" {
+		high = position
+	} else if side == "high" {
+		low = position
+	}
+	return []geom.Pt{violinPoint(low, value, orientation), violinPoint(high, value, orientation)}
+}
+
+func violinParallelSegment(position, minValue, maxValue float64, orientation string) []geom.Pt {
+	return []geom.Pt{violinPoint(position, minValue, orientation), violinPoint(position, maxValue, orientation)}
+}
+
+func violinQuantiles(quantiles [][]float64, i int, values []float64) []float64 {
+	if i >= len(quantiles) {
+		return nil
+	}
+	out := make([]float64, 0, len(quantiles[i]))
+	for _, q := range quantiles[i] {
+		if q < 0 || q > 1 || !isFinite(q) {
+			continue
+		}
+		out = append(out, percentileSorted(values, q*100))
+	}
+	return out
 }
 
 func finitePointRect(x, y []float64) geom.Rect {
@@ -2020,6 +2440,20 @@ func pieAlign(angleDeg float64) TextAlign {
 	default:
 		return TextAlignCenter
 	}
+}
+
+func pieLabelRotation(angleDeg float64, enabled bool) float64 {
+	if !enabled {
+		return 0
+	}
+	angle := math.Mod(angleDeg, 360)
+	if angle < 0 {
+		angle += 360
+	}
+	if angle > 90 && angle < 270 {
+		angle += 180
+	}
+	return math.Mod(angle, 360)
 }
 
 func floatAt(values []float64, i int, fallback float64) float64 {

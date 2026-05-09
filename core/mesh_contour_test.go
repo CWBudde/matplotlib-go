@@ -179,6 +179,27 @@ func TestPColorMeshUsesBadUnderAndOverColormapColors(t *testing.T) {
 	}
 }
 
+func TestPColorMeshUsesConfiguredNorm(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	cmap := "gray"
+	mesh := ax.PColorMesh([][]float64{
+		{1, 10, 100},
+	}, MeshOptions{
+		Colormap: &cmap,
+		Norm:     LogNorm{VMin: 1, VMax: 100},
+	})
+	if mesh == nil {
+		t.Fatal("expected quad mesh")
+	}
+	if mesh.Norm == nil || mesh.Norm.NormName() != "log" {
+		t.Fatalf("mesh norm = %#v, want log norm", mesh.Norm)
+	}
+	if got := mesh.FaceColors[1].R; got < 0.49 || got > 0.51 {
+		t.Fatalf("middle log-normalized face red = %v, want about 0.5", got)
+	}
+}
+
 func TestPColorMeshMaskUsesBadColorAndExcludesScalarRange(t *testing.T) {
 	bad := render.Color{R: 0.55, G: 0.55, B: 0.55, A: 0.8}
 	cmapName := "masked mesh fixture"
@@ -567,6 +588,44 @@ func TestTriangulationArtists(t *testing.T) {
 	filled := ax.TriContourf(tri, []float64{0, 1, 2, 3}, ContourOptions{Levels: []float64{0, 1, 2, 3}})
 	if filled == nil || filled.Fills == nil {
 		t.Fatal("expected tricontourf fills")
+	}
+}
+
+func TestTriColorExposesConfiguredNorm(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	tri := Triangulation{
+		X:         []float64{0, 1, 0},
+		Y:         []float64{0, 0, 1},
+		Triangles: [][3]int{{0, 1, 2}},
+	}
+	mesh := ax.TriColor(tri, []float64{10}, TriColorOptions{
+		Norm: PowerNorm{Gamma: 2, VMin: 0, VMax: 20},
+	})
+	if mesh == nil {
+		t.Fatal("expected tripcolor collection")
+	}
+	if mesh.Norm == nil || mesh.Norm.NormName() != "power" {
+		t.Fatalf("tripcolor norm = %#v, want power norm", mesh.Norm)
+	}
+}
+
+func TestContourSetExposesConfiguredNorm(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.1}, Max: geom.Pt{X: 0.9, Y: 0.9}})
+	contours := ax.Contourf([][]float64{
+		{1, 10},
+		{10, 100},
+	}, ContourOptions{
+		Levels: []float64{1, 10, 100},
+		Norm:   LogNorm{VMin: 1, VMax: 100},
+	})
+	if contours == nil {
+		t.Fatal("expected contour set")
+	}
+	mapping := contours.ScalarMap()
+	if mapping.Norm == nil || mapping.Norm.NormName() != "log" {
+		t.Fatalf("contour norm = %#v, want log norm", mapping.Norm)
 	}
 }
 
