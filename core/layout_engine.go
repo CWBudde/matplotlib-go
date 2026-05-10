@@ -407,7 +407,7 @@ func syncAxesToSubplotSpecs(fig *Figure, state map[*GridSpec]GridSpecOptions) {
 		return
 	}
 	for _, ax := range fig.Children {
-		if ax != nil && ax.subplotSpec != nil {
+		if ax != nil && ax.subplotSpec != nil && !ax.positionManual {
 			ax.RectFraction = ax.subplotSpec.rectWithOptions(state)
 		}
 	}
@@ -447,6 +447,9 @@ func colorbarLayoutBase(parent, colorbar *Axes) geom.Rect {
 	}
 	base := colorbar.colorbarBase
 	if parent == nil {
+		return base
+	}
+	if parent.positionManual {
 		return base
 	}
 	if parent.subplotSpec == nil {

@@ -346,7 +346,14 @@ func FloatPtr(v float64) *float64 {
 
 func ColorNormFixtureFigure(title string) (*core.Figure, *core.Axes) {
 	fig := core.NewFigure(640, 360)
-	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.12, Y: 0.16}, Max: geom.Pt{X: 0.90, Y: 0.88}})
+	gs := fig.GridSpec(
+		1,
+		1,
+		core.WithGridSpecPadding(0.125, 0.9, 0.11, 0.88),
+		core.WithGridSpecSpacing(0, 0),
+	)
+	ax := gs.Cell(0, 0).AddAxes()
+	ax.SetPosition(geom.Rect{Min: geom.Pt{X: 0.12, Y: 0.16}, Max: geom.Pt{X: 0.90, Y: 0.88}})
 	ax.SetTitle(title)
 	ax.SetXLabel("x")
 	ax.SetYLabel("y")

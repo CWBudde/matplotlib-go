@@ -369,8 +369,9 @@ type Axes struct {
 	xUnits *axisUnitsState
 	yUnits *axisUnitsState
 
-	subplotSpec *SubplotSpec
-	axesLocator AxesLocator
+	subplotSpec    *SubplotSpec
+	axesLocator    AxesLocator
+	positionManual bool
 
 	colorbarParent  *Axes
 	colorbarWidth   float64
@@ -506,6 +507,17 @@ func (f *Figure) Add(art Artist) {
 
 // Add registers an Artist with the Axes.
 func (a *Axes) Add(art Artist) { a.Artists = append(a.Artists, art); a.zsorted = false }
+
+// SetPosition sets the active axes rectangle in figure-normalized
+// coordinates. For subplot-backed axes this mirrors Matplotlib's ability to
+// keep the subplot spec while overriding the drawn position.
+func (a *Axes) SetPosition(r geom.Rect) {
+	if a == nil {
+		return
+	}
+	a.RectFraction = r
+	a.positionManual = true
+}
 
 // ProjectionName reports the normalized name of the axes projection.
 func (a *Axes) ProjectionName() string {

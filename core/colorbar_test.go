@@ -108,6 +108,58 @@ func TestColorbarDrawRendersGradientAndTickLabels(t *testing.T) {
 	}
 }
 
+func TestFigureAddColorbarUsesOriginalSubplotPositionAfterSetPosition(t *testing.T) {
+	fig := NewFigure(640, 360)
+	gs := fig.GridSpec(
+		1,
+		1,
+		WithGridSpecPadding(0.125, 0.9, 0.11, 0.88),
+		WithGridSpecSpacing(0, 0),
+	)
+	ax := gs.Cell(0, 0).AddAxes()
+	ax.SetPosition(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.90, Y: 0.88},
+	})
+	img := ax.Image([][]float64{
+		{0, 1},
+		{2, 3},
+	})
+
+	cbAx := fig.AddColorbar(ax, img)
+	if cbAx == nil {
+		t.Fatal("expected colorbar axes")
+	}
+	DrawFigure(fig, &colorbarRecordingRenderer{})
+
+	base := geom.Rect{
+		Min: geom.Pt{X: 0.125, Y: 0.11},
+		Max: geom.Pt{X: 0.9, Y: 0.88},
+	}
+	wantParent := colorbarParentRect(
+		base,
+		resolvedColorbarWidth(fig, base, 0, defaultColorbarAspect),
+		resolvedColorbarPadding(base, 0),
+		false,
+	)
+	if !rectsApprox(ax.RectFraction, wantParent, 1e-12) {
+		t.Fatalf("parent rect = %+v, want %+v", ax.RectFraction, wantParent)
+	}
+	if got, want := cbAx.RectFraction.Min.Y, base.Min.Y; !floatApprox(got, want, 1e-12) {
+		t.Fatalf("colorbar bottom = %v, want original subplot bottom %v", got, want)
+	}
+	if got, want := cbAx.RectFraction.Max.Y, base.Max.Y; !floatApprox(got, want, 1e-12) {
+		t.Fatalf("colorbar top = %v, want original subplot top %v", got, want)
+	}
+}
+
+func rectsApprox(got, want geom.Rect, tol float64) bool {
+	return floatApprox(got.Min.X, want.Min.X, tol) &&
+		floatApprox(got.Min.Y, want.Min.Y, tol) &&
+		floatApprox(got.Max.X, want.Max.X, tol) &&
+		floatApprox(got.Max.Y, want.Max.Y, tol)
+}
+
 func TestFigureAddColorbarUsesLogNormTicks(t *testing.T) {
 	fig := NewFigure(900, 600)
 	ax := fig.AddAxes(geom.Rect{

@@ -73,7 +73,7 @@ func (f *Figure) AddColorbar(parent *Axes, mappable ScalarMappable, opts ...Colo
 		mapping.Norm = Normalize{VMin: vmin, VMax: vmax}
 	}
 
-	base := parent.RectFraction
+	base := colorbarBaseRect(parent)
 	width := resolvedColorbarWidth(f, base, cfg.Width, cfg.Aspect)
 	padding := resolvedColorbarLayoutPadding(f, base, cfg.Padding)
 	useResolvedSlot := colorbarUsesResolvedSlot(f, parent)
@@ -195,6 +195,16 @@ func colorbarSlotLeft(base geom.Rect, width float64, useResolvedSlot bool) float
 
 func colorbarUsesResolvedSlot(fig *Figure, parent *Axes) bool {
 	return fig != nil && fig.layoutEngine == LayoutEngineConstrained && parent != nil && parent.subplotSpec != nil
+}
+
+func colorbarBaseRect(parent *Axes) geom.Rect {
+	if parent == nil {
+		return geom.Rect{}
+	}
+	if parent.subplotSpec != nil {
+		return parent.subplotSpec.Rect()
+	}
+	return parent.RectFraction
 }
 
 func configureColorbarScale(ax *Axes, mapping ScalarMapInfo) {
