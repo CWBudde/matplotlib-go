@@ -24,7 +24,7 @@ func TestRerenderHelpersAndEnv(t *testing.T) {
 	if !samePath("/repo/testdata/golden/../golden", "/repo/testdata/golden") {
 		t.Fatal("samePath should treat cleaned equivalent paths as equal")
 	}
-	if got := testNameFromCaseName("axes_top_right_inverted"); got != "TestAxesTopRightInverted_Golden" {
+	if got := testNameFromCaseName("axes_top_right_inverted"); got != "^TestGolden/axes_top_right_inverted$" {
 		t.Fatalf("testNameFromCaseName returned %q", got)
 	}
 

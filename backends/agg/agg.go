@@ -999,13 +999,15 @@ func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) 
 	if font.backend != textBackendRaster {
 		return render.TextBounds{}, false
 	}
-	if bounds, ok := r.measureNativeFreetypeTextBounds(text, font.face, font.size, matplotlibTextHintingFactor); ok {
-		return bounds, true
-	}
 	sizePx := r.fontPixelSize(font.size)
 	fontKey = fontReference(font.face)
-	if layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, sizePx, fontKey); ok {
-		return layout.Bounds, true
+	if shaped, ok := render.ShapeText(text, geom.Pt{}, sizePx, render.TextShapingOptions{FontKey: fontKey}); ok {
+		if shapedTextMatchesRuneSequence(text, shaped) {
+			if bounds, ok := r.measureNativeFreetypeTextBounds(text, font.face, font.size, matplotlibTextHintingFactor); ok {
+				return bounds, true
+			}
+		}
+		return shaped.Bounds, true
 	}
 	r.fallback = true
 	if x, y, w, h, ok := measureTextPathBounds(text, sizePx, fontKey); ok {

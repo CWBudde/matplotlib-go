@@ -2171,9 +2171,10 @@ func testAxes3DLabelCentersDeltas(ctx *DrawContext, mins, maxs vec3) (vec3, vec3
 		dpi = ctx.RC.DPI
 	}
 	deltasPerPoint := 48 / (72 * (ctx.Clip.W() + ctx.Clip.H()) / dpi)
+	const scale = 0.08 // matches matplotlib's 1/12 * 24/25 with automargin compensation
 	for i := range 3 {
 		centers[i] = (mins[i] + maxs[i]) / 2
-		deltas[i] = (maxs[i] - mins[i]) / 12 * deltasPerPoint
+		deltas[i] = (maxs[i] - mins[i]) * scale * deltasPerPoint
 	}
 	return centers, deltas
 }

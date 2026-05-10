@@ -16,6 +16,7 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -94,11 +95,14 @@ func (r *Renderer) measureRasterText(text string, face render.FontFace, size flo
 	}
 	advance := shaped.Advance.X
 	bounds := shaped.Bounds
-	if nativeMetrics, ok := r.measureNativeFreetypeText(text, face, size, matplotlibTextHintingFactor); shapedTextMatchesRuneSequence(text, shaped) && ok {
-		advance = nativeMetrics.W
-	}
-	if nativeBounds, ok := r.measureNativeFreetypeTextBounds(text, face, size, matplotlibTextHintingFactor); shapedTextMatchesRuneSequence(text, shaped) && ok {
-		bounds = nativeBounds
+	runeEquivalent := shapedTextMatchesRuneSequence(text, shaped)
+	if runeEquivalent {
+		if nativeMetrics, ok := r.measureNativeFreetypeText(text, face, size, matplotlibTextHintingFactor); ok {
+			advance = nativeMetrics.W
+		}
+		if nativeBounds, ok := r.measureNativeFreetypeTextBounds(text, face, size, matplotlibTextHintingFactor); ok {
+			bounds = nativeBounds
+		}
 	}
 
 	metrics := fontFace.Metrics()
@@ -134,6 +138,9 @@ func (r *Renderer) drawRasterText(text string, face render.FontFace, origin geom
 	}
 	if shapedTextMatchesRuneSequence(text, shaped) && r.drawNativeFreetypeRunText(text, face, origin, size, textColor, matplotlibTextHintingFactor) {
 		return true
+	}
+	if !shapedGlyphsDrawableByRune(shaped) {
+		return false
 	}
 
 	primaryFace, err := r.openRasterFace(face, size)
@@ -190,6 +197,39 @@ func shapedTextMatchesRuneSequence(text string, shaped render.ShapedText) bool {
 			return false
 		}
 		i++
+	}
+	return true
+}
+
+func shapedGlyphsDrawableByRune(shaped render.ShapedText) bool {
+	resources := map[string]*sfntFontResource{}
+	buffers := map[string]*sfnt.Buffer{}
+	for _, glyph := range shaped.Glyphs {
+		if glyph.Rune == 0 || glyph.GlyphIndex == 0 {
+			return false
+		}
+		key := sfntFontCacheKey(glyph.Face)
+		if key == "" {
+			return false
+		}
+		resource := resources[key]
+		if resource == nil {
+			var err error
+			resource, err = loadSFNTFontFace(glyph.Face)
+			if err != nil {
+				return false
+			}
+			resources[key] = resource
+		}
+		buf := buffers[key]
+		if buf == nil {
+			buf = &sfnt.Buffer{}
+			buffers[key] = buf
+		}
+		index, err := resource.font.GlyphIndex(buf, glyph.Rune)
+		if err != nil || index != glyph.GlyphIndex {
+			return false
+		}
 	}
 	return true
 }

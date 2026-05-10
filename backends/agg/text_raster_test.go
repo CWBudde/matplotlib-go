@@ -2,6 +2,7 @@ package agg
 
 import (
 	"bytes"
+	"math"
 	"testing"
 
 	"codeberg.org/go-fonts/dejavu/dejavusans"
@@ -61,6 +62,34 @@ func TestMeasureRasterTextUsesSharedShapedAdvance(t *testing.T) {
 	}
 	if metrics.W != quantize(shaped.Advance.X) {
 		t.Fatalf("measureRasterText(fi).W = %v, want shaped advance %v", metrics.W, quantize(shaped.Advance.X))
+	}
+}
+
+func TestMeasureTextBoundsUsesSharedShapedBounds(t *testing.T) {
+	r, err := New(220, 120, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	const size = 72.0
+	font := r.configureTextFont(size, "")
+	if font.backend != textBackendRaster {
+		t.Fatal("expected raster text backend")
+	}
+	shaped, ok := render.ShapeText("fi", geom.Pt{}, r.fontPixelSize(font.size), render.TextShapingOptions{FontKey: fontReference(font.face)})
+	if !ok || len(shaped.Glyphs) != 1 {
+		t.Fatalf("ShapeText(fi) = %+v, %v; want one ligature glyph", shaped, ok)
+	}
+
+	bounds, ok := r.MeasureTextBounds("fi", size, "")
+	if !ok {
+		t.Fatal("MeasureTextBounds(fi) failed")
+	}
+	if math.Abs(bounds.X-shaped.Bounds.X) > 1e-9 ||
+		math.Abs(bounds.Y-shaped.Bounds.Y) > 1e-9 ||
+		math.Abs(bounds.W-shaped.Bounds.W) > 1e-9 ||
+		math.Abs(bounds.H-shaped.Bounds.H) > 1e-9 {
+		t.Fatalf("MeasureTextBounds(fi) = %+v, want shaped bounds %+v", bounds, shaped.Bounds)
 	}
 }
 
