@@ -1,0 +1,41 @@
+package fill_basic
+
+import (
+	"image"
+
+	"github.com/cwbudde/matplotlib-go/backends/agg"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+)
+
+func Render() image.Image {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.SetTitle("Fill to Baseline")
+	ax.SetXLim(0, 10)
+	ax.SetYLim(-1, 3)
+
+	x := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	y := []float64{0.5, 1.8, 2.3, 1.2, 2.8, 1.9, 2.1, 1.5, 0.8}
+
+	fill := &core.Fill2D{
+		X:         x,
+		Y1:        y,
+		Baseline:  0,
+		Color:     render.Color{R: 0.3, G: 0.7, B: 0.9, A: 0.7},
+		EdgeColor: render.Color{R: 0.1, G: 0.3, B: 0.5, A: 1.0},
+		EdgeWidth: 2.0,
+	}
+	ax.Add(fill)
+
+	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
