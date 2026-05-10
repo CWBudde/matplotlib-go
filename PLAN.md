@@ -1091,15 +1091,15 @@ The current implementation projects 3D data into 2D artists, which is useful for
 
 ### 13.2 Existing 3D Plot Depth
 
-- [ ] Replace placeholder/simplified contour and contourf projection with Matplotlib-like level selection, `zdir`, `offset`, filled bands, and clipping behavior.
-- [ ] Expand `Surface` / `PlotSurfaceGrid` with stride/count sampling, facecolors, lighting, shade, antialiasing, `vmin`/`vmax`/`norm`, and colorbar-compatible scalar state.
+- [x] Replace placeholder/simplified contour and contourf projection with Matplotlib-like level selection, `zdir`, `offset`, filled bands, and clipping behavior.
+- [x] Expand `Surface` / `PlotSurfaceGrid` with stride/count sampling, facecolors, lighting, shade, antialiasing, `vmin`/`vmax`/`norm`, and colorbar-compatible scalar state.
 - [x] Expand `Wireframe` with row/column stride and count behavior.
-- [ ] Expand `Trisurf` with colormap/norm support, triangle masking, edge/face styling, and depth sorting compatible with upstream examples.
-- [ ] Replace `Voxel` as bar-like prisms with Matplotlib-style boolean grid voxel input, facecolors, edgecolors, shade, and internal-face culling.
+- [x] Expand `Trisurf` with colormap/norm support, triangle masking, edge/face styling, and depth sorting compatible with upstream examples.
+- [x] Replace `Voxel` as bar-like prisms with Matplotlib-style boolean grid voxel input, facecolors, edgecolors, shade, and internal-face culling.
 
 ### 13.3 3D Rendering and Axes Behavior
 
-- [ ] Add depth sorting and z-order rules for mixed 3D collections that match upstream static AGG output.
+- [x] Add depth sorting and z-order rules for mixed 3D collections that match upstream static AGG output.
 - [ ] Add 3D axis limit, aspect, pane, grid, tick locator, label placement, and view-init parity for common gallery examples.
 - [ ] Add Matplotlib-reference fixtures for every upstream `galleries/plot_types/3D` family: plot3d, scatter3d, surface3d, wire3d, trisurf3d, bar3d, voxels, quiver3d, stem3d, and fill_between3d.
 - [ ] Keep 3D tests focused on static AGG output; interactive rotation belongs to Phase 9 unless a backend-specific viewer requires it.

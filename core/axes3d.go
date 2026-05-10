@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -14,9 +15,13 @@ const (
 	default3DElevationDeg = 30
 	default3DDistance     = 10
 	default3DFocalLength  = 1
+	default3DRollDeg      = 0
+	default3DVerticalAxis = 2
 	default3DDataMargin   = 0.05
 	default3DComputedZ    = 2.5
 	default3DSurfaceCount = 50
+	default3DBoxAspectScale  = 1.8294640721620434
+	default3DBoxAspectZoom25 = 25.0 / 24.0
 	default3DViewMin      = -0.095
 	default3DViewMax      = 0.09
 )
@@ -29,15 +34,150 @@ type Axes3D struct {
 	*Axes
 	azimuthDeg   float64
 	elevationDeg float64
+	rollDeg      float64
+	verticalAxis int
+	zLabel       string
 	distance     float64
+	boxAspect    vec3
 	hasData      bool
 	dataMin      vec3
 	dataMax      vec3
+	viewMin      vec3
+	viewMax      vec3
+	viewSet      [3]bool
 	reprojectors []func()
 }
 
 type axes3DFrame struct {
 	axes *Axes3D
+}
+
+type projected3DState struct {
+	rollDeg      float64
+	verticalAxis int
+	boxAspect    vec3
+}
+
+func (a *Axes3D) projectionState() projected3DState {
+	if a == nil {
+		return projected3DState{
+			rollDeg:      default3DRollDeg,
+			verticalAxis: default3DVerticalAxis,
+			boxAspect:    default3DBoxAspect(),
+		}
+	}
+	return projected3DState{
+		rollDeg:      a.rollDeg,
+		verticalAxis: a.verticalAxis,
+		boxAspect:    a.boxAspect,
+	}
+}
+
+func (a *Axes3D) project3DPointWithState(x, y, z float64, mins, maxs vec3) geom.Pt {
+	state := a.projectionState()
+	if a == nil {
+		return project3DPointWithLimits(x, y, z, default3DElevationDeg, default3DAzimuthDeg, default3DDistance, mins, maxs, state)
+	}
+	return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs, state)
+}
+
+func projected3DStateOrDefault(state ...projected3DState) projected3DState {
+	if len(state) > 0 {
+		s := state[0]
+		if s.verticalAxis < 0 || s.verticalAxis > 2 {
+			s.verticalAxis = default3DVerticalAxis
+		}
+		if s.boxAspect[0] == 0 && s.boxAspect[1] == 0 && s.boxAspect[2] == 0 {
+			s.boxAspect = default3DBoxAspect()
+		}
+		return s
+	}
+	return projected3DState{
+		rollDeg:      default3DRollDeg,
+		verticalAxis: default3DVerticalAxis,
+		boxAspect:    default3DBoxAspect(),
+	}
+}
+
+func parse3DVerticalAxis(axis string) (int, error) {
+	switch strings.ToLower(strings.TrimSpace(axis)) {
+	case "x", "xaxis":
+		return 0, nil
+	case "y", "yaxis":
+		return 1, nil
+	case "z", "zaxis":
+		return 2, nil
+	}
+	return default3DVerticalAxis, fmt.Errorf("invalid vertical axis %q", axis)
+}
+
+func normalize3DAngleDeg(angle float64) float64 {
+	a := math.Mod(angle, 360)
+	if a <= -180 {
+		a += 360
+	}
+	if a > 180 {
+		a -= 360
+	}
+	return a
+}
+
+func rollToVertical(v vec3, axis int, reverse bool) vec3 {
+	shift := axis - 2
+	if reverse {
+		shift *= -1
+	}
+	if shift == 0 {
+		return v
+	}
+	shift = ((shift%3) + 3) % 3
+	var out vec3
+	for i := range 3 {
+		out[i] = v[(i-shift+3)%3]
+	}
+	return out
+}
+
+func viewAxes(eye, center vec3, elevationDeg float64, verticalAxis int, rollDeg float64) (vec3, vec3, vec3) {
+	w := eye.sub(center).unit()
+	vertical := vec3{}
+	if verticalAxis >= 0 && verticalAxis < 3 {
+		vertical[verticalAxis] = 1
+	}
+	elevRad := normalize3DAngleDeg(elevationDeg) * math.Pi / 180
+	if math.Abs(elevRad) > math.Pi/2 {
+		vertical[verticalAxis] = -vertical[verticalAxis]
+	}
+	u := vertical.cross(w).unit()
+	v := w.cross(u)
+	if rollDeg == 0 {
+		return u, v, w
+	}
+	rollRad := normalize3DAngleDeg(rollDeg) * math.Pi / 180
+	u = rotateVecAroundAxis(u, w, -rollRad)
+	v = rotateVecAroundAxis(v, w, -rollRad)
+	return u, v, w
+}
+
+func rotateVecAroundAxis(v, axis vec3, angle float64) vec3 {
+	axisNorm := axis.norm()
+	if axisNorm == 0 {
+		return v
+	}
+	if angle == 0 {
+		return v
+	}
+	axis = axis.scale(1 / axisNorm)
+	c := math.Cos(angle)
+	s := math.Sin(angle)
+	t := 2 * math.Sin(angle/2) * math.Sin(angle/2)
+	vx, vy, vz := v[0], v[1], v[2]
+	ux, uy, uz := axis[0], axis[1], axis[2]
+	return vec3{
+		(t*ux*ux + c) * vx + (t*ux*uy - uz*s) * vy + (t*ux*uz + uy*s) * vz,
+		(t*uy*ux + uz*s) * vx + (t*uy*uy + c) * vy + (t*uy*uz - ux*s) * vz,
+		(t*uz*ux - uy*s) * vx + (t*uz*uy + ux*s) * vy + (t*uz*uz + c) * vz,
+	}
 }
 
 func (f *axes3DFrame) Draw(r render.Renderer, ctx *DrawContext) {
@@ -138,7 +278,10 @@ func NewAxes3D(ax *Axes) *Axes3D {
 		Axes:         ax,
 		azimuthDeg:   default3DAzimuthDeg,
 		elevationDeg: default3DElevationDeg,
+		rollDeg:      default3DRollDeg,
+		verticalAxis: default3DVerticalAxis,
 		distance:     default3DDistance,
+		boxAspect:    default3DBoxAspect(),
 	}
 	ax.Add(&axes3DFrame{axes: axes})
 	return axes
@@ -789,6 +932,7 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 	label := ""
 	edgeWidth := 1.0
 	edgeColor := render.Color{A: 0}
+	antialias := render.AntialiasDefault
 	if len(opts) > 0 {
 		opt := opts[0]
 		if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
@@ -802,28 +946,34 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 		if opt.EdgeColor != nil {
 			edgeColor = *opt.EdgeColor
 		}
+		if opt.Antialiased != nil && !*opt.Antialiased {
+			antialias = render.AntialiasOff
+		}
 		label = opt.Label
 	}
 	for i := range faceColors {
 		faceColors[i].A *= alpha
 	}
 	edgeColor.A *= alpha
+	edgeColors := surfaceEdgeColors(faceColors, firstPlotOptions(opts))
 
 	collection := &PolyCollection{
 		Polygons: polygons,
 		PatchCollection: PatchCollection{
 			Collection: Collection{
-				Coords:   Coords(CoordData),
-				Label:    label,
-				Alpha:    1,
-				Colormap: mapping.Colormap,
-				Norm:     mapping.Norm,
-				VMin:     mapping.VMin,
-				VMax:     mapping.VMax,
-				z:        zorder,
+				Coords:    Coords(CoordData),
+				Label:     label,
+				Alpha:     1,
+				Antialias: antialias,
+				Colormap:  mapping.Colormap,
+				Norm:      mapping.Norm,
+				VMin:      mapping.VMin,
+				VMax:      mapping.VMax,
+				z:         zorder,
 			},
 			FaceColors: faceColors,
 			EdgeColor:  edgeColor,
+			EdgeColors: edgeColors,
 			EdgeWidth:  edgeWidth,
 			LineJoin:   render.JoinMiter,
 			LineCap:    render.CapButt,
@@ -838,6 +988,7 @@ func (a *Axes3D) Surface(x, y []float64, z [][]float64, opts ...PlotOptions) *Po
 			}
 			collection.Polygons = polygons
 			collection.FaceColors = faceColors
+			collection.EdgeColors = surfaceEdgeColors(faceColors, firstPlotOptions(opts))
 			collection.Colormap = mapping.Colormap
 			collection.Norm = mapping.Norm
 			collection.VMin = mapping.VMin
@@ -870,17 +1021,26 @@ func (a *Axes3D) projectedContourLineData(x, y []float64, z [][]float64, opt Plo
 			continue
 		}
 		level := rawLevels[i]
-		projected := make([]geom.Pt, len(polyline))
-		for j, pt := range polyline {
-			point3D := juggle3DPointSigned(pt.X, pt.Y, contourPlaneLevel(level, opt.Offset), "-"+zdir)
-			var zDepth float64
-			projected[j], zDepth = a.projectPointDepth(point3D[0], point3D[1], point3D[2])
-			if zDepth < depth {
-				depth = zDepth
-			}
+		planeLevel := contourPlaneLevel(level, opt.Offset)
+		runs := [][]vec3{contourPolyline3D(polyline, planeLevel, zdir)}
+		if opt.AxLimClip {
+			runs = a.clip3DPolylineRuns(runs[0])
 		}
-		segments = append(segments, projected)
-		segmentLevels = append(segmentLevels, level)
+		for _, run := range runs {
+			if len(run) < 2 {
+				continue
+			}
+			projected := make([]geom.Pt, len(run))
+			for j, point3D := range run {
+				var zDepth float64
+				projected[j], zDepth = a.projectPointDepth(point3D[0], point3D[1], point3D[2])
+				if zDepth < depth {
+					depth = zDepth
+				}
+			}
+			segments = append(segments, projected)
+			segmentLevels = append(segmentLevels, level)
+		}
 	}
 	return segments, segmentLevels, levels, values, computed3DCollectionZ(depth)
 }
@@ -898,6 +1058,14 @@ func contourPlaneLevel(level float64, offset *float64) float64 {
 		return *offset
 	}
 	return level
+}
+
+func contourPolyline3D(polyline []geom.Pt, planeLevel float64, zdir string) []vec3 {
+	points := make([]vec3, len(polyline))
+	for i, pt := range polyline {
+		points[i] = juggle3DPointSigned(pt.X, pt.Y, planeLevel, "-"+zdir)
+	}
+	return points
 }
 
 func contourScalarMap(values, levels []float64, opt PlotOptions) ScalarMapInfo {
@@ -981,9 +1149,12 @@ func (a *Axes3D) projectedContourFillData(x, y []float64, z [][]float64, alpha f
 			if len(polygon) < 3 {
 				continue
 			}
-			projected := make([]geom.Pt, len(polygon))
-			for i, pt := range polygon {
-				point3D := juggle3DPointSigned(pt.X, pt.Y, planeLevel, "-"+zdir)
+			rawPolygon3D := contourPolyline3D(polygon, planeLevel, zdir)
+			if opt.AxLimClip && !a.polygonWithin3DViewLimits(rawPolygon3D) {
+				continue
+			}
+			projected := make([]geom.Pt, len(rawPolygon3D))
+			for i, point3D := range rawPolygon3D {
 				projectedPt, zDepth := a.projectPointDepth(point3D[0], point3D[1], point3D[2])
 				projected[i] = projectedPt
 				if zDepth < collectionDepth {
@@ -1156,6 +1327,7 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 			}
 			normal := corners[0].sub(corners[1]).cross(corners[1].sub(corners[2]))
 			polygon := make([]geom.Pt, 0, 2*(row1-row0)+2*(col1-col0))
+			rawPolygon := make([]vec3, 0, 2*(row1-row0)+2*(col1-col0))
 			value := 0.0
 			depth := 0.0
 			valid := true
@@ -1169,6 +1341,7 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 					valid = false
 					return
 				}
+				rawPolygon = append(rawPolygon, vec3{x[col], y[row], zVal})
 				pt, zDepth := a.projectPointDepth(x[col], y[row], zVal)
 				polygon = append(polygon, pt)
 				value += zVal
@@ -1179,6 +1352,9 @@ func (a *Axes3D) projectSurfacePolygons(x, y []float64, z [][]float64, opts ...P
 				count++
 			})
 			if !valid {
+				continue
+			}
+			if opt.AxLimClip && !a.polygonWithin3DViewLimits(rawPolygon) {
 				continue
 			}
 			value /= float64(count)
@@ -1679,6 +1855,7 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 	alpha := 1.0
 	label := ""
 	edgeColor := render.Color{A: 0}
+	antialias := render.AntialiasDefault
 	if len(opts) > 0 {
 		opt := opts[0]
 		if opt.Color != nil {
@@ -1696,6 +1873,9 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 			edgeColor = *opt.EdgeColor
 			edgeColor.A *= alpha
 		}
+		if opt.Antialiased != nil && !*opt.Antialiased {
+			antialias = render.AntialiasOff
+		}
 		label = opt.Label
 	}
 
@@ -1709,14 +1889,15 @@ func (a *Axes3D) Trisurf(tri Triangulation, z []float64, opts ...PlotOptions) *P
 		Polygons: faces,
 		PatchCollection: PatchCollection{
 			Collection: Collection{
-				Coords:   Coords(CoordData),
-				Label:    label,
-				Alpha:    1,
-				Colormap: mapping.Colormap,
-				Norm:     mapping.Norm,
-				VMin:     mapping.VMin,
-				VMax:     mapping.VMax,
-				z:        faceZ,
+				Coords:    Coords(CoordData),
+				Label:     label,
+				Alpha:     1,
+				Antialias: antialias,
+				Colormap:  mapping.Colormap,
+				Norm:      mapping.Norm,
+				VMin:      mapping.VMin,
+				VMax:      mapping.VMax,
+				z:         faceZ,
 			},
 			FaceColors: faceColors,
 			EdgeColor:  edgeColor,
@@ -1846,6 +2027,9 @@ func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseC
 			}
 		}
 		if valid {
+			if opt.AxLimClip && !a.polygonWithin3DViewLimits(points[:]) {
+				continue
+			}
 			value /= 3
 			normal := points[0].sub(points[1]).cross(points[1].sub(points[2]))
 			faces = append(faces, triFace{
@@ -1881,6 +2065,55 @@ func (a *Axes3D) projectTriangulationFaces(tri Triangulation, z []float64, baseC
 		}
 	}
 	return polygons, colors, computed3DCollectionZ(collectionDepth), mapping
+}
+
+func (a *Axes3D) pointWithin3DViewLimits(point vec3) bool {
+	if a == nil || !isFinite3D(point[0], point[1], point[2]) {
+		return false
+	}
+	mins, maxs := a.projectionLimits()
+	return point[0] >= mins[0] && point[0] <= maxs[0] &&
+		point[1] >= mins[1] && point[1] <= maxs[1] &&
+		point[2] >= mins[2] && point[2] <= maxs[2]
+}
+
+func (a *Axes3D) polygonWithin3DViewLimits(polygon []vec3) bool {
+	if len(polygon) == 0 {
+		return false
+	}
+	for _, point := range polygon {
+		if !a.pointWithin3DViewLimits(point) {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *Axes3D) clip3DPolylineRuns(polyline []vec3) [][]vec3 {
+	if len(polyline) == 0 {
+		return nil
+	}
+	runs := make([][]vec3, 0, 1)
+	current := make([]vec3, 0, len(polyline))
+	flush := func() {
+		if len(current) < 2 {
+			current = current[:0]
+			return
+		}
+		run := make([]vec3, len(current))
+		copy(run, current)
+		runs = append(runs, run)
+		current = current[:0]
+	}
+	for _, point := range polyline {
+		if a.pointWithin3DViewLimits(point) {
+			current = append(current, point)
+			continue
+		}
+		flush()
+	}
+	flush()
+	return runs
 }
 
 func (a *Axes3D) projectBar3DSegments(x, y, z, dx, dy, dz []float64) [][]geom.Pt {
@@ -2030,7 +2263,7 @@ func (a *Axes3D) frameSegments(mins, maxs vec3) [][]geom.Pt {
 
 func (a *Axes3D) frameSegmentsProjected(mins, maxs, projMins, projMaxs, tickMins, tickMaxs vec3) [][]geom.Pt {
 	project := func(x, y, z float64) geom.Pt {
-		return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+		return a.project3DPointWithState(x, y, z, projMins, projMaxs)
 	}
 	corner := func(xi, yi, zi int) geom.Pt {
 		x := mins[0]
@@ -2089,7 +2322,7 @@ func (a *Axes3D) activePanePolygonsProjected(mins, maxs, projMins, projMaxs vec3
 		if corner[2] == 1 {
 			z = maxs[2]
 		}
-		return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+		return a.project3DPointWithState(x, y, z, projMins, projMaxs)
 	}
 
 	highs := a.activePaneHighsProjected(mins, maxs, projMins, projMaxs)
@@ -2115,7 +2348,7 @@ func (a *Axes3D) frameGridSegments(mins, maxs vec3) [][]geom.Pt {
 
 func (a *Axes3D) axisLineSegmentsProjected(mins, maxs, projMins, projMaxs vec3) [][]geom.Pt {
 	project := func(p vec3) geom.Pt {
-		return project3DPointWithLimits(p[0], p[1], p[2], a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+		return a.project3DPointWithState(p[0], p[1], p[2], projMins, projMaxs)
 	}
 	pairs := a.axisLineEdgePointPairs(mins, maxs, projMins, projMaxs)
 	segments := make([][]geom.Pt, 0, len(pairs))
@@ -2127,7 +2360,7 @@ func (a *Axes3D) axisLineSegmentsProjected(mins, maxs, projMins, projMaxs vec3) 
 
 func (a *Axes3D) axisTickSegmentsProjected(mins, maxs, projMins, projMaxs, tickMins, tickMaxs vec3) [][]geom.Pt {
 	project := func(p vec3) geom.Pt {
-		return project3DPointWithLimits(p[0], p[1], p[2], a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+		return a.project3DPointWithState(p[0], p[1], p[2], projMins, projMaxs)
 	}
 	pairs := a.axisLineEdgePointPairs(mins, maxs, projMins, projMaxs)
 	highs := a.activePaneHighsProjected(mins, maxs, projMins, projMaxs)
@@ -2186,7 +2419,7 @@ func (a *Axes3D) axisLineEdgePointPairs(mins, maxs, projMins, projMaxs vec3) [][
 
 func (a *Axes3D) frameGridSegmentsProjected(mins, maxs, projMins, projMaxs, tickMins, tickMaxs vec3) [][]geom.Pt {
 	project := func(p vec3) geom.Pt {
-		return project3DPointWithLimits(p[0], p[1], p[2], a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+		return a.project3DPointWithState(p[0], p[1], p[2], projMins, projMaxs)
 	}
 	highs := a.activePaneHighsProjected(mins, maxs, projMins, projMaxs)
 	minmax := vec3{}
@@ -2387,19 +2620,21 @@ func (a *Axes3D) projectPointDepthWithLimits(x, y, z float64, mins, maxs vec3) (
 	if a == nil {
 		return geom.Pt{}, 0
 	}
+	state := a.projectionState()
 	if a.distance <= 0 {
-		return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs), z
+		return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs, state), z
 	}
-	m := default3DProjectionMatrix(a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs)
+	m := default3DProjectionMatrix(a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs, state)
 	tx, ty, tz := transform3DPoint(m, x, y, z)
 	return geom.Pt{X: tx, Y: ty}, tz
 }
 
 func (a *Axes3D) projectPointDepthWithProjectionLimits(x, y, z float64, mins, maxs vec3) float64 {
+	state := a.projectionState()
 	if a.distance <= 0 {
 		return z
 	}
-	m := default3DProjectionMatrix(a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs)
+	m := default3DProjectionMatrix(a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs, state)
 	_, _, tz := transform3DPoint(m, x, y, z)
 	return tz
 }
@@ -2461,6 +2696,11 @@ func (a *Axes3D) draw3DAxisLabels(textRen render.TextDrawer, r render.Renderer, 
 		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 1), projMins, projMaxs)
 		draw3DTextAtAnchor(textRen, r, ctx, a.YLabel, anchor, fontSize, textColor)
 	}
+	if a.zLabel != "" {
+		pos := midpoint3D(axisLines[2][0], axisLines[2][1])
+		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 2), projMins, projMaxs)
+		draw3DTextAtAnchor(textRen, r, ctx, a.zLabel, anchor, fontSize, textColor)
+	}
 }
 
 func axes3DLabelCentersDeltas(ctx *DrawContext, mins, maxs vec3) (vec3, vec3) {
@@ -2507,7 +2747,7 @@ func midpoint3D(a, b vec3) vec3 {
 }
 
 func (a *Axes3D) project3DLabelAnchor(ctx *DrawContext, pos, projMins, projMaxs vec3) geom.Pt {
-	projected := project3DPointWithLimits(pos[0], pos[1], pos[2], a.elevationDeg, a.azimuthDeg, a.distance, projMins, projMaxs)
+	projected := a.project3DPointWithState(pos[0], pos[1], pos[2], projMins, projMaxs)
 	return ctx.TransformFor(Coords(CoordData)).Apply(projected)
 }
 
@@ -3053,6 +3293,23 @@ func (a *Axes3D) SetView(elevationDeg, azimuthDeg float64) {
 	a.reproject3DArtists()
 }
 
+// SetViewInit sets the full 3D view parameters in degrees.
+func (a *Axes3D) SetViewInit(elevationDeg, azimuthDeg, rollDeg float64, verticalAxis string) error {
+	if a == nil {
+		return nil
+	}
+	axis, err := parse3DVerticalAxis(verticalAxis)
+	if err != nil {
+		return err
+	}
+	a.elevationDeg = elevationDeg
+	a.azimuthDeg = azimuthDeg
+	a.rollDeg = rollDeg
+	a.verticalAxis = axis
+	a.reproject3DArtists()
+	return nil
+}
+
 // SetDistance sets the perspective distance used by the 3D projection.
 // Non-positive values disable perspective scaling.
 func (a *Axes3D) SetDistance(distance float64) {
@@ -3072,7 +3329,79 @@ func (a *Axes3D) SetDefaults() {
 	a.elevationDeg = default3DElevationDeg
 	a.azimuthDeg = default3DAzimuthDeg
 	a.distance = default3DDistance
+	a.rollDeg = default3DRollDeg
+	a.verticalAxis = default3DVerticalAxis
+	a.boxAspect = default3DBoxAspect()
 	a.reproject3DArtists()
+}
+
+// SetXLim fixes the 3D x-axis view limits used for projection and clipping.
+func (a *Axes3D) SetXLim(minVal, maxVal float64) {
+	a.setViewLimit3D(0, minVal, maxVal)
+}
+
+// SetYLim fixes the 3D y-axis view limits used for projection and clipping.
+func (a *Axes3D) SetYLim(minVal, maxVal float64) {
+	a.setViewLimit3D(1, minVal, maxVal)
+}
+
+// SetZLim fixes the 3D z-axis view limits used for projection and clipping.
+func (a *Axes3D) SetZLim(minVal, maxVal float64) {
+	a.setViewLimit3D(2, minVal, maxVal)
+}
+
+func (a *Axes3D) setViewLimit3D(axis int, minVal, maxVal float64) {
+	if a == nil || axis < 0 || axis >= len(a.viewSet) || !isFinite(minVal) || !isFinite(maxVal) {
+		return
+	}
+	if maxVal < minVal {
+		minVal, maxVal = maxVal, minVal
+	}
+	a.viewMin[axis] = minVal
+	a.viewMax[axis] = maxVal
+	a.viewSet[axis] = true
+	a.reproject3DArtists()
+}
+
+// SetBoxAspect3D sets the 3D box physical aspect ratios.
+func (a *Axes3D) SetBoxAspect3D(aspect [3]float64, zoom ...float64) error {
+	if a == nil {
+		return nil
+	}
+	zoomFactor := 1.0
+	if len(zoom) > 0 {
+		zoomFactor = zoom[0]
+	}
+	if zoomFactor <= 0 {
+		return fmt.Errorf("zoom = %v must be > 0", zoomFactor)
+	}
+	boxAspect := vec3{aspect[0], aspect[1], aspect[2]}
+	if !isFinite3D(boxAspect[0], boxAspect[1], boxAspect[2]) {
+		return fmt.Errorf("box aspect %v must be finite", boxAspect)
+	}
+	norm := boxAspect.norm()
+	if norm == 0 {
+		return fmt.Errorf("box aspect %v must not be zero", boxAspect)
+	}
+	scale := default3DBoxAspectScale * default3DBoxAspectZoom25 * zoomFactor / norm
+	boxAspect = boxAspect.scale(scale)
+	a.boxAspect = rollToVertical(boxAspect, a.verticalAxis, true)
+	a.reproject3DArtists()
+	return nil
+}
+
+func (a *Axes3D) SetZLabel(label string) {
+	if a == nil {
+		return
+	}
+	a.zLabel = label
+}
+
+func (a *Axes3D) GetZLabel() string {
+	if a == nil {
+		return ""
+	}
+	return a.zLabel
 }
 
 // View reports the current 3D orientation state.
@@ -3089,7 +3418,7 @@ func (a *Axes3D) ProjectPoint(x, y, z float64) geom.Pt {
 		return geom.Pt{}
 	}
 	mins, maxs := a.projectionLimits()
-	return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs)
+	return project3DPointWithLimits(x, y, z, a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs, a.projectionState())
 }
 
 func (a *Axes3D) projectPointDepth(x, y, z float64) (geom.Pt, float64) {
@@ -3100,18 +3429,30 @@ func (a *Axes3D) projectPointDepth(x, y, z float64) (geom.Pt, float64) {
 		return a.ProjectPoint(x, y, z), z
 	}
 	mins, maxs := a.projectionLimits()
-	m := default3DProjectionMatrix(a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs)
+	m := default3DProjectionMatrix(a.elevationDeg, a.azimuthDeg, a.distance, mins, maxs, a.projectionState())
 	tx, ty, tz := transform3DPoint(m, x, y, z)
 	return geom.Pt{X: tx, Y: ty}, tz
 }
 
 func (a *Axes3D) projectionLimits() (vec3, vec3) {
-	if a == nil || !a.hasData {
+	if a == nil {
 		return vec3{0, 0, 0}, vec3{1, 1, 1}
 	}
-	mins := a.dataMin
-	maxs := a.dataMax
+	mins := vec3{0, 0, 0}
+	maxs := vec3{1, 1, 1}
+	if a.hasData {
+		mins = a.dataMin
+		maxs = a.dataMax
+	}
 	for i := range 3 {
+		if a.viewSet[i] {
+			mins[i] = a.viewMin[i]
+			maxs[i] = a.viewMax[i]
+			continue
+		}
+		if !a.hasData {
+			continue
+		}
 		if mins[i] == maxs[i] {
 			mins[i] -= 0.5
 			maxs[i] += 0.5
@@ -3304,6 +3645,7 @@ func (a *Axes3D) reproject3DArtists() {
 	if a == nil {
 		return
 	}
+	a.zsorted = false
 	for _, reproject := range a.reprojectors {
 		reproject()
 	}
@@ -3356,6 +3698,17 @@ func surfaceShadeEnabled(opt PlotOptions, useMapping bool) bool {
 		return *opt.Shade
 	}
 	return !useMapping
+}
+
+func surfaceEdgeColors(faceColors []render.Color, opt PlotOptions) []render.Color {
+	if opt.EdgeColor != nil || len(opt.FaceColors) == 0 {
+		return nil
+	}
+	edges := make([]render.Color, len(faceColors))
+	for i, color := range faceColors {
+		edges[i] = color
+	}
+	return edges
 }
 
 func trisurfShadeEnabled(opt PlotOptions, useMapping bool) bool {
@@ -3975,7 +4328,12 @@ func project3DPoint(x, y, z, elevationDeg, azimuthDeg, distance float64) geom.Pt
 	return project3DPointWithLimits(x, y, z, elevationDeg, azimuthDeg, distance, vec3{0, 0, 0}, vec3{1, 1, 1})
 }
 
-func project3DPointWithLimits(x, y, z, elevationDeg, azimuthDeg, distance float64, mins, maxs vec3) geom.Pt {
+func project3DPointWithLimits(
+	x, y, z, elevationDeg, azimuthDeg, distance float64,
+	mins, maxs vec3,
+	state ...projected3DState,
+) geom.Pt {
+	s := projected3DStateOrDefault(state...)
 	if distance <= 0 {
 		az := azimuthDeg * math.Pi / 180
 		v := elevationDeg * math.Pi / 180
@@ -3985,13 +4343,18 @@ func project3DPointWithLimits(x, y, z, elevationDeg, azimuthDeg, distance float6
 		return geom.Pt{X: x2, Y: y2*math.Cos(v) - z*math.Sin(v)}
 	}
 
-	m := default3DProjectionMatrix(elevationDeg, azimuthDeg, distance, mins, maxs)
+	m := default3DProjectionMatrix(elevationDeg, azimuthDeg, distance, mins, maxs, s)
 	tx, ty, _ := transform3DPoint(m, x, y, z)
 	return geom.Pt{X: tx, Y: ty}
 }
 
-func default3DProjectionMatrix(elevationDeg, azimuthDeg, distance float64, mins, maxs vec3) mat4 {
-	aspect := default3DBoxAspect()
+func default3DProjectionMatrix(
+	elevationDeg, azimuthDeg, distance float64,
+	mins, maxs vec3,
+	state ...projected3DState,
+) mat4 {
+	s := projected3DStateOrDefault(state...)
+	aspect := s.boxAspect
 	world := worldTransformation(mins[0], maxs[0], mins[1], maxs[1], mins[2], maxs[2], aspect)
 	center := vec3{0.5 * aspect[0], 0.5 * aspect[1], 0.5 * aspect[2]}
 
@@ -4003,7 +4366,7 @@ func default3DProjectionMatrix(elevationDeg, azimuthDeg, distance float64, mins,
 		math.Sin(elev),
 	}
 	eye := center.add(viewDir.scale(distance))
-	u, v, w := viewAxes(eye, center, vec3{0, 0, 1})
+	u, v, w := viewAxes(eye, center, elevationDeg, s.verticalAxis, s.rollDeg)
 	view := viewTransformation(u, v, w, eye)
 	proj := perspectiveTransformation(-distance, distance, default3DFocalLength)
 	return proj.mul(view.mul(world))
@@ -4011,7 +4374,7 @@ func default3DProjectionMatrix(elevationDeg, azimuthDeg, distance float64, mins,
 
 func default3DBoxAspect() vec3 {
 	aspect := vec3{4, 4, 3}
-	scale := 1.8294640721620434 / aspect.norm()
+	scale := default3DBoxAspectScale / aspect.norm()
 	return aspect.scale(scale)
 }
 
@@ -4025,13 +4388,6 @@ func worldTransformation(xmin, xmax, ymin, ymax, zmin, zmax float64, aspect vec3
 		{0, 0, 1 / dz, -zmin / dz},
 		{0, 0, 0, 1},
 	}
-}
-
-func viewAxes(eye, center, vertical vec3) (vec3, vec3, vec3) {
-	w := eye.sub(center).unit()
-	u := vertical.cross(w).unit()
-	v := w.cross(u)
-	return u, v, w
 }
 
 func viewTransformation(u, v, w, eye vec3) mat4 {

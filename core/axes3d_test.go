@@ -1,6 +1,7 @@
 package core
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -198,6 +199,184 @@ func TestAxes3DSetViewReprojectsExistingArtistsLikeMatplotlib(t *testing.T) {
 	want := ax.ProjectPoint(0, 0, 0)
 	if got := line.XY[0]; got == before || !pointsEqual([]Pt{got}, []Pt{want}, 1e-12) {
 		t.Fatalf("line first point after SetView = %+v, before %+v, want reprojected point %+v", got, before, want)
+	}
+}
+
+func TestAxes3DSetViewResortsReprojectedArtists(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	// This concrete geometry set was validated to produce a post-view depth-order
+	// change in mixed 3D collections before resorting.
+	line := ax.Plot3D(
+		[]float64{0.39189601719238726, -1.908212056724124, 0.19907234935342766},
+		[]float64{0.2639219137021458, -2.7281573716616, -1.0175265380463943},
+		[]float64{-0.3983193607443909, -0.3863074357062186, 0.045714226799383334},
+	)
+	scatter := ax.Scatter3D(
+		[]float64{-0.12342427959032432, -0.8461028562161538, -0.3297070194526802},
+		[]float64{-0.20409987823742703, -0.3647173958208699, 0.42341190997306155},
+		[]float64{0.3650874803042903, -0.11731873114148794, 0.2924595905237891},
+	)
+	surface := ax.Surface(
+		[]float64{-0.3919689221384559, -1.4448104140971734, -1.1327180161636174},
+		[]float64{1.1560797832875775, -1.2420708801235487, 0.08422976168325602},
+		[][]float64{
+			{0.0068234861782554, -1.9896369601280388, -0.20234936763553057},
+			{0.8622284518717414, 0.05819260888944283, 0.5210971150122212},
+			{0.322145795095663, -0.49739907363322877, -0.34695595800546974},
+		},
+	)
+	if line == nil || scatter == nil || surface == nil {
+		t.Fatalf("expected mixed 3D artists, got line=%v scatter=%v surface=%v", line, scatter, surface)
+	}
+
+	// Establish baseline sorted draw order.
+	DrawFigure(fig, &render.NullRenderer{})
+
+	// This update changes object depths and should reorder artists.
+	ax.SetView(0, 0)
+	DrawFigure(fig, &render.NullRenderer{})
+	got := dataArtistsForOrderCheck(ax.Artists)
+	want := append([]Artist(nil), got...)
+	sort.SliceStable(want, func(i, j int) bool {
+		zi, zj := want[i].Z(), want[j].Z()
+		if zi == zj {
+			return i < j
+		}
+		return zi < zj
+	})
+	if !axes3DArtistsEqual(got, want) {
+		t.Fatalf("mixed 3D artist draw order not resorted after view change; got=%s, want=%s", artistOrderLabel(got), artistOrderLabel(want))
+	}
+
+	_ = line
+	_ = scatter
+	_ = surface
+}
+
+func TestAxes3DSetViewInitAppliesRollAndVerticalAxis(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	ax.Plot3D([]float64{0, 1}, []float64{0, 1}, []float64{0, 1})
+	before := ax.ProjectPoint(1, 1, 0)
+	if err := ax.SetViewInit(30, -60, 17, "x"); err != nil {
+		t.Fatalf("SetViewInit: %v", err)
+	}
+	after := ax.ProjectPoint(1, 1, 0)
+	if approx(before.X, after.X, 1e-12) && approx(before.Y, after.Y, 1e-12) {
+		t.Fatalf("projected point did not move after SetViewInit with roll/vertical axis change: before=%+v after=%+v", before, after)
+	}
+	if err := ax.SetViewInit(0, 0, 0, "not-an-axis"); err == nil {
+		t.Fatal("SetViewInit with invalid axis: got nil, want error")
+	}
+}
+
+func TestAxes3DSetBoxAspect3DReprojectsAndValidatesZoom(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	ax.Plot3D([]float64{0, 1}, []float64{0, 1}, []float64{0, 1})
+	before := ax.ProjectPoint(0.8, 0.2, 0.6)
+	if err := ax.SetBoxAspect3D([3]float64{2, 1, 3}, 1.25); err != nil {
+		t.Fatalf("SetBoxAspect3D: %v", err)
+	}
+	after := ax.ProjectPoint(0.8, 0.2, 0.6)
+	if approx(before.X, after.X, 1e-12) && approx(before.Y, after.Y, 1e-12) {
+		t.Fatalf("projected point did not move after SetBoxAspect3D: before=%+v after=%+v", before, after)
+	}
+
+	mins, maxs := ax.projectionLimits()
+	expected := project3DPointWithLimits(0.8, 0.2, 0.6, ax.elevationDeg, ax.azimuthDeg, ax.distance, mins, maxs, ax.projectionState())
+	if !approx(expected.X, after.X, 1e-12) || !approx(expected.Y, after.Y, 1e-12) {
+		t.Fatalf("reprojected point after SetBoxAspect3D = %+v, want %+v", after, expected)
+	}
+	if err := ax.SetBoxAspect3D([3]float64{1, 1, 1}, 0); err == nil {
+		t.Fatal("SetBoxAspect3D with zoom=0: got nil, want error")
+	}
+}
+
+func TestAxes3DSetZLabelRenders3DLabel(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	ax.SetXLabel("X")
+	ax.SetYLabel("Y")
+	ax.SetZLabel("Z")
+	if got := ax.GetZLabel(); got != "Z" {
+		t.Fatalf("GetZLabel = %q, want %q", got, "Z")
+	}
+
+	mins, maxs := ax.projectionLimits()
+	frameMins, frameMaxs := axes3DFrameLimits(mins, maxs)
+	ctx := newAxesDrawContext(ax.Axes, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	r := &axes3DTextRecorder{}
+	ax.draw3DAxisLabels(r, r, ctx, frameMins, frameMaxs)
+
+	if !containsString(r.texts, "Z") {
+		t.Fatalf("expected z-axis label text in draw calls, got %v", r.texts)
+	}
+}
+
+func dataArtistsForOrderCheck(artists []Artist) []Artist {
+	filtered := make([]Artist, 0, len(artists))
+	for _, art := range artists {
+		if art == nil || art.Z() <= -1000 {
+			continue
+		}
+		filtered = append(filtered, art)
+	}
+	return filtered
+}
+
+func axes3DArtistsEqual(a, b []Artist) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func artistOrderLabel(artists []Artist) string {
+	out := ""
+	for i, art := range artists {
+		if i > 0 {
+			out += ">"
+		}
+		out += artName(art)
+	}
+	return out
+}
+
+func artName(art Artist) string {
+	switch art.(type) {
+	case *Line2D:
+		return "line"
+	case *LineCollection:
+		return "linecol"
+	case *Scatter2D:
+		return "scatter"
+	case *PolyCollection:
+		return "poly"
+	default:
+		return "artist"
 	}
 }
 
@@ -619,6 +798,47 @@ func TestAxes3DSurfaceSupportsRowColumnStridesLikeMatplotlib(t *testing.T) {
 	}
 }
 
+func TestAxes3DSurfaceSupportsRowColumnCountsLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	x, y, z := testGrid3D(9, 10)
+	rcount := 3
+	ccount := 4
+	collection := ax.Surface(x, y, z, PlotOptions{RCount: &rcount, CCount: &ccount})
+	if collection == nil {
+		t.Fatal("Surface returned nil")
+	}
+	if got, want := len(collection.Polygons), 9; got != want {
+		t.Fatalf("surface count polygon count = %d, want %d sampled patches for 9x10 grid with rcount=3, ccount=4", got, want)
+	}
+}
+
+func TestAxes3DPlotSurfaceGridHonorsSurfaceOptions(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	antialiased := false
+	collection := ax.PlotSurfaceGrid(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {2, 3}},
+		PlotOptions{Antialiased: &antialiased},
+	)
+	if collection == nil {
+		t.Fatal("PlotSurfaceGrid returned nil")
+	}
+	if got, want := collection.Collection.Antialias, render.AntialiasOff; got != want {
+		t.Fatalf("plot surface grid antialias = %v, want %v", got, want)
+	}
+}
+
 func TestAxes3DSurfaceDefaultHasNoEdgeColorsLikeMatplotlibCmapSurface(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
@@ -667,6 +887,75 @@ func TestAxes3DSurfaceExposesScalarMapForColorbars(t *testing.T) {
 	}
 }
 
+func TestAxes3DSurfaceUsesFaceColorsForEdgesLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	face := render.Color{R: 0.2, G: 0.4, B: 0.6, A: 1}
+	surface := ax.Surface(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 2}, {4, 6}},
+		PlotOptions{FaceColors: []render.Color{face}},
+	)
+	if surface == nil {
+		t.Fatal("Surface returned nil")
+	}
+	if got, want := len(surface.EdgeColors), len(surface.FaceColors); got != want {
+		t.Fatalf("surface edge colors len = %d, want face-colored edges for %d faces", got, want)
+	}
+	if got := surface.EdgeColors[0]; got != surface.FaceColors[0] {
+		t.Fatalf("surface edge color = %+v, want same sampled face color %+v", got, surface.FaceColors[0])
+	}
+}
+
+func TestAxes3DSurfaceHonorsAntialiasSetting(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	antialiased := false
+	surface := ax.Surface(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 2}, {4, 6}},
+		PlotOptions{Antialiased: &antialiased},
+	)
+	if surface == nil {
+		t.Fatal("Surface returned nil")
+	}
+	if got, want := surface.Collection.Antialias, render.AntialiasOff; got != want {
+		t.Fatalf("surface antialias = %v, want %v", got, want)
+	}
+}
+
+func TestAxes3DSurfaceAxLimClipDropsFacesOutsideExplicit3DLimits(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetXLim(0, 1.5)
+
+	surface := ax.Surface(
+		[]float64{0, 1, 2},
+		[]float64{0, 1},
+		[][]float64{{0, 1, 2}, {0, 1, 2}},
+		PlotOptions{AxLimClip: true},
+	)
+	if surface == nil {
+		t.Fatal("Surface returned nil")
+	}
+	if got, want := len(surface.Polygons), 1; got != want {
+		t.Fatalf("surface clipped polygon count = %d, want one fully in-limit face", got)
+	}
+}
+
 func TestAxes3DTrisurfExposesConfiguredNorm(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
@@ -690,6 +979,28 @@ func TestAxes3DTrisurfExposesConfiguredNorm(t *testing.T) {
 	mapping := surface.ScalarMap()
 	if mapping.Colormap != cmap || mapping.Norm == nil || mapping.Norm.NormName() != "log" {
 		t.Fatalf("trisurf scalar map = %+v, want inferno/log norm", mapping)
+	}
+}
+
+func TestAxes3DTrisurfHonorsAntialiasSetting(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	antialiased := false
+	tri := Triangulation{
+		X:         []float64{0, 1, 0},
+		Y:         []float64{0, 0, 1},
+		Triangles: [][3]int{{0, 1, 2}},
+	}
+	surface := ax.Trisurf(tri, []float64{1, 10, 100}, PlotOptions{Antialiased: &antialiased})
+	if surface == nil {
+		t.Fatal("Trisurf returned nil")
+	}
+	if got, want := surface.Collection.Antialias, render.AntialiasOff; got != want {
+		t.Fatalf("trisurf antialias = %v, want %v", got, want)
 	}
 }
 
@@ -1387,6 +1698,49 @@ func TestAxes3DContourUsesExplicitOffsetPlane(t *testing.T) {
 	}
 }
 
+func TestAxes3DContourAxLimClipUsesExplicit3DLimits(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetDistance(0)
+	ax.SetView(0, 0)
+	ax.SetXLim(0, 0.75)
+	ax.SetYLim(0, 1)
+
+	x := []float64{0, 0.5, 1}
+	y := []float64{0, 0.5, 1}
+	z := [][]float64{
+		{0, 0.5, 1},
+		{0.5, 1, 1.5},
+		{1, 1.5, 2},
+	}
+	contour := ax.Contour(x, y, z, PlotOptions{Levels: []float64{1}, AxLimClip: true})
+	if contour == nil {
+		t.Fatal("Contour returned nil")
+	}
+	if got, want := len(contour.Segments), 1; got != want {
+		t.Fatalf("contour clipped segment count = %d, want %d", got, want)
+	}
+
+	rawLines, _ := contourGridPolylines(x, y, z, []float64{1})
+	if len(rawLines) != 1 {
+		t.Fatalf("raw contour lines = %d, want 1", len(rawLines))
+	}
+	wantRuns := ax.clip3DPolylineRuns(contourPolyline3D(rawLines[0], 1, "z"))
+	if len(wantRuns) != 1 {
+		t.Fatalf("clipped contour runs = %d, want 1", len(wantRuns))
+	}
+	want := make([]Pt, len(wantRuns[0]))
+	for i, point := range wantRuns[0] {
+		want[i] = ax.ProjectPoint(point[0], point[1], point[2])
+	}
+	if !pointsEqual(contour.Segments[0], want, 1e-12) {
+		t.Fatalf("contour clipped segment = %+v, want explicit-view-limit run %+v", contour.Segments[0], want)
+	}
+}
+
 func TestAxes3DContourZOrderUsesContourGeometry(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
@@ -1435,6 +1789,26 @@ func TestAxes3DContourfUsesFilledLevelMidpointsByDefault(t *testing.T) {
 	want := ax.ProjectPoint(rawPolygons[0][0].X, rawPolygons[0][0].Y, 0.5)
 	if got := fill.Paths[0].V[0]; !approx(got.X, want.X, 1e-12) || !approx(got.Y, want.Y, 1e-12) {
 		t.Fatalf("contourf midpoint point = %+v, want projection at first-band midpoint %+v", got, want)
+	}
+}
+
+func TestAxes3DContourfAxLimClipDropsOffsetBandsOutsideExplicitZLimits(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+	ax.SetZLim(0, 0.75)
+
+	offset := 1.0
+	fill := ax.Contourf(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 1}, {1, 2}},
+		PlotOptions{Levels: []float64{0, 1, 2}, Offset: &offset, AxLimClip: true},
+	)
+	if fill != nil {
+		t.Fatalf("Contourf with offset plane outside z limits returned %+v, want nil", fill)
 	}
 }
 

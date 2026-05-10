@@ -89,20 +89,24 @@ func (i *Image2D) rasterizeToSize(targetWidth, targetHeight int) (render.Image, 
 	img := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
 
 	if targetWidth != cols || targetHeight != rows {
-		for y := 0; y < targetHeight; y++ {
-			for x := 0; x < targetWidth; x++ {
-				v, ok := i.scaledScalarValue(y, x, targetHeight, targetWidth, rows, cols)
-				if !ok {
-					continue
+	for y := 0; y < targetHeight; y++ {
+		for x := 0; x < targetWidth; x++ {
+			v, ok := i.scaledScalarValue(y, x, targetHeight, targetWidth, rows, cols)
+			if !ok {
+				continue
 				}
 				img.Set(x, y, toRGBAColor(mapping.Color(v, 1)))
 			}
 		}
-		data := render.NewImageData(img)
+	data := render.NewImageData(img)
+	if i.Interpolation == "bilinear" {
 		data.SetInterpolation("nearest")
-		data.SetAlpha(clampOneToOne(i.Alpha))
-		return data, true
+	} else {
+		data.SetInterpolation(i.Interpolation)
 	}
+	data.SetAlpha(clampOneToOne(i.Alpha))
+	return data, true
+}
 	for row, values := range i.Data {
 		for col := 0; col < cols; col++ {
 			if col >= len(values) {
