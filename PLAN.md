@@ -266,11 +266,11 @@ core.SavePNG(fig, r, "output.png")
 - [x] Golden/parity coverage for dates, units, and category plots
 - [x] Tighten web-demo units parity for Matplotlib-style bar sticky baselines, default bar margins, daily date ticks, and rotated tick anchoring
 
-### 2.12 ⚪ Architecture Gates for Axes/Transforms
+### 2.12 ✅ Architecture Gates for Axes/Transforms
 
-- [ ] Add automated assertions for axis state transitions in non-affine/projection-heavy paths.
-- [ ] Add focused tests for transform-space APIs (`CoordData`, `CoordAxes`, `CoordFigure`) before adding new transform-specific plot APIs.
-- [ ] Add parity acceptance checks for coordinate-space helpers used by annotations and inset-like features.
+- [x] Add automated assertions for axis state transitions in non-affine/projection-heavy paths.
+- [x] Add focused tests for transform-space APIs (`CoordData`, `CoordAxes`, `CoordFigure`) before adding new transform-specific plot APIs.
+- [x] Add parity acceptance checks for coordinate-space helpers used by annotations and inset-like features.
 
 **Exit Criteria:**
 
@@ -278,7 +278,7 @@ core.SavePNG(fig, r, "output.png")
 - [x] Plots have proper axis lines, ticks, and labels
 - [x] Grid lines work and look good (major + minor, dashed)
 - [x] Axis limits can be set manually or auto-computed
-- [ ] Architectural gates for transforms/coordinate systems are validated
+- [x] Architectural gates for transforms/coordinate systems are validated
 
 ---
 
@@ -1118,13 +1118,108 @@ Current parity-hardening slice:
 
 ---
 
+# Phase 14: Backend Parity Program
+
+**Goal:** make backend behavior explicit, testable, and Matplotlib-compatible across AGG, GoBasic, SVG, and Skia, in that order.
+
+This phase consolidates the remaining backend work that was previously spread across Phase 8 renderer-depth notes and backend strategy notes. The ordering is intentional: AGG remains the reference raster backend, GoBasic is the pure-Go fallback, SVG is the first-class vector backend, and Skia follows after the shared contracts are stable enough to avoid duplicating backend-specific work.
+
+### 14.1 AGG Reference Backend Parity
+
+**Reference sources:** `third_party/matplotlib/lib/matplotlib/backends/backend_agg.py`, `third_party/matplotlib/src/_backend_agg.*`, `backends/agg/`, `render/`, `test/`.
+
+- [ ] Audit `backends/agg` against upstream `RendererAgg` method coverage and record any intentionally unsupported methods in backend docs.
+- [ ] Finish the shared shaping layer tracked in 8.1C so AGG text draw, measurement, bounds, and text-path output all consume the same shaped glyph runs.
+- [ ] Complete AGG MathText and `usetex` import paths so raster text, path text, MathText, and TeX output share the same clipping, alpha, and DPI semantics.
+- [ ] Add buffer-region APIs equivalent to `copy_from_bbox` / `restore_region` for animation, blitting, and interactive redraw.
+- [ ] Add `start_filter` / `stop_filter`-style offscreen rendering support for path effects and filtered artist output.
+- [ ] Expand AGG parity diagnostics for remaining non-text residuals: dense path collections, repeated translucent overlaps, image interpolation modes, hatch clipping, and mixed raster/vector fallbacks.
+- [ ] Split AGG-native parity fixtures from renderer-neutral fallback fixtures so missing native AGG behavior cannot be hidden by fallback drawing.
+
+Exit criteria:
+
+- [ ] AGG is the canonical raster reference backend for parity fixtures and passes the strictest committed golden/reference thresholds.
+- [ ] AGG exposes native or explicitly unsupported status for every optional renderer capability in `render/extensions.go`.
+- [ ] AGG text, image, path, collection, hatching, clipping, and buffer behavior have targeted unit coverage plus representative visual fixtures.
+
+### 14.2 GoBasic Backend Parity
+
+**Reference sources:** `backends/gobasic/`, `backends/test_suite.go`, `backends/contract_test.go`, `render/`.
+
+- [ ] Define GoBasic's supported scope as a pure-Go correctness fallback rather than a pixel-identical Matplotlib renderer.
+- [ ] Bring GoBasic capability reporting into exact agreement with runtime interfaces: text, clipping, image transforms, batch fallbacks, hatching, export formats, and DPI behavior.
+- [ ] Make GoBasic implement all renderer-neutral fallback paths required by `core` without silently dropping paint state such as alpha, line joins/caps, dashes, clipping, hatches, and antialiasing flags.
+- [ ] Add GoBasic contract tests for path state save/restore, clip stack behavior, image drawing, transformed image fallback, text metrics, and collection fallback routing.
+- [ ] Add a small GoBasic visual smoke fixture set that checks semantic output stability without using AGG-level pixel thresholds.
+- [ ] Document every known GoBasic fidelity limitation in `backends/gobasic/doc.go` and surface those limitations through the capability matrix.
+
+Exit criteria:
+
+- [ ] GoBasic can render every committed non-interactive example without panics or missing mandatory artist output.
+- [ ] GoBasic capability reports match actual behavior and fail tests when a claimed capability is absent.
+- [ ] GoBasic remains dependency-light and pure Go while sharing as much renderer-neutral logic as possible with AGG/SVG/Skia.
+
+### 14.3 SVG Vector Backend Parity
+
+**Reference sources:** `third_party/matplotlib/lib/matplotlib/backends/backend_svg.py`, `backends/svg/`, `render/`, `test/`.
+
+- [ ] Audit SVG output against upstream `RendererSVG` for path serialization, clipping, transforms, opacity groups, hatches, markers, images, text-as-text, and text-as-path behavior.
+- [ ] Add deterministic SVG serialization tests that normalize IDs, ordering, float formatting, and metadata so diffs are reviewable.
+- [ ] Implement SVG clip paths, nested clip groups, and transformed clip paths consistently with the shared renderer clip contract.
+- [ ] Add SVG support for hatches, alpha groups, raster image embedding, transformed images, and Gouraud/gradient fallbacks where vector-native output is practical.
+- [ ] Align SVG font handling with the shared font manager: preserve text when possible, emit path text when requested or required, and keep measurement behavior consistent with layout.
+- [ ] Route figure/filetype save dispatch through backend capabilities so `.svg` output uses the SVG backend without ad-hoc save helpers.
+- [ ] Add SVG reference fixtures for core plot families, text/mathtext, images, clipped projections, hatches, and collection-heavy plots.
+
+Exit criteria:
+
+- [ ] SVG output is deterministic, standards-compliant enough for browser viewing, and covered by structural tests instead of only rasterized screenshots.
+- [ ] SVG supports the same high-level artist surface as AGG, with documented vector-specific fallbacks for unsupported raster-only effects.
+- [ ] `.svg` save dispatch works through the backend registry/canvas path.
+
+### 14.4 Skia Backend Parity
+
+**Reference sources:** `backends/skia/`, `backends/registry.go`, `render/`, `backends/test_suite.go`.
+
+- [ ] Decide and document the Skia binding strategy, build tags, dependency expectations, CPU/GPU mode split, and CI support model.
+- [ ] Replace the current scaffold with a functional Skia renderer that implements the base `render.Renderer` contract: paths, images, save/restore, clip rect/path, and PNG export.
+- [ ] Add Skia text support through the shared font/shaping pipeline instead of inventing backend-local text metrics.
+- [ ] Add native Skia support for optional capabilities where practical: marker batches, path collections, quad meshes, Gouraud triangles, transformed images, hatching or pattern fills, and GPU acceleration.
+- [ ] Implement Skia capability reporting separately for CPU and GPU modes so tests can distinguish native, fallback, and unavailable paths.
+- [ ] Add Skia backend contract tests and a small visual fixture set gated by build tags or environment checks when Skia dependencies are unavailable.
+- [ ] Compare Skia output against AGG semantic fixtures and only use Matplotlib pixel thresholds where Skia is expected to match the raster reference closely.
+
+Exit criteria:
+
+- [ ] Skia is usable as an opt-in backend for static raster output.
+- [ ] Skia's capability matrix is truthful for both CPU and GPU configurations.
+- [ ] Skia test coverage can run deterministically in CI or skip with explicit dependency diagnostics.
+
+### 14.5 Cross-Backend Capability and Save Dispatch
+
+- [ ] Replace remaining hard-coded `SavePNG` / `SaveSVG` paths with registry/canvas save dispatch keyed by backend capabilities and file extension.
+- [ ] Expand `backends.CapabilityMatrix()` to include all optional renderer capabilities from `render/extensions.go`, not just the original coarse capability set.
+- [ ] Add tests that instantiate each registered backend and verify advertised native capabilities against concrete runtime interfaces.
+- [ ] Add a backend comparison report command or test helper that lists unsupported/fallback/native status for AGG, GoBasic, SVG, and Skia.
+- [ ] Keep backend docs aligned with actual capabilities whenever a renderer interface is added or removed.
+
+Exit criteria:
+
+- [ ] Backend selection, save dispatch, and capability reporting are the single source of truth for AGG, GoBasic, SVG, and Skia.
+- [ ] New artist work can rely on capability checks instead of backend-name conditionals.
+- [ ] The backend parity matrix is reviewed before marking future rendering phases complete.
+
+---
+
 # Development Guidelines
 
 ## Backend Strategy
 
 - **Primary backend:** AGG (`backends/agg/`) — anti-aliased, sub-pixel accurate
-- **PoC backend:** GoBasic (`backends/gobasic/`) — retained for reference and simple use cases
-- **Future:** Skia (GPU), SVG (vector), PDF (print)
+- **Pure-Go fallback:** GoBasic (`backends/gobasic/`) — retained for dependency-light semantic coverage
+- **Vector backend:** SVG (`backends/svg/`) — deterministic vector export and browser-readable output
+- **Future accelerated backend:** Skia (`backends/skia/`) — CPU/GPU raster path after shared backend contracts are stable
+- **Future print/export backends:** PDF and other formats once SVG/vector contracts are mature
 
 ## Testing Strategy
 

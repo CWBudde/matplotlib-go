@@ -7,6 +7,7 @@ import (
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 func TestNormalizeDisplayText_ReplacesBasicMathTokens(t *testing.T) {
@@ -561,19 +562,96 @@ func TestAnnotationDrawOverlayRendersArrowAndText(t *testing.T) {
 	}
 }
 
+func TestAnnotateRespectsConfiguredCoordinateSpaces(t *testing.T) {
+	fig := NewFigure(800, 600)
+	ax := fig.AddAxes(unitRect())
+	ax.XAxis.ShowSpine = false
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowSpine = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
+	ax.ShowFrame = false
+
+	ax.Annotate("data", 0.25, 0.75, AnnotationOptions{
+		Coords: Coords(CoordData),
+		OffsetX: 10,
+		OffsetY: -15,
+	})
+	ax.Annotate("axes", 0.5, 0.5, AnnotationOptions{
+		Coords: Coords(CoordAxes),
+		OffsetX: -12,
+		OffsetY: 6,
+	})
+	ax.Annotate("figure", 0.2, 0.3, AnnotationOptions{
+		Coords: Coords(CoordFigure),
+		OffsetX: 7,
+		OffsetY: 4,
+	})
+
+	ctx := newAxesDrawContext(ax, fig, fig.DisplayRect(), ax.adjustedLayout(fig))
+	dataToPx := ctx.TransformFor(Coords(CoordData))
+	axesToPx := ctx.TransformFor(Coords(CoordAxes))
+	figureToPx := ctx.TransformFor(Coords(CoordFigure))
+	if dataToPx == nil || axesToPx == nil || figureToPx == nil {
+		t.Fatalf("unexpected nil transform from coordinate-space transform helpers")
+	}
+
+	dataTarget := dataToPx.Apply(geom.Pt{X: 0.25, Y: 0.75})
+	dataAnchor := transform.NewOffset(dataToPx, geom.Pt{X: 10, Y: -15}).Apply(geom.Pt{X: 0.25, Y: 0.75})
+	axesTarget := axesToPx.Apply(geom.Pt{X: 0.5, Y: 0.5})
+	axesAnchor := transform.NewOffset(axesToPx, geom.Pt{X: -12, Y: 6}).Apply(geom.Pt{X: 0.5, Y: 0.5})
+	figureTarget := figureToPx.Apply(geom.Pt{X: 0.2, Y: 0.3})
+	figureAnchor := transform.NewOffset(figureToPx, geom.Pt{X: 7, Y: 4}).Apply(geom.Pt{X: 0.2, Y: 0.3})
+
+	r := &textRecordingRenderer{}
+	DrawFigure(fig, r)
+
+	var lines []geom.Path
+	for _, path := range r.pathCalls {
+		if len(path.path.C) == 2 && len(path.path.V) == 2 {
+			lines = append(lines, path.path)
+		}
+	}
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 annotation line paths, got %d", len(lines))
+	}
+
+	expectLine := func(got geom.Path, start, end geom.Pt) {
+		if len(got.V) != 2 {
+			t.Fatalf("annotation line path vertices = %d, want 2", len(got.V))
+		}
+		direct := (approx(got.V[0].X, start.X, 1e-9) && approx(got.V[0].Y, start.Y, 1e-9) &&
+			approx(got.V[1].X, end.X, 1e-9) && approx(got.V[1].Y, end.Y, 1e-9))
+		reversed := (approx(got.V[0].X, end.X, 1e-9) && approx(got.V[0].Y, end.Y, 1e-9) &&
+			approx(got.V[1].X, start.X, 1e-9) && approx(got.V[1].Y, start.Y, 1e-9))
+		if !direct && !reversed {
+			t.Fatalf("annotation line = %+v, want %+v -> %+v", got.V, start, end)
+		}
+	}
+
+	expectLine(lines[0], dataTarget, dataAnchor)
+	expectLine(lines[1], axesTarget, axesAnchor)
+	expectLine(lines[2], figureTarget, figureAnchor)
+}
+
 type textRecordingRenderer struct {
 	render.NullRenderer
 	pathCount  int
 	pathPaints []render.Paint
+	pathCalls  []recordedPathCall
 	texts      []string
 	origins    []geom.Pt
 }
 
-func (r *textRecordingRenderer) Path(_ geom.Path, paint *render.Paint) {
+func (r *textRecordingRenderer) Path(p geom.Path, paint *render.Paint) {
 	r.pathCount++
+	call := recordedPathCall{path: p}
 	if paint != nil {
-		r.pathPaints = append(r.pathPaints, *paint)
+		call.paint = *paint
+		r.pathPaints = append(r.pathPaints, call.paint)
 	}
+	r.pathCalls = append(r.pathCalls, call)
 }
 
 func (r *textRecordingRenderer) MeasureText(text string, size float64, _ string) render.TextMetrics {

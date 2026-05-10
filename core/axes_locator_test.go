@@ -5,6 +5,7 @@ import (
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/render"
+	"github.com/cwbudde/matplotlib-go/transform"
 )
 
 func TestInsetAxesUsesParentAxesFractionBounds(t *testing.T) {
@@ -101,6 +102,83 @@ func TestZoomedInsetConfiguresLimitsAndIndicator(t *testing.T) {
 	}
 	if got := len(r.pathCalls[0].path.V); got != 4 {
 		t.Fatalf("zoom rectangle vertices = %d, want 4", got)
+	}
+}
+
+func TestInsetAxesSharedStateTransitionsPropagateThroughProjectionChildren(t *testing.T) {
+	fig := NewFigure(500, 300)
+	parent := fig.AddAxes(unitRect())
+	inset := parent.InsetAxes(
+		geom.Rect{Min: geom.Pt{X: 0.1, Y: 0.2}, Max: geom.Pt{X: 0.5, Y: 0.5}},
+		WithInsetProjection("mollweide"),
+		WithInsetSharedX(parent),
+		WithInsetSharedY(parent),
+	)
+	if inset == nil {
+		t.Fatal("InsetAxes returned nil")
+	}
+	if inset.xScaleRoot() != parent.xScaleRoot() {
+		t.Fatal("inset should share x root with parent")
+	}
+	if inset.yScaleRoot() != parent.yScaleRoot() {
+		t.Fatal("inset should share y root with parent")
+	}
+
+	parent.SetXLim(1, 100)
+	parent.SetYLim(1, 1000)
+
+	if err := inset.SetXScale("log", transform.WithScaleBase(10)); err != nil {
+		t.Fatalf("inset.SetXScale(log): %v", err)
+	}
+	rootX := parent.xScaleRoot()
+	if _, ok := rootX.XScale.(transform.Log); !ok {
+		t.Fatalf("shared x-root scale = %T, want transform.Log", rootX.XScale)
+	}
+	if err := inset.SetYScale("log", transform.WithScaleBase(10)); err != nil {
+		t.Fatalf("inset.SetYScale(log): %v", err)
+	}
+	rootY := parent.yScaleRoot()
+	if _, ok := rootY.YScale.(transform.Log); !ok {
+		t.Fatalf("shared y-root scale = %T, want transform.Log", rootY.YScale)
+	}
+}
+
+func TestInsetIndicatorUsesParentProjectionDataTransform(t *testing.T) {
+	fig := NewFigure(500, 300)
+	parent, err := fig.AddAxesProjection(unitRect(), "polar")
+	if err != nil {
+		t.Fatalf("AddAxesProjection(polar): %v", err)
+	}
+	inset, indicator := parent.ZoomedInset(
+		geom.Rect{Min: geom.Pt{X: 0.05, Y: 0.05}, Max: geom.Pt{X: 0.40, Y: 0.55}},
+		[2]float64{0.5, 1.5},
+		[2]float64{0.2, 0.8},
+	)
+	if inset == nil || indicator == nil {
+		t.Fatal("ZoomedInset returned nil")
+	}
+
+	ctx := newAxesDrawContext(parent, fig, fig.DisplayRect(), parent.adjustedLayout(fig))
+	r := &recordingRenderer{}
+	indicator.DrawOverlay(r, ctx)
+	if len(r.pathCalls) != 3 {
+		t.Fatalf("expected zoom rectangle plus two connectors, got %d", len(r.pathCalls))
+	}
+
+	zoom := r.pathCalls[0].path
+	if len(zoom.V) != 4 {
+		t.Fatalf("expected 4 zoom corners, got %d", len(zoom.V))
+	}
+	zoomExpected := []geom.Pt{
+		ctx.DataToPixel.Apply(geom.Pt{X: 0.5, Y: 0.2}),
+		ctx.DataToPixel.Apply(geom.Pt{X: 1.5, Y: 0.2}),
+		ctx.DataToPixel.Apply(geom.Pt{X: 1.5, Y: 0.8}),
+		ctx.DataToPixel.Apply(geom.Pt{X: 0.5, Y: 0.8}),
+	}
+	for i := 0; i < len(zoom.V); i++ {
+		if !approx(zoom.V[i].X, zoomExpected[i].X, 1e-9) || !approx(zoom.V[i].Y, zoomExpected[i].Y, 1e-9) {
+			t.Fatalf("zoom corner %d = %+v, want %+v", i, zoom.V[i], zoomExpected[i])
+		}
 	}
 }
 
