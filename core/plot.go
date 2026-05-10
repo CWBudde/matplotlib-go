@@ -894,6 +894,12 @@ func (a *Axes) BoxPlots(datasets [][]float64, opts ...BoxPlotsOptions) []*BoxPlo
 		opt = opts[0]
 	}
 
+	width := opt.Width
+	if width == nil {
+		defaultWidth := matplotlibBoxPlotDefaultWidth(len(datasets), opt.Positions)
+		width = &defaultWidth
+	}
+
 	boxes := make([]*BoxPlot2D, 0, len(datasets))
 	for i, data := range datasets {
 		position := float64(i + 1)
@@ -903,7 +909,7 @@ func (a *Axes) BoxPlots(datasets [][]float64, opts ...BoxPlotsOptions) []*BoxPlo
 
 		boxOpt := BoxPlotOptions{
 			Position:           &position,
-			Width:              opt.Width,
+			Width:              width,
 			EdgeColor:          opt.EdgeColor,
 			MedianColor:        opt.MedianColor,
 			WhiskerColor:       opt.WhiskerColor,
@@ -943,6 +949,26 @@ func (a *Axes) BoxPlots(datasets [][]float64, opts ...BoxPlotsOptions) []*BoxPlo
 		}
 	}
 	return boxes
+}
+
+func matplotlibBoxPlotDefaultWidth(n int, positions []float64) float64 {
+	if n <= 1 {
+		return 0.15
+	}
+	minPos := math.Inf(1)
+	maxPos := math.Inf(-1)
+	for i := 0; i < n; i++ {
+		position := float64(i + 1)
+		if i < len(positions) && isFinite(positions[i]) {
+			position = positions[i]
+		}
+		minPos = math.Min(minPos, position)
+		maxPos = math.Max(maxPos, position)
+	}
+	if !isFinite(minPos) || !isFinite(maxPos) {
+		return 0.15
+	}
+	return math.Min(0.5, math.Max(0.15, 0.15*(maxPos-minPos)))
 }
 
 // FillToBaselinePlot creates a fill from a curve to baseline with automatic color cycling.

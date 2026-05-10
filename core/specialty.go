@@ -1225,7 +1225,12 @@ func (a *Axes) Hexbin(x, y []float64, opts ...HexbinOptions) *HexbinCollection {
 			value = reduceHexbinValues(entry, cfg.Reduce)
 		}
 		center := specialtyHexbinUnscalePoint(entry.center, xscale, yscale)
-		polygons = append(polygons, specialtyHexagon(center, rx, ry))
+		scaledPolygon := specialtyHexagon(entry.center, rx, ry)
+		polygon := make([]geom.Pt, len(scaledPolygon))
+		for i, pt := range scaledPolygon {
+			polygon[i] = specialtyHexbinUnscalePoint(pt, xscale, yscale)
+		}
+		polygons = append(polygons, polygon)
 		values = append(values, value)
 		counts = append(counts, entry.count)
 		centers = append(centers, center)
@@ -1449,6 +1454,7 @@ func (a *Axes) Pie(values []float64, opts ...PieOptions) *PieContainer {
 				Coords: cfg.Coords,
 				HAlign: pieAlign(mid),
 				VAlign: TextVAlignMiddle,
+				Angle:  pieLabelRotation(mid, cfg.RotateLabels),
 				ClipOn: &clipOn,
 			}))
 		}
@@ -1518,6 +1524,7 @@ func (a *Axes) PieLabel(container *PieContainer, labels []string, opts ...PieLab
 			Coords: cfg.Coords,
 			HAlign: align,
 			VAlign: TextVAlignMiddle,
+			Angle:  pieLabelRotation(mid, cfg.Rotate),
 			ClipOn: &clipOn,
 		})
 		out = append(out, txt)

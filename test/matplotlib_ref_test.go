@@ -208,8 +208,8 @@ func TestMpl_HistBasic(t *testing.T)      { runMplTest(t, "hist_basic") }
 func TestMpl_HistDensity(t *testing.T)    { runMplTest(t, "hist_density") }
 func TestMpl_HistStrategies(t *testing.T) { runMplTest(t, "hist_strategies") }
 func TestMpl_BoxPlotBasic(t *testing.T)   { runMplTest(t, "boxplot_basic") }
-func TestMpl_Phase12SpecialtyDepth(t *testing.T) {
-	runMplTest(t, "phase12_specialty_depth")
+func TestMpl_SpecialtyDepth(t *testing.T) {
+	runMplTest(t, "specialty_depth")
 }
 
 func TestMpl_AxesTopRightInverted(t *testing.T) {

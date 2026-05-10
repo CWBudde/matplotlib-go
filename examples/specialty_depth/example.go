@@ -1,4 +1,4 @@
-package phase12_specialty_depth
+package specialty_depth
 
 import (
 	"image"

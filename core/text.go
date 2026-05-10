@@ -34,6 +34,7 @@ type TextOptions struct {
 	Color    render.Color
 	HAlign   TextAlign
 	VAlign   TextVerticalAlign
+	Angle    float64
 	Coords   CoordinateSpec
 	OffsetX  float64
 	OffsetY  float64
@@ -73,6 +74,7 @@ type Text struct {
 	Color    render.Color
 	HAlign   TextAlign
 	VAlign   TextVerticalAlign
+	Angle    float64
 	Coords   CoordinateSpec
 	OffsetX  float64
 	OffsetY  float64
@@ -120,6 +122,7 @@ func (a *Axes) Text(x, y float64, text string, opts ...TextOptions) *Text {
 		Color:    opt.Color,
 		HAlign:   opt.HAlign,
 		VAlign:   opt.VAlign,
+		Angle:    opt.Angle,
 		Coords:   opt.Coords,
 		OffsetX:  opt.OffsetX,
 		OffsetY:  opt.OffsetY,
@@ -157,6 +160,7 @@ func (f *Figure) Text(x, y float64, text string, opts ...TextOptions) *Text {
 		Color:    opt.Color,
 		HAlign:   opt.HAlign,
 		VAlign:   opt.VAlign,
+		Angle:    opt.Angle,
 		Coords:   opt.Coords,
 		OffsetX:  opt.OffsetX,
 		OffsetY:  opt.OffsetY,
@@ -248,6 +252,14 @@ func (t *Text) drawText(r render.Renderer, ctx *DrawContext) {
 	layout := measureSingleLineTextLayout(r, t.Content, fontSize, ctx.RC.FontKey)
 	origin := alignedSingleLineOrigin(anchor, layout, t.HAlign, layoutVerticalAlign(t.VAlign, false))
 	drawTextBBox(r, origin, layout, t.BBox, ctx, fontSize)
+	if t.Angle != 0 {
+		if rotated, ok := r.(render.RotatedTextDrawer); ok {
+			angle := t.Angle * math.Pi / 180
+			rotAnchor := tickLabelRotationAnchor(origin, layout, t.HAlign, layoutVerticalAlign(t.VAlign, false), angle)
+			drawDisplayTextRotated(rotated, t.Content, rotAnchor, fontSize, angle, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey)
+			return
+		}
+	}
 	drawDisplayText(textRen, t.Content, origin, fontSize, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey)
 }
 

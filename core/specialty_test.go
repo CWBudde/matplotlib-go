@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -143,6 +144,43 @@ func TestAxesHexbinLogBinsReducersAndMarginals(t *testing.T) {
 	}
 }
 
+func TestAxesHexbinLogScaleBuildsHexagonsInLogSpace(t *testing.T) {
+	ax := NewFigure(640, 480).AddAxes(geom.Rect{})
+
+	hex := ax.Hexbin(
+		[]float64{1.2, 1.8, 2.6, 4.0, 6.5, 9.0, 14, 22, 35, 58, 92},
+		[]float64{1.1, 2.2, 3.0, 5.5, 7.0, 12, 20, 28, 48, 80, 105},
+		HexbinOptions{
+			GridSizeX: 6,
+			C:         []float64{1, 3, 2, 5, 7, 6, 11, 14, 18, 23, 30},
+			Reduce:    "max",
+			Bins:      "log",
+			XScale:    "log",
+			YScale:    "log",
+		},
+	)
+	if hex == nil || len(hex.Polygons) == 0 {
+		t.Fatal("expected log hexbin polygons")
+	}
+
+	maxLogWidth := 0.0
+	for _, poly := range hex.Polygons {
+		minX, maxX := math.Inf(1), math.Inf(-1)
+		for _, pt := range poly {
+			if pt.X <= 0 {
+				t.Fatalf("log hexbin polygon contains non-positive x coordinate %+v", pt)
+			}
+			lx := math.Log10(pt.X)
+			minX = math.Min(minX, lx)
+			maxX = math.Max(maxX, lx)
+		}
+		maxLogWidth = math.Max(maxLogWidth, maxX-minX)
+	}
+	if maxLogWidth < 0.05 {
+		t.Fatalf("log hexbin polygons are collapsed in log space; max width = %.4f", maxLogWidth)
+	}
+}
+
 func TestAxesPieCreatesWedgesAndLabels(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax := fig.AddAxes(geom.Rect{
@@ -199,9 +237,15 @@ func TestAxesPieAdvancedOptionsAndPieLabel(t *testing.T) {
 	if len(pie.LabelAngles) != 2 || pie.LabelAngles[0] == 0 {
 		t.Fatalf("label rotations = %v, want populated", pie.LabelAngles)
 	}
+	if len(pie.Labels) != 2 || pie.Labels[0].Angle == 0 {
+		t.Fatalf("pie label text angle = %v, want non-zero rotation", pie.Labels[0].Angle)
+	}
 	added := ax.PieLabel(pie, []string{"one", "two"}, PieLabelOptions{Distance: 0.8, Rotate: true})
 	if len(added) != 2 {
 		t.Fatalf("PieLabel added %d labels, want 2", len(added))
+	}
+	if added[0].Angle == 0 {
+		t.Fatal("PieLabel Rotate should set text angle")
 	}
 }
 

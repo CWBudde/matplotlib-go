@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import inspect
 import sys
 
 try:
@@ -14,7 +15,7 @@ except ModuleNotFoundError:
     from common import *  # noqa: F401,F403
 
 
-def phase12_specialty_depth(out_dir):
+def specialty_depth(out_dir):
     fig = make_fig_px(980, 720)
 
     err_ax = fig.add_axes(go_rect(0.07, 0.60, 0.34, 0.94))
@@ -64,6 +65,9 @@ def phase12_specialty_depth(out_dir):
     violin_ax.set_xlim(0.5, 5.5)
     violin_ax.set_ylim(0.5, 2.4)
     violin_ax.grid(axis="x")
+    violin_kwargs = {
+        "side": "high",
+    } if "side" in inspect.signature(violin_ax.violinplot).parameters else {}
     parts = violin_ax.violinplot(
         [
             [1.0, 1.3, 1.7, 2.2, 2.5, 3.1, 3.7, 4.1, 4.7],
@@ -74,7 +78,10 @@ def phase12_specialty_depth(out_dir):
         bw_method="scott",
         showmedians=True,
         showextrema=True,
+        **violin_kwargs,
     )
+    if not violin_kwargs:
+        _clip_horizontal_violin_high(parts, [1, 2])
     for body in parts["bodies"]:
         body.set_facecolor((0.30, 0.60, 0.78, 0.58))
         body.set_edgecolor((0.12, 0.12, 0.12, 0.9))
@@ -115,10 +122,28 @@ def phase12_specialty_depth(out_dir):
         marginals=True,
     )
 
-    save(fig, out_dir, "phase12_specialty_depth")
+    save(fig, out_dir, "specialty_depth")
 
 
-PLOT = phase12_specialty_depth
+PLOT = specialty_depth
+
+
+def _clip_horizontal_violin_high(parts, positions):
+    for body, pos in zip(parts.get("bodies", []), positions):
+        vertices = body.get_paths()[0].vertices
+        vertices[:, 1] = np.maximum(vertices[:, 1], pos)
+    for key in ("cmedians", "cmins", "cmaxes", "cquantiles"):
+        collection = parts.get(key)
+        if collection is None:
+            continue
+        segments = collection.get_segments()
+        clipped = []
+        for segment in segments:
+            pos = min(positions, key=lambda p: abs(np.mean(segment[:, 1]) - p))
+            segment = segment.copy()
+            segment[:, 1] = np.maximum(segment[:, 1], pos)
+            clipped.append(segment)
+        collection.set_segments(clipped)
 
 
 def main():

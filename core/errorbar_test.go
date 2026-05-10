@@ -73,6 +73,36 @@ func TestErrorBar_Draw_BroadcastError(t *testing.T) {
 	}
 }
 
+func TestErrorBarLimitCaretUsesEndpointAsBase(t *testing.T) {
+	errBar := &ErrorBar{
+		XY:        []geom.Pt{{X: 1, Y: 1}},
+		YErrUpper: []float64{1},
+		LoLimits:  []bool{true},
+		CapSize:   8,
+		LineWidth: 1,
+		Color:     render.Color{R: 0, G: 0, B: 0, A: 1},
+	}
+	r := &recordingRenderer{}
+	ctx := createTestDrawContext()
+
+	errBar.Draw(r, ctx)
+
+	if len(r.pathCalls) != 2 {
+		t.Fatalf("path calls = %d, want stem and caret", len(r.pathCalls))
+	}
+	caret := r.pathCalls[1].path.V
+	if len(caret) != 3 {
+		t.Fatalf("caret vertices = %d, want 3", len(caret))
+	}
+	endpoint := ctx.DataToPixel.Apply(geom.Pt{X: 1, Y: 2})
+	if caret[0].Y != endpoint.Y || caret[2].Y != endpoint.Y {
+		t.Fatalf("caret base y = %.3f, %.3f; want endpoint y %.3f", caret[0].Y, caret[2].Y, endpoint.Y)
+	}
+	if caret[1].Y >= endpoint.Y {
+		t.Fatalf("lower-limit caret tip y = %.3f, want above endpoint %.3f in display space", caret[1].Y, endpoint.Y)
+	}
+}
+
 func TestErrorBar_ZOrder(t *testing.T) {
 	errBar := &ErrorBar{z: 1.25}
 	if got := errBar.Z(); got != 1.25 {

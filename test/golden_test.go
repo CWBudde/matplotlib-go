@@ -146,9 +146,9 @@ func TestBoxPlotBasic_Golden(t *testing.T) {
 	runGoldenTest(t, "boxplot_basic")
 }
 
-func TestPhase12SpecialtyDepth_Golden(t *testing.T) {
+func TestSpecialtyDepth_Golden(t *testing.T) {
 	requireOptionalVisualTests(t)
-	runGoldenTest(t, "phase12_specialty_depth")
+	runGoldenTest(t, "specialty_depth")
 }
 
 func TestErrorBars_Golden(t *testing.T) {

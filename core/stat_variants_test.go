@@ -71,6 +71,24 @@ func TestAxesBoxPlots_CreatesMultipleBoxes(t *testing.T) {
 	}
 }
 
+func TestAxesBoxPlotsDefaultWidthMatchesMatplotlibPositions(t *testing.T) {
+	ax := NewFigure(640, 360).AddAxes(geom.Rect{})
+
+	boxes := ax.BoxPlots([][]float64{
+		{1, 2, 3},
+		{2, 3, 4},
+	})
+
+	if len(boxes) != 2 {
+		t.Fatalf("got %d boxes, want 2", len(boxes))
+	}
+	for i, box := range boxes {
+		if box.Width != 0.15 {
+			t.Fatalf("box %d width = %v, want Matplotlib default 0.15", i, box.Width)
+		}
+	}
+}
+
 func TestAxesBoxPlot_AdvancedStatOptions(t *testing.T) {
 	ax := NewFigure(640, 360).AddAxes(geom.Rect{})
 	notch := true

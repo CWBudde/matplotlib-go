@@ -62,7 +62,7 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "plot_variants", minPSNR: 35.0, maxMeanAbs: 6.5},
 	{name: "spectrum_variants", minPSNR: 35.0, maxMeanAbs: 6.5},
 	{name: "stat_variants", minPSNR: 32.0, maxMeanAbs: 9.0},
-	{name: "phase12_specialty_depth", minPSNR: 22.0, maxMeanAbs: 20.0, maxRMSE: 35.0},
+	{name: "specialty_depth", minPSNR: 22.0, maxMeanAbs: 20.0, maxRMSE: 35.0},
 	{name: "stem_plot"},
 	{name: "specialty_artists"},
 	{name: "units_overview", minPSNR: 43.5},

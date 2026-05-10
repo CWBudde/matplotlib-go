@@ -44,7 +44,7 @@ mesh_contour_tri
 plot_variants
 spectrum_variants
 stat_variants
-phase12_specialty_depth
+specialty_depth
 stem_plot
 specialty_artists
 units_overview

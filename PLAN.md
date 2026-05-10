@@ -1076,7 +1076,7 @@ Exit notes:
 
 - Phase 12 plot families now have direct object-oriented APIs and pyplot wrappers where stateful coverage is expected: semilog/loglog/date/fill/barh, spectrum variants, errorbar depth, boxplot depth, violin depth, pie label helpers, and hexbin depth.
 - Unit coverage spans the new direct helpers and option paths, including asymmetric errorbar limits, boxplot statistical overrides, violin side/orientation/quantiles, pie post-labeling, and hexbin log/reducer/marginal handling.
-- Matplotlib-reference coverage includes existing basic family fixtures plus `spectrum_variants` and `phase12_specialty_depth`, the latter exercising the Phase 12.3 errorbar, boxplot, violin, pie, and hexbin depth paths in one reference image.
+- Matplotlib-reference coverage includes existing basic family fixtures plus `spectrum_variants` and `specialty_depth`, the latter exercising the Phase 12.3 errorbar, boxplot, violin, pie, and hexbin depth paths in one reference image.
 - Convenience wrappers continue to delegate to the lower-level artists/builders rather than duplicating rendering implementations.
 
 ---

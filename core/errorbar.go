@@ -247,27 +247,31 @@ func resolveBool(values []bool, i int) bool {
 	return i < len(values) && values[i]
 }
 
-func drawLimitCaret(r render.Renderer, ctx *DrawContext, tip geom.Pt, dirX, dirY, size float64, paint *render.Paint) {
+func drawLimitCaret(r render.Renderer, ctx *DrawContext, basePt geom.Pt, dirX, dirY, size float64, paint *render.Paint) {
 	if r == nil || ctx == nil || size <= 0 {
 		return
 	}
-	apex := ctx.DataToPixel.Apply(tip)
-	back := size * 1.2
-	half := size * 0.9
-	var p1, p2 geom.Pt
+	base := ctx.DataToPixel.Apply(basePt)
+	length := size * 1.5
+	half := size
+	var p1, apex, p2 geom.Pt
 	switch {
 	case dirX > 0:
-		p1 = geom.Pt{X: apex.X - back, Y: apex.Y - half}
-		p2 = geom.Pt{X: apex.X - back, Y: apex.Y + half}
+		p1 = geom.Pt{X: base.X, Y: base.Y - half}
+		apex = geom.Pt{X: base.X + length, Y: base.Y}
+		p2 = geom.Pt{X: base.X, Y: base.Y + half}
 	case dirX < 0:
-		p1 = geom.Pt{X: apex.X + back, Y: apex.Y - half}
-		p2 = geom.Pt{X: apex.X + back, Y: apex.Y + half}
+		p1 = geom.Pt{X: base.X, Y: base.Y - half}
+		apex = geom.Pt{X: base.X - length, Y: base.Y}
+		p2 = geom.Pt{X: base.X, Y: base.Y + half}
 	case dirY > 0:
-		p1 = geom.Pt{X: apex.X - half, Y: apex.Y + back}
-		p2 = geom.Pt{X: apex.X + half, Y: apex.Y + back}
+		p1 = geom.Pt{X: base.X - half, Y: base.Y}
+		apex = geom.Pt{X: base.X, Y: base.Y - length}
+		p2 = geom.Pt{X: base.X + half, Y: base.Y}
 	default:
-		p1 = geom.Pt{X: apex.X - half, Y: apex.Y - back}
-		p2 = geom.Pt{X: apex.X + half, Y: apex.Y - back}
+		p1 = geom.Pt{X: base.X - half, Y: base.Y}
+		apex = geom.Pt{X: base.X, Y: base.Y + length}
+		p2 = geom.Pt{X: base.X + half, Y: base.Y}
 	}
 	r.Path(geom.Path{
 		C: []geom.Cmd{geom.MoveTo, geom.LineTo, geom.LineTo},

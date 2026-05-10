@@ -74,7 +74,6 @@ import (
 	example_pcolormesh_gouraud "github.com/cwbudde/matplotlib-go/test/parity/pcolormesh_gouraud"
 	example_pcolormesh_masked "github.com/cwbudde/matplotlib-go/test/parity/pcolormesh_masked"
 	example_pcolormesh_nearest "github.com/cwbudde/matplotlib-go/test/parity/pcolormesh_nearest"
-	example_phase12_specialty_depth "github.com/cwbudde/matplotlib-go/test/parity/phase12_specialty_depth"
 	example_plot_variants "github.com/cwbudde/matplotlib-go/test/parity/plot_variants"
 	example_polar_axes "github.com/cwbudde/matplotlib-go/test/parity/polar_axes"
 	example_quad_mesh "github.com/cwbudde/matplotlib-go/test/parity/quad_mesh"
@@ -84,6 +83,7 @@ import (
 	example_scatter_marker_types "github.com/cwbudde/matplotlib-go/test/parity/scatter_marker_types"
 	example_skewt_basic "github.com/cwbudde/matplotlib-go/test/parity/skewt_basic"
 	example_specialty_artists "github.com/cwbudde/matplotlib-go/test/parity/specialty_artists"
+	example_specialty_depth "github.com/cwbudde/matplotlib-go/test/parity/specialty_depth"
 	example_spectrum_variants "github.com/cwbudde/matplotlib-go/test/parity/spectrum_variants"
 	example_spy_image "github.com/cwbudde/matplotlib-go/test/parity/spy_image"
 	example_spy_marker "github.com/cwbudde/matplotlib-go/test/parity/spy_marker"
@@ -157,7 +157,7 @@ var renderByID = map[string]func() image.Image{
 	"plot_variants":             example_plot_variants.Render,
 	"spectrum_variants":         example_spectrum_variants.Render,
 	"stat_variants":             example_stat_variants.Render,
-	"phase12_specialty_depth":   example_phase12_specialty_depth.Render,
+	"specialty_depth":           example_specialty_depth.Render,
 	"stem_plot":                 example_stem_plot.Render,
 	"specialty_artists":         example_specialty_artists.Render,
 	"units_overview":            example_units_overview.Render,

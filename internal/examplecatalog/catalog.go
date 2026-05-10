@@ -74,7 +74,7 @@ var cases = []Case{
 	{ID: "plot_variants", Topic: "variants", Title: "Plot Variants", Optional: true, WebDemoID: "variants", Description: "Step, stairs, reference lines, spans, broken bars, and stacked bars."},
 	{ID: "spectrum_variants", Topic: "signal", Title: "Spectrum Variants", FixtureOnly: true},
 	{ID: "stat_variants", Topic: "statistics", Title: "Statistical Views", Optional: true, WebDemoID: "statistics", Description: "Box plots, violin plots, empirical CDFs, and stack plots."},
-	{ID: "phase12_specialty_depth", Topic: "statistics", Title: "Phase 12 Specialty Depth", FixtureOnly: true},
+	{ID: "specialty_depth", Topic: "statistics", Title: "Specialty Depth", FixtureOnly: true},
 	{ID: "stem_plot", Topic: "specialty", Title: "Stem Plot", Optional: true},
 	{ID: "specialty_artists", Topic: "specialty", Title: "Specialty Artists", Optional: true, WebDemoID: "specialty", Description: "Event plots, hexbin, pie charts, stem plots, tables, and Sankey-style flows."},
 	{ID: "units_overview", Topic: "units", Title: "Dates and Categories", Optional: true, WebDemoID: "units", Description: "Time-aware axes, categorical bars, and horizontal categorical bars."},
