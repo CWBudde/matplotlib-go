@@ -1810,7 +1810,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 
 	// Title: centered above the plot
 	if ax.Title != "" {
-		layout := measureSingleLineTextLayout(r, ax.Title, titleSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, ax.Title, titleSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 		drawDisplayText(
 			textRen,
 			ax.Title,
@@ -1818,6 +1818,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 			titleSize,
 			titleColor,
 			ctx.RC.FontKey,
+			ctx.RC.UseTeX,
 		)
 	}
 
@@ -1826,7 +1827,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 	// default label placement model.
 	if ax.XLabel != "" && ax.ProjectionName() != "3d" {
 		side := ax.effectiveXLabelSide()
-		layout := measureSingleLineTextLayout(r, ax.XLabel, labelSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, ax.XLabel, labelSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 		anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side, alignment)
 		drawDisplayText(
 			textRen,
@@ -1835,6 +1836,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 			labelSize,
 			labelColor,
 			ctx.RC.FontKey,
+			ctx.RC.UseTeX,
 		)
 	}
 
@@ -1851,7 +1853,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 			drawDisplayTextRotated(ren, ax.YLabel, anchor, labelSize, angle, labelColor, ctx.RC.FontKey)
 		case render.VerticalTextDrawer:
 			if angle < 0 {
-				layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey)
+				layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 				drawDisplayText(
 					textRen,
 					ax.YLabel,
@@ -1859,12 +1861,13 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 					labelSize,
 					labelColor,
 					ctx.RC.FontKey,
+					ctx.RC.UseTeX,
 				)
 			} else {
 				drawDisplayTextVertical(ren, ax.YLabel, geom.Pt{X: anchor.X, Y: anchor.Y}, labelSize, labelColor, ctx.RC.FontKey)
 			}
 		default:
-			layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey)
+			layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 			drawDisplayText(
 				textRen,
 				ax.YLabel,
@@ -1872,6 +1875,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 				labelSize,
 				labelColor,
 				ctx.RC.FontKey,
+				ctx.RC.UseTeX,
 			)
 		}
 	}

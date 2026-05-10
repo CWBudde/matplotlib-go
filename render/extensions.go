@@ -38,6 +38,19 @@ type TextPather interface {
 	TextPath(text string, origin geom.Pt, size float64, fontKey string) (geom.Path, bool)
 }
 
+// TeXMetricer is implemented by renderers that can measure text through a
+// TeX/LaTeX pipeline when text.usetex is enabled.
+type TeXMetricer interface {
+	MeasureTeX(text string, size float64, fontKey string) (TextMetrics, bool)
+}
+
+// TeXDrawer is implemented by renderers that can draw text through a
+// TeX/LaTeX pipeline when text.usetex is enabled. Returning false asks core to
+// fall back to the normal text path.
+type TeXDrawer interface {
+	DrawTeX(text string, origin geom.Pt, size float64, textColor Color, fontKey string) bool
+}
+
 // VerticalTextDrawer is implemented by renderers that support vertical text.
 type VerticalTextDrawer interface {
 	TextDrawer

@@ -20,7 +20,22 @@ type singleLineTextLayout struct {
 	MathLayout *MathTextLayout
 }
 
-func measureSingleLineTextLayout(r render.Renderer, text string, size float64, fontKey string) singleLineTextLayout {
+func measureSingleLineTextLayout(r render.Renderer, text string, size float64, fontKey string, useTeX ...bool) singleLineTextLayout {
+	if texEnabled(useTeX) {
+		if metricer, ok := r.(render.TeXMetricer); ok {
+			if metrics, ok := metricer.MeasureTeX(text, size, fontKey); ok {
+				return singleLineTextLayout{
+					TextLineLayout: render.TextLineLayout{
+						Width:   metrics.W,
+						Ascent:  metrics.Ascent,
+						Descent: metrics.Descent,
+						Height:  metrics.H,
+					},
+				}
+			}
+		}
+	}
+
 	if layout, ok := layoutDisplayText(r, text, size, fontKey); ok {
 		return singleLineTextLayout{
 			TextLineLayout: render.TextLineLayout{
@@ -37,6 +52,10 @@ func measureSingleLineTextLayout(r render.Renderer, text string, size float64, f
 	return singleLineTextLayout{
 		TextLineLayout: render.MeasureTextLineLayout(r, display, size, fontKey),
 	}
+}
+
+func texEnabled(useTeX []bool) bool {
+	return len(useTeX) > 0 && useTeX[0]
 }
 
 func textBaselineOffset(layout singleLineTextLayout, align textLayoutVerticalAlign) float64 {

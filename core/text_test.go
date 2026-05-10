@@ -411,6 +411,49 @@ func TestLayoutDisplayTextMixedInlineMath(t *testing.T) {
 	}
 }
 
+func TestDrawDisplayTextUsesTeXRendererWhenEnabled(t *testing.T) {
+	r := &texRecordingRenderer{}
+	layout := measureSingleLineTextLayout(r, `signal $\alpha$`, 20, "DejaVu Sans", true)
+	if layout.Width != 123 || layout.Ascent != 17 || layout.Descent != 5 {
+		t.Fatalf("measureSingleLineTextLayout did not use TeX metrics: %+v", layout)
+	}
+
+	drawDisplayText(r, `signal $\alpha$`, geom.Pt{X: 10, Y: 20}, 20, render.Color{A: 1}, "DejaVu Sans", true)
+	if len(r.texDraws) != 1 {
+		t.Fatalf("expected one TeX draw, got %+v", r.texDraws)
+	}
+	if len(r.texts) != 0 {
+		t.Fatalf("TeX-enabled draw should not fall back to DrawText, got %+v", r.texts)
+	}
+}
+
+func TestTextArtistUsesTeXRendererWhenRCUseTeX(t *testing.T) {
+	fig := NewFigure(320, 240)
+	fig.RC.UseTeX = true
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.XAxis.ShowSpine = false
+	ax.XAxis.ShowTicks = false
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowSpine = false
+	ax.YAxis.ShowTicks = false
+	ax.YAxis.ShowLabels = false
+	ax.ShowFrame = false
+	ax.Text(0.5, 0.5, `signal $\alpha$`, TextOptions{FontSize: 20})
+
+	r := &texRecordingRenderer{}
+	DrawFigure(fig, r)
+
+	if len(r.texDraws) != 1 {
+		t.Fatalf("expected text artist to draw through TeX renderer, got %+v", r.texDraws)
+	}
+	if len(r.texts) != 0 {
+		t.Fatalf("TeX-enabled text artist should not fall back to DrawText, got %+v", r.texts)
+	}
+}
+
 func TestAlignedTextOrigin(t *testing.T) {
 	anchor := geom.Pt{X: 100, Y: 50}
 	metrics := render.TextMetrics{W: 40, Ascent: 8, Descent: 2}
@@ -684,6 +727,20 @@ func (r *verticalMathTextRecordingRenderer) TextPath(text string, origin geom.Pt
 		Min: geom.Pt{X: origin.X, Y: origin.Y - 4},
 		Max: geom.Pt{X: origin.X + 4, Y: origin.Y},
 	}), true
+}
+
+type texRecordingRenderer struct {
+	textRecordingRenderer
+	texDraws []string
+}
+
+func (r *texRecordingRenderer) MeasureTeX(text string, size float64, fontKey string) (render.TextMetrics, bool) {
+	return render.TextMetrics{W: 123, H: 22, Ascent: 17, Descent: 5}, true
+}
+
+func (r *texRecordingRenderer) DrawTeX(text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) bool {
+	r.texDraws = append(r.texDraws, text)
+	return true
 }
 
 func TestAxesTextSupportsAxesAndBlendedCoordinates(t *testing.T) {

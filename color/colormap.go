@@ -323,6 +323,20 @@ var colormaps = map[string]Colormap{
 			{1.000000, render.Color{R: 0.988362, G: 0.998364, B: 0.644924, A: 1}},
 		},
 	},
+	"blues": {
+		name: "blues",
+		stops: []ColorStop{
+			{0.000, render.Color{R: 0.968627, G: 0.984314, B: 1.000000, A: 1}},
+			{0.125, render.Color{R: 0.870588, G: 0.921569, B: 0.968627, A: 1}},
+			{0.250, render.Color{R: 0.776471, G: 0.858824, B: 0.937255, A: 1}},
+			{0.375, render.Color{R: 0.619608, G: 0.792157, B: 0.882353, A: 1}},
+			{0.500, render.Color{R: 0.419608, G: 0.682353, B: 0.839216, A: 1}},
+			{0.625, render.Color{R: 0.258824, G: 0.572549, B: 0.776471, A: 1}},
+			{0.750, render.Color{R: 0.129412, G: 0.443137, B: 0.709804, A: 1}},
+			{0.875, render.Color{R: 0.031373, G: 0.317647, B: 0.611765, A: 1}},
+			{1.000, render.Color{R: 0.031373, G: 0.188235, B: 0.419608, A: 1}},
+		},
+	},
 }
 
 // RegisterColormap adds a named colormap to the runtime registry.

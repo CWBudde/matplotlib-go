@@ -249,7 +249,7 @@ func (t *Text) drawText(r render.Renderer, ctx *DrawContext) {
 		t.drawMultilineText(r, textRen, ctx, anchor, fontSize)
 		return
 	}
-	layout := measureSingleLineTextLayout(r, t.Content, fontSize, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, t.Content, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 	origin := alignedSingleLineOrigin(anchor, layout, t.HAlign, layoutVerticalAlign(t.VAlign, false))
 	drawTextBBox(r, origin, layout, t.BBox, ctx, fontSize)
 	if t.Angle != 0 {
@@ -260,7 +260,7 @@ func (t *Text) drawText(r render.Renderer, ctx *DrawContext) {
 			return
 		}
 	}
-	drawDisplayText(textRen, t.Content, origin, fontSize, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey)
+	drawDisplayText(textRen, t.Content, origin, fontSize, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 }
 
 func (t *Text) drawMultilineText(r render.Renderer, textRen render.TextDrawer, ctx *DrawContext, anchor geom.Pt, fontSize float64) {
@@ -268,7 +268,7 @@ func (t *Text) drawMultilineText(r render.Renderer, textRen render.TextDrawer, c
 	layouts := make([]singleLineTextLayout, len(lines))
 	maxWidth := 0.0
 	for i, line := range lines {
-		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
+		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 		maxWidth = math.Max(maxWidth, layouts[i].Width)
 	}
 
@@ -322,7 +322,7 @@ func (t *Text) drawMultilineText(r render.Renderer, textRen render.TextDrawer, c
 				origin.X += maxWidth - layouts[i].Width
 			}
 		}
-		drawDisplayText(textRen, line, origin, fontSize, textColor, ctx.RC.FontKey)
+		drawDisplayText(textRen, line, origin, fontSize, textColor, ctx.RC.FontKey, ctx.RC.UseTeX)
 	}
 }
 
@@ -353,7 +353,7 @@ func (a *Annotation) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	fontSize := resolvedFontSize(a.FontSize, ctx)
 	target := transformedPoint(ctx, a.Coords, a.Point, 0, 0)
 	anchor := transformedPoint(ctx, a.Coords, a.Point, a.OffsetX, a.OffsetY)
-	layout := measureSingleLineTextLayout(r, a.Content, fontSize, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, a.Content, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 	origin := alignedSingleLineOrigin(anchor, layout, a.HAlign, layoutVerticalAlign(a.VAlign, false))
 	box, ok := textInkRect(origin, layout)
 	if !ok {
@@ -383,7 +383,7 @@ func (a *Annotation) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 		})
 	}
 
-	drawDisplayText(textRen, a.Content, origin, fontSize, resolvedTextColor(a.Color, ctx), ctx.RC.FontKey)
+	drawDisplayText(textRen, a.Content, origin, fontSize, resolvedTextColor(a.Color, ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 }
 
 // Bounds returns an empty rect so annotations do not affect autoscaling.

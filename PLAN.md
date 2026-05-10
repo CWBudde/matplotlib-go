@@ -720,10 +720,10 @@ Current slice landed:
 - [ ] Remove the GSV fallback as a normal parity path; keep it only as an explicit emergency fallback with test coverage and diagnostics.
 - [x] Replace character-by-character vertical text with rotated/shaped glyph output where Matplotlib would rotate a text run.
 - [ ] Match Matplotlib's glyph image compositing model for antialiased and mono glyph bitmaps, including color alpha application and clipping.
-- [ ] Broaden MathText parity beyond the lightweight parser:
-  - [ ] compare parser/layout behavior directly against upstream `MathTextParser('path')`
-  - [ ] support missing grammar, stretchy delimiters, spacing/control semantics, boxes, and font style interactions
-  - [ ] render MathText glyphs and boxes through the same shaped glyph/path pipeline
+- [x] Broaden MathText parity beyond the lightweight parser:
+  - [x] compare parser/layout behavior directly against upstream `MathTextParser('path')`
+  - [x] support missing grammar, stretchy delimiters, spacing/control semantics, boxes, and font style interactions
+  - [x] render MathText glyphs and boxes through the same shaped glyph/path pipeline
 - [ ] Complete `usetex` integration for AGG:
   - [ ] external TeX/DVI/dvipng pipeline and artifact cache
   - [ ] error reporting and reproducible invalidation
@@ -808,17 +808,17 @@ Latest text-parity note:
 - [x] True mixed inline layout for strings that combine plain text and MathText in one line
 - [x] Vertical full-expression MathText rendering through structured layout/path output
 - [x] Renderer-neutral internal MathText engine boundary extracted to `internal/mathtext`; `core` now only adapts it to renderer/font APIs
-- [ ] Broader MathText grammar
+- [x] Broader MathText grammar
   - [x] Limits on large operators such as `\sum`, `\prod`, and `\lim`
   - [x] Basic spacing commands such as `\,`, `\:`, `\;`, `\quad`, and `\qquad`
   - [x] Font/style switches with layout consequences for `\mathrm`, `\mathsf`, `\mathtt`, `\mathit`, and `\mathbf`
   - [x] Basic fenced delimiters via `\left...\right` with size-aware delimiter rendering
   - [x] Matrices/arrays
   - [x] Generalized fraction commands: `\dfrac`, `\binom`, and `\genfrac`
-  - [ ] More complete stretchy delimiter behavior beyond the current basic `\left...\right` handling
+  - [x] More complete stretchy delimiter behavior beyond the current basic `\left...\right` handling
     - [x] `\middle` and omitted `.` delimiters within `\left...\right`
     - [x] Extensible rule-based rendering for vertical bar and bracket-style delimiters
-  - [ ] Richer TeX spacing/control semantics beyond the current small command subset
+  - [x] Richer TeX spacing/control semantics beyond the current small command subset
     - [x] Named spacing commands and explicit `\hspace{...}` / `\kern{...}` dimensions
 - [x] Caching/performance pass for parsed and laid-out MathText expressions
   - [x] Shared parse cache plus opt-in layout cache keyed by renderer measurement context

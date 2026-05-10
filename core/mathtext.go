@@ -88,7 +88,13 @@ func layoutDisplayText(r render.Renderer, text string, size float64, fontKey str
 	return mt.LayoutDisplay(mathTextMeasurer{r: r}, text, size, fontKey, mathTextOptions())
 }
 
-func drawDisplayText(textRen render.TextDrawer, text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) {
+func drawDisplayText(textRen render.TextDrawer, text string, origin geom.Pt, size float64, textColor render.Color, fontKey string, useTeX ...bool) {
+	if texEnabled(useTeX) {
+		if texRen, ok := textRen.(render.TeXDrawer); ok && texRen.DrawTeX(text, origin, size, textColor, fontKey) {
+			return
+		}
+	}
+
 	if ren, ok := textRen.(render.Renderer); ok {
 		if layout, ok := layoutDisplayText(ren, text, size, fontKey); ok {
 			drawMathTextLayout(ren, textRen, layout, origin, textColor, fontKey)

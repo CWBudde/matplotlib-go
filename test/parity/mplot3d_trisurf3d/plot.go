@@ -57,14 +57,21 @@ func Plot() *core.Figure {
 		}
 	}
 
-	triangles := make([][3]int, 0, (nRadii-1)*nAngles*2)
+	// Points are laid out as: 1 + angleIdx*nRadii + ring
+	triangles := make([][3]int, 0, nAngles+((nRadii-1)*nAngles*2))
+	// Center fan: connect origin to innermost ring
+	for angleIdx := 0; angleIdx < nAngles; angleIdx++ {
+		next := (angleIdx + 1) % nAngles
+		triangles = append(triangles, [3]int{0, 1 + angleIdx*nRadii, 1 + next*nRadii})
+	}
+	// Adjacent rings
 	for ring := 0; ring < nRadii-1; ring++ {
 		for angleIdx := 0; angleIdx < nAngles; angleIdx++ {
 			next := (angleIdx + 1) % nAngles
-			a := 1 + ring*nAngles + angleIdx
-			b := 1 + (ring+1)*nAngles + angleIdx
-			c := 1 + (ring+1)*nAngles + next
-			d := 1 + ring*nAngles + next
+			a := 1 + angleIdx*nRadii + ring
+			b := 1 + angleIdx*nRadii + (ring + 1)
+			c := 1 + next*nRadii + (ring + 1)
+			d := 1 + next*nRadii + ring
 			triangles = append(triangles, [3]int{a, b, c})
 			triangles = append(triangles, [3]int{a, c, d})
 		}
