@@ -1,9 +1,17 @@
 package test
 
+// Reference-compare tests cross-check our golden PNG against the matplotlib
+// reference PNG for each case, applying per-case PSNR/MeanAbs/RMSE tolerances
+// stored on the catalog row.
+//
+// Per-case invocation:
+//
+//	go test ./test/... -run TestReferenceCompare/basic_line
+//	go test ./test/... -run 'TestReferenceCompare/.*pcolor.*'
+
 import (
 	"image"
 	"image/color"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -11,121 +19,24 @@ import (
 	"github.com/cwbudde/matplotlib-go/test/parity"
 )
 
-const (
-	referenceCompareTolerance = 1
-	// Titled parity fixtures now exercise text rendering on every case, so the
-	// matplotlib cross-check needs text-aware tolerances instead of shape-only
-	// thresholds. Golden images remain exact.
-	referenceCompareMinPSNR    = 44.0
-	referenceCompareMaxMeanAbs = 2.50
-)
-
-type referenceCompareCase struct {
-	name       string
-	minPSNR    float64
-	maxMeanAbs float64
-	maxRMSE    float64
-}
-
-var referenceCompareCases = []referenceCompareCase{
-	{name: "basic_line"},
-	{name: "joins_caps"},
-	{name: "dashes"},
-	{name: "scatter_basic"},
-	{name: "scatter_marker_types"},
-	{name: "scatter_advanced"},
-	{name: "bar_basic_frame"},
-	{name: "bar_basic_ticks"},
-	{name: "bar_basic_tick_labels"},
-	{name: "bar_basic_title"},
-	{name: "bar_basic"},
-	{name: "bar_horizontal"},
-	{name: "bar_grouped"},
-	{name: "fill_basic", minPSNR: 45.0, maxMeanAbs: 6.0},
-	{name: "fill_between"},
-	{name: "fill_stacked"},
-	{name: "multi_series_basic"},
-	{name: "multi_series_color_cycle"},
-	{name: "hist_basic"},
-	{name: "hist_density"},
-	{name: "hist_strategies"},
-	{name: "boxplot_basic", minPSNR: 44.0, maxMeanAbs: 2.0},
-	{name: "axes_top_right_inverted"},
-	{name: "axes_control_surface", minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "transform_coordinates", minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "gridspec_composition", minPSNR: 35.0, maxMeanAbs: 8.0},
-	{name: "figure_labels_composition", minPSNR: 32.0, maxMeanAbs: 9.0},
-	{name: "colorbar_composition", minPSNR: 32.0, maxMeanAbs: 16.0},
-	{name: "annotation_composition", minPSNR: 35.0, maxMeanAbs: 7.0},
-	{name: "patch_showcase", minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "mesh_contour_tri", minPSNR: 37.5, maxMeanAbs: 7.5},
-	{name: "plot_variants", minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "spectrum_variants", minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "stat_variants", minPSNR: 32.0, maxMeanAbs: 9.0},
-	{name: "specialty_depth", minPSNR: 22.0, maxMeanAbs: 20.0, maxRMSE: 35.0},
-	{name: "stem_plot"},
-	{name: "specialty_artists"},
-	{name: "units_overview", minPSNR: 43.5},
-	{name: "units_dates", minPSNR: 45.0, maxMeanAbs: 1.6},
-	{name: "units_categories", minPSNR: 41.0, maxMeanAbs: 3.2},
-	{name: "units_custom_converter", minPSNR: 40.0, maxMeanAbs: 3.5},
-	{name: "vector_fields", minPSNR: 41.5, maxMeanAbs: 3.0},
-	{name: "imshow_clipped", minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "imshow_transformed", minPSNR: 24.0, maxMeanAbs: 18.0, maxRMSE: 30.0},
-	{name: "imshow_bilinear", minPSNR: 30.0, maxMeanAbs: 16.0},
-	{name: "imshow_bicubic", minPSNR: 30.0, maxMeanAbs: 16.0},
-	{name: "image_alpha", minPSNR: 30.0, maxMeanAbs: 16.0, maxRMSE: 10.0},
-	{name: "matshow_basic", minPSNR: 30.0, maxMeanAbs: 10.0, maxRMSE: 10.0},
-	{name: "spy_marker", minPSNR: 28.0, maxMeanAbs: 12.0},
-	{name: "spy_image", minPSNR: 27.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
-	{name: "polar_axes", minPSNR: 32.0, maxMeanAbs: 9.0},
-	{name: "geo_mollweide_axes", minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "geo_aitoff_axes", minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "geo_hammer_axes", minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "geo_lambert_axes", minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "radar_basic", minPSNR: 45.0, maxMeanAbs: 2.0},
-	{name: "skewt_basic", minPSNR: 24.0, maxMeanAbs: 18.0},
-	{name: "mplot3d_basic", minPSNR: 39.0, maxMeanAbs: 5.0},
-	{name: "mplot3d_terrain", minPSNR: 38.0, maxMeanAbs: 5.0},
-	{name: "mplot3d_plot3d", minPSNR: 38.0, maxMeanAbs: 8.0},
-	{name: "mplot3d_scatter3d", minPSNR: 35.0, maxMeanAbs: 8.0},
-	{name: "mplot3d_surface3d", minPSNR: 35.0, maxMeanAbs: 10.0},
-	{name: "mplot3d_wire3d", minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "mplot3d_trisurf3d", minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "mplot3d_bar3d", minPSNR: 30.0, maxMeanAbs: 8.0},
-	{name: "mplot3d_voxels", minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "mplot3d_quiver3d", minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "mplot3d_stem3d", minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "mplot3d_fill_between3d", minPSNR: 35.0, maxMeanAbs: 10.0},
-	{name: "unstructured_showcase", minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "arrays_showcase", minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "axisartist_showcase", minPSNR: 28.0, maxMeanAbs: 12.0},
-	{name: "axes_grid1_showcase", minPSNR: 28.0, maxMeanAbs: 12.0},
-	{name: "pcolor_flat", minPSNR: 28.0, maxMeanAbs: 15.0},
-	{name: "pcolormesh_nearest", minPSNR: 28.0, maxMeanAbs: 15.0},
-	{name: "pcolormesh_gouraud", minPSNR: 20.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
-	{name: "pcolormesh_masked", minPSNR: 28.0, maxMeanAbs: 15.0},
-	{name: "hist2d_weighted_density", minPSNR: 28.0, maxMeanAbs: 16.0, maxRMSE: 30.0},
-	{name: "boundarynorm_pcolormesh", minPSNR: 28.0, maxMeanAbs: 16.0},
-	{name: "lognorm_imshow", minPSNR: 28.0, maxMeanAbs: 16.0},
-	{name: "twoslope_norm_image", minPSNR: 28.0, maxMeanAbs: 16.0},
-	{name: "colorbar_extensions", minPSNR: 28.0, maxMeanAbs: 16.0},
-	{name: "large_scatter", minPSNR: 55.0, maxMeanAbs: 0.5, maxRMSE: 4.0},
-	{name: "mixed_collection", minPSNR: 60.0, maxMeanAbs: 0.5, maxRMSE: 2.0},
-	{name: "quad_mesh", minPSNR: 48.0, maxMeanAbs: 1.0, maxRMSE: 4.0},
-	{name: "gouraud_triangles", minPSNR: 25.0, maxMeanAbs: 18.0},
-	{name: "clip_path_batch", minPSNR: 45.0, maxMeanAbs: 1.0, maxRMSE: 6.0},
-}
-
-func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {
-	for _, tc := range referenceCompareCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			runReferenceCompareTest(t, tc)
+// TestReferenceCompare iterates every catalog case that has both a golden
+// PNG and a matplotlib reference PNG, comparing them with case-specific
+// tolerances pulled from the catalog row.
+func TestReferenceCompare(t *testing.T) {
+	for _, c := range allCases() {
+		c := c
+		if !goldenExists(c.ID) || !matplotlibRefExists(c.ID) {
+			continue
+		}
+		t.Run(c.ID, func(t *testing.T) {
+			runReferenceCompareTest(t, &c)
 		})
 	}
 }
 
+// TestColorbarCompositionImageOriginMatchesMatplotlibRef is a bespoke
+// chromatic-bounding-box check: the rendered colorbar's main image area
+// must align with matplotlib's within a 2-pixel tolerance.
 func TestColorbarCompositionImageOriginMatchesMatplotlibRef(t *testing.T) {
 	got, _, err := parity.Render("colorbar_composition")
 	if err != nil {
@@ -150,105 +61,9 @@ func TestColorbarCompositionImageOriginMatchesMatplotlibRef(t *testing.T) {
 	}
 }
 
-func runReferenceCompareTest(t *testing.T, tc referenceCompareCase) {
-	t.Helper()
-
-	got, _, err := parity.Render(tc.name)
-	if err != nil {
-		t.Fatalf("render parity example %s: %v", tc.name, err)
-	}
-
-	goldenPath := filepath.Join("..", "testdata", "golden", tc.name+".png")
-	matplotlibPath := filepath.Join("..", "testdata", "matplotlib_ref", tc.name+".png")
-
-	golden, err := imagecmp.LoadPNG(goldenPath)
-	if err != nil {
-		t.Fatalf("load golden image %s: %v", goldenPath, err)
-	}
-
-	matplotlibRef, err := imagecmp.LoadPNG(matplotlibPath)
-	if err != nil {
-		t.Fatalf("load matplotlib reference %s: %v", matplotlibPath, err)
-	}
-
-	artifactsDir := referenceCompareArtifactsDir(t)
-
-	savePNGOrFail(t, got, filepath.Join(artifactsDir, tc.name+"_rendered.png"))
-	savePNGOrFail(t, golden, filepath.Join(artifactsDir, tc.name+"_golden.png"))
-	savePNGOrFail(t, matplotlibRef, filepath.Join(artifactsDir, tc.name+"_matplotlib_ref.png"))
-
-	diff, err := imagecmp.ComparePNG(golden, matplotlibRef, referenceCompareTolerance)
-	if err != nil {
-		t.Fatalf("compare %s and %s: %v", goldenPath, matplotlibPath, err)
-	}
-
-	diffPath := filepath.Join(artifactsDir, tc.name+"_golden_vs_matplotlib_ref_diff.png")
-	if err := imagecmp.SaveDiffImage(golden, matplotlibRef, referenceCompareTolerance, diffPath); err != nil {
-		t.Fatalf("save diff image %s: %v", diffPath, err)
-	}
-
-	t.Logf(
-		"%s: MaxDiff=%d MeanAbs=%.2f RMSE=%.2f PSNR=%.2fdB",
-		tc.name,
-		diff.MaxDiff,
-		diff.MeanAbs,
-		diff.RMSE,
-		diff.PSNR,
-	)
-
-	minPSNR := referenceCompareMinPSNR
-	if tc.minPSNR > 0 {
-		minPSNR = tc.minPSNR
-	}
-	maxMeanAbs := referenceCompareMaxMeanAbs
-	if tc.maxMeanAbs > 0 {
-		maxMeanAbs = tc.maxMeanAbs
-	}
-	if diff.PSNR < minPSNR || diff.MeanAbs > maxMeanAbs || (tc.maxRMSE > 0 && diff.RMSE > tc.maxRMSE) {
-		t.Fatalf(
-			"reference mismatch for %s: PSNR=%.2f (min %.2f), MeanAbs=%.2f (max %.2f), RMSE=%.2f (max %.2f)",
-			tc.name,
-			diff.PSNR,
-			minPSNR,
-			diff.MeanAbs,
-			maxMeanAbs,
-			diff.RMSE,
-			tc.maxRMSE,
-		)
-	}
-}
-
-func savePNGOrFail(t *testing.T, img image.Image, path string) {
-	t.Helper()
-	if err := imagecmp.SavePNG(img, path); err != nil {
-		t.Fatalf("save PNG %s: %v", path, err)
-	}
-}
-
-func referenceCompareArtifactsDir(t *testing.T) string {
-	t.Helper()
-
-	artifactsDir := filepath.Join("..", "testdata", "_artifacts", "reference_compare")
-	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
-		t.Logf("could not create reference artifacts directory %s: %v; using temp dir", artifactsDir, err)
-		return t.TempDir()
-	}
-
-	probe, err := os.CreateTemp(artifactsDir, ".write-probe-*")
-	if err != nil {
-		t.Logf("reference artifacts directory %s is not writable: %v; using temp dir", artifactsDir, err)
-		return t.TempDir()
-	}
-	probeName := probe.Name()
-	if err := probe.Close(); err != nil {
-		t.Logf("could not close write probe %s: %v; using temp dir", probeName, err)
-		return t.TempDir()
-	}
-	if err := os.Remove(probeName); err != nil {
-		t.Logf("could not remove write probe %s: %v", probeName, err)
-	}
-	return artifactsDir
-}
+// ----------------------------------------------------------------------------
+// Chromatic component analysis (used only by the colorbar spot check above)
+// ----------------------------------------------------------------------------
 
 func largestChromaComponentBounds(img image.Image) (image.Rectangle, bool) {
 	if img == nil {

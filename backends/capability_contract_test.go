@@ -41,6 +41,10 @@ type capabilityRendererWithBatches struct {
 	capabilityRendererWithPNG
 }
 
+func (r *capabilityRendererWithBatches) SaveSVG(_ string) error {
+	return nil
+}
+
 func (r *capabilityRendererWithBatches) DrawMarkers(_ render.MarkerBatch) bool {
 	return true
 }
@@ -97,6 +101,9 @@ func TestSupportsRendererCapability(t *testing.T) {
 	}
 	if SupportsRendererCapability(Backend("contract"), &capabilityRendererWithFontMetrics{}, VectorOutput) {
 		t.Fatal("expected VectorOutput capability to be unsupported without export interface")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, VectorOutput) {
+		t.Fatal("expected VectorOutput capability to be unsupported with only PNG export")
 	}
 	if SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, MarkerBatch) {
 		t.Fatal("expected MarkerBatch capability to be unsupported without batch interface")

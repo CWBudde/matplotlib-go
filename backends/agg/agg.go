@@ -174,6 +174,14 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	return r, nil
 }
 
+// NativeFreetypeVersion returns the linked FreeType library version (e.g.
+// "2.13.2") when the cgo-backed FreeType pipeline is available, or "" under
+// purego builds where the native path is stubbed out. Useful for tests and
+// diagnostics that should only run when real FreeType metrics are in play.
+func NativeFreetypeVersion() string {
+	return nativeFreetypeVersion()
+}
+
 // SetResolution sets the font rendering resolution used for text metrics and glyph sizing.
 func (r *Renderer) SetResolution(dpi uint) {
 	if dpi > 0 {

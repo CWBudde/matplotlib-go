@@ -29,7 +29,7 @@ func TestAGGRendererCapabilityStatus(t *testing.T) {
 		capability backends.Capability
 		want       backends.CapabilityStatus
 	}{
-		{backends.VectorOutput, backends.CapabilityNative},
+		{backends.VectorOutput, backends.CapabilityUnsupported},
 		{backends.DPIAware, backends.CapabilityNative},
 		{backends.TextShaping, backends.CapabilityNative},
 		{backends.FontHinting, backends.CapabilityNative},

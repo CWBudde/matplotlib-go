@@ -65,6 +65,27 @@ func TestTextGlyphLayoutKerningScalesWithSize(t *testing.T) {
 	}
 }
 
+func TestShapeTextProducesGlyphRunsWithClustersAndBounds(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	shaped, ok := ShapeText("Te", geom.Pt{X: 3, Y: 5}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(shaped.Runs) != 1 || len(shaped.Glyphs) != 2 {
+		t.Fatalf("ShapeText = %+v, %v; want one two-glyph run", shaped, ok)
+	}
+	if shaped.Glyphs[0].Cluster != 0 || shaped.Glyphs[1].Cluster != 1 {
+		t.Fatalf("clusters = [%d %d], want byte offsets [0 1]", shaped.Glyphs[0].Cluster, shaped.Glyphs[1].Cluster)
+	}
+	if shaped.Glyphs[1].Origin.X >= 3+shaped.Glyphs[0].Advance.X {
+		t.Fatalf("second glyph origin should include negative kerning: shaped=%+v", shaped.Glyphs)
+	}
+	if shaped.Advance.X <= 0 || shaped.Advance.Y != 0 {
+		t.Fatalf("advance = %+v, want positive horizontal advance", shaped.Advance)
+	}
+	if shaped.Bounds.W <= 0 || shaped.Bounds.H <= 0 {
+		t.Fatalf("bounds = %+v, want non-empty ink bounds", shaped.Bounds)
+	}
+}
+
 func TestTextPathBoundsUseSharedGlyphLayout(t *testing.T) {
 	withDejaVuFontManager(t)
 
@@ -74,9 +95,9 @@ func TestTextPathBoundsUseSharedGlyphLayout(t *testing.T) {
 			if !ok {
 				t.Fatalf("TextPath(%q, %v) failed", text, size)
 			}
-			layout, ok := LayoutTextGlyphs(text, geom.Pt{}, size, "DejaVu Sans")
+			layout, ok := ShapeText(text, geom.Pt{}, size, TextShapingOptions{FontKey: "DejaVu Sans"})
 			if !ok {
-				t.Fatalf("LayoutTextGlyphs(%q, %v) failed", text, size)
+				t.Fatalf("ShapeText(%q, %v) failed", text, size)
 			}
 			bounds, ok := pathBounds(path)
 			if !ok {

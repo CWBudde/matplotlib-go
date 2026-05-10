@@ -82,9 +82,8 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 		return ok
 	},
 	VectorOutput: func(r render.Renderer) bool {
-		_, hasPNG := r.(render.PNGExporter)
 		_, hasSVG := r.(render.SVGExporter)
-		return hasPNG || hasSVG
+		return hasSVG
 	},
 	PNGExport: func(r render.Renderer) bool {
 		_, ok := r.(render.PNGExporter)

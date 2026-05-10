@@ -19,6 +19,10 @@ func (r *contractRenderer) SavePNG(path string) error {
 	return nil
 }
 
+func (r *contractRenderer) SaveSVG(string) error {
+	return nil
+}
+
 func TestRegistryVerifiesDeclaredRendererCapabilities(t *testing.T) {
 	registry := NewRegistry()
 	backend := Backend("contract")
