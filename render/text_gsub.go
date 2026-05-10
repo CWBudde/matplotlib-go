@@ -68,7 +68,9 @@ func applyGSUBLigatures(face FontFace, glyphs []shapingGlyph, opts TextShapingOp
 		}
 		if matchLen > 0 {
 			r := match.Rune
-			if r == 0 {
+			if compat, ok := compatibilityLigatureRune(glyphs[i : i+matchLen]); ok {
+				r = compat
+			} else if r == 0 {
 				r = glyphs[i].Rune
 			}
 			out = append(out, shapingGlyph{
@@ -83,6 +85,29 @@ func applyGSUBLigatures(face FontFace, glyphs []shapingGlyph, opts TextShapingOp
 		i++
 	}
 	return out
+}
+
+func compatibilityLigatureRune(glyphs []shapingGlyph) (rune, bool) {
+	var b strings.Builder
+	for _, glyph := range glyphs {
+		b.WriteRune(glyph.Rune)
+	}
+	switch b.String() {
+	case "ff":
+		return '\ufb00', true
+	case "fi":
+		return '\ufb01', true
+	case "fl":
+		return '\ufb02', true
+	case "ffi":
+		return '\ufb03', true
+	case "ffl":
+		return '\ufb04', true
+	case "st":
+		return '\ufb06', true
+	default:
+		return 0, false
+	}
 }
 
 func enabledLigatureFeatureTags(opts TextShapingOptions) []string {
@@ -357,4 +382,3 @@ func be32(data []byte, offset int) uint32 {
 	}
 	return binary.BigEndian.Uint32(data[offset : offset+4])
 }
-

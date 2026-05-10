@@ -129,6 +129,7 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 		var runMinX, runMinY, runMaxX, runMaxY float64
 
 		var buf sfnt.Buffer
+		var inputGlyphs []shapingGlyph
 		for localCluster, r := range inputRun.Text {
 			glyphIndex, err := fontData.GlyphIndex(&buf, r)
 			if err != nil {
@@ -139,17 +140,25 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 				previousFace = ""
 				continue
 			}
+			inputGlyphs = append(inputGlyphs, shapingGlyph{
+				Rune:       r,
+				Cluster:    clusterOffset + localCluster,
+				GlyphIndex: glyphIndex,
+			})
+		}
+		inputGlyphs = applyGSUBLigatures(inputRun.Face, inputGlyphs, opts)
 
+		for _, inputGlyph := range inputGlyphs {
 			kern := 0.0
 			if havePrevious && previousFace == faceKey {
-				if k, err := fontData.Kern(&buf, previous, glyphIndex, ppem, font.HintingNone); err == nil {
+				if k, err := fontData.Kern(&buf, previous, inputGlyph.GlyphIndex, ppem, font.HintingNone); err == nil {
 					kern = fixedToFloat(k)
 					penX += kern
 				}
 			}
 
 			originPt := geom.Pt{X: penX, Y: origin.Y}
-			segments, err := fontData.LoadGlyph(&buf, glyphIndex, ppem, nil)
+			segments, err := fontData.LoadGlyph(&buf, inputGlyph.GlyphIndex, ppem, nil)
 			if err != nil {
 				return ShapedText{}, false
 			}
@@ -179,16 +188,16 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 				}
 			}
 
-			advance, err := fontData.GlyphAdvance(&buf, glyphIndex, ppem, font.HintingNone)
+			advance, err := fontData.GlyphAdvance(&buf, inputGlyph.GlyphIndex, ppem, font.HintingNone)
 			if err != nil {
 				return ShapedText{}, false
 			}
 			advancePt := geom.Pt{X: fixedToFloat(advance)}
 			glyph := ShapedGlyph{
-				Rune:       r,
-				Cluster:    clusterOffset + localCluster,
+				Rune:       inputGlyph.Rune,
+				Cluster:    inputGlyph.Cluster,
 				Face:       inputRun.Face,
-				GlyphIndex: glyphIndex,
+				GlyphIndex: inputGlyph.GlyphIndex,
 				Origin:     originPt,
 				Advance:    advancePt,
 				Kern:       kern,
@@ -196,7 +205,7 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 			run.Glyphs = append(run.Glyphs, glyph)
 			shaped.Glyphs = append(shaped.Glyphs, glyph)
 			penX += advancePt.X
-			previous = glyphIndex
+			previous = inputGlyph.GlyphIndex
 			previousFace = faceKey
 			havePrevious = true
 			laidOutGlyphs = true
