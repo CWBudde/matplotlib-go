@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/examples/parity"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 	"github.com/cwbudde/matplotlib-go/transform"
@@ -31,7 +32,6 @@ type histogramHeightSeries struct {
 
 type histogramHeightCase struct {
 	name    string
-	render  func() image.Image
 	series  []histogramHeightSeries
 	maxDiff int
 }
@@ -65,19 +65,16 @@ func TestHistogramTopHeights_ParsedDataParity(t *testing.T) {
 	tests := []histogramHeightCase{
 		{
 			name:    "hist_basic",
-			render:  renderHistBasic,
 			series:  []histogramHeightSeries{basic},
 			maxDiff: 1,
 		},
 		{
 			name:    "hist_density",
-			render:  renderHistDensity,
 			series:  []histogramHeightSeries{density},
 			maxDiff: 1,
 		},
 		{
 			name:    "hist_strategies",
-			render:  renderHistStrategies,
 			series:  []histogramHeightSeries{strat1, strat2},
 			maxDiff: 1,
 		},
@@ -89,7 +86,10 @@ func TestHistogramTopHeights_ParsedDataParity(t *testing.T) {
 			expected := expectedHistogramTopProfile(t, axes, tc.series)
 			skipColumn := histogramBoundaryColumns(axes, tc.series, 1)
 
-			got := tc.render()
+			got, _, err := parity.Render(tc.name)
+			if err != nil {
+				t.Fatalf("render parity example %s: %v", tc.name, err)
+			}
 			assertHistogramTopProfile(t, "got", got, expected, tc.maxDiff, skipColumn)
 
 			goldenPath := filepath.Join("..", "testdata", "golden", tc.name+".png")

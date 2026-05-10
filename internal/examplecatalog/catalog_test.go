@@ -39,12 +39,6 @@ func TestCatalogReferencesCommittedParityImages(t *testing.T) {
 func TestCatalogSourcePathsExistWhenRecorded(t *testing.T) {
 	root := repoRoot(t)
 	for _, c := range Cases() {
-		if c.FixtureOnly {
-			if c.GoPath != "" || c.PythonPath != "" || c.WebDemoID != "" {
-				t.Fatalf("%s is fixture-only but has example/web-demo paths", c.ID)
-			}
-			continue
-		}
 		if c.GoPath != "" {
 			requireFile(t, filepath.Join(root, c.GoPath))
 		}

@@ -1,43 +1,13 @@
 package webdemo
 
 import (
-	_ "embed"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
 )
-
-//go:embed demo.go
-var demoSource string
-
-var demoSourceSnippets = parseDemoSourceSnippets()
-
-var demoSourceFunctionByID = map[string]string{
-	"lines":       "buildLinesDemo",
-	"scatter":     "buildScatterDemo",
-	"bars":        "buildBarsDemo",
-	"fills":       "buildFillDemo",
-	"variants":    "buildPlotVariantsDemo",
-	"axes":        "buildAxesDemo",
-	"histogram":   "buildHistogramDemo",
-	"statistics":  "buildStatisticsDemo",
-	"errorbars":   "buildErrorBarsDemo",
-	"units":       "buildUnitsDemo",
-	"heatmap":     "buildHeatmapDemo",
-	"matrix":      "buildMatrixDemo",
-	"mesh":        "buildMeshDemo",
-	"vectors":     "buildVectorFieldsDemo",
-	"specialty":   "buildSpecialtyDemo",
-	"patches":     "buildPatchesDemo",
-	"annotations": "buildAnnotationsDemo",
-	"composition": "buildCompositionDemo",
-	"polar":       "buildPolarDemo",
-	"projections": "buildProjectionsDemo",
-	"subplots":    "buildSubplotsDemo",
-	"radialforce": "buildRadialforceDemo",
-}
 
 // Source returns the Go source snippet that builds the requested demo.
 func Source(id string) (string, Descriptor, error) {
@@ -52,36 +22,42 @@ func Source(id string) (string, Descriptor, error) {
 		return "", Descriptor{}, fmt.Errorf("webdemo: unknown demo %q", id)
 	}
 
-	funcName, ok := demoSourceFunctionByID[id]
+	c, ok := examplecatalog.LookupWebDemo(id)
 	if !ok {
-		return "", Descriptor{}, fmt.Errorf("webdemo: no source mapping for demo %q", id)
+		return "", Descriptor{}, fmt.Errorf("webdemo: no parity source mapping for demo %q", id)
 	}
-	source, ok := demoSourceSnippets[funcName]
-	if !ok {
-		return "", Descriptor{}, fmt.Errorf("webdemo: source for %s was not found", funcName)
+	source, err := readRepoFile(c.GoPath)
+	if err != nil {
+		return "", Descriptor{}, err
 	}
-	return source, descriptor, nil
+	return "// " + c.GoPath + "\n" + strings.TrimSpace(source), descriptor, nil
 }
 
-func parseDemoSourceSnippets() map[string]string {
-	snippets := map[string]string{}
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "demo.go", demoSource, parser.ParseComments)
+func readRepoFile(rel string) (string, error) {
+	path := filepath.Clean(rel)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(repoRootFromWorkingDir(), path)
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return snippets
+		return "", fmt.Errorf("webdemo: read %s: %w", rel, err)
 	}
+	return string(data), nil
+}
 
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Name == nil {
-			continue
-		}
-		start := fset.Position(fn.Pos()).Offset
-		end := fset.Position(fn.End()).Offset
-		if start < 0 || end > len(demoSource) || start >= end {
-			continue
-		}
-		snippets[fn.Name.Name] = strings.TrimSpace(demoSource[start:end])
+func repoRootFromWorkingDir() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "."
 	}
-	return snippets
+	for {
+		if _, err := os.Stat(filepath.Join(wd, "go.mod")); err == nil {
+			return wd
+		}
+		parent := filepath.Dir(wd)
+		if parent == wd {
+			return "."
+		}
+		wd = parent
+	}
 }

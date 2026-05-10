@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cwbudde/matplotlib-go/examples/parity"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 
 type alphaResidualCase struct {
 	name             string
-	render           func() image.Image
 	axes             image.Rectangle
 	threshold        uint8
 	maxHighDiffRatio float64
@@ -22,14 +22,12 @@ func TestAlphaResidualDiagnostics(t *testing.T) {
 	cases := []alphaResidualCase{
 		{
 			name:             "fill_stacked",
-			render:           renderFillStacked,
 			axes:             fixtureAxesRect(640, 360, 0.1, 0.1, 0.9, 0.9),
 			threshold:        32,
 			maxHighDiffRatio: 0.030,
 		},
 		{
 			name:             "hist_strategies",
-			render:           renderHistStrategies,
 			axes:             fixtureAxesRect(640, 360, 0.12, 0.12, 0.95, 0.90),
 			threshold:        32,
 			maxHighDiffRatio: 0.015,
@@ -39,7 +37,10 @@ func TestAlphaResidualDiagnostics(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			got := tc.render()
+			got, _, err := parity.Render(tc.name)
+			if err != nil {
+				t.Fatalf("render parity example %s: %v", tc.name, err)
+			}
 			want, err := imagecmp.LoadPNG(filepath.Join("..", "testdata", "matplotlib_ref", tc.name+".png"))
 			if err != nil {
 				t.Fatalf("load matplotlib reference: %v", err)

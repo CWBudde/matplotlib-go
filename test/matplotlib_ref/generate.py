@@ -11,16 +11,20 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 
 import numpy as np
 
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "matplotlib-go-cache"))
+
 try:
     from test.matplotlib_ref.common import histogram_payload, normal_data, pcg_float64_values, _to_list
-    from test.matplotlib_ref.plots import PLOT_NAMES, all_plots, load_plot
+    from examples.parity import CASE_IDS as PLOT_NAMES, all_plots, load_plot
 except ModuleNotFoundError:
     sys.path.append(os.path.dirname(__file__))
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     from common import histogram_payload, normal_data, pcg_float64_values, _to_list
-    from plots import PLOT_NAMES, all_plots, load_plot
+    from examples.parity import CASE_IDS as PLOT_NAMES, all_plots, load_plot
 
 
 def rng_debug_payload():

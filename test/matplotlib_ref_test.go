@@ -16,7 +16,6 @@ package test
 import (
 	"flag"
 	"fmt"
-	"image"
 	"math"
 	"os"
 	"os/exec"
@@ -24,6 +23,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/cwbudde/matplotlib-go/examples/parity"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 
@@ -108,11 +108,14 @@ func prependEnvPath(path, existing string) string {
 // runMplTest renders our version, loads the matplotlib reference, and
 // compares them. It always writes artefacts for visual inspection and fails
 // only when PSNR drops below mplMinPSNR (indicating a structural error).
-func runMplTest(t *testing.T, name string, renderFunc func() image.Image) {
+func runMplTest(t *testing.T, name string) {
 	t.Helper()
 	ensureRefs(t)
 
-	got := renderFunc()
+	got, _, err := parity.Render(name)
+	if err != nil {
+		t.Fatalf("render parity example %s: %v", name, err)
+	}
 
 	refPath := filepath.Join(mplRefDir, name+".png")
 	want, err := imagecmp.LoadPNG(refPath)
@@ -171,206 +174,206 @@ func matplotlibArtifactsDir(t *testing.T) string {
 }
 
 // Individual tests
-// Each test reuses the render* helper from golden_test.go.
+// Each test renders the canonical example from examples/parity.
 
-func TestMpl_BasicLine(t *testing.T)    { runMplTest(t, "basic_line", renderBasicLine) }
-func TestMpl_JoinsCaps(t *testing.T)    { runMplTest(t, "joins_caps", renderJoinsCaps) }
-func TestMpl_Dashes(t *testing.T)       { runMplTest(t, "dashes", renderDashes) }
-func TestMpl_ScatterBasic(t *testing.T) { runMplTest(t, "scatter_basic", renderScatterBasic) }
+func TestMpl_BasicLine(t *testing.T)    { runMplTest(t, "basic_line") }
+func TestMpl_JoinsCaps(t *testing.T)    { runMplTest(t, "joins_caps") }
+func TestMpl_Dashes(t *testing.T)       { runMplTest(t, "dashes") }
+func TestMpl_ScatterBasic(t *testing.T) { runMplTest(t, "scatter_basic") }
 func TestMpl_ScatterMarkerTypes(t *testing.T) {
-	runMplTest(t, "scatter_marker_types", renderScatterMarkerTypes)
+	runMplTest(t, "scatter_marker_types")
 }
-func TestMpl_ScatterAdvanced(t *testing.T) { runMplTest(t, "scatter_advanced", renderScatterAdvanced) }
-func TestMpl_BarBasicFrame(t *testing.T)   { runMplTest(t, "bar_basic_frame", renderBarBasicFrame) }
-func TestMpl_BarBasicTicks(t *testing.T)   { runMplTest(t, "bar_basic_ticks", renderBarBasicTicks) }
+func TestMpl_ScatterAdvanced(t *testing.T) { runMplTest(t, "scatter_advanced") }
+func TestMpl_BarBasicFrame(t *testing.T)   { runMplTest(t, "bar_basic_frame") }
+func TestMpl_BarBasicTicks(t *testing.T)   { runMplTest(t, "bar_basic_ticks") }
 func TestMpl_BarBasicTickLabels(t *testing.T) {
-	runMplTest(t, "bar_basic_tick_labels", renderBarBasicTickLabels)
+	runMplTest(t, "bar_basic_tick_labels")
 }
-func TestMpl_BarBasicTitle(t *testing.T) { runMplTest(t, "bar_basic_title", renderBarBasicTitle) }
-func TestMpl_BarBasic(t *testing.T)      { runMplTest(t, "bar_basic", renderBarBasic) }
-func TestMpl_BarHorizontal(t *testing.T) { runMplTest(t, "bar_horizontal", renderBarHorizontal) }
-func TestMpl_BarGrouped(t *testing.T)    { runMplTest(t, "bar_grouped", renderBarGrouped) }
-func TestMpl_FillBasic(t *testing.T)     { runMplTest(t, "fill_basic", renderFillBasic) }
-func TestMpl_FillBetween(t *testing.T)   { runMplTest(t, "fill_between", renderFillBetween) }
-func TestMpl_FillStacked(t *testing.T)   { runMplTest(t, "fill_stacked", renderFillStacked) }
+func TestMpl_BarBasicTitle(t *testing.T) { runMplTest(t, "bar_basic_title") }
+func TestMpl_BarBasic(t *testing.T)      { runMplTest(t, "bar_basic") }
+func TestMpl_BarHorizontal(t *testing.T) { runMplTest(t, "bar_horizontal") }
+func TestMpl_BarGrouped(t *testing.T)    { runMplTest(t, "bar_grouped") }
+func TestMpl_FillBasic(t *testing.T)     { runMplTest(t, "fill_basic") }
+func TestMpl_FillBetween(t *testing.T)   { runMplTest(t, "fill_between") }
+func TestMpl_FillStacked(t *testing.T)   { runMplTest(t, "fill_stacked") }
 func TestMpl_MultiSeriesBasic(t *testing.T) {
-	runMplTest(t, "multi_series_basic", renderMultiSeriesBasic)
+	runMplTest(t, "multi_series_basic")
 }
 
 func TestMpl_MultiSeriesColorCycle(t *testing.T) {
-	runMplTest(t, "multi_series_color_cycle", renderMultiSeriesColorCycle)
+	runMplTest(t, "multi_series_color_cycle")
 }
 
-func TestMpl_HistBasic(t *testing.T)      { runMplTest(t, "hist_basic", renderHistBasic) }
-func TestMpl_HistDensity(t *testing.T)    { runMplTest(t, "hist_density", renderHistDensity) }
-func TestMpl_HistStrategies(t *testing.T) { runMplTest(t, "hist_strategies", renderHistStrategies) }
-func TestMpl_BoxPlotBasic(t *testing.T)   { runMplTest(t, "boxplot_basic", renderBoxPlotBasic) }
+func TestMpl_HistBasic(t *testing.T)      { runMplTest(t, "hist_basic") }
+func TestMpl_HistDensity(t *testing.T)    { runMplTest(t, "hist_density") }
+func TestMpl_HistStrategies(t *testing.T) { runMplTest(t, "hist_strategies") }
+func TestMpl_BoxPlotBasic(t *testing.T)   { runMplTest(t, "boxplot_basic") }
 func TestMpl_Phase12SpecialtyDepth(t *testing.T) {
-	runMplTest(t, "phase12_specialty_depth", renderPhase12SpecialtyDepth)
+	runMplTest(t, "phase12_specialty_depth")
 }
 func TestMpl_AxesTopRightInverted(t *testing.T) {
-	runMplTest(t, "axes_top_right_inverted", renderAxesTopRightInverted)
+	runMplTest(t, "axes_top_right_inverted")
 }
 
 func TestMpl_AxesControlSurface(t *testing.T) {
-	runMplTest(t, "axes_control_surface", renderAxesControlSurface)
+	runMplTest(t, "axes_control_surface")
 }
 
 func TestMpl_TransformCoordinates(t *testing.T) {
-	runMplTest(t, "transform_coordinates", renderTransformCoordinates)
+	runMplTest(t, "transform_coordinates")
 }
 
 func TestMpl_GridSpecComposition(t *testing.T) {
-	runMplTest(t, "gridspec_composition", renderGridSpecComposition)
+	runMplTest(t, "gridspec_composition")
 }
 
 func TestMpl_FigureLabelsComposition(t *testing.T) {
-	runMplTest(t, "figure_labels_composition", renderFigureLabelsComposition)
+	runMplTest(t, "figure_labels_composition")
 }
 
 func TestMpl_ColorbarComposition(t *testing.T) {
-	runMplTest(t, "colorbar_composition", renderColorbarComposition)
+	runMplTest(t, "colorbar_composition")
 }
 
 func TestMpl_AnnotationComposition(t *testing.T) {
-	runMplTest(t, "annotation_composition", renderAnnotationComposition)
+	runMplTest(t, "annotation_composition")
 }
-func TestMpl_PatchShowcase(t *testing.T)  { runMplTest(t, "patch_showcase", renderPatchShowcase) }
-func TestMpl_MeshContourTri(t *testing.T) { runMplTest(t, "mesh_contour_tri", renderMeshContourTri) }
-func TestMpl_PlotVariants(t *testing.T)   { runMplTest(t, "plot_variants", renderPlotVariants) }
+func TestMpl_PatchShowcase(t *testing.T)  { runMplTest(t, "patch_showcase") }
+func TestMpl_MeshContourTri(t *testing.T) { runMplTest(t, "mesh_contour_tri") }
+func TestMpl_PlotVariants(t *testing.T)   { runMplTest(t, "plot_variants") }
 func TestMpl_SpectrumVariants(t *testing.T) {
-	runMplTest(t, "spectrum_variants", renderSpectrumVariants)
+	runMplTest(t, "spectrum_variants")
 }
-func TestMpl_StatVariants(t *testing.T) { runMplTest(t, "stat_variants", renderStatVariants) }
-func TestMpl_StemPlot(t *testing.T)     { runMplTest(t, "stem_plot", renderStemPlot) }
+func TestMpl_StatVariants(t *testing.T) { runMplTest(t, "stat_variants") }
+func TestMpl_StemPlot(t *testing.T)     { runMplTest(t, "stem_plot") }
 func TestMpl_SpecialtyArtists(t *testing.T) {
-	runMplTest(t, "specialty_artists", renderSpecialtyArtists)
+	runMplTest(t, "specialty_artists")
 }
-func TestMpl_UnitsOverview(t *testing.T) { runMplTest(t, "units_overview", renderUnitsOverview) }
-func TestMpl_VectorFields(t *testing.T)  { runMplTest(t, "vector_fields", renderVectorFields) }
-func TestMpl_PolarAxes(t *testing.T)     { runMplTest(t, "polar_axes", renderPolarAxes) }
+func TestMpl_UnitsOverview(t *testing.T) { runMplTest(t, "units_overview") }
+func TestMpl_VectorFields(t *testing.T)  { runMplTest(t, "vector_fields") }
+func TestMpl_PolarAxes(t *testing.T)     { runMplTest(t, "polar_axes") }
 func TestMpl_UnstructuredShowcase(t *testing.T) {
-	runMplTest(t, "unstructured_showcase", renderUnstructuredShowcase)
+	runMplTest(t, "unstructured_showcase")
 }
 
 func TestMpl_ArraysShowcase(t *testing.T) {
-	runMplTest(t, "arrays_showcase", renderArraysShowcase)
+	runMplTest(t, "arrays_showcase")
 }
 
 func TestMpl_AxisArtistShowcase(t *testing.T) {
-	runMplTest(t, "axisartist_showcase", renderAxisArtistShowcase)
+	runMplTest(t, "axisartist_showcase")
 }
 
 func TestMpl_AxesGrid1Showcase(t *testing.T) {
-	runMplTest(t, "axes_grid1_showcase", renderAxesGrid1Showcase)
+	runMplTest(t, "axes_grid1_showcase")
 }
 
 func TestMpl_PColorFlat(t *testing.T) {
-	runMplTest(t, "pcolor_flat", renderPColorFlat)
+	runMplTest(t, "pcolor_flat")
 }
 
 func TestMpl_PColorMeshNearest(t *testing.T) {
-	runMplTest(t, "pcolormesh_nearest", renderPColorMeshNearest)
+	runMplTest(t, "pcolormesh_nearest")
 }
 
 func TestMpl_PColorMeshGouraud(t *testing.T) {
-	runMplTest(t, "pcolormesh_gouraud", renderPColorMeshGouraud)
+	runMplTest(t, "pcolormesh_gouraud")
 }
 
 func TestMpl_PColorMeshMasked(t *testing.T) {
-	runMplTest(t, "pcolormesh_masked", renderPColorMeshMasked)
+	runMplTest(t, "pcolormesh_masked")
 }
 
 func TestMpl_Hist2DWeightedDensity(t *testing.T) {
-	runMplTest(t, "hist2d_weighted_density", renderHist2DWeightedDensity)
+	runMplTest(t, "hist2d_weighted_density")
 }
 
 func TestMpl_BoundaryNormPColorMesh(t *testing.T) {
-	runMplTest(t, "boundarynorm_pcolormesh", renderBoundaryNormPColorMesh)
+	runMplTest(t, "boundarynorm_pcolormesh")
 }
 
 func TestMpl_LogNormImshow(t *testing.T) {
-	runMplTest(t, "lognorm_imshow", renderLogNormImshow)
+	runMplTest(t, "lognorm_imshow")
 }
 
 func TestMpl_TwoSlopeNormImage(t *testing.T) {
-	runMplTest(t, "twoslope_norm_image", renderTwoSlopeNormImage)
+	runMplTest(t, "twoslope_norm_image")
 }
 
 func TestMpl_ColorbarExtensions(t *testing.T) {
-	runMplTest(t, "colorbar_extensions", renderColorbarExtensions)
+	runMplTest(t, "colorbar_extensions")
 }
 
 func TestMpl_LargeScatter(t *testing.T) {
-	runMplTest(t, "large_scatter", renderLargeScatter)
+	runMplTest(t, "large_scatter")
 }
 
 func TestMpl_MixedCollection(t *testing.T) {
-	runMplTest(t, "mixed_collection", renderMixedCollection)
+	runMplTest(t, "mixed_collection")
 }
 
 func TestMpl_QuadMesh(t *testing.T) {
-	runMplTest(t, "quad_mesh", renderQuadMesh)
+	runMplTest(t, "quad_mesh")
 }
 
 func TestMpl_GouraudTriangles(t *testing.T) {
-	runMplTest(t, "gouraud_triangles", renderGouraudTriangles)
+	runMplTest(t, "gouraud_triangles")
 }
 
 func TestMpl_ClipPathBatch(t *testing.T) {
-	runMplTest(t, "clip_path_batch", renderClipPathBatch)
+	runMplTest(t, "clip_path_batch")
 }
 
-func TestMpl_ErrorBars(t *testing.T)    { runMplTest(t, "errorbar_basic", renderErrorBars) }
-func TestMpl_TitleStrict(t *testing.T)  { runMplTest(t, "title_strict", renderTitleStrict) }
-func TestMpl_ImageHeatmap(t *testing.T) { runMplTest(t, "image_heatmap", renderImageHeatmap) }
+func TestMpl_ErrorBars(t *testing.T)    { runMplTest(t, "errorbar_basic") }
+func TestMpl_TitleStrict(t *testing.T)  { runMplTest(t, "title_strict") }
+func TestMpl_ImageHeatmap(t *testing.T) { runMplTest(t, "image_heatmap") }
 func TestMpl_ImshowClipped(t *testing.T) {
-	runMplTest(t, "imshow_clipped", renderImshowClipped)
+	runMplTest(t, "imshow_clipped")
 }
 func TestMpl_ImshowTransformed(t *testing.T) {
-	runMplTest(t, "imshow_transformed", renderImshowTransformed)
+	runMplTest(t, "imshow_transformed")
 }
-func TestMpl_ImageAlpha(t *testing.T)   { runMplTest(t, "image_alpha", renderImageAlpha) }
-func TestMpl_MatshowBasic(t *testing.T) { runMplTest(t, "matshow_basic", renderMatshowBasic) }
-func TestMpl_SpyMarker(t *testing.T)    { runMplTest(t, "spy_marker", renderSpyMarker) }
-func TestMpl_SpyImage(t *testing.T)     { runMplTest(t, "spy_image", renderSpyImage) }
+func TestMpl_ImageAlpha(t *testing.T)   { runMplTest(t, "image_alpha") }
+func TestMpl_MatshowBasic(t *testing.T) { runMplTest(t, "matshow_basic") }
+func TestMpl_SpyMarker(t *testing.T)    { runMplTest(t, "spy_marker") }
+func TestMpl_SpyImage(t *testing.T)     { runMplTest(t, "spy_image") }
 
 func TestMpl_Mplot3DPlot(t *testing.T) {
-	runMplTest(t, "mplot3d_plot3d", renderMplot3DPlot)
+	runMplTest(t, "mplot3d_plot3d")
 }
 
 func TestMpl_Mplot3DScatter(t *testing.T) {
-	runMplTest(t, "mplot3d_scatter3d", renderMplot3DScatter)
+	runMplTest(t, "mplot3d_scatter3d")
 }
 
 func TestMpl_Mplot3DSurface(t *testing.T) {
-	runMplTest(t, "mplot3d_surface3d", renderMplot3DSurface)
+	runMplTest(t, "mplot3d_surface3d")
 }
 
 func TestMpl_Mplot3DWire(t *testing.T) {
-	runMplTest(t, "mplot3d_wire3d", renderMplot3DWireframe)
+	runMplTest(t, "mplot3d_wire3d")
 }
 
 func TestMpl_Mplot3DTrisurf(t *testing.T) {
-	runMplTest(t, "mplot3d_trisurf3d", renderMplot3DTrisurf)
+	runMplTest(t, "mplot3d_trisurf3d")
 }
 
 func TestMpl_Mplot3DBar3d(t *testing.T) {
-	runMplTest(t, "mplot3d_bar3d", renderMplot3DBar3D)
+	runMplTest(t, "mplot3d_bar3d")
 }
 
 func TestMpl_Mplot3DVoxels(t *testing.T) {
-	runMplTest(t, "mplot3d_voxels", renderMplot3DVoxels)
+	runMplTest(t, "mplot3d_voxels")
 }
 
 func TestMpl_Mplot3DQuiver(t *testing.T) {
-	runMplTest(t, "mplot3d_quiver3d", renderMplot3DQuiver)
+	runMplTest(t, "mplot3d_quiver3d")
 }
 
 func TestMpl_Mplot3DStem(t *testing.T) {
-	runMplTest(t, "mplot3d_stem3d", renderMplot3DStem)
+	runMplTest(t, "mplot3d_stem3d")
 }
 
 func TestMpl_Mplot3DFillBetween(t *testing.T) {
-	runMplTest(t, "mplot3d_fill_between3d", renderMplot3DFillBetween)
+	runMplTest(t, "mplot3d_fill_between3d")
 }

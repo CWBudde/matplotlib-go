@@ -69,6 +69,19 @@ func TestRenderProducesImage(t *testing.T) {
 	}
 }
 
+func TestSourceUsesCanonicalParityExample(t *testing.T) {
+	source, descriptor, err := Source("matrix")
+	if err != nil {
+		t.Fatalf("Source(matrix) error = %v", err)
+	}
+	if descriptor.ID != "matrix" {
+		t.Fatalf("descriptor.ID = %q, want matrix", descriptor.ID)
+	}
+	if !strings.Contains(source, "examples/parity/arrays_showcase/plot.go") {
+		t.Fatalf("Source(matrix) did not identify canonical parity source path:\n%s", source)
+	}
+}
+
 func TestBackendsStable(t *testing.T) {
 	got := Backends()
 	wantIDs := []string{"gobasic", "agg"}
@@ -222,7 +235,7 @@ func TestAxesDemoUsesReadableScales(t *testing.T) {
 	}
 }
 
-func TestSourceReturnsDemoBuilderSnippet(t *testing.T) {
+func TestSourceReturnsCanonicalParitySource(t *testing.T) {
 	for _, descriptor := range Catalog() {
 		source, got, err := Source(descriptor.ID)
 		if err != nil {
@@ -231,11 +244,14 @@ func TestSourceReturnsDemoBuilderSnippet(t *testing.T) {
 		if got.ID != descriptor.ID {
 			t.Fatalf("Source(%q) descriptor ID = %q, want %q", descriptor.ID, got.ID, descriptor.ID)
 		}
-		if !strings.HasPrefix(source, "func build") {
-			t.Fatalf("Source(%q) does not start with a builder function: %.32q", descriptor.ID, source)
+		if !strings.HasPrefix(source, "// examples/parity/") {
+			t.Fatalf("Source(%q) does not start with a canonical parity source path: %.32q", descriptor.ID, source)
 		}
-		if !strings.Contains(source, "core.NewFigure") {
-			t.Fatalf("Source(%q) does not include figure construction", descriptor.ID)
+		if !strings.Contains(source, "func Render() image.Image") {
+			t.Fatalf("Source(%q) does not include the canonical example Render function", descriptor.ID)
+		}
+		if strings.Contains(source, "parity.RunStandalone") {
+			t.Fatalf("Source(%q) still points at an empty parity runner stub", descriptor.ID)
 		}
 	}
 }

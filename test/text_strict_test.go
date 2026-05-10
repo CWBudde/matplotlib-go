@@ -1,11 +1,11 @@
 package test
 
 import (
-	"image"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/cwbudde/matplotlib-go/examples/parity"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 
@@ -20,7 +20,10 @@ const (
 
 func TestTextLabelsStrict_MatplotlibRef(t *testing.T) {
 	requireOptionalVisualTests(t)
-	got := renderTextLabelsStrict()
+	got, _, err := parity.Render("text_labels_strict")
+	if err != nil {
+		t.Fatalf("render parity example text_labels_strict: %v", err)
+	}
 	wantPath := filepath.Join("..", "testdata", "matplotlib_ref", "text_labels_strict.png")
 	want, err := imagecmp.LoadPNG(wantPath)
 	if err != nil {
@@ -55,7 +58,10 @@ func TestTextLabelsStrict_MatplotlibRef(t *testing.T) {
 
 func TestTitleStrict_MatplotlibRef(t *testing.T) {
 	requireOptionalVisualTests(t)
-	got := renderTitleStrict()
+	got, _, err := parity.Render("title_strict")
+	if err != nil {
+		t.Fatalf("render parity example title_strict: %v", err)
+	}
 	wantPath := filepath.Join("..", "testdata", "matplotlib_ref", "title_strict.png")
 	want, err := imagecmp.LoadPNG(wantPath)
 	if err != nil {
@@ -87,5 +93,3 @@ func TestTitleStrict_MatplotlibRef(t *testing.T) {
 		)
 	}
 }
-
-var _ image.Image

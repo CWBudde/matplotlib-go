@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cwbudde/matplotlib-go/examples/parity"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 
@@ -21,98 +22,97 @@ const (
 
 type referenceCompareCase struct {
 	name       string
-	render     func() image.Image
 	minPSNR    float64
 	maxMeanAbs float64
 	maxRMSE    float64
 }
 
 var referenceCompareCases = []referenceCompareCase{
-	{name: "basic_line", render: renderBasicLine},
-	{name: "joins_caps", render: renderJoinsCaps},
-	{name: "dashes", render: renderDashes},
-	{name: "scatter_basic", render: renderScatterBasic},
-	{name: "scatter_marker_types", render: renderScatterMarkerTypes},
-	{name: "scatter_advanced", render: renderScatterAdvanced},
-	{name: "bar_basic_frame", render: renderBarBasicFrame},
-	{name: "bar_basic_ticks", render: renderBarBasicTicks},
-	{name: "bar_basic_tick_labels", render: renderBarBasicTickLabels},
-	{name: "bar_basic_title", render: renderBarBasicTitle},
-	{name: "bar_basic", render: renderBarBasic},
-	{name: "bar_horizontal", render: renderBarHorizontal},
-	{name: "bar_grouped", render: renderBarGrouped},
-	{name: "fill_basic", render: renderFillBasic, minPSNR: 45.0, maxMeanAbs: 6.0},
-	{name: "fill_between", render: renderFillBetween},
-	{name: "fill_stacked", render: renderFillStacked},
-	{name: "multi_series_basic", render: renderMultiSeriesBasic},
-	{name: "multi_series_color_cycle", render: renderMultiSeriesColorCycle},
-	{name: "hist_basic", render: renderHistBasic},
-	{name: "hist_density", render: renderHistDensity},
-	{name: "hist_strategies", render: renderHistStrategies},
-	{name: "boxplot_basic", render: renderBoxPlotBasic, minPSNR: 44.0, maxMeanAbs: 2.0},
-	{name: "axes_top_right_inverted", render: renderAxesTopRightInverted},
-	{name: "axes_control_surface", render: renderAxesControlSurface, minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "transform_coordinates", render: renderTransformCoordinates, minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "gridspec_composition", render: renderGridSpecComposition, minPSNR: 35.0, maxMeanAbs: 8.0},
-	{name: "figure_labels_composition", render: renderFigureLabelsComposition, minPSNR: 32.0, maxMeanAbs: 9.0},
-	{name: "colorbar_composition", render: renderColorbarComposition, minPSNR: 32.0, maxMeanAbs: 16.0},
-	{name: "annotation_composition", render: renderAnnotationComposition, minPSNR: 35.0, maxMeanAbs: 7.0},
-	{name: "patch_showcase", render: renderPatchShowcase, minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "mesh_contour_tri", render: renderMeshContourTri, minPSNR: 37.5, maxMeanAbs: 7.5},
-	{name: "plot_variants", render: renderPlotVariants, minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "spectrum_variants", render: renderSpectrumVariants, minPSNR: 35.0, maxMeanAbs: 6.5},
-	{name: "stat_variants", render: renderStatVariants, minPSNR: 32.0, maxMeanAbs: 9.0},
-	{name: "phase12_specialty_depth", render: renderPhase12SpecialtyDepth, minPSNR: 22.0, maxMeanAbs: 20.0, maxRMSE: 35.0},
-	{name: "stem_plot", render: renderStemPlot},
-	{name: "specialty_artists", render: renderSpecialtyArtists},
-	{name: "units_overview", render: renderUnitsOverview, minPSNR: 43.5},
-	{name: "units_dates", render: renderUnitsDates, minPSNR: 45.0, maxMeanAbs: 1.6},
-	{name: "units_categories", render: renderUnitsCategories, minPSNR: 41.0, maxMeanAbs: 3.2},
-	{name: "units_custom_converter", render: renderUnitsCustomConverter, minPSNR: 40.0, maxMeanAbs: 3.5},
-	{name: "vector_fields", render: renderVectorFields, minPSNR: 41.5, maxMeanAbs: 3.0},
-	{name: "imshow_clipped", render: renderImshowClipped, minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "imshow_transformed", render: renderImshowTransformed, minPSNR: 24.0, maxMeanAbs: 18.0, maxRMSE: 30.0},
-	{name: "image_alpha", render: renderImageAlpha, minPSNR: 30.0, maxMeanAbs: 16.0, maxRMSE: 10.0},
-	{name: "matshow_basic", render: renderMatshowBasic, minPSNR: 30.0, maxMeanAbs: 10.0, maxRMSE: 10.0},
-	{name: "spy_marker", render: renderSpyMarker, minPSNR: 28.0, maxMeanAbs: 12.0},
-	{name: "spy_image", render: renderSpyImage, minPSNR: 27.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
-	{name: "polar_axes", render: renderPolarAxes, minPSNR: 32.0, maxMeanAbs: 9.0},
-	{name: "geo_mollweide_axes", render: renderGeoMollweideAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "geo_aitoff_axes", render: renderGeoAitoffAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "geo_hammer_axes", render: renderGeoHammerAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "geo_lambert_axes", render: renderGeoLambertAxes, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "radar_basic", render: renderRadarBasic, minPSNR: 45.0, maxMeanAbs: 2.0},
-	{name: "skewt_basic", render: renderSkewTBasic, minPSNR: 24.0, maxMeanAbs: 18.0},
-	{name: "mplot3d_basic", render: renderMplot3DBasic, minPSNR: 39.0, maxMeanAbs: 5.0},
-	{name: "mplot3d_terrain", render: renderMplot3DTerrain, minPSNR: 38.0, maxMeanAbs: 5.0},
-	{name: "mplot3d_plot3d", render: renderMplot3DPlot, minPSNR: 38.0, maxMeanAbs: 8.0},
-	{name: "mplot3d_scatter3d", render: renderMplot3DScatter, minPSNR: 35.0, maxMeanAbs: 8.0},
-	{name: "mplot3d_surface3d", render: renderMplot3DSurface, minPSNR: 35.0, maxMeanAbs: 10.0},
-	{name: "mplot3d_wire3d", render: renderMplot3DWireframe, minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "mplot3d_trisurf3d", render: renderMplot3DTrisurf, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "mplot3d_bar3d", render: renderMplot3DBar3D, minPSNR: 30.0, maxMeanAbs: 8.0},
-	{name: "mplot3d_voxels", render: renderMplot3DVoxels, minPSNR: 30.0, maxMeanAbs: 12.0},
-	{name: "mplot3d_quiver3d", render: renderMplot3DQuiver, minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "mplot3d_stem3d", render: renderMplot3DStem, minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "mplot3d_fill_between3d", render: renderMplot3DFillBetween, minPSNR: 35.0, maxMeanAbs: 10.0},
-	{name: "unstructured_showcase", render: renderUnstructuredShowcase, minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "arrays_showcase", render: renderArraysShowcase, minPSNR: 30.0, maxMeanAbs: 10.0},
-	{name: "axisartist_showcase", render: renderAxisArtistShowcase, minPSNR: 28.0, maxMeanAbs: 12.0},
-	{name: "axes_grid1_showcase", render: renderAxesGrid1Showcase, minPSNR: 28.0, maxMeanAbs: 12.0},
-	{name: "pcolor_flat", render: renderPColorFlat, minPSNR: 28.0, maxMeanAbs: 15.0},
-	{name: "pcolormesh_nearest", render: renderPColorMeshNearest, minPSNR: 28.0, maxMeanAbs: 15.0},
-	{name: "pcolormesh_gouraud", render: renderPColorMeshGouraud, minPSNR: 20.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
-	{name: "pcolormesh_masked", render: renderPColorMeshMasked, minPSNR: 28.0, maxMeanAbs: 15.0},
-	{name: "hist2d_weighted_density", render: renderHist2DWeightedDensity, minPSNR: 28.0, maxMeanAbs: 16.0, maxRMSE: 30.0},
-	{name: "boundarynorm_pcolormesh", render: renderBoundaryNormPColorMesh, minPSNR: 28.0, maxMeanAbs: 16.0},
-	{name: "lognorm_imshow", render: renderLogNormImshow, minPSNR: 28.0, maxMeanAbs: 16.0},
-	{name: "twoslope_norm_image", render: renderTwoSlopeNormImage, minPSNR: 28.0, maxMeanAbs: 16.0},
-	{name: "colorbar_extensions", render: renderColorbarExtensions, minPSNR: 28.0, maxMeanAbs: 16.0},
-	{name: "large_scatter", render: renderLargeScatter, minPSNR: 55.0, maxMeanAbs: 0.5, maxRMSE: 4.0},
-	{name: "mixed_collection", render: renderMixedCollection, minPSNR: 60.0, maxMeanAbs: 0.5, maxRMSE: 2.0},
-	{name: "quad_mesh", render: renderQuadMesh, minPSNR: 48.0, maxMeanAbs: 1.0, maxRMSE: 4.0},
-	{name: "gouraud_triangles", render: renderGouraudTriangles, minPSNR: 25.0, maxMeanAbs: 18.0},
-	{name: "clip_path_batch", render: renderClipPathBatch, minPSNR: 45.0, maxMeanAbs: 1.0, maxRMSE: 6.0},
+	{name: "basic_line"},
+	{name: "joins_caps"},
+	{name: "dashes"},
+	{name: "scatter_basic"},
+	{name: "scatter_marker_types"},
+	{name: "scatter_advanced"},
+	{name: "bar_basic_frame"},
+	{name: "bar_basic_ticks"},
+	{name: "bar_basic_tick_labels"},
+	{name: "bar_basic_title"},
+	{name: "bar_basic"},
+	{name: "bar_horizontal"},
+	{name: "bar_grouped"},
+	{name: "fill_basic", minPSNR: 45.0, maxMeanAbs: 6.0},
+	{name: "fill_between"},
+	{name: "fill_stacked"},
+	{name: "multi_series_basic"},
+	{name: "multi_series_color_cycle"},
+	{name: "hist_basic"},
+	{name: "hist_density"},
+	{name: "hist_strategies"},
+	{name: "boxplot_basic", minPSNR: 44.0, maxMeanAbs: 2.0},
+	{name: "axes_top_right_inverted"},
+	{name: "axes_control_surface", minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "transform_coordinates", minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "gridspec_composition", minPSNR: 35.0, maxMeanAbs: 8.0},
+	{name: "figure_labels_composition", minPSNR: 32.0, maxMeanAbs: 9.0},
+	{name: "colorbar_composition", minPSNR: 32.0, maxMeanAbs: 16.0},
+	{name: "annotation_composition", minPSNR: 35.0, maxMeanAbs: 7.0},
+	{name: "patch_showcase", minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "mesh_contour_tri", minPSNR: 37.5, maxMeanAbs: 7.5},
+	{name: "plot_variants", minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "spectrum_variants", minPSNR: 35.0, maxMeanAbs: 6.5},
+	{name: "stat_variants", minPSNR: 32.0, maxMeanAbs: 9.0},
+	{name: "phase12_specialty_depth", minPSNR: 22.0, maxMeanAbs: 20.0, maxRMSE: 35.0},
+	{name: "stem_plot"},
+	{name: "specialty_artists"},
+	{name: "units_overview", minPSNR: 43.5},
+	{name: "units_dates", minPSNR: 45.0, maxMeanAbs: 1.6},
+	{name: "units_categories", minPSNR: 41.0, maxMeanAbs: 3.2},
+	{name: "units_custom_converter", minPSNR: 40.0, maxMeanAbs: 3.5},
+	{name: "vector_fields", minPSNR: 41.5, maxMeanAbs: 3.0},
+	{name: "imshow_clipped", minPSNR: 30.0, maxMeanAbs: 10.0},
+	{name: "imshow_transformed", minPSNR: 24.0, maxMeanAbs: 18.0, maxRMSE: 30.0},
+	{name: "image_alpha", minPSNR: 30.0, maxMeanAbs: 16.0, maxRMSE: 10.0},
+	{name: "matshow_basic", minPSNR: 30.0, maxMeanAbs: 10.0, maxRMSE: 10.0},
+	{name: "spy_marker", minPSNR: 28.0, maxMeanAbs: 12.0},
+	{name: "spy_image", minPSNR: 27.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
+	{name: "polar_axes", minPSNR: 32.0, maxMeanAbs: 9.0},
+	{name: "geo_mollweide_axes", minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "geo_aitoff_axes", minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "geo_hammer_axes", minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "geo_lambert_axes", minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "radar_basic", minPSNR: 45.0, maxMeanAbs: 2.0},
+	{name: "skewt_basic", minPSNR: 24.0, maxMeanAbs: 18.0},
+	{name: "mplot3d_basic", minPSNR: 39.0, maxMeanAbs: 5.0},
+	{name: "mplot3d_terrain", minPSNR: 38.0, maxMeanAbs: 5.0},
+	{name: "mplot3d_plot3d", minPSNR: 38.0, maxMeanAbs: 8.0},
+	{name: "mplot3d_scatter3d", minPSNR: 35.0, maxMeanAbs: 8.0},
+	{name: "mplot3d_surface3d", minPSNR: 35.0, maxMeanAbs: 10.0},
+	{name: "mplot3d_wire3d", minPSNR: 30.0, maxMeanAbs: 10.0},
+	{name: "mplot3d_trisurf3d", minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "mplot3d_bar3d", minPSNR: 30.0, maxMeanAbs: 8.0},
+	{name: "mplot3d_voxels", minPSNR: 30.0, maxMeanAbs: 12.0},
+	{name: "mplot3d_quiver3d", minPSNR: 30.0, maxMeanAbs: 10.0},
+	{name: "mplot3d_stem3d", minPSNR: 30.0, maxMeanAbs: 10.0},
+	{name: "mplot3d_fill_between3d", minPSNR: 35.0, maxMeanAbs: 10.0},
+	{name: "unstructured_showcase", minPSNR: 30.0, maxMeanAbs: 10.0},
+	{name: "arrays_showcase", minPSNR: 30.0, maxMeanAbs: 10.0},
+	{name: "axisartist_showcase", minPSNR: 28.0, maxMeanAbs: 12.0},
+	{name: "axes_grid1_showcase", minPSNR: 28.0, maxMeanAbs: 12.0},
+	{name: "pcolor_flat", minPSNR: 28.0, maxMeanAbs: 15.0},
+	{name: "pcolormesh_nearest", minPSNR: 28.0, maxMeanAbs: 15.0},
+	{name: "pcolormesh_gouraud", minPSNR: 20.0, maxMeanAbs: 22.0, maxRMSE: 30.0},
+	{name: "pcolormesh_masked", minPSNR: 28.0, maxMeanAbs: 15.0},
+	{name: "hist2d_weighted_density", minPSNR: 28.0, maxMeanAbs: 16.0, maxRMSE: 30.0},
+	{name: "boundarynorm_pcolormesh", minPSNR: 28.0, maxMeanAbs: 16.0},
+	{name: "lognorm_imshow", minPSNR: 28.0, maxMeanAbs: 16.0},
+	{name: "twoslope_norm_image", minPSNR: 28.0, maxMeanAbs: 16.0},
+	{name: "colorbar_extensions", minPSNR: 28.0, maxMeanAbs: 16.0},
+	{name: "large_scatter", minPSNR: 55.0, maxMeanAbs: 0.5, maxRMSE: 4.0},
+	{name: "mixed_collection", minPSNR: 60.0, maxMeanAbs: 0.5, maxRMSE: 2.0},
+	{name: "quad_mesh", minPSNR: 48.0, maxMeanAbs: 1.0, maxRMSE: 4.0},
+	{name: "gouraud_triangles", minPSNR: 25.0, maxMeanAbs: 18.0},
+	{name: "clip_path_batch", minPSNR: 45.0, maxMeanAbs: 1.0, maxRMSE: 6.0},
 }
 
 func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {
@@ -125,7 +125,10 @@ func TestReferenceImages_GoldenVsMatplotlibRef(t *testing.T) {
 }
 
 func TestColorbarCompositionImageOriginMatchesMatplotlibRef(t *testing.T) {
-	got := renderColorbarComposition()
+	got, _, err := parity.Render("colorbar_composition")
+	if err != nil {
+		t.Fatalf("render parity example colorbar_composition: %v", err)
+	}
 	matplotlibRef, err := imagecmp.LoadPNG(filepath.Join("..", "testdata", "matplotlib_ref", "colorbar_composition.png"))
 	if err != nil {
 		t.Fatalf("load matplotlib reference: %v", err)
@@ -148,7 +151,10 @@ func TestColorbarCompositionImageOriginMatchesMatplotlibRef(t *testing.T) {
 func runReferenceCompareTest(t *testing.T, tc referenceCompareCase) {
 	t.Helper()
 
-	got := tc.render()
+	got, _, err := parity.Render(tc.name)
+	if err != nil {
+		t.Fatalf("render parity example %s: %v", tc.name, err)
+	}
 
 	goldenPath := filepath.Join("..", "testdata", "golden", tc.name+".png")
 	matplotlibPath := filepath.Join("..", "testdata", "matplotlib_ref", tc.name+".png")
