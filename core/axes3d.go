@@ -2991,8 +2991,6 @@ func (a *Axes3D) Bar3D(x, y, z, dx, dy, dz []float64, opts ...Bar3DOptions) *Lin
 	faceColor := color
 	if len(opts) > 0 && opts[0].Alpha != nil {
 		faceColor.A *= alpha
-	} else {
-		faceColor.A *= 0.7
 	}
 	faces, faceColors := a.projectBar3DShadedFaces(x, y, z, dx, dy, dz, faceColor)
 	barZ := a.bar3DCollectionZ(x, y, z, dx, dy, dz)

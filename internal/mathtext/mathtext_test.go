@@ -112,6 +112,68 @@ func TestLayoutMathTextUsesRuleDelimitersForStretchyBrackets(t *testing.T) {
 	}
 }
 
+func TestLayoutMathTextSupportsRulelessDelimitedFractions(t *testing.T) {
+	layout, ok := LayoutMathText(testMeasurer{}, `\binom{n}{k}`, 20, "base", Options{})
+	if !ok {
+		t.Fatal("LayoutMathText returned !ok")
+	}
+	if len(layout.Rules) != 0 {
+		t.Fatalf("binom should not draw a fraction rule, got %+v", layout.Rules)
+	}
+	if len(layout.Runs) != 4 {
+		t.Fatalf("expected left delimiter, numerator, denominator, right delimiter runs; got %+v", layout.Runs)
+	}
+	if layout.Runs[0].Text != "(" || layout.Runs[len(layout.Runs)-1].Text != ")" {
+		t.Fatalf("binom did not add parenthesized delimiters: %+v", layout.Runs)
+	}
+
+	var numY, denY float64
+	for _, run := range layout.Runs {
+		switch run.Text {
+		case "n":
+			numY = run.Offset.Y
+		case "k":
+			denY = run.Offset.Y
+		}
+	}
+	if numY >= 0 || denY <= 0 {
+		t.Fatalf("expected numerator above and denominator below baseline: numY=%v denY=%v runs=%+v", numY, denY, layout.Runs)
+	}
+}
+
+func TestLayoutMathTextSupportsGenfracDelimitersAndRuleSize(t *testing.T) {
+	layout, ok := LayoutMathText(testMeasurer{}, `\genfrac{[}{]}{0}{0}{n}{k}`, 20, "base", Options{})
+	if !ok {
+		t.Fatal("LayoutMathText returned !ok")
+	}
+	if len(layout.Rules) != 0 {
+		t.Fatalf("zero-rule genfrac should not draw a fraction rule, got %+v", layout.Rules)
+	}
+	if layout.Runs[0].Text != "[" || layout.Runs[len(layout.Runs)-1].Text != "]" {
+		t.Fatalf("genfrac did not apply requested delimiters: %+v", layout.Runs)
+	}
+	if !containsTestRun(layout.Runs, "n", 20) || !containsTestRun(layout.Runs, "k", 20) {
+		t.Fatalf("display-style genfrac should keep numerator and denominator at base size: %+v", layout.Runs)
+	}
+}
+
+func TestLayoutMathTextSupportsDisplayStyleFractions(t *testing.T) {
+	frac, ok := LayoutMathText(testMeasurer{}, `\frac{n}{k}`, 20, "base", Options{})
+	if !ok {
+		t.Fatal("frac LayoutMathText returned !ok")
+	}
+	dfrac, ok := LayoutMathText(testMeasurer{}, `\dfrac{n}{k}`, 20, "base", Options{})
+	if !ok {
+		t.Fatal("dfrac LayoutMathText returned !ok")
+	}
+	if dfrac.Height <= frac.Height {
+		t.Fatalf("dfrac should use a display-style vertical layout: frac=%+v dfrac=%+v", frac, dfrac)
+	}
+	if !containsTestRun(dfrac.Runs, "n", 20) || !containsTestRun(dfrac.Runs, "k", 20) {
+		t.Fatalf("dfrac should keep numerator and denominator at display size: %+v", dfrac.Runs)
+	}
+}
+
 func TestLayoutMathTextSupportsRicherSpacingCommands(t *testing.T) {
 	compact, ok := LayoutMathText(testMeasurer{}, `ab`, 20, "base", Options{})
 	if !ok {
@@ -216,4 +278,13 @@ func TestLayoutMathTextCacheWithoutMeasurementKeyOnlyCachesParse(t *testing.T) {
 	if parsed != 1 || layouts != 0 {
 		t.Fatalf("cache stats = parsed %d layouts %d, want 1/0", parsed, layouts)
 	}
+}
+
+func containsTestRun(runs []MathTextLayoutRun, text string, size float64) bool {
+	for _, run := range runs {
+		if run.Text == text && run.FontSize == size {
+			return true
+		}
+	}
+	return false
 }

@@ -99,6 +99,8 @@ type mathLayoutNode struct {
 	left     string
 	middles  []string
 	right    string
+	fracRule bool
+	fracDisp bool
 	rows     [][]mathLayoutNode
 	families []string
 	style    FontStyle
@@ -374,7 +376,23 @@ func (p *mathLayoutParser) parseCommandNode() mathLayoutNode {
 	case "frac":
 		num := p.parseArgumentNode()
 		den := p.parseArgumentNode()
-		return mathLayoutNode{kind: mathLayoutFrac, num: &num, den: &den}
+		return mathLayoutNode{kind: mathLayoutFrac, num: &num, den: &den, fracRule: true}
+	case "dfrac":
+		num := p.parseArgumentNode()
+		den := p.parseArgumentNode()
+		return mathLayoutNode{kind: mathLayoutFrac, num: &num, den: &den, fracRule: true, fracDisp: true}
+	case "binom":
+		num := p.parseArgumentNode()
+		den := p.parseArgumentNode()
+		return mathLayoutNode{kind: mathLayoutFrac, num: &num, den: &den, left: "(", right: ")"}
+	case "genfrac":
+		left := parseMathDelimiterSpec(p.parseBraceText())
+		right := parseMathDelimiterSpec(p.parseBraceText())
+		rule := parseMathSpaceDimension(p.parseBraceText()) > 0
+		display := strings.TrimSpace(p.parseBraceText()) == "0"
+		num := p.parseArgumentNode()
+		den := p.parseArgumentNode()
+		return mathLayoutNode{kind: mathLayoutFrac, num: &num, den: &den, left: left, right: right, fracRule: rule, fracDisp: display}
 	case "hspace", "kern":
 		return mathLayoutNode{kind: mathLayoutSpace, widthEm: parseMathSpaceDimension(p.parseBraceText())}
 	case "sqrt":
@@ -618,6 +636,11 @@ func (p *mathLayoutParser) parseDelimiterToken() string {
 	return string(r)
 }
 
+func parseMathDelimiterSpec(text string) string {
+	parser := mathLayoutParser{input: []rune(strings.TrimSpace(text))}
+	return parser.parseDelimiterToken()
+}
+
 func (p *mathLayoutParser) parseBraceText() string {
 	p.skipSpace()
 	if p.pos >= len(p.input) || p.input[p.pos] != '{' {
@@ -848,7 +871,7 @@ func layoutMathNode(r Measurer, n mathLayoutNode, size float64, fontKey string, 
 	case mathLayoutScript:
 		return layoutMathScript(r, n, size, fontKey, opts)
 	case mathLayoutFrac:
-		return layoutMathFrac(r, pointerNode(n.num), pointerNode(n.den), size, fontKey, opts)
+		return layoutMathFrac(r, pointerNode(n.num), pointerNode(n.den), size, fontKey, opts, n.fracRule, n.fracDisp, n.left, n.right)
 	case mathLayoutSqrt:
 		return layoutMathSqrt(r, pointerNode(n.radicand), n.index, size, fontKey, opts)
 	case mathLayoutSpace:
@@ -1288,13 +1311,19 @@ func isMathLimitText(text string) bool {
 	}
 }
 
-func layoutMathFrac(r Measurer, num, den mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
+func layoutMathFrac(r Measurer, num, den mathLayoutNode, size float64, fontKey string, opts Options, rule, display bool, leftDelim, rightDelim string) mathLayoutBox {
 	childSize := size * 0.75
+	if display {
+		childSize = size
+	}
 	numBox := layoutMathNode(r, num, childSize, fontKey, opts)
 	denBox := layoutMathNode(r, den, childSize, fontKey, opts)
 	padding := size * 0.18
 	gap := size * 0.14
 	ruleThickness := maxFloat64(size*0.045, 0.5)
+	if !rule {
+		ruleThickness = 0
+	}
 	width := maxFloat64(numBox.Width, denBox.Width) + 2*padding
 	numX := (width - numBox.Width) / 2
 	denX := (width - denBox.Width) / 2
@@ -1305,16 +1334,35 @@ func layoutMathFrac(r Measurer, num, den mathLayoutNode, size float64, fontKey s
 		Width:   width,
 		Ascent:  -numY + numBox.Ascent,
 		Descent: denY + denBox.Descent,
-		rules: []MathTextLayoutRule{{
+	}
+	if rule {
+		out.rules = append(out.rules, MathTextLayoutRule{
 			Rect: geom.Rect{
 				Min: geom.Pt{X: 0, Y: -ruleThickness / 2},
 				Max: geom.Pt{X: width, Y: ruleThickness / 2},
 			},
-		}},
+		})
 	}
 	out.appendTranslated(numBox, numX, numY)
 	out.appendTranslated(denBox, denX, denY)
-	return out
+	if leftDelim == "" && rightDelim == "" {
+		return out
+	}
+
+	left := layoutMathDelimiter(r, leftDelim, out.Ascent, out.Descent, size, fontKey)
+	right := layoutMathDelimiter(r, rightDelim, out.Ascent, out.Descent, size, fontKey)
+	var delimited mathLayoutBox
+	x := 0.0
+	delimited.appendTranslated(left, x, 0)
+	x += left.Width
+	delimited.appendTranslated(out, x, 0)
+	x += out.Width
+	delimited.appendTranslated(right, x, 0)
+	x += right.Width
+	delimited.Width = x
+	delimited.Ascent = maxFloat64(maxFloat64(left.Ascent, out.Ascent), right.Ascent)
+	delimited.Descent = maxFloat64(maxFloat64(left.Descent, out.Descent), right.Descent)
+	return delimited
 }
 
 func layoutMathSqrt(r Measurer, radicand mathLayoutNode, index *mathLayoutNode, size float64, fontKey string, opts Options) mathLayoutBox {
