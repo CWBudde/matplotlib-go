@@ -72,6 +72,7 @@ var referenceCompareCases = []referenceCompareCase{
 	{name: "vector_fields", minPSNR: 41.5, maxMeanAbs: 3.0},
 	{name: "imshow_clipped", minPSNR: 30.0, maxMeanAbs: 10.0},
 	{name: "imshow_transformed", minPSNR: 24.0, maxMeanAbs: 18.0, maxRMSE: 30.0},
+	{name: "imshow_bilinear", minPSNR: 30.0, maxMeanAbs: 16.0},
 	{name: "image_alpha", minPSNR: 30.0, maxMeanAbs: 16.0, maxRMSE: 10.0},
 	{name: "matshow_basic", minPSNR: 30.0, maxMeanAbs: 10.0, maxRMSE: 10.0},
 	{name: "spy_marker", minPSNR: 28.0, maxMeanAbs: 12.0},

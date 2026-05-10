@@ -41,17 +41,13 @@ func Render() image.Image {
 
 	cmap := "gray"
 	vmin, vmax := 0.0, 1.0
-	xmin, xmax := 0.0, float64(n)
-	ymin, ymax := 0.0, float64(n)
-	ax.Image(data, core.ImageOptions{
+	extent := [4]float64{0, float64(n), 0, float64(n)}
+	ax.ImShow(data, core.ImShowOptions{
 		Colormap:      &cmap,
 		VMin:          &vmin,
 		VMax:          &vmax,
-		XMin:          &xmin,
-		XMax:          &xmax,
-		YMin:          &ymin,
-		YMax:          &ymax,
 		Origin:        core.ImageOriginLower,
+		Extent:        &extent,
 		Interpolation: &filter,
 	})
 
