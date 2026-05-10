@@ -1,16 +1,61 @@
-// Package units_dates is the parity-test wrapper for the units_dates showcase.
-// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/units_dates;
-// this file imports it so the parity registry and golden tests share that single
-// source of truth.
 package units_dates
 
 import (
 	"image"
+	"time"
 
-	showcase "github.com/cwbudde/matplotlib-go/examples/units_dates"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
-// Render returns the parity image, identical to the showcase output.
+
+const (
+	Width  = 720
+	Height = 380
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
+	fig := core.NewFigure(720, 380)
+	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.18}, Max: geom.Pt{X: 0.94, Y: 0.88}})
+	ax.SetTitle("Date Units")
+	ax.SetXLabel("Date")
+	ax.SetYLabel("Requests")
+	common.AddReferenceYGrid(ax)
+
+	dates := []time.Time{
+		time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 2, 5, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 2, 9, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 2, 14, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 2, 20, 0, 0, 0, 0, time.UTC),
+	}
+	x := make([]float64, len(dates))
+	for i, d := range dates {
+		x[i] = common.ReferenceDateNumber(d)
+	}
+	lower := []float64{6, 7, 5, 8, 7}
+	upper := []float64{10, 15, 13, 18, 16}
+	fillColor := render.Color{R: 0.85, G: 0.91, B: 0.96, A: 1}
+	lineColor := render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1}
+	lineWidth := 2.0
+	ax.FillBetween(x, lower, upper, core.FillOptions{Color: &fillColor})
+	ax.Plot(x, []float64{8, 12, 9, 15, 13}, core.PlotOptions{Color: &lineColor, LineWidth: &lineWidth})
+	ax.XAxis.Locator = core.FixedLocator{TicksList: []float64{
+		common.ReferenceDateNumber(time.Date(2024, 2, 5, 0, 0, 0, 0, time.UTC)),
+		common.ReferenceDateNumber(time.Date(2024, 2, 12, 0, 0, 0, 0, time.UTC)),
+		common.ReferenceDateNumber(time.Date(2024, 2, 19, 0, 0, 0, 0, time.UTC)),
+	}}
+	ax.XAxis.Formatter = core.DateFormatter{Layout: "02 Jan", Location: time.UTC}
+	ax.AutoScale(0.06)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
 func Render() image.Image {
-	return showcase.Render()
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

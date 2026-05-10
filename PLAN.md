@@ -98,9 +98,14 @@ lists.
 - [x] Relocate the parity Go tree from `examples/parity/` to `test/parity/` to physically separate user-facing showcase code from test fixtures.
 - [x] Move shared parity helpers from `test/parity/internal/common` to `internal/parityutil` so showcase examples can reuse them.
 - [x] Migrate plot bodies into importable showcase packages at `examples/{id}/example.go`; parity wrappers at `test/parity/{id}/plot.go` import the showcase `Render()` to avoid duplication.
-- [ ] Inline the legacy delegating wrappers (e.g. `examples/dashes/example.go` calls `examples/lines/dashes.Dashes`) so each `examples/{id}/example.go` is self-contained, then retire the topic-named legacy directories (`examples/lines/`, `examples/scatter/`, etc.).
-- [ ] Replace the 22 hand-maintained `buildXxxDemo()` builders in `internal/webdemo/demo.go` with auto-generation from the showcase tree. Requires a `Plot() *core.Figure` accessor on showcase packages so any backend (not just AGG) can render them.
-- [ ] Curate the showcase set down to ~25-35 polished examples; current state has ~60 generated wrappers covering every non-fixture parity case, which is broader than the user-facing target.
+- [x] Inline the legacy delegating wrappers (`dashes`, `arrays_showcase`, `axes_grid1_showcase`, `axisartist_showcase`, `boxplot_basic`, `colorbar_composition`, `unstructured_showcase`) so each `examples/{id}/example.go` is self-contained.
+- [x] Add a `Plot() *core.Figure` accessor to every non-fixture showcase package so the figure body is backend-agnostic and the AGG `Render()` is a thin wrapper.
+- [x] Split shared `internal/parityutil.RenderBarBasicScaffold` / `RenderGeoProjectionAxes` into `Plot…` + `Render…` pairs so the bar-progression and geo-projection cases also expose a backend-agnostic `Plot()`.
+- [x] Thin out duplicate top-level CLI runners (`examples/scatter/basic.go`, `examples/lines/basic.go`, etc.) so each one calls `examples/{id}.Plot()` instead of carrying its own copy of the figure body.
+- [x] Curate the showcase set to 31 polished examples tagged `Showcase: true` in the catalog. Bodies of dropped non-fixture cases (joins_caps, scatter_marker_types, scatter_advanced, the bar_basic_* progression, fill_between, fill_stacked, hist_density/strategies, units_dates/categories/custom_converter, geo_hammer/lambert, etc.) moved back into `test/parity/{id}/plot.go` only, with `examples/{id}/` deleted.
+- [x] Retire the top-level `package main` wrapper directories (`examples/annotation/`, `examples/scatter/`, `examples/lines/basic.go`, etc.) — duplicated thin runners deleted; nested unique educational demos (`examples/axes/limits/`, `examples/lines/styles/`, `examples/lines/dash/`, `examples/geo/aitoff/`, `examples/mplot3d/terrain/`, `examples/backends/`, etc.) kept.
+- [ ] Replace the 22 hand-maintained `buildXxxDemo()` builders in `internal/webdemo/demo.go` with calls to `examples/{id}.Plot()` for the 11 cataloged web demos. Requires updates to `internal/webdemo/demo_test.go` (current assertions check titles/structure of the bespoke demos, not the showcase output).
+- [ ] Optionally add a unified `cmd/example -name <id>` runner so users have a single entry point for any showcase, matching the catalog. Would let the remaining nested topic runners be deleted as well.
 
 # ✅ Foundation (COMPLETED)
 

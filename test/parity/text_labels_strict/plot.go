@@ -1,16 +1,37 @@
-// Package text_labels_strict is the parity-test wrapper for the text_labels_strict showcase.
-// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/text_labels_strict;
-// this file imports it so the parity registry and golden tests share that single
-// source of truth.
 package text_labels_strict
 
 import (
 	"image"
 
-	showcase "github.com/cwbudde/matplotlib-go/examples/text_labels_strict"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
-// Render returns the parity image, identical to the showcase output.
+
+const (
+	Width  = 640
+	Height = 360
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
+	fig := core.NewFigure(640, 360)
+	ax := fig.AddAxes(geom.Rect{
+		Min: geom.Pt{X: 0.1, Y: 0.1},
+		Max: geom.Pt{X: 0.9, Y: 0.9},
+	})
+	ax.SetXLim(0, 1)
+	ax.SetYLim(0, 1)
+	ax.SetTitle("Text Labels")
+	ax.SetXLabel("Group")
+	ax.SetYLabel("Value")
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
 func Render() image.Image {
-	return showcase.Render()
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

@@ -1,16 +1,52 @@
-// Package mplot3d_wire3d is the parity-test wrapper for the mplot3d_wire3d showcase.
-// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/mplot3d_wire3d;
-// this file imports it so the parity registry and golden tests share that single
-// source of truth.
 package mplot3d_wire3d
 
 import (
 	"image"
 
-	showcase "github.com/cwbudde/matplotlib-go/examples/mplot3d_wire3d"
+	"github.com/cwbudde/matplotlib-go/backends/agg"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
-// Render returns the parity image, identical to the showcase output.
+
+const (
+	Width  = 720
+	Height = 560
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	x, y, z := common.Get3DWireframeTestData(0.05)
+
+	rStride := 10
+	cStride := 10
+	ax.Wireframe(x, y, z, core.PlotOptions{
+		RStride: &rStride,
+		CStride: &cStride,
+	})
+	common.DisableMplot3DTickLabels(ax)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
 func Render() image.Image {
-	return showcase.Render()
+	fig := Plot()
+	r, err := agg.New(Width, Height, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
 }

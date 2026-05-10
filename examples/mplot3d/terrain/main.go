@@ -1,107 +1,32 @@
+// CLI runner for the examples/mplot3d_terrain showcase. Renders to mplot3d_terrain.png using the
+// backend selected by the BACKEND env var.
 package main
 
 import (
 	"log"
-	"math"
 
-	"github.com/cwbudde/matplotlib-go/backends/agg"
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
+	example "github.com/cwbudde/matplotlib-go/examples/mplot3d_terrain"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func main() {
-	fig := core.NewFigure(900, 640)
-	ax, err := fig.AddAxes3D(geom.Rect{
-		Min: geom.Pt{X: 0.08, Y: 0.08},
-		Max: geom.Pt{X: 0.92, Y: 0.88},
-	})
+	fig := example.Plot()
+	w := int(fig.SizePx.X)
+	h := int(fig.SizePx.Y)
+	r, _, err := backends.NewRendererFromEnv(backends.Config{
+		Width:      w,
+		Height:     h,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        fig.RC.DPI,
+	}, backends.TextCapabilities)
 	if err != nil {
-		log.Fatalf("add 3D axes: %v", err)
+		log.Fatalf("renderer: %v", err)
 	}
-
-	ax.SetTitle("3D Surface + Filled Contours")
-	ax.SetXLabel("x")
-	ax.SetYLabel("y")
-	ax.SetView(35, -60)
-
-	// Use the same deterministic terrain formula as the Python counterpart so
-	// surface, contour, and contourf behavior can be compared directly.
-	x, y, z := sinusoidalTerrain(90, 70)
-	zeroWidth := 0.0
-	black := render.Color{R: 0, G: 0, B: 0, A: 1}
-	contourWidth := 0.6
-	contourLevels := 8
-	contourOffset := gridMin(z) - 0.2
-	orange := render.Color{R: 1.0, G: 0.4980392156862745, B: 0.054901960784313725, A: 1}
-	triAlpha := 0.7
-	ax.PlotSurfaceGrid(x, y, z, core.PlotOptions{LineWidth: &zeroWidth})
-
-	// Additional primitives exercise mixed 3D artist ordering on top of the
-	// surface: a floor outline, sample points, a triangular patch, and text.
-	ax.Plot3D([]float64{0, 0.9, 0.9, 0, 0}, []float64{0, 0, 0.9, 0.9, 0}, []float64{-0.2, -0.2, -0.2, -0.2, -0.2}, core.PlotOptions{Color: &black})
-	ax.Scatter3D([]float64{0.2, 0.5, 0.8}, []float64{0.2, 0.5, 0.8}, []float64{0.3, 0.35, 0.2})
-	ax.Contour(x, y, z, core.PlotOptions{Color: &black, LineWidth: &contourWidth, LevelCount: contourLevels})
-	ax.Contourf(x, y, z, core.PlotOptions{LevelCount: contourLevels, Offset: &contourOffset})
-
-	tri := core.Triangulation{
-		X:         []float64{0, 0.5, 1},
-		Y:         []float64{0, 0, 0.4},
-		Triangles: [][3]int{{0, 1, 2}},
+	if err := core.SavePNG(fig, r, "mplot3d_terrain.png"); err != nil {
+		log.Fatalf("save: %v", err)
 	}
-	triZ := []float64{0.1, 0.4, 0.9}
-	ax.Trisurf(tri, triZ, core.PlotOptions{Color: &orange, Alpha: &triAlpha})
-	ax.Text(0.70, 0.62, "3D demo", core.TextOptions{Coords: core.Coords(core.CoordAxes)})
-
-	r, err := agg.New(900, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
-	if err != nil {
-		log.Fatal(err)
-	}
-	core.DrawFigure(fig, r)
-	if err := r.SavePNG("mplot3d_terrain.png"); err != nil {
-		log.Fatalf("save PNG: %v", err)
-	}
-}
-
-func gridMin(values [][]float64) float64 {
-	minValue := math.Inf(1)
-	for _, row := range values {
-		for _, value := range row {
-			if value < minValue {
-				minValue = value
-			}
-		}
-	}
-	return minValue
-}
-
-func sinusoidalTerrain(xCount, yCount int) ([]float64, []float64, [][]float64) {
-	if xCount < 2 {
-		xCount = 2
-	}
-	if yCount < 2 {
-		yCount = 2
-	}
-	x := make([]float64, xCount)
-	y := make([]float64, yCount)
-	z := make([][]float64, yCount)
-
-	for yi := 0; yi < yCount; yi++ {
-		y[yi] = -math.Pi + 2*math.Pi*float64(yi)/float64(yCount-1)
-	}
-	for xi := 0; xi < xCount; xi++ {
-		x[xi] = -math.Pi + 2*math.Pi*float64(xi)/float64(xCount-1)
-	}
-	for yi := 0; yi < yCount; yi++ {
-		row := make([]float64, xCount)
-		for xi := 0; xi < xCount; xi++ {
-			angleX := x[xi]
-			angleY := y[yi]
-			row[xi] = 0.5*math.Sin(angleX)*math.Cos(angleY) +
-				0.35*math.Sin(2*angleX+0.6)*math.Cos(angleY/2) +
-				0.15*math.Cos(3*angleY-angleX)
-		}
-		z[yi] = row
-	}
-	return x, y, z
+	log.Println("saved mplot3d_terrain.png")
 }

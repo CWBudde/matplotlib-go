@@ -1,16 +1,21 @@
-// Package geo_hammer_axes is the parity-test wrapper for the geo_hammer_axes showcase.
-// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/geo_hammer_axes;
-// this file imports it so the parity registry and golden tests share that single
-// source of truth.
+// Package geo_hammer_axes is a showcase of the Hammer (equal-area) projection
+// with a sinusoidal latitude trace.
 package geo_hammer_axes
 
 import (
 	"image"
+	"math"
 
-	showcase "github.com/cwbudde/matplotlib-go/examples/geo_hammer_axes"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
-// Render returns the parity image, identical to the showcase output.
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
+	return common.PlotGeoProjectionAxes("hammer", "Hammer Projection", -math.Pi, math.Pi)
+}
+
+// Render is the AGG-rendered showcase image.
 func Render() image.Image {
-	return showcase.Render()
+	return common.RenderGeoProjectionAxes("hammer", "Hammer Projection", -math.Pi, math.Pi)
 }

@@ -1,16 +1,20 @@
-// Package bar_basic_ticks is the parity-test wrapper for the bar_basic_ticks showcase.
-// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/bar_basic_ticks;
-// this file imports it so the parity registry and golden tests share that single
-// source of truth.
+// Package bar_basic_ticks adds tick marks (no labels) on top of the bar
+// scaffold from bar_basic_frame.
 package bar_basic_ticks
 
 import (
 	"image"
 
-	showcase "github.com/cwbudde/matplotlib-go/examples/bar_basic_ticks"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
-// Render returns the parity image, identical to the showcase output.
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
+	return common.PlotBarBasicScaffold(true, false, false)
+}
+
+// Render is the AGG-rendered showcase image.
 func Render() image.Image {
-	return showcase.Render()
+	return common.RenderBarBasicScaffold(true, false, false)
 }

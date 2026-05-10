@@ -1,16 +1,30 @@
-// Package lognorm_imshow is the parity-test wrapper for the lognorm_imshow showcase.
-// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/lognorm_imshow;
-// this file imports it so the parity registry and golden tests share that single
-// source of truth.
 package lognorm_imshow
 
 import (
 	"image"
 
-	showcase "github.com/cwbudde/matplotlib-go/examples/lognorm_imshow"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
-// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	return showcase.Render()
+	fig, ax := common.ColorNormFixtureFigure("LogNorm Imshow")
+	cmap := "magma"
+	xmin, xmax := 0.0, 6.0
+	ymin, ymax := 0.0, 5.0
+	img := ax.Image(common.LogNormFixtureData(5, 6), core.ImageOptions{
+		Colormap: &cmap,
+		Norm:     core.LogNorm{VMin: 1, VMax: 1000},
+		XMin:     &xmin,
+		XMax:     &xmax,
+		YMin:     &ymin,
+		YMax:     &ymax,
+		Origin:   core.ImageOriginLower,
+	})
+	if img != nil {
+		fig.AddColorbar(ax, img, core.ColorbarOptions{Label: "log value"})
+	}
+	ax.SetXLim(0, 6)
+	ax.SetYLim(0, 5)
+	return common.RenderFixtureFigure(fig, 640, 360)
 }
