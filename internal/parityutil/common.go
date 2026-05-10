@@ -272,6 +272,8 @@ func DisableMplot3DTickLabels(ax *core.Axes3D) {
 	}
 	ax.XAxis.ShowLabels = false
 	ax.YAxis.ShowLabels = false
+	ax.SetShowXTickLabels(false)
+	ax.SetShowYTickLabels(false)
 	ax.SetShowZTickLabels(false)
 }
 

@@ -37,6 +37,8 @@ type Axes3D struct {
 	rollDeg      float64
 	verticalAxis int
 	zLabel       string
+	showXLabels  bool
+	showYLabels  bool
 	showZLabels  bool
 	distance     float64
 	boxAspect    vec3
@@ -281,6 +283,8 @@ func NewAxes3D(ax *Axes) *Axes3D {
 		elevationDeg: default3DElevationDeg,
 		rollDeg:      default3DRollDeg,
 		verticalAxis: default3DVerticalAxis,
+		showXLabels:  true,
+		showYLabels:  true,
 		showZLabels:  true,
 		distance:     default3DDistance,
 		boxAspect:    default3DBoxAspect(),
@@ -2709,21 +2713,25 @@ func (a *Axes3D) draw3DTickLabels(textRen render.TextDrawer, r render.Renderer, 
 	axisLines := a.axisLineEdgePointPairs(mins, maxs, tickMins, tickMaxs)
 	tickDirs := [3]int{1, 0, 0}
 
-	xTicks := frameAxisTicks(tickMins[0], tickMaxs[0])
-	for i, tick := range xTicks {
-		pos := axisLines[0][0]
-		pos[0] = tick
-		pos[tickDirs[0]] = axisLines[0][0][tickDirs[0]]
-		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 0), tickMins, tickMaxs)
-		draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, xTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
+	if a.showXLabels {
+		xTicks := frameAxisTicks(tickMins[0], tickMaxs[0])
+		for i, tick := range xTicks {
+			pos := axisLines[0][0]
+			pos[0] = tick
+			pos[tickDirs[0]] = axisLines[0][0][tickDirs[0]]
+			anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 0), tickMins, tickMaxs)
+			draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, xTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
+		}
 	}
-	yTicks := frameAxisTicks(tickMins[1], tickMaxs[1])
-	for i, tick := range yTicks {
-		pos := axisLines[1][0]
-		pos[1] = tick
-		pos[tickDirs[1]] = axisLines[1][0][tickDirs[1]]
-		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 1), tickMins, tickMaxs)
-		draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, yTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
+	if a.showYLabels {
+		yTicks := frameAxisTicks(tickMins[1], tickMaxs[1])
+		for i, tick := range yTicks {
+			pos := axisLines[1][0]
+			pos[1] = tick
+			pos[tickDirs[1]] = axisLines[1][0][tickDirs[1]]
+			anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 1), tickMins, tickMaxs)
+			draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, yTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
+		}
 	}
 	zTicks := frameAxisTicks(tickMins[2], tickMaxs[2])
 	if a.showZLabels {
@@ -3403,6 +3411,8 @@ func (a *Axes3D) SetDefaults() {
 	}
 	a.elevationDeg = default3DElevationDeg
 	a.azimuthDeg = default3DAzimuthDeg
+	a.showXLabels = true
+	a.showYLabels = true
 	a.showZLabels = true
 	a.distance = default3DDistance
 	a.rollDeg = default3DRollDeg
@@ -3473,7 +3483,23 @@ func (a *Axes3D) SetZLabel(label string) {
 	a.zLabel = label
 }
 
-// SetShowZTickLabels controls whether Matplotlib-style z-axis tick labels are drawn.
+// SetShowXTickLabels controls whether x-axis tick labels are drawn on the 3D frame.
+func (a *Axes3D) SetShowXTickLabels(show bool) {
+	if a == nil {
+		return
+	}
+	a.showXLabels = show
+}
+
+// SetShowYTickLabels controls whether y-axis tick labels are drawn on the 3D frame.
+func (a *Axes3D) SetShowYTickLabels(show bool) {
+	if a == nil {
+		return
+	}
+	a.showYLabels = show
+}
+
+// SetShowZTickLabels controls whether z-axis tick labels are drawn on the 3D frame.
 func (a *Axes3D) SetShowZTickLabels(show bool) {
 	if a == nil {
 		return

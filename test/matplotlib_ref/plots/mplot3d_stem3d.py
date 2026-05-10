@@ -26,7 +26,6 @@ def mplot3d_stem3d(out_dir):
     y = np.cos(t)
     z = np.linspace(0, 1, n)
     ax.stem(x, y, z)
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_stem3d")
 

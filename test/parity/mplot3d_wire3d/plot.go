@@ -36,7 +36,6 @@ func Plot() *core.Figure {
 		RStride: &rStride,
 		CStride: &cStride,
 	})
-	common.DisableMplot3DTickLabels(ax)
 	return fig
 }
 

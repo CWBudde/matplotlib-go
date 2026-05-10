@@ -737,6 +737,7 @@ Latest text-parity note:
 - The shaping layer now parses GSUB ligature substitution lookups for enabled standard ligature features and honors `TextFeature{Tag: "liga", Value: 0}` to preserve component glyphs. This covers common `fi`/`fl`-style ligatures without claiming full HarfBuzz/libraqm parity.
 - The shaping layer also honors `TextFeature{Tag: "kern", Value: 0}` by disabling pair kerning while preserving the same glyph sequence.
 - Combining-mark handling now composes base-plus-mark sequences through Unicode NFC when the current font has the resulting precomposed glyph, so common decomposed accents such as `e` + U+0301 use the same glyph as `é`; full GPOS mark attachment remains open.
+- MathText grammar now covers Matplotlib's generalized fraction family for `\dfrac`, `\binom`, and `\genfrac`, including display-style sizing, rule-less stacked fractions, requested delimiters, and zero-rule `\genfrac` behavior. Full upstream `MathTextParser('path')` object comparison and shaped glyph/box rendering remain open.
 - AGG text drawing, width metrics, and ink bounds now enter through `ShapeText`. Rune-equivalent runs still use the native FreeType hinting-factor path for Matplotlib parity, while shaped substitutions/compositions use the shared shaped glyph model and fall through to shaped path rendering when a glyph cannot be drawn back through a Unicode rune.
 - The root cause of the `bar_basic_title` fixed-baseline text mismatch was Matplotlib's legacy `text.hinting_factor=8`, not the FreeType library version by itself. The diagnostic now proves native FreeType at factor 1 matches Matplotlib factor 1 byte-for-byte, and native FreeType at factor 8 matches Matplotlib default factor 8 byte-for-byte for `"Basic Bars"`.
 - Under `-tags freetype`, AGG now measures bounds/width and draws unrotated raster text through a native FreeType run that mirrors Matplotlib's horizontal hinting-factor transform. The run bbox intentionally includes empty glyph CBoxes such as spaces, while rasterization only composites non-empty glyph bitmaps; this matches Matplotlib's FT2Font bitmap offset behavior for strings like `"Basic Bars"` without breaking trailing/internal spaces.
@@ -813,6 +814,7 @@ Latest text-parity note:
   - [x] Font/style switches with layout consequences for `\mathrm`, `\mathsf`, `\mathtt`, `\mathit`, and `\mathbf`
   - [x] Basic fenced delimiters via `\left...\right` with size-aware delimiter rendering
   - [x] Matrices/arrays
+  - [x] Generalized fraction commands: `\dfrac`, `\binom`, and `\genfrac`
   - [ ] More complete stretchy delimiter behavior beyond the current basic `\left...\right` handling
     - [x] `\middle` and omitted `.` delimiters within `\left...\right`
     - [x] Extensible rule-based rendering for vertical bar and bracket-style delimiters

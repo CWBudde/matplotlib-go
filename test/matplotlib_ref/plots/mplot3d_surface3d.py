@@ -26,7 +26,6 @@ def mplot3d_surface3d(out_dir):
     R = np.sqrt(X**2 + Y**2)
     Z = np.sin(R)
     ax.plot_surface(X, Y, Z, vmin=Z.min() * 2, cmap="Blues")
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_surface3d")
 

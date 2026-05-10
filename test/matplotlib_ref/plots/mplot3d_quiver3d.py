@@ -29,7 +29,6 @@ def mplot3d_quiver3d(out_dir):
     V = (Y - X) / 5
     W = Z * 0
     ax.quiver(X, Y, Z, U, V, W)
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_quiver3d")
 

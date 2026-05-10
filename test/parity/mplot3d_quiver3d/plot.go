@@ -6,7 +6,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends/agg"
 	"github.com/cwbudde/matplotlib-go/core"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
-	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
@@ -53,7 +52,6 @@ func Plot() *core.Figure {
 		}
 	}
 	ax.Quiver(x, y, z, u, v, w)
-	common.DisableMplot3DTickLabels(ax)
 	return fig
 }
 

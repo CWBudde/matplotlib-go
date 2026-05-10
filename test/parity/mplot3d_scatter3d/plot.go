@@ -30,7 +30,6 @@ func Plot() *core.Figure {
 
 	x, y, z := common.Mplot3DScatter3DPoints()
 	ax.Scatter3D(x, y, z)
-	common.DisableMplot3DTickLabels(ax)
 	return fig
 }
 

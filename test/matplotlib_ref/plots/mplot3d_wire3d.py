@@ -23,7 +23,6 @@ def mplot3d_wire3d(out_dir):
 
     X, Y, Z = axes3d.get_test_data(0.05)
     ax.plot_wireframe(X, Y, Z, rstride=10, cstride=10)
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_wire3d")
 

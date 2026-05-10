@@ -7,7 +7,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends/agg"
 	"github.com/cwbudde/matplotlib-go/core"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
-	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
@@ -40,7 +39,6 @@ func Plot() *core.Figure {
 		z[i] = float64(i) / float64(n-1)
 	}
 	ax.Stem(x, y, z)
-	common.DisableMplot3DTickLabels(ax)
 	return fig
 }
 

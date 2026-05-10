@@ -27,7 +27,6 @@ def mplot3d_bar3d(out_dir):
     dy = np.ones_like(x) * 0.5
     dz = [2, 3, 1, 4]
     ax.bar3d(x, y, z, dx, dy, dz)
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_bar3d")
 

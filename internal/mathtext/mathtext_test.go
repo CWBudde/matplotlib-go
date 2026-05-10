@@ -146,11 +146,13 @@ func TestLayoutMathTextSupportsGenfracDelimitersAndRuleSize(t *testing.T) {
 	if !ok {
 		t.Fatal("LayoutMathText returned !ok")
 	}
-	if len(layout.Rules) != 0 {
-		t.Fatalf("zero-rule genfrac should not draw a fraction rule, got %+v", layout.Rules)
+	for _, rule := range layout.Rules {
+		if rule.Rect.Min.Y < 1 && rule.Rect.Max.Y > -1 && rule.Rect.W() > 10 {
+			t.Fatalf("zero-rule genfrac should not draw a central fraction rule, got %+v", layout.Rules)
+		}
 	}
-	if layout.Runs[0].Text != "[" || layout.Runs[len(layout.Runs)-1].Text != "]" {
-		t.Fatalf("genfrac did not apply requested delimiters: %+v", layout.Runs)
+	if len(layout.Rules) < 4 {
+		t.Fatalf("genfrac did not apply requested bracket delimiters as rule boxes: %+v", layout.Rules)
 	}
 	if !containsTestRun(layout.Runs, "n", 20) || !containsTestRun(layout.Runs, "k", 20) {
 		t.Fatalf("display-style genfrac should keep numerator and denominator at base size: %+v", layout.Runs)

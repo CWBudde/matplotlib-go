@@ -28,7 +28,6 @@ def mplot3d_scatter3d(out_dir):
     zs = rng.uniform(-50, -25, n)
 
     ax.scatter(xs, ys, zs)
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_scatter3d")
 

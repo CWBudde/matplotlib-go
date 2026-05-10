@@ -76,7 +76,6 @@ func Plot() *core.Figure {
 		Colormap: &cmap,
 		VMin:     &vmin,
 	})
-	common.DisableMplot3DTickLabels(ax)
 	return fig
 }
 

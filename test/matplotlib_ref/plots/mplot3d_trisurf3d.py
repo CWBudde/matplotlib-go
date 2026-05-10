@@ -30,7 +30,6 @@ def mplot3d_trisurf3d(out_dir):
     z = np.sin(-(x * y))
 
     ax.plot_trisurf(x, y, z, vmin=z.min() * 2, cmap="Blues")
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_trisurf3d")
 

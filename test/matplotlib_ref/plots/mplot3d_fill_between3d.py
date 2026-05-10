@@ -32,7 +32,6 @@ def mplot3d_fill_between3d(out_dir):
     ax.plot(x1, y1, z1, linewidth=2, color="C0")
     ax.plot(x2, y2, z2, linewidth=2, color="C0")
     ax.fill_between(x1, y1, z1, x2, y2, z2, alpha=0.5)
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_fill_between3d")
 

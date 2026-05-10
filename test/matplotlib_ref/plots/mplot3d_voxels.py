@@ -25,7 +25,6 @@ def mplot3d_voxels(out_dir):
     cube2 = (x >= 5) & (y >= 5) & (z >= 5)
     voxelarray = cube1 | cube2
     ax.voxels(voxelarray, edgecolor="k")
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_voxels")
 

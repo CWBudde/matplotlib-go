@@ -54,7 +54,6 @@ func Plot() *core.Figure {
 
 	vmin := 2 * common.MinInGrid(z)
 	cmap := "Blues"
-	common.DisableMplot3DTickLabels(ax)
 	ax.Surface(x, y, z, core.PlotOptions{
 		VMin:     &vmin,
 		Colormap: &cmap,

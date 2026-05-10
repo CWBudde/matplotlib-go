@@ -25,7 +25,6 @@ def mplot3d_plot3d(out_dir):
     y = np.sin(6 * np.pi * x)
     z = np.cos(6 * np.pi * x)
     ax.plot(x, y, z)
-    ax.set(xticklabels=[], yticklabels=[], zticklabels=[])
 
     save(fig, out_dir, "mplot3d_plot3d")
 
