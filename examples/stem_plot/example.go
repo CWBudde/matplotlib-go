@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 720
+	Height = 420
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(720, 420)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.16}, Max: geom.Pt{X: 0.94, Y: 0.86}})
 	ax.SetTitle("Stem")
@@ -32,8 +40,13 @@ func Render() image.Image {
 			BaselineColor: &render.Color{R: 0.32, G: 0.32, B: 0.32, A: 1},
 		},
 	)
+	return fig
+}
 
-	r, err := agg.New(720, 420, render.Color{R: 1, G: 1, B: 1, A: 1})
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	r, err := agg.New(Width, Height, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}

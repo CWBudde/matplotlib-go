@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 680
+	Height = 380
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	common.RegisterTestDistanceUnits()
 	fig := core.NewFigure(680, 380)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.18}, Max: geom.Pt{X: 0.94, Y: 0.88}})
@@ -31,5 +39,11 @@ func Render() image.Image {
 		panic(err)
 	}
 	ax.AutoScale(0.08)
-	return common.RenderFixtureFigure(fig, 680, 380)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

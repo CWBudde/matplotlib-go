@@ -6,12 +6,12 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends"
 	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/examples/colorbar/composition"
+	composition "github.com/cwbudde/matplotlib-go/examples/colorbar_composition"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func main() {
-	fig := composition.ColorbarComposition()
+	fig := composition.Plot()
 	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
 		Width:      composition.Width,
 		Height:     composition.Height,

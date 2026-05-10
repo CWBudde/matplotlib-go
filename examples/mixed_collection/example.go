@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 980
+	Height = 620
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(980, 620)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.10, Y: 0.14}, Max: geom.Pt{X: 0.94, Y: 0.88}})
 	ax.SetTitle("RendererAgg mixed path collection")
@@ -61,6 +69,11 @@ func Render() image.Image {
 		LineJoin:   render.JoinMiter,
 		LineCap:    render.CapButt,
 	})
+	return fig
+}
 
-	return common.RenderFixtureFigure(fig, 980, 620)
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

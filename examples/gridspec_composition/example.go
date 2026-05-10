@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 960
+	Height = 640
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(960, 640)
 	common.ApplyMatplotlibGridSpecStyle(fig)
 
@@ -38,8 +46,13 @@ func Render() image.Image {
 	inset := sub.AddSubplot(1, 1, 1)
 	common.ConfigureCompositionAxes(inset, "SubFigure", []float64{0, 1, 2, 3}, []float64{2.0, 2.4, 1.9, 2.7}, render.Color{R: 0.55, G: 0.22, B: 0.50, A: 1})
 	common.ConfigureCompositionTicks(inset, []float64{0, 1, 2, 3}, []float64{2.0, 2.2, 2.4, 2.6}, "%.1f")
+	return fig
+}
 
-	r, err := agg.New(960, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	r, err := agg.New(Width, Height, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}

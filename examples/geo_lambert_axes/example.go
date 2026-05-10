@@ -10,7 +10,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 520
+	Height = 520
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(520, 520)
 	ax, err := fig.AddAxesProjection(geom.Rect{
 		Min: geom.Pt{X: 0.08, Y: 0.10},
@@ -44,5 +52,11 @@ func Render() image.Image {
 	lineColor := render.Color{R: 0.14, G: 0.34, B: 0.70, A: 1}
 	lineWidth := 2.0
 	ax.Plot(lon, lat, core.PlotOptions{Color: &lineColor, LineWidth: &lineWidth})
-	return common.RenderFixtureFigure(fig, 520, 520)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

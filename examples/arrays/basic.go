@@ -7,7 +7,7 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends"
 	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/examples/arrays/showcase"
+	showcase "github.com/cwbudde/matplotlib-go/examples/arrays_showcase"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
@@ -15,7 +15,7 @@ func main() {
 	out := flag.String("out", "arrays_basic.png", "output PNG path")
 	flag.Parse()
 
-	fig := showcase.ArraysShowcase()
+	fig := showcase.Plot()
 	r, _, err := backends.NewRendererFromEnv(backends.Config{
 		Width:      showcase.Width,
 		Height:     showcase.Height,

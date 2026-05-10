@@ -6,12 +6,12 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends"
 	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	boxplotbasic "github.com/cwbudde/matplotlib-go/examples/boxplot/basic"
+	boxplotbasic "github.com/cwbudde/matplotlib-go/examples/boxplot_basic"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func main() {
-	fig := boxplotbasic.Build()
+	fig := boxplotbasic.Plot()
 	r, _, err := backends.NewRendererFromEnv(backends.Config{
 		Width:      boxplotbasic.Width,
 		Height:     boxplotbasic.Height,

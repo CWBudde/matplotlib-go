@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 760
+	Height = 560
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(760, 560)
 	ax, err := fig.AddAxes3D(geom.Rect{Min: geom.Pt{X: 0.12, Y: 0.14}, Max: geom.Pt{X: 0.88, Y: 0.88}})
 	if err != nil {
@@ -33,5 +41,11 @@ func Render() image.Image {
 	ax.Contour(x, y, zGrid)
 	ax.Bar3D([]float64{0.2}, []float64{0.3}, []float64{0.4}, []float64{0.2}, []float64{0.2}, []float64{0.3}, core.Bar3DOptions{Color: &barColor, Alpha: &barAlpha})
 	ax.Text3D(0.2, 0.8, 0.6, "demo point")
-	return common.RenderFixtureFigure(fig, 760, 560)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

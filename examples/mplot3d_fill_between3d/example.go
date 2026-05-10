@@ -11,7 +11,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 720
+	Height = 560
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(720, 560)
 	ax, err := fig.AddAxes3D(geom.Rect{
 		Min: geom.Pt{X: 0.12, Y: 0.16},
@@ -49,8 +57,13 @@ func Render() image.Image {
 	ax.Plot3D(x1, y1, z1, core.PlotOptions{LineWidth: &width})
 	ax.Plot3D(x2, y2, z2, core.PlotOptions{LineWidth: &width})
 	common.DisableMplot3DTickLabels(ax)
+	return fig
+}
 
-	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	r, err := agg.New(Width, Height, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}

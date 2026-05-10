@@ -8,7 +8,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 640
+	Height = 360
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(640, 360)
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.1, Y: 0.1},
@@ -19,5 +27,11 @@ func Render() image.Image {
 	ax.SetTitle("Text Labels")
 	ax.SetXLabel("Group")
 	ax.SetYLabel("Value")
-	return common.RenderFixtureFigure(fig, 640, 360)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

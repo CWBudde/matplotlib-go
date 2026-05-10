@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 900
+	Height = 640
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(900, 640)
 	ax, err := fig.AddAxes3D(geom.Rect{Min: geom.Pt{X: 0.08, Y: 0.08}, Max: geom.Pt{X: 0.92, Y: 0.88}})
 	if err != nil {
@@ -35,5 +43,11 @@ func Render() image.Image {
 	tri := core.Triangulation{X: []float64{0, 0.5, 1}, Y: []float64{0, 0, 0.4}, Triangles: [][3]int{{0, 1, 2}}}
 	ax.Trisurf(tri, []float64{0.1, 0.4, 0.9}, core.PlotOptions{Color: &orange, Alpha: &triAlpha})
 	ax.Text(0.70, 0.62, "3D demo", core.TextOptions{Coords: core.Coords(core.CoordAxes)})
-	return common.RenderFixtureFigure(fig, 900, 640)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

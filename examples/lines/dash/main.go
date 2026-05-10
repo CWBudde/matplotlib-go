@@ -7,12 +7,12 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends"
 	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/examples/lines/dashes"
+	"github.com/cwbudde/matplotlib-go/examples/dashes"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func main() {
-	fig := dashes.Dashes()
+	fig := dashes.Plot()
 	r, _, createErr := backends.NewRendererFromEnv(backends.Config{
 		Width:      dashes.Width,
 		Height:     dashes.Height,

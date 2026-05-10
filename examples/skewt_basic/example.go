@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 720
+	Height = 640
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(720, 640)
 	ax, err := fig.AddSkewXAxes(geom.Rect{Min: geom.Pt{X: 0.16, Y: 0.14}, Max: geom.Pt{X: 0.88, Y: 0.88}})
 	if err != nil {
@@ -40,5 +48,11 @@ func Render() image.Image {
 	ax.Plot(temperature, pressure, core.PlotOptions{Color: &tempColor, LineWidth: &width, Label: "temperature"})
 	ax.Plot(dewpoint, pressure, core.PlotOptions{Color: &dewColor, LineWidth: &width, Label: "dewpoint"})
 	ax.AddLegend()
-	return common.RenderFixtureFigure(fig, 720, 640)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

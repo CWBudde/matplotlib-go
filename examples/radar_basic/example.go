@@ -10,7 +10,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/transform"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 720
+	Height = 720
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(720, 720)
 	labels := []string{"Speed", "Power", "Range", "Handling", "Comfort"}
 	ax, err := fig.AddRadarAxes(geom.Rect{Min: geom.Pt{X: 0.12, Y: 0.10}, Max: geom.Pt{X: 0.88, Y: 0.88}}, labels)
@@ -42,5 +50,11 @@ func Render() image.Image {
 	lineWidth := 2.2
 	ax.FillToBaseline(closedAngles, closedValues, core.FillOptions{Color: &fillColor})
 	ax.Plot(closedAngles, closedValues, core.PlotOptions{Color: &lineColor, LineWidth: &lineWidth, Label: "model A"})
-	return common.RenderFixtureFigure(fig, 720, 720)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

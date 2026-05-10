@@ -6,12 +6,12 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends"
 	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/examples/axes_grid1/showcase"
+	showcase "github.com/cwbudde/matplotlib-go/examples/axes_grid1_showcase"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func main() {
-	fig := showcase.AxesGrid1Showcase()
+	fig := showcase.Plot()
 	r, _, err := backends.NewRendererFromEnv(backends.Config{
 		Width:      showcase.Width,
 		Height:     showcase.Height,

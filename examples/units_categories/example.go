@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 760
+	Height = 360
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(760, 360)
 	left := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.08, Y: 0.20}, Max: geom.Pt{X: 0.47, Y: 0.86}})
 	left.SetTitle("Categorical X")
@@ -50,5 +58,11 @@ func Render() image.Image {
 		panic(err)
 	}
 	right.AutoScale(0.10)
-	return common.RenderFixtureFigure(fig, 760, 360)
+	return fig
+}
+
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	return common.RenderFixtureFigure(fig, Width, Height)
 }

@@ -9,7 +9,15 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-func Render() image.Image {
+
+const (
+	Width  = 840
+	Height = 620
+	DPI    = 100
+)
+
+// Plot builds the showcase figure (backend-agnostic).
+func Plot() *core.Figure {
 	fig := core.NewFigure(840, 620)
 	grid := fig.Subplots(
 		2,
@@ -95,8 +103,13 @@ func Render() image.Image {
 			EdgeWidth: common.FloatPtr(0.7),
 		},
 	)
+	return fig
+}
 
-	r, err := agg.New(840, 620, render.Color{R: 1, G: 1, B: 1, A: 1})
+// Render is the AGG-rendered showcase image.
+func Render() image.Image {
+	fig := Plot()
+	r, err := agg.New(Width, Height, render.Color{R: 1, G: 1, B: 1, A: 1})
 	if err != nil {
 		panic(err)
 	}
