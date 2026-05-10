@@ -2,11 +2,14 @@ package render
 
 import (
 	"math"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
+	"golang.org/x/text/unicode/norm"
 )
 
 // TextDirection describes the intended logical flow of shaped text.
@@ -130,22 +133,9 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 		var runMinX, runMinY, runMaxX, runMaxY float64
 
 		var buf sfnt.Buffer
-		var inputGlyphs []shapingGlyph
-		for localCluster, r := range inputRun.Text {
-			glyphIndex, err := fontData.GlyphIndex(&buf, r)
-			if err != nil {
-				return ShapedText{}, false
-			}
-			if glyphIndex == 0 {
-				havePrevious = false
-				previousFace = ""
-				continue
-			}
-			inputGlyphs = append(inputGlyphs, shapingGlyph{
-				Rune:       r,
-				Cluster:    clusterOffset + localCluster,
-				GlyphIndex: glyphIndex,
-			})
+		inputGlyphs, ok := shapeRunInputGlyphs(fontData, &buf, inputRun.Text, clusterOffset)
+		if !ok {
+			return ShapedText{}, false
 		}
 		inputGlyphs = applyGSUBLigatures(inputRun.Face, inputGlyphs, opts)
 
@@ -227,4 +217,69 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 		shaped.Bounds = TextBounds{X: minX - origin.X, Y: minY - origin.Y, W: maxX - minX, H: maxY - minY}
 	}
 	return shaped, laidOutGlyphs || shaped.Advance.X > 0 || shaped.Advance.Y > 0
+}
+
+func shapeRunInputGlyphs(fontData *sfnt.Font, buf *sfnt.Buffer, text string, clusterOffset int) ([]shapingGlyph, bool) {
+	var (
+		out      []shapingGlyph
+		runes    []rune
+		clusters []int
+	)
+	for cluster, r := range text {
+		runes = append(runes, r)
+		clusters = append(clusters, clusterOffset+cluster)
+	}
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		cluster := clusters[i]
+		if !isCombiningMark(r) {
+			j := i + 1
+			for j < len(runes) && isCombiningMark(runes[j]) {
+				j++
+			}
+			if j > i+1 {
+				if glyph, ok := composedGlyph(fontData, buf, runes[i:j], cluster); ok {
+					out = append(out, glyph)
+					i = j - 1
+					continue
+				}
+			}
+		}
+
+		glyphIndex, err := fontData.GlyphIndex(buf, r)
+		if err != nil {
+			return nil, false
+		}
+		if glyphIndex == 0 {
+			continue
+		}
+		out = append(out, shapingGlyph{
+			Rune:       r,
+			Cluster:    cluster,
+			GlyphIndex: glyphIndex,
+		})
+	}
+	return out, true
+}
+
+func composedGlyph(fontData *sfnt.Font, buf *sfnt.Buffer, runes []rune, cluster int) (shapingGlyph, bool) {
+	normalized := norm.NFC.String(string(runes))
+	if utf8.RuneCountInString(normalized) != 1 {
+		return shapingGlyph{}, false
+	}
+	r, _ := utf8.DecodeRuneInString(normalized)
+	glyphIndex, err := fontData.GlyphIndex(buf, r)
+	if err != nil || glyphIndex == 0 {
+		return shapingGlyph{}, false
+	}
+	return shapingGlyph{
+		Rune:       r,
+		Cluster:    cluster,
+		GlyphIndex: glyphIndex,
+	}, true
+}
+
+func isCombiningMark(r rune) bool {
+	return unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) || unicode.Is(unicode.Me, r)
 }

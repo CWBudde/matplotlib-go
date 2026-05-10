@@ -141,6 +141,29 @@ func TestShapeTextHonorsKernFeatureDisable(t *testing.T) {
 	}
 }
 
+func TestShapeTextComposesCombiningMarksWhenPrecomposedGlyphExists(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	decomposed, ok := ShapeText("e\u0301", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok {
+		t.Fatal("ShapeText decomposed e-acute failed")
+	}
+	precomposed, ok := ShapeText("\u00e9", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(precomposed.Glyphs) != 1 {
+		t.Fatalf("ShapeText precomposed e-acute = %+v, %v; want one glyph", precomposed, ok)
+	}
+
+	if len(decomposed.Glyphs) != 1 {
+		t.Fatalf("decomposed e-acute glyph count = %d, want one composed glyph: %+v", len(decomposed.Glyphs), decomposed.Glyphs)
+	}
+	if decomposed.Glyphs[0].GlyphIndex != precomposed.Glyphs[0].GlyphIndex {
+		t.Fatalf("decomposed glyph index = %d, want precomposed glyph index %d", decomposed.Glyphs[0].GlyphIndex, precomposed.Glyphs[0].GlyphIndex)
+	}
+	if decomposed.Glyphs[0].Cluster != 0 {
+		t.Fatalf("composed glyph cluster = %d, want original base byte offset 0", decomposed.Glyphs[0].Cluster)
+	}
+}
+
 func TestTextPathBoundsUseSharedGlyphLayout(t *testing.T) {
 	withDejaVuFontManager(t)
 

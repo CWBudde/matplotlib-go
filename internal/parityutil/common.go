@@ -272,7 +272,8 @@ func DisableMplot3DTickLabels(ax *core.Axes3D) {
 	}
 	ax.XAxis.ShowLabels = false
 	ax.YAxis.ShowLabels = false
-	ax.SetShowZTickLabels(false)
+	// ax.set(zticklabels=[]) in matplotlib 3D axes is silently ignored —
+	// z-axis tick labels are always shown. Do not disable them here.
 }
 
 func Get3DWireframeTestData(delta float64) (x []float64, y []float64, z [][]float64) {
