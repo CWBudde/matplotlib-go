@@ -655,7 +655,7 @@ func (a *Axes3D) Quiver(x, y, z, u, v, w []float64, opts ...Quiver3DOptions) *Li
 		alpha = *opt.Alpha
 	}
 	color.A *= alpha
-	lineWidth := 1.0
+	lineWidth := 1.5
 	if opt.LineWidth != nil {
 		lineWidth = *opt.LineWidth
 	}
@@ -2782,9 +2782,11 @@ func axes3DLabelCentersDeltas(ctx *DrawContext, mins, maxs vec3) (vec3, vec3) {
 		}
 	}
 	deltasPerPoint := 48 / (72 * (clipWidth + clipHeight) / dpi)
+	// matplotlib uses scale = 1/12 * 24/25 = 0.08 (not 1/12) to match automargin behavior
+	const scale = 0.08
 	for i := range 3 {
 		centers[i] = (mins[i] + maxs[i]) / 2
-		deltas[i] = (maxs[i] - mins[i]) / 12 * deltasPerPoint
+		deltas[i] = (maxs[i] - mins[i]) * scale * deltasPerPoint
 	}
 	return centers, deltas
 }
@@ -3913,12 +3915,11 @@ func (a *Axes3D) projectQuiver3DSegments(x, y, z, u, v, w []float64, opt Quiver3
 }
 
 func (a *Axes3D) observeQuiver3DData(x, y, z, u, v, w []float64, opt Quiver3DOptions) bool {
+	n := minLen(x, y, z, u, v, w)
 	changed := false
-	for _, segment := range quiver3DRawSegments(x, y, z, u, v, w, opt) {
-		for _, p := range segment {
-			if a.observe3DPoint(p[0], p[1], p[2]) {
-				changed = true
-			}
+	for i := range n {
+		if a.observe3DPoint(x[i], y[i], z[i]) {
+			changed = true
 		}
 	}
 	return changed

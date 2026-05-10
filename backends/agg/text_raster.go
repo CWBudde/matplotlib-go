@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"unicode/utf8"
 
 	agglib "github.com/cwbudde/agg_go"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -87,16 +88,16 @@ func (r *Renderer) measureRasterText(text string, face render.FontFace, size flo
 	}
 	defer func() { _ = fontFace.Close() }()
 
-	layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), fontKey)
+	shaped, ok := render.ShapeText(text, geom.Pt{}, r.fontPixelSize(size), render.TextShapingOptions{FontKey: fontKey})
 	if !ok {
 		return render.TextMetrics{}, false
 	}
-	advance := layout.Advance
-	bounds := layout.Bounds
-	if nativeMetrics, ok := r.measureNativeFreetypeText(text, face, size, matplotlibTextHintingFactor); ok {
+	advance := shaped.Advance.X
+	bounds := shaped.Bounds
+	if nativeMetrics, ok := r.measureNativeFreetypeText(text, face, size, matplotlibTextHintingFactor); shapedTextMatchesRuneSequence(text, shaped) && ok {
 		advance = nativeMetrics.W
 	}
-	if nativeBounds, ok := r.measureNativeFreetypeTextBounds(text, face, size, matplotlibTextHintingFactor); ok {
+	if nativeBounds, ok := r.measureNativeFreetypeTextBounds(text, face, size, matplotlibTextHintingFactor); shapedTextMatchesRuneSequence(text, shaped) && ok {
 		bounds = nativeBounds
 	}
 
@@ -126,7 +127,12 @@ func (r *Renderer) drawRasterText(text string, face render.FontFace, origin geom
 	if text == "" || fontKey == "" || size <= 0 {
 		return false
 	}
-	if r.drawNativeFreetypeRunText(text, face, origin, size, textColor, matplotlibTextHintingFactor) {
+
+	shaped, ok := render.ShapeText(text, geom.Pt{}, r.fontPixelSize(size), render.TextShapingOptions{FontKey: fontKey})
+	if !ok {
+		return false
+	}
+	if shapedTextMatchesRuneSequence(text, shaped) && r.drawNativeFreetypeRunText(text, face, origin, size, textColor, matplotlibTextHintingFactor) {
 		return true
 	}
 
@@ -136,17 +142,12 @@ func (r *Renderer) drawRasterText(text string, face render.FontFace, origin geom
 	}
 	defer func() { _ = primaryFace.Close() }()
 
-	layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), fontKey)
-	if !ok {
-		return false
-	}
-
 	faces := map[string]font.Face{rasterFontCacheKey(face): primaryFace}
 	defer closeRasterFaces(faces, rasterFontCacheKey(face))
 
 	uniform := image.NewUniform(renderColorToRGBA(textColor))
 	drewGlyph := false
-	for _, glyph := range layout.Glyphs {
+	for _, glyph := range shaped.Glyphs {
 		glyphFace := glyph.Face
 		if rasterFontCacheKey(glyphFace) == "" {
 			glyphFace = face
@@ -176,7 +177,21 @@ func (r *Renderer) drawRasterText(text string, face render.FontFace, origin geom
 		drewGlyph = true
 	}
 
-	return drewGlyph || len(layout.Glyphs) == 0 || layout.Advance > 0
+	return drewGlyph || len(shaped.Glyphs) == 0 || shaped.Advance.X > 0
+}
+
+func shapedTextMatchesRuneSequence(text string, shaped render.ShapedText) bool {
+	if utf8.RuneCountInString(text) != len(shaped.Glyphs) {
+		return false
+	}
+	i := 0
+	for _, r := range text {
+		if shaped.Glyphs[i].Rune != r {
+			return false
+		}
+		i++
+	}
+	return true
 }
 
 func (r *Renderer) rasterFaceForFace(faces map[string]font.Face, fontFace render.FontFace, size float64) (font.Face, error) {
