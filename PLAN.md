@@ -708,8 +708,10 @@ Current slice landed:
 **Goal:** make text a shaped glyph pipeline rather than a set of fallback string-drawing paths.
 
 - [x] Implement AGG `GlyphRun` rendering instead of leaving it as a no-op.
-- [ ] Add a backend-independent shaping layer for OpenType features, ligatures, combining marks, bidi text, script-aware glyph selection, glyph IDs, advances, and offsets.
-- [ ] Route `DrawText`, `DrawTextRotated`, `TextPath`, and measurement through the same shaped run model so raster text, path text, and bounds agree.
+- [x] Add the backend-independent shaped-run surface for glyph IDs, byte clusters, advances, offsets, resolved faces, and bounds.
+- [x] Route `TextPath` and legacy glyph layout helpers through the shared shaped-run model so path text and shaped bounds agree.
+- [ ] Extend the shaping layer to apply OpenType features, ligatures, combining marks, bidi text, and script/language-aware glyph selection.
+- [ ] Route `DrawText`, `DrawTextRotated`, and measurement through the same shaped run model so raster text, path text, and bounds agree.
 - [ ] Replace `lastFontKey`/`MeasureText` priming with explicit font properties or text draw context passed through the renderer-facing API.
 - [ ] Replace the temp-file DejaVu bootstrap with a font-resource strategy that can use embedded fonts, shipped fonts, and system fonts without leaking backend policy into draw calls.
 - [ ] Remove the GSV fallback as a normal parity path; keep it only as an explicit emergency fallback with test coverage and diagnostics.

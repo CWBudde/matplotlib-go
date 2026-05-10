@@ -86,6 +86,35 @@ func TestShapeTextProducesGlyphRunsWithClustersAndBounds(t *testing.T) {
 	}
 }
 
+func TestShapeTextAppliesAndDisablesStandardLigatures(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	shaped, ok := ShapeText("fi", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok {
+		t.Fatal("ShapeText with default features failed")
+	}
+	withoutLiga, ok := ShapeText("fi", geom.Pt{}, 72, TextShapingOptions{
+		FontKey:  "DejaVu Sans",
+		Features: []TextFeature{{Tag: "liga", Value: 0}},
+	})
+	if !ok {
+		t.Fatal("ShapeText with liga disabled failed")
+	}
+
+	if len(shaped.Glyphs) != 1 {
+		t.Fatalf("default shaping glyph count = %d, want fi ligature as one glyph: %+v", len(shaped.Glyphs), shaped.Glyphs)
+	}
+	if len(withoutLiga.Glyphs) != 2 {
+		t.Fatalf("liga=0 glyph count = %d, want separate f and i glyphs: %+v", len(withoutLiga.Glyphs), withoutLiga.Glyphs)
+	}
+	if shaped.Glyphs[0].Cluster != 0 {
+		t.Fatalf("ligature cluster = %d, want first byte offset 0", shaped.Glyphs[0].Cluster)
+	}
+	if shaped.Glyphs[0].GlyphIndex == withoutLiga.Glyphs[0].GlyphIndex {
+		t.Fatalf("ligature reused first component glyph index: shaped=%+v withoutLiga=%+v", shaped.Glyphs, withoutLiga.Glyphs)
+	}
+}
+
 func TestTextPathBoundsUseSharedGlyphLayout(t *testing.T) {
 	withDejaVuFontManager(t)
 

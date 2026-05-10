@@ -52,13 +52,9 @@ func loadTextPathFontFace(face FontFace) (*sfnt.Font, error) {
 	}
 	textPathFontCacheMu.RUnlock()
 
-	data := face.Data
-	if face.Path != "" {
-		var err error
-		data, err = os.ReadFile(face.Path)
-		if err != nil {
-			return nil, err
-		}
+	data, err := loadFontFaceData(face)
+	if err != nil {
+		return nil, err
 	}
 	parsed, err := sfnt.Parse(data)
 	if err != nil {
@@ -69,6 +65,16 @@ func loadTextPathFontFace(face FontFace) (*sfnt.Font, error) {
 	textPathFontCache[key] = parsed
 	textPathFontCacheMu.Unlock()
 	return parsed, nil
+}
+
+func loadFontFaceData(face FontFace) ([]byte, error) {
+	if len(face.Data) > 0 {
+		return face.Data, nil
+	}
+	if face.Path != "" {
+		return os.ReadFile(face.Path)
+	}
+	return nil, errors.New("render: font face has no path or embedded data")
 }
 
 func textRunsPath(runs []FontRun, origin geom.Pt, size float64) (geom.Path, bool) {
