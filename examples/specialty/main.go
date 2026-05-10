@@ -1,218 +1,32 @@
+// CLI runner for the examples/specialty_artists showcase. Renders to specialty_artists.png using the
+// backend selected by the BACKEND env var.
 package main
 
 import (
-	"fmt"
-	"math"
+	"log"
 
 	"github.com/cwbudde/matplotlib-go/backends"
 	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
+	example "github.com/cwbudde/matplotlib-go/examples/specialty_artists"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func main() {
-	fig := core.NewFigure(980, 720)
-
-	// Use explicit normalized axes rectangles to match test/matplotlib_ref/plots/specialty_artists.py.
-	eventAx := fig.AddAxes(axisRect(0.07, 0.57, 0.34, 0.94))
-	eventAx.SetTitle("Eventplot")
-	eventAx.SetXLim(0, 10)
-	eventAx.SetYLim(0.4, 3.6)
-	styleReferenceGrid(eventAx.AddXGrid())
-	eventAx.Eventplot([][]float64{
-		{0.8, 1.4, 3.1, 4.6, 7.3},
-		{1.2, 2.9, 4.0, 6.4, 8.6},
-		{0.5, 2.2, 5.4, 6.8, 9.1},
-	}, core.EventPlotOptions{
-		LineOffsets: []float64{1, 2, 3},
-		LineLengths: []float64{0.6, 0.7, 0.8},
-		Colors: []render.Color{
-			{R: 0.18, G: 0.44, B: 0.74, A: 1},
-			{R: 0.84, G: 0.38, B: 0.16, A: 1},
-			{R: 0.20, G: 0.63, B: 0.42, A: 1},
-		},
-	})
-
-	hexAx := fig.AddAxes(axisRect(0.39, 0.57, 0.66, 0.94))
-	hexAx.SetTitle("Hexbin")
-	hexAx.SetXLim(0, 1)
-	hexAx.SetYLim(0, 1)
-	hexExtent := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 1, Y: 1}}
-	hexAx.Hexbin(
-		[]float64{0.08, 0.15, 0.21, 0.25, 0.34, 0.41, 0.48, 0.56, 0.63, 0.66, 0.74, 0.82, 0.88},
-		[]float64{0.14, 0.19, 0.24, 0.31, 0.46, 0.52, 0.61, 0.44, 0.73, 0.81, 0.68, 0.86, 0.58},
-		core.HexbinOptions{
-			GridSizeX: 7,
-			Extent:    &hexExtent,
-			C:         []float64{1, 2, 1.5, 2.3, 2.8, 3.1, 3.6, 2.1, 4.5, 4.9, 3.8, 5.2, 4.1},
-			Reduce:    "mean",
-		},
-	)
-
-	pieAx := fig.AddAxes(axisRect(0.73, 0.57, 0.98, 0.94))
-	pieAx.SetTitle("Pie")
-	pieAx.Pie([]float64{28, 22, 18, 32}, core.PieOptions{
-		Labels:        []string{"Core", "I/O", "Render", "Docs"},
-		AutoPct:       "%.0f%%",
-		StartAngle:    90,
-		LabelDistance: 1.08,
-		Explode:       []float64{0, 0.04, 0, 0.02},
-		Colors: []render.Color{
-			{R: 0.12, G: 0.47, B: 0.71, A: 1},
-			{R: 1.00, G: 0.50, B: 0.05, A: 1},
-			{R: 0.17, G: 0.63, B: 0.17, A: 1},
-			{R: 0.84, G: 0.15, B: 0.16, A: 1},
-		},
-		EdgeColor: &render.Color{R: 1, G: 1, B: 1, A: 1},
-		LineWidth: 1,
-	})
-
-	violinAx := fig.AddAxes(axisRect(0.07, 0.08, 0.34, 0.45))
-	violinAx.SetTitle("Violin")
-	violinAx.SetXLim(0.4, 3.6)
-	violinAx.SetYLim(0.8, 5.2)
-	styleReferenceGrid(violinAx.AddYGrid())
-	violinBlue := render.Color{R: 0.12, G: 0.47, B: 0.71, A: 1}
-	violinEdge := render.Color{R: 0.20, G: 0.20, B: 0.20, A: 1}
-	violinShowMeans := true
-	violinShowMedians := false
-	violinShowExtrema := true
-	violinAx.Violinplot([][]float64{
-		{1.2, 1.5, 1.7, 2.1, 2.4, 2.6, 2.9, 3.0, 3.2},
-		{1.8, 2.0, 2.2, 2.5, 2.7, 3.0, 3.4, 3.8, 4.0},
-		{2.4, 2.5, 2.7, 2.9, 3.1, 3.4, 3.7, 4.1, 4.6},
-	}, core.ViolinOptions{
-		Colors:      []render.Color{violinBlue, violinBlue, violinBlue},
-		EdgeColor:   &violinEdge,
-		LineColor:   &violinBlue,
-		Alpha:       0.45,
-		ShowMeans:   &violinShowMeans,
-		ShowMedians: &violinShowMedians,
-		ShowExtrema: &violinShowExtrema,
-	})
-
-	tableAx := fig.AddAxes(axisRect(0.39, 0.08, 0.66, 0.45))
-	tableAx.SetTitle("Table")
-	axisOff(tableAx)
-	tableAx.Table(core.TableOptions{
-		ColLabels: []string{"Metric", "Q1", "Q2"},
-		RowLabels: []string{"A", "B"},
-		CellText: [][]string{
-			{"Latency", "18ms", "14ms"},
-			{"Throughput", "220/s", "265/s"},
-		},
-		BBox: geom.Rect{
-			Min: geom.Pt{X: 0.04, Y: 0.18},
-			Max: geom.Pt{X: 0.96, Y: 0.82},
-		},
-		FontSize: 10,
-		CellLoc:  "center",
-	})
-
-	sankeyAx := fig.AddAxes(axisRect(0.73, 0.08, 0.98, 0.45))
-	sankeyAx.SetTitle("Sankey")
-	axisOff(sankeyAx)
-	sankeyAx.SetXLim(0, 1)
-	sankeyAx.SetYLim(0, 1)
-	drawReferenceSankey(sankeyAx)
-
+	fig := example.Plot()
+	w := int(fig.SizePx.X)
+	h := int(fig.SizePx.Y)
 	r, _, err := backends.NewRendererFromEnv(backends.Config{
-		Width:      980,
-		Height:     720,
+		Width:      w,
+		Height:     h,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
-		DPI:        96,
+		DPI:        fig.RC.DPI,
 	}, backends.TextCapabilities)
 	if err != nil {
-		fmt.Printf("error creating renderer: %v\n", err)
-		return
+		log.Fatalf("renderer: %v", err)
 	}
-	if err := core.SavePNG(fig, r, "specialty.png"); err != nil {
-		fmt.Printf("error saving PNG: %v\n", err)
-		return
+	if err := core.SavePNG(fig, r, "specialty_artists.png"); err != nil {
+		log.Fatalf("save: %v", err)
 	}
-
-	fmt.Println("saved specialty.png")
-}
-
-func axisRect(x0, y0, x1, y1 float64) geom.Rect {
-	return geom.Rect{
-		Min: geom.Pt{X: x0, Y: y0},
-		Max: geom.Pt{X: x1, Y: y1},
-	}
-}
-
-func styleReferenceGrid(grid *core.Grid) {
-	if grid == nil {
-		return
-	}
-	grid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
-	grid.LineWidth = 0.5
-}
-
-func axisOff(ax *core.Axes) {
-	if ax == nil {
-		return
-	}
-	ax.ShowFrame = false
-	for _, axis := range []*core.Axis{ax.XAxis, ax.YAxis} {
-		if axis == nil {
-			continue
-		}
-		axis.ShowSpine = false
-		axis.ShowTicks = false
-		axis.ShowLabels = false
-	}
-}
-
-func drawReferenceSankey(ax *core.Axes) {
-	ax.AddPatch(&core.Rectangle{
-		Patch: core.Patch{
-			FaceColor: render.Color{R: 0.12, G: 0.47, B: 0.71, A: 0.75},
-			EdgeColor: render.Color{R: 0.10, G: 0.10, B: 0.10, A: 1},
-			EdgeWidth: 1,
-		},
-		XY:     geom.Pt{X: 0.18, Y: 0.47},
-		Width:  0.18,
-		Height: 0.06,
-		Coords: core.Coords(core.CoordAxes),
-	})
-
-	flows := []struct {
-		label string
-		flow  float64
-		color render.Color
-	}{
-		{label: "Waste", flow: -2, color: render.Color{R: 0.84, G: 0.15, B: 0.16, A: 0.75}},
-		{label: "CPU", flow: 3, color: render.Color{R: 0.17, G: 0.63, B: 0.17, A: 0.75}},
-		{label: "Cache", flow: 1.5, color: render.Color{R: 1.00, G: 0.50, B: 0.05, A: 0.75}},
-	}
-	for idx, flow := range flows {
-		width := math.Abs(flow.flow) * 0.018
-		y := 0.40 + float64(idx)*0.095
-		x0 := 0.36
-		x1 := 0.66
-		path := geom.Path{}
-		path.MoveTo(geom.Pt{X: x0, Y: 0.50 - width/2})
-		path.LineTo(geom.Pt{X: x0 + 0.10, Y: y - width/2})
-		path.LineTo(geom.Pt{X: x1, Y: y - width/2})
-		path.LineTo(geom.Pt{X: x1, Y: y + width/2})
-		path.LineTo(geom.Pt{X: x0 + 0.10, Y: y + width/2})
-		path.LineTo(geom.Pt{X: x0, Y: 0.50 + width/2})
-		path.Close()
-		ax.AddPatch(&core.PathPatch{
-			Patch: core.Patch{
-				FaceColor: flow.color,
-				EdgeColor: render.Color{R: 0.10, G: 0.10, B: 0.10, A: 1},
-				EdgeWidth: 1,
-			},
-			Path:   path,
-			Coords: core.Coords(core.CoordAxes),
-		})
-		ax.Text(0.70, y, flow.label, core.TextOptions{
-			Coords:   core.Coords(core.CoordAxes),
-			VAlign:   core.TextVAlignMiddle,
-			FontSize: 10,
-		})
-	}
+	log.Println("saved specialty_artists.png")
 }

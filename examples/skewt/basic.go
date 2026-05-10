@@ -1,80 +1,32 @@
+// CLI runner for the examples/skewt_basic showcase. Renders to skewt_basic.png using the
+// backend selected by the BACKEND env var.
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/cwbudde/matplotlib-go/backends"
 	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
+	example "github.com/cwbudde/matplotlib-go/examples/skewt_basic"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
 func main() {
-	fig := core.NewFigure(720, 640)
-	ax, err := fig.AddSkewXAxes(geom.Rect{
-		Min: geom.Pt{X: 0.16, Y: 0.14},
-		Max: geom.Pt{X: 0.88, Y: 0.88},
-	})
-	if err != nil {
-		fmt.Printf("Error creating skewx axes: %v\n", err)
-		return
-	}
-
-	ax.SetTitle("Skew-T Style Projection")
-	ax.SetXLabel("Temperature (deg C)")
-	ax.SetYLabel("Pressure (hPa)")
-	ax.SetXLim(-70, 35)
-	ax.SetYLim(1050, 180)
-	if top := ax.TopAxis(); top != nil {
-		top.ShowTicks = false
-		top.ShowLabels = false
-	}
-
-	gridColor := render.Color{R: 0.82, G: 0.84, B: 0.88, A: 1}
-	xGrid := ax.AddGrid(core.AxisBottom)
-	xGrid.Color = gridColor
-	xGrid.LineWidth = 0.8
-	yGrid := ax.AddGrid(core.AxisLeft)
-	yGrid.Color = gridColor
-	yGrid.LineWidth = 0.8
-
-	pressure := []float64{1000, 925, 850, 700, 600, 500, 400, 300, 250, 200}
-	temperature := []float64{24, 20, 15, 5, -4, -14, -28, -43, -51, -58}
-	dewpoint := []float64{18, 14, 8, -4, -14, -25, -38, -50, -57, -64}
-
-	// AddSkewXAxes applies the skew transform, so these profiles are supplied
-	// in normal temperature/pressure coordinates just like the Python data.
-	tempColor := render.Color{R: 0.78, G: 0.13, B: 0.16, A: 1}
-	dewColor := render.Color{R: 0.05, G: 0.48, B: 0.28, A: 1}
-	width := 2.4
-	ax.Plot(temperature, pressure, core.PlotOptions{
-		Color:     &tempColor,
-		LineWidth: &width,
-		Label:     "temperature",
-	})
-	ax.Plot(dewpoint, pressure, core.PlotOptions{
-		Color:     &dewColor,
-		LineWidth: &width,
-		Label:     "dewpoint",
-	})
-	ax.AddLegend()
-
+	fig := example.Plot()
+	w := int(fig.SizePx.X)
+	h := int(fig.SizePx.Y)
 	r, _, err := backends.NewRendererFromEnv(backends.Config{
-		Width:      720,
-		Height:     640,
+		Width:      w,
+		Height:     h,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
-		DPI:        100,
+		DPI:        fig.RC.DPI,
 	}, backends.TextCapabilities)
 	if err != nil {
-		fmt.Printf("Error creating renderer: %v\n", err)
-		return
+		log.Fatalf("renderer: %v", err)
 	}
-
 	if err := core.SavePNG(fig, r, "skewt_basic.png"); err != nil {
-		fmt.Printf("Error saving PNG: %v\n", err)
-		return
+		log.Fatalf("save: %v", err)
 	}
-
-	fmt.Println("Created skewt_basic.png")
+	log.Println("saved skewt_basic.png")
 }

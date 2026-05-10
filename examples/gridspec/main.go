@@ -1,85 +1,32 @@
+// CLI runner for the examples/gridspec_composition showcase. Renders to gridspec_composition.png using the
+// backend selected by the BACKEND env var.
 package main
 
 import (
-	"fmt"
+	"log"
 
-	"github.com/cwbudde/matplotlib-go/backends/agg"
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
+	example "github.com/cwbudde/matplotlib-go/examples/gridspec_composition"
 	"github.com/cwbudde/matplotlib-go/render"
-	"github.com/cwbudde/matplotlib-go/style"
 )
 
 func main() {
-	fig := core.NewFigure(960, 640)
-	applyMatplotlibGridSpecStyle(fig)
-
-	// Outer GridSpec matches the Python reference: a wide left column and a
-	// narrow right column with one nested grid and one subfigure-like inset.
-	outer := fig.GridSpec(
-		2,
-		2,
-		core.WithGridSpecPadding(0.08, 0.96, 0.10, 0.92),
-		core.WithGridSpecSpacing(0.06/(2+0.06), 0.28/(2+0.28)),
-		core.WithGridSpecWidthRatios(2, 1),
-	)
-
-	// Left axes spans both rows, equivalent to outer[:, 0].
-	mainAx := outer.Span(0, 0, 2, 1).AddAxes()
-	configureAxes(mainAx, "Main Span", []float64{0, 1, 2, 3, 4}, []float64{1.2, 2.8, 2.1, 3.6, 3.1}, render.Color{R: 0.15, G: 0.35, B: 0.72, A: 1})
-	configureTicks(mainAx, []float64{0, 1, 2, 3, 4}, []float64{1.0, 1.5, 2.0, 2.5, 3.0, 3.5}, "%.1f")
-
-	// Top-right cell has its own 2x1 nested GridSpec.
-	nested := outer.Cell(0, 1).GridSpec(2, 1, core.WithGridSpecSpacing(0, 0.75/(2+0.75)))
-	topRight := nested.Cell(0, 0).AddAxes()
-	configureAxes(topRight, "Nested Top", []float64{0, 1, 2, 3}, []float64{3.4, 2.6, 2.9, 1.8}, render.Color{R: 0.72, G: 0.32, B: 0.18, A: 1})
-	configureTicks(topRight, []float64{0, 1, 2, 3}, []float64{2, 3}, "%.0f")
-
-	bottomRight := nested.Cell(1, 0).AddAxes(core.WithSharedX(topRight))
-	configureAxes(bottomRight, "Nested Bottom", []float64{0, 1, 2, 3}, []float64{1.0, 1.6, 1.3, 2.2}, render.Color{R: 0.18, G: 0.55, B: 0.34, A: 1})
-	configureTicks(bottomRight, []float64{0, 1, 2, 3}, []float64{1, 2}, "%.0f")
-
-	// The lower-right cell demonstrates SubFigure-style composition.
-	sub := outer.Cell(1, 1).SubFigure()
-	inset := sub.AddSubplot(1, 1, 1)
-	configureAxes(inset, "SubFigure", []float64{0, 1, 2, 3}, []float64{2.0, 2.4, 1.9, 2.7}, render.Color{R: 0.55, G: 0.22, B: 0.50, A: 1})
-	configureTicks(inset, []float64{0, 1, 2, 3}, []float64{2.0, 2.2, 2.4, 2.6}, "%.1f")
-
-	r, err := agg.New(960, 640, render.Color{R: 1, G: 1, B: 1, A: 1})
+	fig := example.Plot()
+	w := int(fig.SizePx.X)
+	h := int(fig.SizePx.Y)
+	r, _, err := backends.NewRendererFromEnv(backends.Config{
+		Width:      w,
+		Height:     h,
+		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+		DPI:        fig.RC.DPI,
+	}, backends.TextCapabilities)
 	if err != nil {
-		panic(err)
+		log.Fatalf("renderer: %v", err)
 	}
-	if err := core.SavePNG(fig, r, "gridspec.png"); err != nil {
-		panic(err)
+	if err := core.SavePNG(fig, r, "gridspec_composition.png"); err != nil {
+		log.Fatalf("save: %v", err)
 	}
-	fmt.Println("saved gridspec.png")
-}
-
-func applyMatplotlibGridSpecStyle(fig *core.Figure) {
-	// Matplotlib's reference uses 100 DPI and DejaVu Sans. RC font sizes are
-	// point sizes; renderers convert them to device pixels at draw time.
-	fig.RC = style.Apply(fig.RC, style.WithFont("DejaVu Sans", 10))
-	fig.RC.TitleFontSize = 12
-	fig.RC.AxisLabelFontSize = 10
-	fig.RC.XTickLabelFontSize = 10
-	fig.RC.YTickLabelFontSize = 10
-}
-
-func configureAxes(ax *core.Axes, title string, x, y []float64, c render.Color) {
-	ax.SetTitle(title)
-	ax.SetXLabel("x")
-	ax.SetYLabel("y")
-	width := 2.0
-	ax.Plot(x, y, core.PlotOptions{
-		Color:     &c,
-		LineWidth: &width,
-		Label:     title,
-	})
-	ax.AutoScale(0.10)
-}
-
-func configureTicks(ax *core.Axes, xTicks, yTicks []float64, yFormat string) {
-	// Fixed ticks make the layout deterministic across renderers.
-	ax.XAxis.Locator = core.FixedLocator{TicksList: xTicks}
-	ax.YAxis.Locator = core.FixedLocator{TicksList: yTicks}
-	ax.YAxis.Formatter = core.FormatStrFormatter{Pattern: yFormat}
+	log.Println("saved gridspec_composition.png")
 }

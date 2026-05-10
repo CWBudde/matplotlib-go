@@ -64,7 +64,9 @@ func ReferencePointsToPixels(Points float64) float64 {
 
 // renderScatterAdvanced creates an advanced scatter plot with edges, alpha, and variable sizes
 
-func RenderBarBasicScaffold(showTicks, showTickLabels, showTitle bool) image.Image {
+// PlotBarBasicScaffold builds the bare-bones bar-chart scaffold figure used by
+// the bar_basic_* progression cases. Backend-agnostic.
+func PlotBarBasicScaffold(showTicks, showTickLabels, showTitle bool) *core.Figure {
 	fig := core.NewFigure(640, 360)
 	ax := fig.AddAxes(geom.Rect{
 		Min: geom.Pt{X: 0.1, Y: 0.1},
@@ -82,12 +84,12 @@ func RenderBarBasicScaffold(showTicks, showTickLabels, showTitle bool) image.Ima
 		ax.SetTitle("Basic Bars")
 	}
 
-	r, err := agg.New(640, 360, render.Color{R: 1, G: 1, B: 1, A: 1})
-	if err != nil {
-		panic(err)
-	}
-	core.DrawFigure(fig, r)
-	return r.GetImage()
+	return fig
+}
+
+// RenderBarBasicScaffold AGG-renders PlotBarBasicScaffold.
+func RenderBarBasicScaffold(showTicks, showTickLabels, showTitle bool) image.Image {
+	return RenderFixtureFigure(PlotBarBasicScaffold(showTicks, showTickLabels, showTitle), 640, 360)
 }
 
 // renderBarBasic creates a basic vertical bar chart for golden testing
@@ -174,7 +176,9 @@ func LambertLongitudeTicks() []float64 {
 	return ticks
 }
 
-func RenderGeoProjectionAxes(projection, title string, lonMin, lonMax float64) image.Image {
+// PlotGeoProjectionAxes builds a geographic-projection figure with a single
+// sinusoidal lat/lon trace. Backend-agnostic.
+func PlotGeoProjectionAxes(projection, title string, lonMin, lonMax float64) *core.Figure {
 	fig := core.NewFigure(720, 420)
 	ax, err := fig.AddAxesProjection(geom.Rect{
 		Min: geom.Pt{X: 0.10, Y: 0.14},
@@ -211,12 +215,12 @@ func RenderGeoProjectionAxes(projection, title string, lonMin, lonMax float64) i
 		LineWidth: &lineWidth,
 	})
 
-	r, err := agg.New(720, 420, render.Color{R: 1, G: 1, B: 1, A: 1})
-	if err != nil {
-		panic(err)
-	}
-	core.DrawFigure(fig, r)
-	return r.GetImage()
+	return fig
+}
+
+// RenderGeoProjectionAxes AGG-renders PlotGeoProjectionAxes.
+func RenderGeoProjectionAxes(projection, title string, lonMin, lonMax float64) image.Image {
+	return RenderFixtureFigure(PlotGeoProjectionAxes(projection, title, lonMin, lonMax), 720, 420)
 }
 
 func GridMin(Values [][]float64) float64 {
