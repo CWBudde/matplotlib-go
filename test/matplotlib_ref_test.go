@@ -334,3 +334,43 @@ func TestMpl_ImageAlpha(t *testing.T)   { runMplTest(t, "image_alpha", renderIma
 func TestMpl_MatshowBasic(t *testing.T) { runMplTest(t, "matshow_basic", renderMatshowBasic) }
 func TestMpl_SpyMarker(t *testing.T)    { runMplTest(t, "spy_marker", renderSpyMarker) }
 func TestMpl_SpyImage(t *testing.T)     { runMplTest(t, "spy_image", renderSpyImage) }
+
+func TestMpl_Mplot3DPlot(t *testing.T) {
+	runMplTest(t, "mplot3d_plot3d", renderMplot3DPlot)
+}
+
+func TestMpl_Mplot3DScatter(t *testing.T) {
+	runMplTest(t, "mplot3d_scatter3d", renderMplot3DScatter)
+}
+
+func TestMpl_Mplot3DSurface(t *testing.T) {
+	runMplTest(t, "mplot3d_surface3d", renderMplot3DSurface)
+}
+
+func TestMpl_Mplot3DWire(t *testing.T) {
+	runMplTest(t, "mplot3d_wire3d", renderMplot3DWireframe)
+}
+
+func TestMpl_Mplot3DTrisurf(t *testing.T) {
+	runMplTest(t, "mplot3d_trisurf3d", renderMplot3DTrisurf)
+}
+
+func TestMpl_Mplot3DBar3d(t *testing.T) {
+	runMplTest(t, "mplot3d_bar3d", renderMplot3DBar3D)
+}
+
+func TestMpl_Mplot3DVoxels(t *testing.T) {
+	runMplTest(t, "mplot3d_voxels", renderMplot3DVoxels)
+}
+
+func TestMpl_Mplot3DQuiver(t *testing.T) {
+	runMplTest(t, "mplot3d_quiver3d", renderMplot3DQuiver)
+}
+
+func TestMpl_Mplot3DStem(t *testing.T) {
+	runMplTest(t, "mplot3d_stem3d", renderMplot3DStem)
+}
+
+func TestMpl_Mplot3DFillBetween(t *testing.T) {
+	runMplTest(t, "mplot3d_fill_between3d", renderMplot3DFillBetween)
+}

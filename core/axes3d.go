@@ -11,19 +11,19 @@ import (
 )
 
 const (
-	default3DAzimuthDeg   = -60
-	default3DElevationDeg = 30
-	default3DDistance     = 10
-	default3DFocalLength  = 1
-	default3DRollDeg      = 0
-	default3DVerticalAxis = 2
-	default3DDataMargin   = 0.05
-	default3DComputedZ    = 2.5
-	default3DSurfaceCount = 50
+	default3DAzimuthDeg      = -60
+	default3DElevationDeg    = 30
+	default3DDistance        = 10
+	default3DFocalLength     = 1
+	default3DRollDeg         = 0
+	default3DVerticalAxis    = 2
+	default3DDataMargin      = 0.05
+	default3DComputedZ       = 2.5
+	default3DSurfaceCount    = 50
 	default3DBoxAspectScale  = 1.8294640721620434
 	default3DBoxAspectZoom25 = 25.0 / 24.0
-	default3DViewMin      = -0.095
-	default3DViewMax      = 0.09
+	default3DViewMin         = -0.095
+	default3DViewMax         = 0.09
 )
 
 // Axes3D represents an Axes with basic 3D projection helpers.
@@ -37,6 +37,7 @@ type Axes3D struct {
 	rollDeg      float64
 	verticalAxis int
 	zLabel       string
+	showZLabels  bool
 	distance     float64
 	boxAspect    vec3
 	hasData      bool
@@ -130,7 +131,7 @@ func rollToVertical(v vec3, axis int, reverse bool) vec3 {
 	if shift == 0 {
 		return v
 	}
-	shift = ((shift%3) + 3) % 3
+	shift = ((shift % 3) + 3) % 3
 	var out vec3
 	for i := range 3 {
 		out[i] = v[(i-shift+3)%3]
@@ -174,9 +175,9 @@ func rotateVecAroundAxis(v, axis vec3, angle float64) vec3 {
 	vx, vy, vz := v[0], v[1], v[2]
 	ux, uy, uz := axis[0], axis[1], axis[2]
 	return vec3{
-		(t*ux*ux + c) * vx + (t*ux*uy - uz*s) * vy + (t*ux*uz + uy*s) * vz,
-		(t*uy*ux + uz*s) * vx + (t*uy*uy + c) * vy + (t*uy*uz - ux*s) * vz,
-		(t*uz*ux - uy*s) * vx + (t*uz*uy + ux*s) * vy + (t*uz*uz + c) * vz,
+		(t*ux*ux+c)*vx + (t*ux*uy-uz*s)*vy + (t*ux*uz+uy*s)*vz,
+		(t*uy*ux+uz*s)*vx + (t*uy*uy+c)*vy + (t*uy*uz-ux*s)*vz,
+		(t*uz*ux-uy*s)*vx + (t*uz*uy+ux*s)*vy + (t*uz*uz+c)*vz,
 	}
 }
 
@@ -280,6 +281,7 @@ func NewAxes3D(ax *Axes) *Axes3D {
 		elevationDeg: default3DElevationDeg,
 		rollDeg:      default3DRollDeg,
 		verticalAxis: default3DVerticalAxis,
+		showZLabels:  true,
 		distance:     default3DDistance,
 		boxAspect:    default3DBoxAspect(),
 	}
@@ -825,10 +827,11 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 	}
 	label = opt.Label
 
+	mapping := ScalarMapInfo{}
 	colors := []render.Color(nil)
 	collectionAlpha := alpha
 	if !colorOverride {
-		mapping := contourScalarMap(values, levels, opt)
+		mapping = contourScalarMap(values, levels, opt)
 		colors = make([]render.Color, len(segmentLevels))
 		for i, level := range segmentLevels {
 			colors[i] = mapping.Color(level, alpha)
@@ -838,10 +841,14 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 
 	collection := &LineCollection{
 		Collection: Collection{
-			Coords: Coords(CoordData),
-			Label:  label,
-			Alpha:  collectionAlpha,
-			z:      zorder,
+			Coords:   Coords(CoordData),
+			Label:    label,
+			Alpha:    collectionAlpha,
+			z:        zorder,
+			Colormap: mapping.Colormap,
+			Norm:     mapping.Norm,
+			VMin:     mapping.VMin,
+			VMax:     mapping.VMax,
 		},
 		Segments:  segments,
 		Color:     color,
@@ -862,6 +869,16 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 					colors[i] = mapping.Color(level, alpha)
 				}
 				collection.Colors = colors
+				collection.Colormap = mapping.Colormap
+				collection.Norm = mapping.Norm
+				collection.VMin = mapping.VMin
+				collection.VMax = mapping.VMax
+			} else {
+				collection.Colormap = ""
+				collection.Norm = nil
+				collection.VMin = 0
+				collection.VMax = 0
+				collection.Colors = nil
 			}
 			collection.z = zorder
 		}
@@ -872,6 +889,7 @@ func (a *Axes3D) Contour(x, y []float64, z [][]float64, opts ...PlotOptions) *Li
 // Contourf projects a structured z grid and emits filled contour bands.
 func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *PolyCollection {
 	opt := firstPlotOptions(opts)
+	colorOverride := opt.Color != nil
 	alpha := 0.45
 	label := ""
 	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
@@ -884,6 +902,16 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 	if len(paths) == 0 {
 		return nil
 	}
+	cmap := mapping.Colormap
+	norm := mapping.Norm
+	vMin := mapping.VMin
+	vMax := mapping.VMax
+	if colorOverride {
+		cmap = ""
+		norm = nil
+		vMin = 0
+		vMax = 0
+	}
 
 	collection := &PolyCollection{
 		PatchCollection: PatchCollection{
@@ -891,10 +919,10 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 				Coords:   Coords(CoordData),
 				Label:    label,
 				Alpha:    1,
-				Colormap: mapping.Colormap,
-				Norm:     mapping.Norm,
-				VMin:     mapping.VMin,
-				VMax:     mapping.VMax,
+				Colormap: cmap,
+				Norm:     norm,
+				VMin:     vMin,
+				VMax:     vMax,
 				z:        zorder,
 			},
 			Paths:      paths,
@@ -910,10 +938,17 @@ func (a *Axes3D) Contourf(x, y []float64, z [][]float64, opts ...PlotOptions) *P
 			collection.Polygons = nil
 			collection.Paths = paths
 			collection.FaceColors = colors
-			collection.Colormap = mapping.Colormap
-			collection.Norm = mapping.Norm
-			collection.VMin = mapping.VMin
-			collection.VMax = mapping.VMax
+			if colorOverride {
+				collection.Colormap = ""
+				collection.Norm = nil
+				collection.VMin = 0
+				collection.VMax = 0
+			} else {
+				collection.Colormap = mapping.Colormap
+				collection.Norm = mapping.Norm
+				collection.VMin = mapping.VMin
+				collection.VMax = mapping.VMax
+			}
 			collection.z = zorder
 		}
 	}, limitsChanged)
@@ -2667,12 +2702,14 @@ func (a *Axes3D) draw3DTickLabels(textRen render.TextDrawer, r render.Renderer, 
 		draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, yTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
 	}
 	zTicks := frameAxisTicks(tickMins[2], tickMaxs[2])
-	for i, tick := range zTicks {
-		pos := axisLines[2][0]
-		pos[2] = tick
-		pos[tickDirs[2]] = axisLines[2][0][tickDirs[2]]
-		anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 2), tickMins, tickMaxs)
-		draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, zTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
+	if a.showZLabels {
+		for i, tick := range zTicks {
+			pos := axisLines[2][0]
+			pos[2] = tick
+			pos[tickDirs[2]] = axisLines[2][0][tickDirs[2]]
+			anchor := a.project3DLabelAnchor(ctx, move3DLabelFromCenter(pos, centers, labelDeltas, 2), tickMins, tickMaxs)
+			draw3DTextAtAnchorAligned(textRen, r, ctx, format3DTick(tick, i, zTicks), anchor, fontSize, textColor, textLayoutVAlignTop)
+		}
 	}
 }
 
@@ -3328,6 +3365,7 @@ func (a *Axes3D) SetDefaults() {
 	}
 	a.elevationDeg = default3DElevationDeg
 	a.azimuthDeg = default3DAzimuthDeg
+	a.showZLabels = true
 	a.distance = default3DDistance
 	a.rollDeg = default3DRollDeg
 	a.verticalAxis = default3DVerticalAxis
@@ -3395,6 +3433,15 @@ func (a *Axes3D) SetZLabel(label string) {
 		return
 	}
 	a.zLabel = label
+}
+
+// SetShowZTickLabels controls whether Matplotlib-style z-axis tick labels are drawn.
+func (a *Axes3D) SetShowZTickLabels(show bool) {
+	if a == nil {
+		return
+	}
+	a.showZLabels = show
+	a.reproject3DArtists()
 }
 
 func (a *Axes3D) GetZLabel() string {

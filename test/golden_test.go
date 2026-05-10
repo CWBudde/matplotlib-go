@@ -310,6 +310,56 @@ func TestMplot3DTerrain_Golden(t *testing.T) {
 	runGoldenTest(t, "mplot3d_terrain", renderMplot3DTerrain)
 }
 
+func TestMplot3DPlot_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_plot3d", renderMplot3DPlot)
+}
+
+func TestMplot3DScatter_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_scatter3d", renderMplot3DScatter)
+}
+
+func TestMplot3DSurface_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_surface3d", renderMplot3DSurface)
+}
+
+func TestMplot3DWire_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_wire3d", renderMplot3DWireframe)
+}
+
+func TestMplot3DTrisurf_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_trisurf3d", renderMplot3DTrisurf)
+}
+
+func TestMplot3DBar3d_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_bar3d", renderMplot3DBar3D)
+}
+
+func TestMplot3DVoxels_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_voxels", renderMplot3DVoxels)
+}
+
+func TestMplot3DQuiver_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_quiver3d", renderMplot3DQuiver)
+}
+
+func TestMplot3DStem_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_stem3d", renderMplot3DStem)
+}
+
+func TestMplot3DFillBetween_Golden(t *testing.T) {
+	requireOptionalVisualTests(t)
+	runGoldenTest(t, "mplot3d_fill_between3d", renderMplot3DFillBetween)
+}
+
 // runGoldenTest is a helper function for golden image testing
 func runGoldenTest(t *testing.T, testName string, renderFunc func() image.Image) {
 	// Render the plot
@@ -3373,6 +3423,398 @@ func renderMplot3DTerrain() image.Image {
 	return r.GetImage()
 }
 
+func renderMplot3DPlot() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	const n = 100
+	x := make([]float64, n)
+	y := make([]float64, n)
+	z := make([]float64, n)
+	for i := range n {
+		t := float64(i) / float64(n-1)
+		x[i] = t
+		y[i] = math.Sin(6 * math.Pi * t)
+		z[i] = math.Cos(6 * math.Pi * t)
+	}
+	ax.Plot3D(x, y, z)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DScatter() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	x, y, z := mplot3DScatter3DPoints()
+	ax.Scatter3D(x, y, z)
+	disableMplot3DTickLabels(ax)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DSurface() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	const (
+		xMin = -5.0
+		xMax = 5.0
+		step = 0.25
+	)
+	xCount := int((xMax - xMin) / step)
+	x := make([]float64, xCount)
+	y := make([]float64, xCount)
+	z := make([][]float64, xCount)
+	for yi := range xCount {
+		y[yi] = xMin + step*float64(yi)
+		z[yi] = make([]float64, xCount)
+	}
+	for xi := range xCount {
+		x[xi] = xMin + step*float64(xi)
+	}
+	for yi := 0; yi < xCount; yi++ {
+		for xi := 0; xi < xCount; xi++ {
+			r := math.Hypot(x[xi], y[yi])
+			z[yi][xi] = math.Sin(r)
+		}
+	}
+
+	vmin := 2 * minInGrid(z)
+	cmap := "Blues"
+	disableMplot3DTickLabels(ax)
+	ax.Surface(x, y, z, core.PlotOptions{
+		VMin:     &vmin,
+		Colormap: &cmap,
+	})
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DWireframe() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	x, y, z := get3DWireframeTestData(0.05)
+
+	rStride := 10
+	cStride := 10
+	ax.Wireframe(x, y, z, core.PlotOptions{
+		RStride: &rStride,
+		CStride: &cStride,
+	})
+	disableMplot3DTickLabels(ax)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DTrisurf() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	const (
+		nRadii  = 8
+		nAngles = 36
+	)
+	radii := make([]float64, nRadii)
+	angles := make([]float64, nAngles)
+	for i := range nRadii {
+		radii[i] = 0.125 + (float64(i)/float64(nRadii-1))*(1.0-0.125)
+	}
+	for i := range nAngles {
+		angles[i] = 2 * math.Pi * float64(i) / float64(nAngles)
+	}
+
+	x := make([]float64, 1+nRadii*nAngles)
+	y := make([]float64, len(x))
+	z := make([]float64, len(x))
+	x[0], y[0], z[0] = 0, 0, 0
+
+	index := 1
+	for _, angle := range angles {
+		for _, radius := range radii {
+			x[index] = radius * math.Cos(angle)
+			y[index] = radius * math.Sin(angle)
+			z[index] = math.Sin(-x[index] * y[index])
+			index++
+		}
+	}
+
+	triangles := make([][3]int, 0, (nRadii-1)*nAngles*2)
+	for ring := 0; ring < nRadii-1; ring++ {
+		for angleIdx := 0; angleIdx < nAngles; angleIdx++ {
+			next := (angleIdx + 1) % nAngles
+			a := 1 + ring*nAngles + angleIdx
+			b := 1 + (ring+1)*nAngles + angleIdx
+			c := 1 + (ring+1)*nAngles + next
+			d := 1 + ring*nAngles + next
+			triangles = append(triangles, [3]int{a, b, c})
+			triangles = append(triangles, [3]int{a, c, d})
+		}
+	}
+
+	cmap := "Blues"
+	vmin := 2 * minInSlice(z)
+	ax.Trisurf(core.Triangulation{X: x, Y: y, Triangles: triangles}, z, core.PlotOptions{
+		Colormap: &cmap,
+		VMin:     &vmin,
+	})
+	disableMplot3DTickLabels(ax)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DBar3D() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	x := []float64{1, 1, 2, 2}
+	y := []float64{1, 2, 1, 2}
+	z := []float64{0, 0, 0, 0}
+	dx := make([]float64, len(x))
+	dy := make([]float64, len(x))
+	dz := []float64{2, 3, 1, 4}
+	for i := range dx {
+		dx[i], dy[i] = 0.5, 0.5
+	}
+
+	ax.Bar3D(x, y, z, dx, dy, dz)
+	disableMplot3DTickLabels(ax)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DVoxels() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	const n = 8
+	filled := make([][][]bool, n)
+	for i := 0; i < n; i++ {
+		filled[i] = make([][]bool, n)
+		for j := 0; j < n; j++ {
+			filled[i][j] = make([]bool, n)
+		}
+	}
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			for k := 0; k < n; k++ {
+				if (i < 3 && j < 3 && k < 3) || (i >= 5 && j >= 5 && k >= 5) {
+					filled[i][j][k] = true
+				}
+			}
+		}
+	}
+
+	edgeColor := render.Color{R: 0, G: 0, B: 0, A: 1}
+	ax.Voxels(filled, core.VoxelOptions{
+		EdgeColor: &edgeColor,
+	})
+	disableMplot3DTickLabels(ax)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DQuiver() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	const n = 4
+	step := 2.0 / float64(n-1)
+	size := n * n * n
+	x := make([]float64, 0, size)
+	y := make([]float64, 0, size)
+	z := make([]float64, 0, size)
+	u := make([]float64, 0, size)
+	v := make([]float64, 0, size)
+	w := make([]float64, 0, size)
+	for j := 0; j < n; j++ {
+		yv := -1 + float64(j)*step
+		for i := 0; i < n; i++ {
+			xv := -1 + float64(i)*step
+			for k := 0; k < n; k++ {
+				zv := -1 + float64(k)*step
+				x = append(x, xv)
+				y = append(y, yv)
+				z = append(z, zv)
+				u = append(u, (xv+yv)/5)
+				v = append(v, (yv-xv)/5)
+				w = append(w, 0)
+			}
+		}
+	}
+	ax.Quiver(x, y, z, u, v, w)
+	disableMplot3DTickLabels(ax)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DStem() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	const n = 20
+	x := make([]float64, n)
+	y := make([]float64, n)
+	z := make([]float64, n)
+	for i := range n {
+		t := 2 * math.Pi * float64(i) / float64(n-1)
+		x[i] = math.Sin(t)
+		y[i] = math.Cos(t)
+		z[i] = float64(i) / float64(n-1)
+	}
+	ax.Stem(x, y, z)
+	disableMplot3DTickLabels(ax)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
+func renderMplot3DFillBetween() image.Image {
+	fig := core.NewFigure(720, 560)
+	ax, err := fig.AddAxes3D(geom.Rect{
+		Min: geom.Pt{X: 0.12, Y: 0.16},
+		Max: geom.Pt{X: 0.88, Y: 0.88},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	const n = 50
+	theta := make([]float64, n)
+	x1 := make([]float64, n)
+	y1 := make([]float64, n)
+	z1 := make([]float64, n)
+	x2 := make([]float64, n)
+	y2 := make([]float64, n)
+	z2 := make([]float64, n)
+	for i := range n {
+		t := 2 * math.Pi * float64(i) / float64(n-1)
+		theta[i] = t
+		x1[i] = math.Cos(t)
+		y1[i] = math.Sin(t)
+		z1[i] = float64(i) / float64(n-1)
+		x2[i] = math.Cos(t + math.Pi)
+		y2[i] = math.Sin(t + math.Pi)
+		z2[i] = z1[i]
+	}
+
+	alpha := 0.5
+	ax.FillBetween(x1, y1, z1, x2, y2, z2, core.FillBetween3DOptions{
+		Alpha: &alpha,
+	})
+
+	width := 2.0
+	ax.Plot3D(x1, y1, z1, core.PlotOptions{LineWidth: &width})
+	ax.Plot3D(x2, y2, z2, core.PlotOptions{LineWidth: &width})
+	disableMplot3DTickLabels(ax)
+
+	r, err := agg.New(720, 560, render.Color{R: 1, G: 1, B: 1, A: 1})
+	if err != nil {
+		panic(err)
+	}
+	core.DrawFigure(fig, r)
+	return r.GetImage()
+}
+
 func gridMin(values [][]float64) float64 {
 	minValue := math.Inf(1)
 	for _, row := range values {
@@ -3414,6 +3856,84 @@ func sinusoidalTerrain(xCount, yCount int) ([]float64, []float64, [][]float64) {
 		z[yi] = row
 	}
 	return x, y, z
+}
+
+func disableMplot3DTickLabels(ax *core.Axes3D) {
+	if ax == nil {
+		return
+	}
+	ax.XAxis.ShowLabels = false
+	ax.YAxis.ShowLabels = false
+	ax.SetShowZTickLabels(false)
+}
+
+func get3DWireframeTestData(delta float64) (x []float64, y []float64, z [][]float64) {
+	if delta <= 0 {
+		delta = 0.05
+	}
+
+	x = append(x, -3.0)
+	for x[len(x)-1] < 3.0-delta {
+		x = append(x, x[len(x)-1]+delta)
+	}
+	y = make([]float64, len(x))
+	copy(y, x)
+
+	yCount := len(y)
+	xCount := len(x)
+	z = make([][]float64, yCount)
+	for yi := range y {
+		yRow := make([]float64, xCount)
+		for xi := range x {
+			gridX := x[xi] * 10
+			gridY := y[yi] * 10
+			z1 := math.Exp(-(gridX*gridX+gridY*gridY)/2) / (2 * math.Pi)
+			z2 := (math.Exp(-(((gridX-1)/1.5)*((gridX-1)/1.5)+((gridY-1)/0.5)*((gridY-1)/0.5))/2) / (2 * math.Pi * 0.5 * 1.5))
+			yRow[xi] = (z2 - z1) * 500
+		}
+		z[yi] = yRow
+	}
+
+	return x, y, z
+}
+
+func mplot3DScatter3DPoints() ([]float64, []float64, []float64) {
+	x := []float64{
+		23.445374307849796, 24.12194086355045, 23.819529536124904, 24.00420727443508, 25.163187193449946, 24.295416940034634, 30.91130691389642, 24.605786721711933, 27.21139885293976, 27.986781163292047, 31.89192226239924, 26.298999938978977, 29.635299649362583, 23.906336659263545, 25.095071084764612, 29.459978845052547, 24.193875247596218, 25.542156954393818, 24.032675548990003, 30.46612707082184, 28.34036606828759, 23.279382886171128, 24.945607674429596, 31.87570266522563, 29.517913381654594, 27.868155221203335, 28.397102977106236, 23.644471484021, 23.882053814715775, 24.52445349928731, 23.212418078695983, 26.639680340341172, 29.83475945947286, 30.603547876550454, 26.230654568636293, 27.56211058454415, 29.847148543854843, 26.965685062731566, 29.482291156335634, 30.11650737649944, 28.517902593942317, 23.530972320001112, 23.225112299107412, 27.899278440398664, 30.46826279097253, 28.31231362198466, 28.577546999668883, 30.906285221181864, 28.346559611236383, 25.412836408863605, 31.02502964640599, 25.838621147007252, 30.2695752017394, 27.259331993205212, 28.44442014010872, 24.832138051438253, 24.772237782626977, 31.13679360966941, 24.063084952446, 30.71782734066047, 24.1020675998253, 26.407089598800855, 26.073524740342314, 28.247337040080218, 28.52664630941329, 29.703277253079385, 23.51766543170498, 26.84174807837552, 31.89768786849023, 30.269704026803602, 25.822943366549396, 26.05741098865235, 27.455351420313217, 28.205788288765213, 27.575667962815753, 31.17131795801531, 31.724537257046894, 31.31136870635791, 24.864967466347135, 27.003051120655385, 25.081221861565915, 27.242215510078502, 29.246630208236752, 23.32681288685234, 24.695596557933705, 26.754750582763073, 30.46128890826422, 27.67783726413593, 31.376752583189585, 23.683526640813607, 29.84172357895877, 25.644964523091826, 23.0707980857386, 25.95315705307221, 25.27885172160532, 30.92098933398311, 30.909130791941855, 26.27857489720248, 29.77550802400433, 26.740355393097172,
+	}
+	y := []float64{
+		89.61883854011774, 96.77743632842744, 28.157105387783755, 60.011862983483155, 50.27973260563567, 59.58611289697421, 68.26196589481192, 66.73500607782337, 67.89520298909866, 87.78005909692455, 55.90228301720692, 32.88014938342748, 89.97415203662578, 71.68172364424767, 81.61739008854082, 31.120813187076656, 72.91709365732572, 91.62415061387192, 51.5130996240686, 76.2690864324446, 57.93388477056373, 73.60353427143525, 57.060535302854596, 36.12824011228716, 29.977493234592444, 52.656275264665375, 32.52641907894169, 82.27351993645613, 10.757834757137019, 41.588172080714834, 50.65257873376535, 80.23210616089744, 45.834810172011885, 99.46739050855098, 98.16767381127598, 26.59797987212249, 57.81523756904051, 60.599446993554594, 78.80749105261128, 24.67844325571106, 99.9542535613643, 64.00386683404848, 55.01621741204809, 7.066634165562524, 77.68317602155433, 86.89455412309032, 85.51673027005023, 91.69055695060099, 5.877318874843295, 38.42391319901706, 42.44900889766391, 42.512769237215394, 9.168219240795361, 70.74011894662621, 62.81565474918824, 84.91864535059966, 84.35847524321538, 10.67104149274558, 35.98257538341652, 56.20354307974449, 29.226815795480366, 88.2185386315846, 19.667559587893834, 88.62367632848353, 33.64564571287989, 7.303882324772459, 73.13000138787797, 42.02603513269971, 65.97217312105327, 75.01176572737438, 54.29507834568107, 63.788472548222266, 78.8522131219556, 34.18898303269541, 63.7342289526038, 30.361940713543834, 60.09161357327015, 17.099846839943964, 59.05087945692124, 55.18103114595721, 83.46490643618304, 61.61212648243952, 29.62479879099057, 17.41752052501766, 38.960031151814114, 68.6147244267844, 20.755361547523275, 40.362009969485314, 58.28602545821371, 35.79089514400056, 22.10473173821892, 36.88407117873733, 49.02305607083998, 73.34531482348302, 41.72325076515475, 22.163067859293196, 65.62211504414263, 99.55079489898242, 45.199920930142426, 84.50320262512236,
+	}
+	z := []float64{
+		-48.4767154236838, -33.586641900572545, -44.00071235430737, -39.70665691078236, -44.92804393396085, -34.233123745550806, -29.072855638585203, -43.565752277569224, -48.01789653521801, -33.1518337197717, -37.644732126268664, -48.126192981827806, -36.32252360799759, -43.84079453378656, -49.38959837544273, -34.08125115264693, -30.984893040214764, -33.25045160725494, -36.99164596623909, -28.85450939811091, -27.481038624211397, -41.15948666701077, -42.04208820195398, -39.612953968569244, -47.45528371165212, -27.69983016083391, -46.2879923393594, -25.301674620928914, -38.373599258385184, -32.10817063472631, -39.03817647462475, -29.503394969218473, -44.66257359710358, -48.236771520787215, -29.884421768629725, -34.7040098468824, -44.381150826984005, -38.93777347779819, -40.99598063080647, -44.189033637840744, -40.43370686189671, -37.84281069930992, -27.08352158896705, -36.25839112345035, -37.594213588818306, -44.66379905948732, -34.616967173476034, -47.02981531051485, -35.77604595776252, -35.362807195488614, -25.656063886969623, -34.369380733795666, -43.96613722009599, -49.78135322953642, -30.444420990090908, -41.762454148965645, -46.53133316451258, -41.74519181502462, -34.65825654681202, -31.98659208375311, -39.461768207302484, -39.461775075012085, -41.26997820699918, -35.15274151752209, -40.236873144208275, -39.214116932138914, -49.84312736772681, -45.71654949394924, -38.102994824254864, -42.32542932869035, -37.40241622996856, -26.028541012185865, -34.90855626044588, -42.08248043989314, -38.90362923447811, -31.00021948118308, -34.511007438650196, -25.744016891437898, -30.800657255504547, -42.90583047337795, -45.619698983737834, -45.7861265337756, -38.56953877824531, -25.225706120348136, -45.41004740011793, -30.10574251394272, -32.48594999403221, -34.00087799764117, -34.62955453447974, -42.496063305947544, -36.252056904967205, -28.086508009869927, -47.367499252184246, -31.24941106150154, -42.487837438082316, -42.2677745058031, -45.14083423306369, -27.389198544705586, -32.928193861607255, -35.50995788997248,
+	}
+	return x, y, z
+}
+
+func minInSlice(values []float64) float64 {
+	minValue := math.Inf(1)
+	for _, value := range values {
+		if value < minValue {
+			minValue = value
+		}
+	}
+	return minValue
+}
+
+func boolPtr(v bool) *bool {
+	return &v
+}
+
+func minInGrid(values [][]float64) float64 {
+	minValue := math.Inf(1)
+	for _, row := range values {
+		for _, value := range row {
+			if value < minValue {
+				minValue = value
+			}
+		}
+	}
+	return minValue
 }
 
 func floatPtr(v float64) *float64 {

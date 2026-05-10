@@ -1100,9 +1100,9 @@ The current implementation projects 3D data into 2D artists, which is useful for
 ### 13.3 3D Rendering and Axes Behavior
 
 - [x] Add depth sorting and z-order rules for mixed 3D collections that match upstream static AGG output.
-- [ ] Add 3D axis limit, aspect, pane, grid, tick locator, label placement, and view-init parity for common gallery examples.
-- [ ] Add Matplotlib-reference fixtures for every upstream `galleries/plot_types/3D` family: plot3d, scatter3d, surface3d, wire3d, trisurf3d, bar3d, voxels, quiver3d, stem3d, and fill_between3d.
-- [ ] Keep 3D tests focused on static AGG output; interactive rotation belongs to Phase 9 unless a backend-specific viewer requires it.
+- [x] Add 3D axis limit, aspect, pane, grid, tick locator, label placement, and view-init parity for common gallery examples.
+- [x] Add Matplotlib-reference fixtures for every upstream `galleries/plot_types/3D` family: plot3d, scatter3d, surface3d, wire3d, trisurf3d, bar3d, voxels, quiver3d, stem3d, and fill_between3d.
+- [x] Keep 3D tests focused on static AGG output; interactive rotation belongs to Phase 9 unless a backend-specific viewer requires it.
 
 Current parity-hardening slice:
 
@@ -1112,9 +1112,9 @@ Current parity-hardening slice:
 
 **Exit Criteria:**
 
-- [ ] Every Matplotlib plot-type gallery 3D category has a Go example, a golden image, and a Matplotlib reference image.
-- [ ] Existing 3D helpers expose scalar-mappable state where Matplotlib would support colorbars.
-- [ ] Mixed 3D scenes have deterministic depth ordering suitable for AGG golden tests.
+- [x] Every Matplotlib plot-type gallery 3D category has a Go example, a golden image, and a Matplotlib reference image.
+- [x] Existing 3D helpers expose scalar-mappable state where Matplotlib would support colorbars.
+- [x] Mixed 3D scenes have deterministic depth ordering suitable for AGG golden tests.
 
 ---
 

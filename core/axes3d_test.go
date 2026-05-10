@@ -1639,6 +1639,110 @@ func TestAxes3DContourUsesLevelColorsByDefault(t *testing.T) {
 	}
 }
 
+func TestAxes3DContourExposesConfiguredScalarMapForColorbars(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	cmap := "magma"
+	vmin := 0.0
+	vmax := 10.0
+	contour := ax.Contour(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 2}, {4, 6}},
+		PlotOptions{
+			Colormap:   &cmap,
+			VMin:       &vmin,
+			VMax:       &vmax,
+			LevelCount: 4,
+		},
+	)
+	if contour == nil {
+		t.Fatal("Contour returned nil")
+	}
+	mapping := contour.ScalarMap()
+	if mapping.Colormap != cmap || mapping.VMin != vmin || mapping.VMax != vmax {
+		t.Fatalf("contour scalar map = %+v, want cmap=%q range %.1f..%.1f", mapping, cmap, vmin, vmax)
+	}
+}
+
+func TestAxes3DContourExplicitColorDisablesScalarMapStateLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	override := render.Color{R: 0.1, G: 0.2, B: 0.3, A: 1}
+	contour := ax.Contour(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 2}, {4, 6}},
+		PlotOptions{Color: &override, LevelCount: 3},
+	)
+	if contour == nil {
+		t.Fatal("Contour returned nil")
+	}
+	if contour.Colormap != "" || contour.Norm != nil || contour.VMin != 0 || contour.VMax != 0 {
+		t.Fatalf("contour scalar map state = cmap=%q norm=%T vmin=%g vmax=%g, want no scalar-map metadata", contour.Colormap, contour.Norm, contour.VMin, contour.VMax)
+	}
+}
+
+func TestAxes3DContourfExposesConfiguredScalarMapForColorbars(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	cmap := "plasma"
+	vmin := 0.0
+	vmax := 12.0
+	contour := ax.Contourf(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 2}, {4, 6}},
+		PlotOptions{
+			Colormap:   &cmap,
+			VMin:       &vmin,
+			VMax:       &vmax,
+			LevelCount: 3,
+		},
+	)
+	if contour == nil {
+		t.Fatal("Contourf returned nil")
+	}
+	mapping := contour.ScalarMap()
+	if mapping.Colormap != cmap || mapping.VMin != vmin || mapping.VMax != vmax {
+		t.Fatalf("contourf scalar map = %+v, want cmap=%q range %.1f..%.1f", mapping, cmap, vmin, vmax)
+	}
+}
+
+func TestAxes3DContourfExplicitColorDisablesScalarMapStateLikeMatplotlib(t *testing.T) {
+	fig := NewFigure(640, 480)
+	ax, err := fig.AddAxes3D(unitRect())
+	if err != nil {
+		t.Fatalf("AddAxes3D: %v", err)
+	}
+
+	override := render.Color{R: 0.1, G: 0.2, B: 0.3, A: 1}
+	contour := ax.Contourf(
+		[]float64{0, 1},
+		[]float64{0, 1},
+		[][]float64{{0, 2}, {4, 6}},
+		PlotOptions{Color: &override, LevelCount: 3},
+	)
+	if contour == nil {
+		t.Fatal("Contourf returned nil")
+	}
+	if contour.Colormap != "" || contour.Norm != nil || contour.VMin != 0 || contour.VMax != 0 {
+		t.Fatalf("contourf scalar map state = cmap=%q norm=%T vmin=%g vmax=%g, want no scalar-map metadata", contour.Colormap, contour.Norm, contour.VMin, contour.VMax)
+	}
+}
+
 func TestAxes3DContourSupportsMatplotlibZDirJuggling(t *testing.T) {
 	fig := NewFigure(640, 480)
 	ax, err := fig.AddAxes3D(unitRect())
