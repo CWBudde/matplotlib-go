@@ -1,20 +1,16 @@
+// Package dashes is the parity-test wrapper for the dashes showcase.
+// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/dashes;
+// this file imports it so the parity registry and golden tests share that single
+// source of truth.
 package dashes
 
 import (
 	"image"
 
-	"github.com/cwbudde/matplotlib-go/backends/agg"
-	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/examples/lines/dashes"
-	"github.com/cwbudde/matplotlib-go/render"
+	showcase "github.com/cwbudde/matplotlib-go/examples/dashes"
 )
 
+// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	fig := dashes.Dashes()
-	r, err := agg.New(dashes.Width, dashes.Height, render.Color{R: 1, G: 1, B: 1, A: 1})
-	if err != nil {
-		panic(err)
-	}
-	core.DrawFigure(fig, r)
-	return r.GetImage()
+	return showcase.Render()
 }

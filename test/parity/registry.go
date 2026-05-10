@@ -269,10 +269,10 @@ func RenderToFile(id, outputDir string) (string, error) {
 
 // GoSourcePath returns the repository-relative canonical Go source path.
 func GoSourcePath(id string) string {
-	return "examples/parity/" + id + "/plot.go"
+	return "test/parity/" + id + "/plot.go"
 }
 
 // PythonSourcePath returns the repository-relative canonical Python source path.
 func PythonSourcePath(id string) string {
-	return "examples/parity/" + id + "/plot.py"
+	return "test/parity/" + id + "/plot.py"
 }

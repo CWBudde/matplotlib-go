@@ -1,24 +1,16 @@
+// Package matshow_basic is the parity-test wrapper for the matshow_basic showcase.
+// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/matshow_basic;
+// this file imports it so the parity registry and golden tests share that single
+// source of truth.
 package matshow_basic
 
 import (
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
 	"image"
 
-	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
+	showcase "github.com/cwbudde/matplotlib-go/examples/matshow_basic"
 )
 
+// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	fig := core.NewFigure(640, 360)
-	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.22, Y: 0.12}, Max: geom.Pt{X: 0.78, Y: 0.9}})
-	ax.SetTitle("Matshow")
-	cmap := "cividis"
-	ax.MatShow([][]float64{
-		{0.10, 0.20, 0.35, 0.55},
-		{0.18, 0.32, 0.48, 0.70},
-		{0.28, 0.46, 0.66, 0.86},
-		{0.40, 0.58, 0.78, 0.96},
-	}, core.MatShowOptions{Colormap: &cmap})
-
-	return common.RenderImageFixture(fig, 640, 360)
+	return showcase.Render()
 }

@@ -1,7 +1,7 @@
 package hist2d_weighted_density
 
 import (
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"image"
 
 	"github.com/cwbudde/matplotlib-go/core"

@@ -5,7 +5,7 @@ package examplecatalog
 // The catalog is the shared source of truth for the relationship between
 // examples, committed Go goldens, Matplotlib references, and the curated web
 // demo subset. GoPath and PythonPath are normalized to the canonical
-// examples/parity/<case-id>/ source files.
+// test/parity/<case-id>/ source files.
 type Case struct {
 	ID          string
 	Topic       string
@@ -28,32 +28,32 @@ const (
 )
 
 var cases = []Case{
-	{ID: "basic_line", Topic: "lines", Title: "Basic Line", GoPath: "examples/lines/basic.go"},
+	{ID: "basic_line", Topic: "lines", Title: "Basic Line"},
 	{ID: "joins_caps", Topic: "lines", Title: "Line Joins and Caps"},
-	{ID: "dashes", Topic: "lines", Title: "Dash Patterns", GoPath: "examples/lines/dashes/dashes.go"},
-	{ID: "scatter_basic", Topic: "scatter", Title: "Basic Scatter", GoPath: "examples/scatter/basic.go"},
+	{ID: "dashes", Topic: "lines", Title: "Dash Patterns"},
+	{ID: "scatter_basic", Topic: "scatter", Title: "Basic Scatter"},
 	{ID: "scatter_marker_types", Topic: "scatter", Title: "Scatter Marker Types"},
 	{ID: "scatter_advanced", Topic: "scatter", Title: "Advanced Scatter"},
 	{ID: "bar_basic_frame", Topic: "bar", Title: "Bar Frame"},
 	{ID: "bar_basic_ticks", Topic: "bar", Title: "Bar Ticks"},
 	{ID: "bar_basic_tick_labels", Topic: "bar", Title: "Bar Tick Labels"},
 	{ID: "bar_basic_title", Topic: "bar", Title: "Bar Title"},
-	{ID: "bar_basic", Topic: "bar", Title: "Basic Bars", GoPath: "examples/bar/basic.go"},
-	{ID: "bar_horizontal", Topic: "bar", Title: "Horizontal Bars", GoPath: "examples/bar/horizontal/main.go"},
+	{ID: "bar_basic", Topic: "bar", Title: "Basic Bars"},
+	{ID: "bar_horizontal", Topic: "bar", Title: "Horizontal Bars"},
 	{ID: "bar_grouped", Topic: "bar", Title: "Grouped Bars"},
-	{ID: "fill_basic", Topic: "fill", Title: "Fill to Baseline", GoPath: "examples/fill/basic.go"},
+	{ID: "fill_basic", Topic: "fill", Title: "Fill to Baseline"},
 	{ID: "fill_between", Topic: "fill", Title: "Fill Between Curves"},
 	{ID: "fill_stacked", Topic: "fill", Title: "Stacked Fill"},
-	{ID: "errorbar_basic", Topic: "errorbar", Title: "Error Bars", GoPath: "examples/errorbar/basic.go"},
-	{ID: "multi_series_basic", Topic: "multi", Title: "Multiple Series", GoPath: "examples/multi/basic.go"},
+	{ID: "errorbar_basic", Topic: "errorbar", Title: "Error Bars"},
+	{ID: "multi_series_basic", Topic: "multi", Title: "Multiple Series"},
 	{ID: "multi_series_color_cycle", Topic: "multi", Title: "Color Cycle"},
-	{ID: "hist_basic", Topic: "histogram", Title: "Histogram Counts", GoPath: "examples/histogram/basic.go"},
+	{ID: "hist_basic", Topic: "histogram", Title: "Histogram Counts"},
 	{ID: "hist_density", Topic: "histogram", Title: "Histogram Density"},
 	{ID: "hist_strategies", Topic: "histogram", Title: "Histogram Strategies"},
-	{ID: "boxplot_basic", Topic: "boxplot", Title: "Box Plot", GoPath: "examples/boxplot/basic/plot.go", Optional: true},
+	{ID: "boxplot_basic", Topic: "boxplot", Title: "Box Plot", Optional: true},
 	{ID: "text_labels_strict", Topic: "text", Title: "Strict Text Labels", Optional: true},
 	{ID: "title_strict", Topic: "text", Title: "Strict Title"},
-	{ID: "image_heatmap", Topic: "image", Title: "Heatmap Image", GoPath: "examples/image/basic.go"},
+	{ID: "image_heatmap", Topic: "image", Title: "Heatmap Image"},
 	{ID: "imshow_clipped", Topic: "image", Title: "Clipped Imshow", FixtureOnly: true},
 	{ID: "imshow_transformed", Topic: "image", Title: "Transformed Imshow", FixtureOnly: true, Width: 420, Height: 420},
 	{ID: "imshow_bilinear", Topic: "image", Title: "Bilinear Imshow", FixtureOnly: true, Width: 256, Height: 256},
@@ -65,32 +65,32 @@ var cases = []Case{
 	{ID: "axes_top_right_inverted", Topic: "axes", Title: "Top/Right Inverted Axes", Optional: true},
 	{ID: "axes_control_surface", Topic: "axes", Title: "Axes, Scales, and Twins", Optional: true, WebDemoID: "axes", Description: "Minor ticks, top/right axes, aspect controls, log scale, twin axes, and secondary axes."},
 	{ID: "transform_coordinates", Topic: "axes", Title: "Transform Coordinates", Optional: true},
-	{ID: "gridspec_composition", Topic: "composition", Title: "Figure Composition", GoPath: "examples/gridspec/main.go", WebDemoID: "composition", Description: "GridSpec spans, figure-level labels, figure legends, anchored text, and colorbars."},
-	{ID: "figure_labels_composition", Topic: "composition", Title: "Figure Labels", GoPath: "examples/figure_labels/basic.go"},
-	{ID: "colorbar_composition", Topic: "colorbar", Title: "Colorbar Composition", GoPath: "examples/colorbar/composition/composition.go"},
-	{ID: "annotation_composition", Topic: "annotation", Title: "Annotations", GoPath: "examples/annotation/basic.go"},
+	{ID: "gridspec_composition", Topic: "composition", Title: "Figure Composition", WebDemoID: "composition", Description: "GridSpec spans, figure-level labels, figure legends, anchored text, and colorbars."},
+	{ID: "figure_labels_composition", Topic: "composition", Title: "Figure Labels"},
+	{ID: "colorbar_composition", Topic: "colorbar", Title: "Colorbar Composition"},
+	{ID: "annotation_composition", Topic: "annotation", Title: "Annotations"},
 	{ID: "patch_showcase", Topic: "patches", Title: "Patch Showcase", Optional: true},
 	{ID: "mesh_contour_tri", Topic: "mesh", Title: "Meshes and Contours", Optional: true, WebDemoID: "mesh", Description: "PColorMesh, contour/contourf, Hist2D, triplot, tripcolor, and tricontour."},
-	{ID: "plot_variants", Topic: "variants", Title: "Plot Variants", GoPath: "examples/plot_variants/basic.go", Optional: true, WebDemoID: "variants", Description: "Step, stairs, reference lines, spans, broken bars, and stacked bars."},
+	{ID: "plot_variants", Topic: "variants", Title: "Plot Variants", Optional: true, WebDemoID: "variants", Description: "Step, stairs, reference lines, spans, broken bars, and stacked bars."},
 	{ID: "spectrum_variants", Topic: "signal", Title: "Spectrum Variants", FixtureOnly: true},
-	{ID: "stat_variants", Topic: "statistics", Title: "Statistical Views", GoPath: "examples/stat_variants/basic.go", Optional: true, WebDemoID: "statistics", Description: "Box plots, violin plots, empirical CDFs, and stack plots."},
+	{ID: "stat_variants", Topic: "statistics", Title: "Statistical Views", Optional: true, WebDemoID: "statistics", Description: "Box plots, violin plots, empirical CDFs, and stack plots."},
 	{ID: "phase12_specialty_depth", Topic: "statistics", Title: "Phase 12 Specialty Depth", FixtureOnly: true},
 	{ID: "stem_plot", Topic: "specialty", Title: "Stem Plot", Optional: true},
-	{ID: "specialty_artists", Topic: "specialty", Title: "Specialty Artists", GoPath: "examples/specialty/main.go", Optional: true, WebDemoID: "specialty", Description: "Event plots, hexbin, pie charts, stem plots, tables, and Sankey-style flows."},
-	{ID: "units_overview", Topic: "units", Title: "Dates and Categories", GoPath: "examples/units/basic.go", Optional: true, WebDemoID: "units", Description: "Time-aware axes, categorical bars, and horizontal categorical bars."},
+	{ID: "specialty_artists", Topic: "specialty", Title: "Specialty Artists", Optional: true, WebDemoID: "specialty", Description: "Event plots, hexbin, pie charts, stem plots, tables, and Sankey-style flows."},
+	{ID: "units_overview", Topic: "units", Title: "Dates and Categories", Optional: true, WebDemoID: "units", Description: "Time-aware axes, categorical bars, and horizontal categorical bars."},
 	{ID: "units_dates", Topic: "units", Title: "Date Units", Optional: true},
 	{ID: "units_categories", Topic: "units", Title: "Category Units", Optional: true},
 	{ID: "units_custom_converter", Topic: "units", Title: "Custom Unit Converter", Optional: true},
 	{ID: "vector_fields", Topic: "vectors", Title: "Vector Fields", Optional: true, WebDemoID: "vectors", Description: "Quiver, quiver keys, barbs, streamplots, and grid-based vector input."},
-	{ID: "polar_axes", Topic: "polar", Title: "Polar Wave", GoPath: "examples/polar/basic.go", WebDemoID: "polar", Description: "A filled polar curve with custom radial and angular grid styling."},
-	{ID: "geo_mollweide_axes", Topic: "geo", Title: "Projections and Insets", GoPath: "examples/geo/mollweide.go", WebDemoID: "projections", Description: "Mollweide geo projection plus a zoomed inset axes."},
-	{ID: "geo_aitoff_axes", Topic: "geo", Title: "Aitoff Projection", GoPath: "examples/geo/aitoff/main.go", Optional: true},
-	{ID: "geo_hammer_axes", Topic: "geo", Title: "Hammer Projection", GoPath: "examples/geo/hammer/main.go", Optional: true},
-	{ID: "geo_lambert_axes", Topic: "geo", Title: "Lambert Projection", GoPath: "examples/geo/lambert/main.go", Optional: true},
-	{ID: "radar_basic", Topic: "radar", Title: "Radar Projection", GoPath: "examples/radar/basic.go", Optional: true},
-	{ID: "skewt_basic", Topic: "skewt", Title: "Skew-T Projection", GoPath: "examples/skewt/basic.go", Optional: true},
-	{ID: "mplot3d_basic", Topic: "mplot3d", Title: "3D Toolkit Scaffold", GoPath: "examples/mplot3d/basic.go", Optional: true},
-	{ID: "mplot3d_terrain", Topic: "mplot3d", Title: "3D Terrain", GoPath: "examples/mplot3d/terrain/main.go", Optional: true, Width: 900, Height: 640},
+	{ID: "polar_axes", Topic: "polar", Title: "Polar Wave", WebDemoID: "polar", Description: "A filled polar curve with custom radial and angular grid styling."},
+	{ID: "geo_mollweide_axes", Topic: "geo", Title: "Projections and Insets", WebDemoID: "projections", Description: "Mollweide geo projection plus a zoomed inset axes."},
+	{ID: "geo_aitoff_axes", Topic: "geo", Title: "Aitoff Projection", Optional: true},
+	{ID: "geo_hammer_axes", Topic: "geo", Title: "Hammer Projection", Optional: true},
+	{ID: "geo_lambert_axes", Topic: "geo", Title: "Lambert Projection", Optional: true},
+	{ID: "radar_basic", Topic: "radar", Title: "Radar Projection", Optional: true},
+	{ID: "skewt_basic", Topic: "skewt", Title: "Skew-T Projection", Optional: true},
+	{ID: "mplot3d_basic", Topic: "mplot3d", Title: "3D Toolkit Scaffold", Optional: true},
+	{ID: "mplot3d_terrain", Topic: "mplot3d", Title: "3D Terrain", Optional: true, Width: 900, Height: 640},
 	{ID: "mplot3d_plot3d", Topic: "mplot3d", Title: "3D Plot", FixtureOnly: true, Width: 720, Height: 560},
 	{ID: "mplot3d_scatter3d", Topic: "mplot3d", Title: "3D Scatter", FixtureOnly: true, Width: 720, Height: 560},
 	{ID: "mplot3d_surface3d", Topic: "mplot3d", Title: "3D Surface", FixtureOnly: true, Width: 720, Height: 560},
@@ -101,10 +101,10 @@ var cases = []Case{
 	{ID: "mplot3d_quiver3d", Topic: "mplot3d", Title: "3D Quiver", FixtureOnly: true, Width: 720, Height: 560},
 	{ID: "mplot3d_stem3d", Topic: "mplot3d", Title: "3D Stem", FixtureOnly: true, Width: 720, Height: 560},
 	{ID: "mplot3d_fill_between3d", Topic: "mplot3d", Title: "3D Fill Between", FixtureOnly: true, Width: 720, Height: 560},
-	{ID: "unstructured_showcase", Topic: "unstructured", Title: "Unstructured Showcase", GoPath: "examples/unstructured/showcase/showcase.go", Optional: true},
-	{ID: "arrays_showcase", Topic: "arrays", Title: "Matrix Helpers", GoPath: "examples/arrays/showcase/showcase.go", Optional: true, WebDemoID: "matrix", Description: "MatShow, sparsity spy plots, annotated heatmaps, and colorbars.", Width: 1240, Height: 620},
-	{ID: "axisartist_showcase", Topic: "axisartist", Title: "AxisArtist Showcase", GoPath: "examples/axisartist/showcase/showcase.go", Optional: true},
-	{ID: "axes_grid1_showcase", Topic: "axes_grid1", Title: "Axes Grid1 Showcase", GoPath: "examples/axes_grid1/showcase/showcase.go", Optional: true},
+	{ID: "unstructured_showcase", Topic: "unstructured", Title: "Unstructured Showcase", Optional: true},
+	{ID: "arrays_showcase", Topic: "arrays", Title: "Matrix Helpers", Optional: true, WebDemoID: "matrix", Description: "MatShow, sparsity spy plots, annotated heatmaps, and colorbars.", Width: 1240, Height: 620},
+	{ID: "axisartist_showcase", Topic: "axisartist", Title: "AxisArtist Showcase", Optional: true},
+	{ID: "axes_grid1_showcase", Topic: "axes_grid1", Title: "Axes Grid1 Showcase", Optional: true},
 	{ID: "pcolor_flat", Topic: "mesh", Title: "PColor Flat", FixtureOnly: true},
 	{ID: "pcolormesh_nearest", Topic: "mesh", Title: "PColorMesh Nearest", FixtureOnly: true},
 	{ID: "pcolormesh_gouraud", Topic: "mesh", Title: "PColorMesh Gouraud", FixtureOnly: true},
@@ -164,8 +164,16 @@ func LookupWebDemo(id string) (Case, bool) {
 
 func applyDefaults(c *Case) {
 	if c.ID != "" {
-		c.GoPath = "examples/parity/" + c.ID + "/plot.go"
-		c.PythonPath = "examples/parity/" + c.ID + "/plot.py"
+		if c.GoPath == "" {
+			if c.FixtureOnly {
+				// Fixture-only cases live exclusively under test/parity/ and are
+				// not surfaced as user-facing showcase examples.
+				c.GoPath = "test/parity/" + c.ID + "/plot.go"
+			} else {
+				c.GoPath = "examples/" + c.ID + "/example.go"
+			}
+		}
+		c.PythonPath = "test/parity/" + c.ID + "/plot.py"
 	}
 	if c.Width == 0 {
 		c.Width = DefaultWidth

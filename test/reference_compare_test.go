@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cwbudde/matplotlib-go/examples/parity"
+	"github.com/cwbudde/matplotlib-go/test/parity"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 

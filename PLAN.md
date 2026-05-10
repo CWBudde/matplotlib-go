@@ -95,7 +95,12 @@ lists.
 - [x] Reduce the browser demo catalog to high-signal showcase/composition cases selected from parity fixtures.
 - [x] Add catalog invariants for committed Go goldens, Matplotlib references, web-demo references, and reference-compare registration.
 - [x] Mark renderer/backend stress cases as fixture-only so they are excluded from human-example migration.
-- [ ] Continue migrating plot bodies into side-by-side importable Go/Python example directories so tests and examples share source directly.
+- [x] Relocate the parity Go tree from `examples/parity/` to `test/parity/` to physically separate user-facing showcase code from test fixtures.
+- [x] Move shared parity helpers from `test/parity/internal/common` to `internal/parityutil` so showcase examples can reuse them.
+- [x] Migrate plot bodies into importable showcase packages at `examples/{id}/example.go`; parity wrappers at `test/parity/{id}/plot.go` import the showcase `Render()` to avoid duplication.
+- [ ] Inline the legacy delegating wrappers (e.g. `examples/dashes/example.go` calls `examples/lines/dashes.Dashes`) so each `examples/{id}/example.go` is self-contained, then retire the topic-named legacy directories (`examples/lines/`, `examples/scatter/`, etc.).
+- [ ] Replace the 22 hand-maintained `buildXxxDemo()` builders in `internal/webdemo/demo.go` with auto-generation from the showcase tree. Requires a `Plot() *core.Figure` accessor on showcase packages so any backend (not just AGG) can render them.
+- [ ] Curate the showcase set down to ~25-35 polished examples; current state has ~60 generated wrappers covering every non-fixture parity case, which is broader than the user-facing target.
 
 # ✅ Foundation (COMPLETED)
 

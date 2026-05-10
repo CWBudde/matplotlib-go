@@ -1,26 +1,16 @@
+// Package spy_marker is the parity-test wrapper for the spy_marker showcase.
+// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/spy_marker;
+// this file imports it so the parity registry and golden tests share that single
+// source of truth.
 package spy_marker
 
 import (
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
 	"image"
 
-	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
-	"github.com/cwbudde/matplotlib-go/render"
+	showcase "github.com/cwbudde/matplotlib-go/examples/spy_marker"
 )
 
+// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	fig := core.NewFigure(640, 360)
-	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.22, Y: 0.14}, Max: geom.Pt{X: 0.78, Y: 0.9}})
-	ax.SetTitle("Spy Marker")
-	color := render.Color{R: 0.16, G: 0.38, B: 0.72, A: 1}
-	marker := core.MarkerSquare
-	ax.Spy(common.SparseFixtureData(14, 14), core.SpyOptions{
-		Precision:  0.1,
-		Marker:     &marker,
-		MarkerSize: 8,
-		Color:      &color,
-	})
-
-	return common.RenderImageFixture(fig, 640, 360)
+	return showcase.Render()
 }

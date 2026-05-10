@@ -1,37 +1,16 @@
+// Package mplot3d_basic is the parity-test wrapper for the mplot3d_basic showcase.
+// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/mplot3d_basic;
+// this file imports it so the parity registry and golden tests share that single
+// source of truth.
 package mplot3d_basic
 
 import (
 	"image"
 
-	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
-	"github.com/cwbudde/matplotlib-go/render"
+	showcase "github.com/cwbudde/matplotlib-go/examples/mplot3d_basic"
 )
 
+// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	fig := core.NewFigure(760, 560)
-	ax, err := fig.AddAxes3D(geom.Rect{Min: geom.Pt{X: 0.12, Y: 0.14}, Max: geom.Pt{X: 0.88, Y: 0.88}})
-	if err != nil {
-		panic(err)
-	}
-	ax.SetTitle("3D Toolkit Scaffold")
-	ax.SetXLabel("x")
-	ax.SetYLabel("y")
-	ax.SetView(30, -60)
-	x := []float64{0, 1}
-	y := []float64{0, 1}
-	zGrid := [][]float64{{0, 1}, {1, 2}}
-	gray := render.Color{R: 0.35, G: 0.35, B: 0.35, A: 1}
-	surfaceAlpha := 0.35
-	barColor := render.Color{R: 1.0, G: 0.4980392156862745, B: 0.054901960784313725, A: 1}
-	barAlpha := 0.7
-	ax.Plot3D([]float64{0, 1}, []float64{0, 1}, []float64{0, 1})
-	ax.Scatter3D([]float64{0.5, 0.7}, []float64{0.2, 0.9}, []float64{0.1, 0.3})
-	ax.Wireframe(x, y, zGrid, core.PlotOptions{Color: &gray})
-	ax.Surface(x, y, zGrid, core.PlotOptions{Alpha: &surfaceAlpha})
-	ax.Contour(x, y, zGrid)
-	ax.Bar3D([]float64{0.2}, []float64{0.3}, []float64{0.4}, []float64{0.2}, []float64{0.2}, []float64{0.3}, core.Bar3DOptions{Color: &barColor, Alpha: &barAlpha})
-	ax.Text3D(0.2, 0.8, 0.6, "demo point")
-	return common.RenderFixtureFigure(fig, 760, 560)
+	return showcase.Render()
 }

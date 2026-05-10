@@ -2,8 +2,8 @@
 
 This note tracks the architectural issues that keep Go examples from reading
 like their Matplotlib Python counterparts. The immediate example is
-`examples/parity/arrays_showcase/plot.go` versus
-`examples/parity/arrays_showcase/plot.py`, but the same patterns show up across
+`test/parity/arrays_showcase/plot.go` versus
+`test/parity/arrays_showcase/plot.py`, but the same patterns show up across
 parity examples.
 
 ## Current friction points
@@ -62,8 +62,8 @@ or paired lower-level examples when the goal is didactic Matplotlib parity.
 
 ### Reference/example drift
 
-Python reference implementations are centralized under `examples/parity`, while
-older uncataloged scripts are preserved under `examples/parity/legacy`. When
+Python reference implementations are centralized under `test/parity`, while
+older uncataloged scripts are preserved under `test/parity/legacy`. When
 the same plot is represented in multiple files, titles, labels, and layout
 choices can drift.
 
@@ -73,8 +73,8 @@ when a counterpart is optimized for reading rather than golden generation.
 
 ## Arrays example status
 
-`examples/parity/arrays_showcase/plot.go` now follows the same top-level shape
-as `examples/parity/arrays_showcase/plot.py`:
+`test/parity/arrays_showcase/plot.go` now follows the same top-level shape
+as `test/parity/arrays_showcase/plot.py`:
 
 - constants for width, height, and DPI;
 - compact layout helpers;

@@ -1,22 +1,16 @@
+// Package spy_image is the parity-test wrapper for the spy_image showcase.
+// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/spy_image;
+// this file imports it so the parity registry and golden tests share that single
+// source of truth.
 package spy_image
 
 import (
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
 	"image"
 
-	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
+	showcase "github.com/cwbudde/matplotlib-go/examples/spy_image"
 )
 
+// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	fig := core.NewFigure(640, 360)
-	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.22, Y: 0.14}, Max: geom.Pt{X: 0.78, Y: 0.9}})
-	ax.SetTitle("Spy Image")
-	useImage := true
-	ax.Spy(common.SparseFixtureData(14, 14), core.SpyOptions{
-		Precision: 0.1,
-		UseImage:  &useImage,
-	})
-
-	return common.RenderImageFixture(fig, 640, 360)
+	return showcase.Render()
 }

@@ -1,27 +1,16 @@
+// Package pcolor_flat is the parity-test wrapper for the pcolor_flat showcase.
+// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/pcolor_flat;
+// this file imports it so the parity registry and golden tests share that single
+// source of truth.
 package pcolor_flat
 
 import (
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
 	"image"
 
-	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/render"
+	showcase "github.com/cwbudde/matplotlib-go/examples/pcolor_flat"
 )
 
+// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	fig, ax := common.MeshFixtureFigure("pcolor flat")
-	cmap := "plasma"
-	edge := render.Color{R: 0.96, G: 0.96, B: 0.96, A: 1}
-	width := 0.75
-	ax.PColor(common.MeshFixtureData(4, 5), core.MeshOptions{
-		XEdges:    []float64{0.0, 0.9, 2.0, 3.4, 4.1, 5.2},
-		YEdges:    []float64{-0.2, 0.8, 1.6, 2.9, 4.0},
-		Shading:   core.MeshShadingFlat,
-		Colormap:  &cmap,
-		EdgeColor: &edge,
-		EdgeWidth: &width,
-	})
-	ax.SetXLim(0, 5.2)
-	ax.SetYLim(-0.2, 4.0)
-	return common.RenderFixtureFigure(fig, 640, 360)
+	return showcase.Render()
 }

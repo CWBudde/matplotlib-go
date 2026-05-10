@@ -77,8 +77,8 @@ func TestSourceUsesCanonicalParityExample(t *testing.T) {
 	if descriptor.ID != "matrix" {
 		t.Fatalf("descriptor.ID = %q, want matrix", descriptor.ID)
 	}
-	if !strings.Contains(source, "examples/parity/arrays_showcase/plot.go") {
-		t.Fatalf("Source(matrix) did not identify canonical parity source path:\n%s", source)
+	if !strings.Contains(source, "examples/arrays_showcase/example.go") {
+		t.Fatalf("Source(matrix) did not identify canonical showcase source path:\n%s", source)
 	}
 }
 
@@ -244,8 +244,8 @@ func TestSourceReturnsCanonicalParitySource(t *testing.T) {
 		if got.ID != descriptor.ID {
 			t.Fatalf("Source(%q) descriptor ID = %q, want %q", descriptor.ID, got.ID, descriptor.ID)
 		}
-		if !strings.HasPrefix(source, "// examples/parity/") {
-			t.Fatalf("Source(%q) does not start with a canonical parity source path: %.32q", descriptor.ID, source)
+		if !strings.HasPrefix(source, "// examples/") {
+			t.Fatalf("Source(%q) does not start with a canonical showcase source path: %.32q", descriptor.ID, source)
 		}
 		if !strings.Contains(source, "func Render() image.Image") {
 			t.Fatalf("Source(%q) does not include the canonical example Render function", descriptor.ID)

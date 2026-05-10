@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Matplotlib reference wrapper for examples/parity/boxplot_basic/plot.py."""
+"""Matplotlib reference wrapper for test/parity/boxplot_basic/plot.py."""
 
 from __future__ import annotations
 

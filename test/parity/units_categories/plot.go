@@ -1,54 +1,16 @@
+// Package units_categories is the parity-test wrapper for the units_categories showcase.
+// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/units_categories;
+// this file imports it so the parity registry and golden tests share that single
+// source of truth.
 package units_categories
 
 import (
 	"image"
 
-	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
-	"github.com/cwbudde/matplotlib-go/render"
+	showcase "github.com/cwbudde/matplotlib-go/examples/units_categories"
 )
 
+// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	fig := core.NewFigure(760, 360)
-	left := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.08, Y: 0.20}, Max: geom.Pt{X: 0.47, Y: 0.86}})
-	left.SetTitle("Categorical X")
-	left.SetYLabel("Count")
-	common.AddReferenceYGrid(left)
-	orange := render.Color{R: 1.0, G: 0.50, B: 0.05, A: 1}
-	edgeOrange := render.Color{R: 0.60, G: 0.30, B: 0.03, A: 1}
-	barEdgeWidth := 1.0
-	barWidth := 0.8
-	_, err := left.BarUnits([]string{"draft", "review", "ship", "watch"}, []float64{3, 8, 6, 4}, core.BarOptions{
-		Color:     &orange,
-		EdgeColor: &edgeOrange,
-		EdgeWidth: &barEdgeWidth,
-		Width:     &barWidth,
-	})
-	if err != nil {
-		panic(err)
-	}
-	left.AutoScale(0.10)
-
-	right := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.58, Y: 0.20}, Max: geom.Pt{X: 0.94, Y: 0.86}})
-	right.SetTitle("Categorical Y")
-	right.SetXLabel("Hours")
-	xGrid := right.AddGrid(core.AxisBottom)
-	xGrid.Color = render.Color{R: 0.8, G: 0.8, B: 0.8, A: 1}
-	xGrid.LineWidth = 0.5
-	green := render.Color{R: 0.17, G: 0.63, B: 0.17, A: 1}
-	edgeGreen := render.Color{R: 0.09, G: 0.36, B: 0.09, A: 1}
-	orientation := core.BarHorizontal
-	_, err = right.BarUnits([]string{"north", "south", "east"}, []float64{4, 7, 5}, core.BarOptions{
-		Color:       &green,
-		EdgeColor:   &edgeGreen,
-		EdgeWidth:   &barEdgeWidth,
-		Width:       &barWidth,
-		Orientation: &orientation,
-	})
-	if err != nil {
-		panic(err)
-	}
-	right.AutoScale(0.10)
-	return common.RenderFixtureFigure(fig, 760, 360)
+	return showcase.Render()
 }

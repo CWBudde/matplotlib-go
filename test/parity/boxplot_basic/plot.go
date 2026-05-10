@@ -1,21 +1,16 @@
+// Package boxplot_basic is the parity-test wrapper for the boxplot_basic showcase.
+// The canonical rendering body lives in github.com/cwbudde/matplotlib-go/examples/boxplot_basic;
+// this file imports it so the parity registry and golden tests share that single
+// source of truth.
 package boxplot_basic
 
 import (
 	"image"
 
-	"github.com/cwbudde/matplotlib-go/backends/agg"
-	"github.com/cwbudde/matplotlib-go/core"
-	boxplotbasic "github.com/cwbudde/matplotlib-go/examples/boxplot/basic"
-	"github.com/cwbudde/matplotlib-go/render"
+	showcase "github.com/cwbudde/matplotlib-go/examples/boxplot_basic"
 )
 
+// Render returns the parity image, identical to the showcase output.
 func Render() image.Image {
-	fig := boxplotbasic.Build()
-	r, err := agg.New(boxplotbasic.Width, boxplotbasic.Height, render.Color{R: 1, G: 1, B: 1, A: 1})
-	if err != nil {
-		panic(err)
-	}
-	r.SetResolution(boxplotbasic.DPI)
-	core.DrawFigure(fig, r)
-	return r.GetImage()
+	return showcase.Render()
 }

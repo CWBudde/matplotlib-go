@@ -1,7 +1,7 @@
 package colorbar_extensions
 
 import (
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"image"
 
 	matcolor "github.com/cwbudde/matplotlib-go/color"

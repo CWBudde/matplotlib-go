@@ -1,7 +1,7 @@
 package large_scatter
 
 import (
-	"github.com/cwbudde/matplotlib-go/test/parity/internal/common"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"image"
 	"math"
 

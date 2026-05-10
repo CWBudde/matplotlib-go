@@ -23,7 +23,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/cwbudde/matplotlib-go/examples/parity"
+	"github.com/cwbudde/matplotlib-go/test/parity"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
 )
 
@@ -174,7 +174,7 @@ func matplotlibArtifactsDir(t *testing.T) string {
 }
 
 // Individual tests
-// Each test renders the canonical example from examples/parity.
+// Each test renders the canonical example from test/parity.
 
 func TestMpl_BasicLine(t *testing.T)    { runMplTest(t, "basic_line") }
 func TestMpl_JoinsCaps(t *testing.T)    { runMplTest(t, "joins_caps") }
