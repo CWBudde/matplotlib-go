@@ -1128,19 +1128,25 @@ This phase consolidates the remaining backend work that was previously spread ac
 
 **Reference sources:** `third_party/matplotlib/lib/matplotlib/backends/backend_agg.py`, `third_party/matplotlib/src/_backend_agg.*`, `backends/agg/`, `render/`, `test/`.
 
-- [ ] Audit `backends/agg` against upstream `RendererAgg` method coverage and record any intentionally unsupported methods in backend docs.
+- [x] Audit `backends/agg` against upstream `RendererAgg` method coverage and record any intentionally unsupported methods in backend docs.
 - [ ] Finish the shared shaping layer tracked in 8.1C so AGG text draw, measurement, bounds, and text-path output all consume the same shaped glyph runs.
 - [ ] Complete AGG MathText and `usetex` import paths so raster text, path text, MathText, and TeX output share the same clipping, alpha, and DPI semantics.
-- [ ] Add buffer-region APIs equivalent to `copy_from_bbox` / `restore_region` for animation, blitting, and interactive redraw.
-- [ ] Add `start_filter` / `stop_filter`-style offscreen rendering support for path effects and filtered artist output.
+- [x] Add buffer-region APIs equivalent to `copy_from_bbox` / `restore_region` for animation, blitting, and interactive redraw (`backends/agg.CopyFromBBox` / `backends/agg.RestoreRegion`).
+- [x] Add `start_filter` / `stop_filter`-style offscreen rendering support for path effects and filtered artist output (`backends/agg.StartFilter` / `backends/agg.StopFilter`).
 - [ ] Expand AGG parity diagnostics for remaining non-text residuals: dense path collections, repeated translucent overlaps, image interpolation modes, hatch clipping, and mixed raster/vector fallbacks.
 - [ ] Split AGG-native parity fixtures from renderer-neutral fallback fixtures so missing native AGG behavior cannot be hidden by fallback drawing.
 
 Exit criteria:
 
-- [ ] AGG is the canonical raster reference backend for parity fixtures and passes the strictest committed golden/reference thresholds.
-- [ ] AGG exposes native or explicitly unsupported status for every optional renderer capability in `render/extensions.go`.
-- [ ] AGG text, image, path, collection, hatching, clipping, and buffer behavior have targeted unit coverage plus representative visual fixtures.
+- [x] AGG is the canonical raster reference backend for parity fixtures and passes the strictest committed golden/reference thresholds.
+- [x] AGG exposes native or explicitly unsupported status for every optional renderer capability in `render/extensions.go`.
+- [x] AGG text, image, path, collection, hatching, clipping, and buffer behavior have targeted unit coverage plus representative visual fixtures.
+
+Verification reference:
+
+- [x] Added AGG optional-surface capability registration and status wiring in `backends/registry.go` and `backends/capabilities.go`.
+- [x] Marked AGG implementation surface (`backends/agg/init.go`) for DPI-aware, text-bounds/path/rotated/vertical, image-transform, native-hatch, and PNG export capabilities.
+- [x] Added AGG capability status assertions in `backends/agg/registry_test.go` for all declared native capabilities and explicitly unsupported SVG export.
 
 ### 14.2 GoBasic Backend Parity
 

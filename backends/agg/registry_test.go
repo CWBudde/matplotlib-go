@@ -19,6 +19,42 @@ func TestAGGBackend_PopulatesSaveFormats(t *testing.T) {
 	}
 }
 
+func TestAGGRendererCapabilityStatus(t *testing.T) {
+	renderer, err := backends.Create(backends.AGG, backends.TestDefaultConfig(120, 80))
+	if err != nil {
+		t.Fatalf("Create(AGG) error: %v", err)
+	}
+
+	tests := []struct {
+		capability backends.Capability
+		want       backends.CapabilityStatus
+	}{
+		{backends.VectorOutput, backends.CapabilityNative},
+		{backends.DPIAware, backends.CapabilityNative},
+		{backends.TextShaping, backends.CapabilityNative},
+		{backends.FontHinting, backends.CapabilityNative},
+		{backends.TextBounds, backends.CapabilityNative},
+		{backends.TextPathing, backends.CapabilityNative},
+		{backends.RotatedText, backends.CapabilityNative},
+		{backends.VerticalText, backends.CapabilityNative},
+		{backends.ImageTransform, backends.CapabilityNative},
+		{backends.MarkerBatch, backends.CapabilityNative},
+		{backends.PathCollectionBatch, backends.CapabilityNative},
+		{backends.QuadMeshBatch, backends.CapabilityNative},
+		{backends.GouraudTriangleBatch, backends.CapabilityNative},
+		{backends.NativeHatcher, backends.CapabilityNative},
+		{backends.PNGExport, backends.CapabilityNative},
+		{backends.SVGExport, backends.CapabilityUnsupported},
+	}
+
+	for _, tc := range tests {
+		got := backends.RendererCapabilityStatus(backends.AGG, renderer, tc.capability)
+		if got != tc.want {
+			t.Fatalf("AGG RendererCapabilityStatus(%s) = %s, want %s", tc.capability, got, tc.want)
+		}
+	}
+}
+
 func mapKeys(m map[string]backends.SaveHandler) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {

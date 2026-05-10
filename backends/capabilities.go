@@ -11,7 +11,11 @@ func CapabilityMatrix() string {
 
 	capabilities := []Capability{
 		AntiAliasing, SubPixel, GradientFill, PathClip,
-		GPUAccel, Threading, VectorOutput, TextShaping, FontHinting,
+		GPUAccel, Threading,
+		DPIAware, VectorOutput, TextShaping, FontHinting,
+		TextBounds, TextPathing, RotatedText, VerticalText,
+		ImageTransform, NativeHatcher, PNGExport, SVGExport,
+		MarkerBatch, PathCollectionBatch, QuadMeshBatch, GouraudTriangleBatch,
 	}
 
 	result := fmt.Sprintf("%-12s", "Backend")

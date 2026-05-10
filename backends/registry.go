@@ -37,9 +37,18 @@ const (
 	Threading Capability = "threading"
 
 	// Output capabilities
+	DPIAware   Capability = "dpiaware"
 	VectorOutput Capability = "vectoroutput"
 	TextShaping  Capability = "textshaping"
 	FontHinting  Capability = "fonthinting"
+	TextBounds   Capability = "textbounds"
+	TextPathing  Capability = "textpathing"
+	RotatedText  Capability = "rotatedtext"
+	VerticalText Capability = "verticaltext"
+	ImageTransform Capability = "imagetransform"
+	NativeHatcher  Capability = "nativehatcher"
+	PNGExport      Capability = "pngexport"
+	SVGExport      Capability = "svgexport"
 
 	// Batch drawing capabilities
 	MarkerBatch          Capability = "markerbatch"
@@ -60,6 +69,10 @@ const (
 
 // capabilityRuntimeChecks ties selected capabilities to concrete renderer interfaces.
 var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
+	DPIAware: func(r render.Renderer) bool {
+		_, ok := r.(render.DPIAware)
+		return ok
+	},
 	TextShaping: func(r render.Renderer) bool {
 		_, ok := r.(render.TextDrawer)
 		return ok
@@ -73,12 +86,44 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 		_, hasSVG := r.(render.SVGExporter)
 		return hasPNG || hasSVG
 	},
+	PNGExport: func(r render.Renderer) bool {
+		_, ok := r.(render.PNGExporter)
+		return ok
+	},
+	SVGExport: func(r render.Renderer) bool {
+		_, ok := r.(render.SVGExporter)
+		return ok
+	},
+	TextBounds: func(r render.Renderer) bool {
+		_, ok := r.(render.TextBounder)
+		return ok
+	},
+	TextPathing: func(r render.Renderer) bool {
+		_, ok := r.(render.TextPather)
+		return ok
+	},
+	RotatedText: func(r render.Renderer) bool {
+		_, ok := r.(render.RotatedTextDrawer)
+		return ok
+	},
+	VerticalText: func(r render.Renderer) bool {
+		_, ok := r.(render.VerticalTextDrawer)
+		return ok
+	},
+	ImageTransform: func(r render.Renderer) bool {
+		_, ok := r.(render.ImageTransformer)
+		return ok
+	},
 	MarkerBatch: func(r render.Renderer) bool {
 		_, ok := r.(render.MarkerDrawer)
 		return ok
 	},
 	PathCollectionBatch: func(r render.Renderer) bool {
 		_, ok := r.(render.PathCollectionDrawer)
+		return ok
+	},
+	NativeHatcher: func(r render.Renderer) bool {
+		_, ok := r.(render.NativeHatcher)
 		return ok
 	},
 	QuadMeshBatch: func(r render.Renderer) bool {
