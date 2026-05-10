@@ -574,17 +574,17 @@ func TestAnnotateRespectsConfiguredCoordinateSpaces(t *testing.T) {
 	ax.ShowFrame = false
 
 	ax.Annotate("data", 0.25, 0.75, AnnotationOptions{
-		Coords: Coords(CoordData),
+		Coords:  Coords(CoordData),
 		OffsetX: 10,
 		OffsetY: -15,
 	})
 	ax.Annotate("axes", 0.5, 0.5, AnnotationOptions{
-		Coords: Coords(CoordAxes),
+		Coords:  Coords(CoordAxes),
 		OffsetX: -12,
 		OffsetY: 6,
 	})
 	ax.Annotate("figure", 0.2, 0.3, AnnotationOptions{
-		Coords: Coords(CoordFigure),
+		Coords:  Coords(CoordFigure),
 		OffsetX: 7,
 		OffsetY: 4,
 	})

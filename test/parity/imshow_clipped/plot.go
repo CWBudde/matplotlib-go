@@ -1,11 +1,11 @@
 package imshow_clipped
 
 import (
-	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"image"
 
 	"github.com/cwbudde/matplotlib-go/core"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
 func Render() image.Image {

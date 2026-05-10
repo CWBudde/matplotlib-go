@@ -2,7 +2,6 @@ package core
 
 import (
 	"math"
-
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"

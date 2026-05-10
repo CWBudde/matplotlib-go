@@ -1,8 +1,9 @@
 package bar_basic_ticks
 
 import (
-	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"image"
+
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
 func Render() image.Image {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
 	example_annotation_composition "github.com/cwbudde/matplotlib-go/test/parity/annotation_composition"
 	example_arrays_showcase "github.com/cwbudde/matplotlib-go/test/parity/arrays_showcase"
 	example_axes_control_surface "github.com/cwbudde/matplotlib-go/test/parity/axes_control_surface"
@@ -98,7 +99,6 @@ import (
 	example_units_overview "github.com/cwbudde/matplotlib-go/test/parity/units_overview"
 	example_unstructured_showcase "github.com/cwbudde/matplotlib-go/test/parity/unstructured_showcase"
 	example_vector_fields "github.com/cwbudde/matplotlib-go/test/parity/vector_fields"
-	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
 )
 
 // Case describes a runnable Go/Python parity example.

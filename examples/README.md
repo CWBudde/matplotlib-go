@@ -14,7 +14,7 @@ to inspect canonical case IDs, or `python3 test/parity/run.py --list` for
 the Python side.
 
 Renderer/backend stress fixtures (`FixtureOnly: true` in
-`internal/examplecatalog`) are deliberately *not* surfaced as user-facing
+`internal/examplecatalog`) are deliberately _not_ surfaced as user-facing
 showcase examples — their bodies live only under `test/parity/<id>/plot.go`.
 
 A few legacy topic-named directories (`examples/lines/`, `examples/scatter/`,

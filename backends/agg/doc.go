@@ -17,11 +17,11 @@
 // - PNG export
 // - `copy_from_bbox` / `restore_region` equivalent (`CopyFromBBox` / `RestoreRegion`)
 // - `start_filter` / `stop_filter` equivalent (`StartFilter` / `StopFilter`)
-// 
+//
 // Intentionally unsupported for now
-// - Full upstream `draw_mathtext` / `draw_tex` pipeline parity; MatplotlibTeX/MathText
-//   glyph shaping is handled by existing native text fallback plumbing where used.
-// - Raw pixel-readback helpers (`buffer_rgba`, `tostring_argb`).
+//   - Full upstream `draw_mathtext` / `draw_tex` pipeline parity; MatplotlibTeX/MathText
+//     glyph shaping is handled by existing native text fallback plumbing where used.
+//   - Raw pixel-readback helpers (`buffer_rgba`, `tostring_argb`).
 //
 // These intentional gaps should be revisited as part of ongoing 14.1 sub-tasks.
 package agg

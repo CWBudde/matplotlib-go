@@ -4,8 +4,8 @@ import (
 	"image"
 
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
 func Render() image.Image {

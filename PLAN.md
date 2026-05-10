@@ -719,6 +719,7 @@ Current slice landed:
   - [ ] parity tests for rotated TeX, boxes/rules, and font/package coordination
 
 Latest text-parity note:
+
 - AGG now prefers the vendored Matplotlib `DejaVuSans.ttf` when present and draws unrotated raster text as individual glyph bitmap submissions instead of one packed run image.
 - The root cause of the `bar_basic_title` fixed-baseline text mismatch was Matplotlib's legacy `text.hinting_factor=8`, not the FreeType library version by itself. The diagnostic now proves native FreeType at factor 1 matches Matplotlib factor 1 byte-for-byte, and native FreeType at factor 8 matches Matplotlib default factor 8 byte-for-byte for `"Basic Bars"`.
 - Under `-tags freetype`, AGG now measures bounds/width and draws unrotated raster text through a native FreeType run that mirrors Matplotlib's horizontal hinting-factor transform. The run bbox intentionally includes empty glyph CBoxes such as spaces, while rasterization only composites non-empty glyph bitmaps; this matches Matplotlib's FT2Font bitmap offset behavior for strings like `"Basic Bars"` without breaking trailing/internal spaces.

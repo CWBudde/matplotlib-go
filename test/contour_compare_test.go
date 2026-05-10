@@ -159,7 +159,9 @@ func TestContourHorizontalBands(t *testing.T) {
 	// Scan the middle subplot in 50-row bands, at the strict 19% threshold
 	for y := 83; y < 458; y += 50 {
 		yEnd := y + 50
-		if yEnd > 458 { yEnd = 458 }
+		if yEnd > 458 {
+			yEnd = 458
+		}
 		goCount := countDarkPixels(golden, 488, 832, y, yEnd, 0x3000)
 		refCount := countDarkPixels(ref, 488, 832, y, yEnd, 0x3000)
 		t.Logf("y=%d..%d: Go=%d, Ref=%d, ratio=%.2f", y, yEnd, goCount, refCount, float64(goCount)/float64(refCount+1))

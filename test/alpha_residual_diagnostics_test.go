@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cwbudde/matplotlib-go/test/parity"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
+	"github.com/cwbudde/matplotlib-go/test/parity"
 )
 
 type alphaResidualCase struct {

@@ -1,12 +1,12 @@
 package mplot3d_voxels
 
 import (
-	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"image"
 
 	"github.com/cwbudde/matplotlib-go/backends/agg"
 	"github.com/cwbudde/matplotlib-go/core"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 

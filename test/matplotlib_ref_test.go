@@ -23,8 +23,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/cwbudde/matplotlib-go/test/parity"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
+	"github.com/cwbudde/matplotlib-go/test/parity"
 )
 
 var updateMatplotlib = flag.Bool("update-matplotlib", false,
@@ -211,6 +211,7 @@ func TestMpl_BoxPlotBasic(t *testing.T)   { runMplTest(t, "boxplot_basic") }
 func TestMpl_Phase12SpecialtyDepth(t *testing.T) {
 	runMplTest(t, "phase12_specialty_depth")
 }
+
 func TestMpl_AxesTopRightInverted(t *testing.T) {
 	runMplTest(t, "axes_top_right_inverted")
 }
@@ -330,6 +331,7 @@ func TestMpl_ImageHeatmap(t *testing.T) { runMplTest(t, "image_heatmap") }
 func TestMpl_ImshowClipped(t *testing.T) {
 	runMplTest(t, "imshow_clipped")
 }
+
 func TestMpl_ImshowTransformed(t *testing.T) {
 	runMplTest(t, "imshow_transformed")
 }

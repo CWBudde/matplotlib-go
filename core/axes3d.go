@@ -2224,8 +2224,14 @@ func (a *Axes3D) projectBar3DShadedFaces(x, y, z, dx, dy, dz []float64, baseColo
 			z0, z1 = z1, z0
 		}
 		corners := [8][3]float64{
-			{x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0},
-			{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1},
+			{x0, y0, z0},
+			{x1, y0, z0},
+			{x1, y1, z0},
+			{x0, y1, z0},
+			{x0, y0, z1},
+			{x1, y0, z1},
+			{x1, y1, z1},
+			{x0, y1, z1},
 		}
 		faceIndices := [][4]int{
 			{0, 1, 2, 3},
@@ -2317,9 +2323,18 @@ func (a *Axes3D) frameSegmentsProjected(mins, maxs, projMins, projMaxs, tickMins
 	}
 
 	edges := [][2][3]int{
-		{{0, 0, 0}, {1, 0, 0}}, {{1, 0, 0}, {1, 1, 0}}, {{1, 1, 0}, {0, 1, 0}}, {{0, 1, 0}, {0, 0, 0}},
-		{{0, 0, 1}, {1, 0, 1}}, {{1, 0, 1}, {1, 1, 1}}, {{1, 1, 1}, {0, 1, 1}}, {{0, 1, 1}, {0, 0, 1}},
-		{{0, 0, 0}, {0, 0, 1}}, {{1, 0, 0}, {1, 0, 1}}, {{1, 1, 0}, {1, 1, 1}}, {{0, 1, 0}, {0, 1, 1}},
+		{{0, 0, 0}, {1, 0, 0}},
+		{{1, 0, 0}, {1, 1, 0}},
+		{{1, 1, 0}, {0, 1, 0}},
+		{{0, 1, 0}, {0, 0, 0}},
+		{{0, 0, 1}, {1, 0, 1}},
+		{{1, 0, 1}, {1, 1, 1}},
+		{{1, 1, 1}, {0, 1, 1}},
+		{{0, 1, 1}, {0, 0, 1}},
+		{{0, 0, 0}, {0, 0, 1}},
+		{{1, 0, 0}, {1, 0, 1}},
+		{{1, 1, 0}, {1, 1, 1}},
+		{{0, 1, 0}, {0, 1, 1}},
 	}
 	segments := make([][]geom.Pt, 0, len(edges)+18)
 	for _, edge := range edges {
@@ -2499,9 +2514,12 @@ func (a *Axes3D) activePaneHighs(mins, maxs vec3) [3]bool {
 
 func (a *Axes3D) activePaneHighsProjected(mins, maxs, projMins, projMaxs vec3) [3]bool {
 	planes := [6][4]int{
-		{0, 3, 7, 4}, {1, 2, 6, 5},
-		{0, 1, 5, 4}, {3, 2, 6, 7},
-		{0, 1, 2, 3}, {4, 5, 6, 7},
+		{0, 3, 7, 4},
+		{1, 2, 6, 5},
+		{0, 1, 5, 4},
+		{3, 2, 6, 7},
+		{0, 1, 2, 3},
+		{4, 5, 6, 7},
 	}
 	corners := [8]vec3{
 		{mins[0], mins[1], mins[2]},
@@ -2635,8 +2653,14 @@ func (a *Axes3D) bar3DCollectionZ(x, y, z, dx, dy, dz []float64) float64 {
 		y0, y1 := y[i], y[i]+dy[i]
 		z0, z1 := z[i], z[i]+dz[i]
 		corners := [8][3]float64{
-			{x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0},
-			{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1},
+			{x0, y0, z0},
+			{x1, y0, z0},
+			{x1, y1, z0},
+			{x0, y1, z0},
+			{x0, y0, z1},
+			{x1, y0, z1},
+			{x1, y1, z1},
+			{x0, y1, z1},
 		}
 		for _, corner := range corners {
 			if !isFinite3D(corner[0], corner[1], corner[2]) {

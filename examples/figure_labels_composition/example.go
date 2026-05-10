@@ -2,12 +2,12 @@ package figure_labels_composition
 
 import (
 	"fmt"
-	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"image"
 	"math"
 
 	"github.com/cwbudde/matplotlib-go/backends/agg"
 	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 

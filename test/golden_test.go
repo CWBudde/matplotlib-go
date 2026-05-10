@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/test/parity"
 	"github.com/cwbudde/matplotlib-go/render"
 	"github.com/cwbudde/matplotlib-go/style"
 	"github.com/cwbudde/matplotlib-go/test/imagecmp"
+	"github.com/cwbudde/matplotlib-go/test/parity"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "Update golden images instead of comparing")

@@ -1,10 +1,10 @@
 package hist2d_weighted_density
 
 import (
-	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 	"image"
 
 	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
 func Render() image.Image {
