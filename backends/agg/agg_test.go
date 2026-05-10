@@ -85,6 +85,107 @@ func TestSaveRestore(t *testing.T) {
 	_ = r.End()
 }
 
+func TestCopyFromBBoxAndRestoreRegion(t *testing.T) {
+	r := mustNew(t, 80, 80)
+	viewport := geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 80, Y: 80}}
+	_ = r.Begin(viewport)
+
+	var redRect geom.Path
+	redRect.MoveTo(geom.Pt{X: 10, Y: 10})
+	redRect.LineTo(geom.Pt{X: 40, Y: 10})
+	redRect.LineTo(geom.Pt{X: 40, Y: 40})
+	redRect.LineTo(geom.Pt{X: 10, Y: 40})
+	redRect.Close()
+
+	r.Path(redRect, &render.Paint{Fill: render.Color{R: 1, A: 1}})
+
+	region := r.CopyFromBBox(geom.Rect{Min: geom.Pt{X: 10, Y: 10}, Max: geom.Pt{X: 40, Y: 40}})
+	if region == nil || region.Image == nil {
+		t.Fatal("CopyFromBBox returned nil")
+	}
+
+	r.Path(fullRectPath(80, 80), &render.Paint{Fill: render.Color{B: 1, A: 1}})
+	r.RestoreRegion(region, nil, geom.Pt{})
+	_ = r.End()
+
+	if got := r.GetImage().RGBAAt(20, 20); got != (color.RGBA{R: 255, G: 0, B: 0, A: 255}) {
+		t.Fatalf("expected restored center pixel to be red, got %+v", got)
+	}
+	if got := r.GetImage().RGBAAt(5, 5); got != (color.RGBA{R: 0, G: 0, B: 255, A: 255}) {
+		t.Fatalf("expected untouched pixel outside region to stay blue, got %+v", got)
+	}
+}
+
+func TestRestoreRegionWithBBoxAndOffset(t *testing.T) {
+	r := mustNew(t, 90, 90)
+	viewport := geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 90, Y: 90}}
+	_ = r.Begin(viewport)
+
+	var srcRect geom.Path
+	srcRect.MoveTo(geom.Pt{X: 10, Y: 10})
+	srcRect.LineTo(geom.Pt{X: 30, Y: 10})
+	srcRect.LineTo(geom.Pt{X: 30, Y: 30})
+	srcRect.LineTo(geom.Pt{X: 10, Y: 30})
+	srcRect.Close()
+
+	r.Path(srcRect, &render.Paint{Fill: render.Color{R: 1, A: 1}})
+
+	region := r.CopyFromBBox(geom.Rect{Min: geom.Pt{X: 10, Y: 10}, Max: geom.Pt{X: 30, Y: 30}})
+	if region == nil || region.Image == nil {
+		t.Fatal("CopyFromBBox returned nil")
+	}
+
+	r.Path(fullRectPath(90, 90), &render.Paint{Fill: render.Color{B: 1, A: 1}})
+	r.RestoreRegion(region, &geom.Rect{
+		Min: geom.Pt{X: 0, Y: 0},
+		Max: geom.Pt{X: 10, Y: 10},
+	}, geom.Pt{X: 20, Y: 20})
+	_ = r.End()
+
+	if got := r.GetImage().RGBAAt(35, 35); got != (color.RGBA{R: 255, G: 0, B: 0, A: 255}) {
+		t.Fatalf("expected partial restored pixel to be red, got %+v", got)
+	}
+	if got := r.GetImage().RGBAAt(5, 5); got != (color.RGBA{R: 0, G: 0, B: 255, A: 255}) {
+		t.Fatalf("expected non-restored pixel to remain blue, got %+v", got)
+	}
+}
+
+func TestFilterStackStartStop(t *testing.T) {
+	r := mustNew(t, 60, 60)
+	_ = r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 60, Y: 60}})
+	r.Path(fullRectPath(60, 60), &render.Paint{Fill: render.Color{G: 1, A: 1}})
+
+	r.StartFilter()
+	r.Path(fullRectPath(30, 30), &render.Paint{Fill: render.Color{R: 1, A: 1}})
+	r.StopFilter(func(img *image.RGBA, _ float64) (*image.RGBA, geom.Pt) {
+		out := &image.RGBA{
+			Pix:    append([]uint8(nil), img.Pix...),
+			Stride: img.Stride,
+			Rect:   img.Rect,
+		}
+		for y := 0; y < out.Bounds().Dy(); y++ {
+			for x := 0; x < out.Bounds().Dx(); x++ {
+				off := out.PixOffset(x, y)
+				if out.Pix[off+3] == 0 {
+					continue
+				}
+				out.Pix[off+0] = 0
+				out.Pix[off+1] = 0
+				out.Pix[off+2] = 255
+			}
+		}
+		return out, geom.Pt{X: 5, Y: 5}
+	})
+	_ = r.End()
+
+	if got := r.GetImage().RGBAAt(15, 15); got != (color.RGBA{R: 0, G: 0, B: 255, A: 255}) {
+		t.Fatalf("expected filtered-stop pixel to be blue, got %+v", got)
+	}
+	if got := r.GetImage().RGBAAt(2, 2); got != (color.RGBA{R: 0, G: 255, B: 0, A: 255}) {
+		t.Fatalf("expected base green pixel to remain, got %+v", got)
+	}
+}
+
 func TestClipPathMasksPathDrawing(t *testing.T) {
 	r := mustNew(t, 100, 100)
 	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}}
