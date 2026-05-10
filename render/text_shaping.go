@@ -96,6 +96,7 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 	var (
 		shaped        ShapedText
 		penX          = origin.X
+		kernEnabled   = openTypeFeatureEnabled(opts, "kern", true)
 		haveBounds    bool
 		minX, minY    float64
 		maxX, maxY    float64
@@ -150,7 +151,7 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 
 		for _, inputGlyph := range inputGlyphs {
 			kern := 0.0
-			if havePrevious && previousFace == faceKey {
+			if kernEnabled && havePrevious && previousFace == faceKey {
 				if k, err := fontData.Kern(&buf, previous, inputGlyph.GlyphIndex, ppem, font.HintingNone); err == nil {
 					kern = fixedToFloat(k)
 					penX += kern

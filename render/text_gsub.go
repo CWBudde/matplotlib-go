@@ -111,24 +111,23 @@ func compatibilityLigatureRune(glyphs []shapingGlyph) (rune, bool) {
 }
 
 func enabledLigatureFeatureTags(opts TextShapingOptions) []string {
-	enabled := map[string]bool{
-		"liga": true,
-		"clig": true,
-	}
-	for _, feature := range opts.Features {
-		tag := normalizeOpenTypeTag(feature.Tag)
-		if tag == "" {
-			continue
-		}
-		enabled[tag] = feature.Value != 0
-	}
 	var tags []string
 	for _, tag := range []string{"liga", "clig"} {
-		if enabled[tag] {
+		if openTypeFeatureEnabled(opts, tag, true) {
 			tags = append(tags, tag)
 		}
 	}
 	return tags
+}
+
+func openTypeFeatureEnabled(opts TextShapingOptions, tag string, defaultValue bool) bool {
+	enabled := defaultValue
+	for _, feature := range opts.Features {
+		if normalizeOpenTypeTag(feature.Tag) == tag {
+			enabled = feature.Value != 0
+		}
+	}
+	return enabled
 }
 
 func normalizeOpenTypeTag(tag string) string {

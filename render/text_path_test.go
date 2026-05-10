@@ -115,6 +115,32 @@ func TestShapeTextAppliesAndDisablesStandardLigatures(t *testing.T) {
 	}
 }
 
+func TestShapeTextHonorsKernFeatureDisable(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	kerned, ok := ShapeText("Te", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(kerned.Glyphs) != 2 {
+		t.Fatalf("kerned ShapeText = %+v, %v; want two glyphs", kerned, ok)
+	}
+	withoutKern, ok := ShapeText("Te", geom.Pt{}, 72, TextShapingOptions{
+		FontKey:  "DejaVu Sans",
+		Features: []TextFeature{{Tag: "kern", Value: 0}},
+	})
+	if !ok || len(withoutKern.Glyphs) != 2 {
+		t.Fatalf("kern=0 ShapeText = %+v, %v; want two glyphs", withoutKern, ok)
+	}
+
+	if kerned.Glyphs[1].Kern >= 0 {
+		t.Fatalf("default shaping should apply negative kerning for Te: %+v", kerned.Glyphs)
+	}
+	if withoutKern.Glyphs[1].Kern != 0 {
+		t.Fatalf("kern=0 should disable kerning, got %+v", withoutKern.Glyphs)
+	}
+	if withoutKern.Glyphs[1].Origin.X <= kerned.Glyphs[1].Origin.X {
+		t.Fatalf("kern=0 should move second glyph right: kerned=%+v without=%+v", kerned.Glyphs, withoutKern.Glyphs)
+	}
+}
+
 func TestTextPathBoundsUseSharedGlyphLayout(t *testing.T) {
 	withDejaVuFontManager(t)
 

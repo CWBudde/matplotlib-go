@@ -27,7 +27,7 @@ const (
 	goldenUpdateBuildTag               = "freetype"
 	goldenUpdateOptionalVisualTestsEnv = "RUN_OPTIONAL_VISUAL_TESTS"
 	rerenderAllButtonPlaceholder       = "__RERENDER_ALL_BUTTON__"
-	goldenUpdateRunPatternAll          = "^Test.*_Golden$"
+	goldenUpdateRunPatternAll          = "^TestGolden$"
 	goldenUpdateTimeout                = 5 * time.Minute
 )
 
@@ -299,19 +299,7 @@ func setEnv(env []string, key, value string) []string {
 }
 
 func testNameFromCaseName(name string) string {
-	parts := strings.Split(name, "_")
-	var b strings.Builder
-	for _, p := range parts {
-		if p == "" {
-			continue
-		}
-		p = strings.ToLower(p)
-		b.WriteString(strings.ToUpper(p[:1]))
-		if len(p) > 1 {
-			b.WriteString(p[1:])
-		}
-	}
-	return "Test" + b.String() + "_Golden"
+	return "^TestGolden/" + name + "$"
 }
 
 func loadCasesUnified(useParity, includeWebdemo bool, parityDir, baselineDir, artifactDir, webBaselineDir, webArtifactDir, nameFilter, namePrefix string) (loadResult, error) {

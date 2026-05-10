@@ -3060,6 +3060,18 @@ func (a *Axes3D) Voxels(filled [][][]bool, opts ...VoxelOptions) map[[3]int]*Pol
 	if opt.Alpha != nil && *opt.Alpha >= 0 && *opt.Alpha <= 1 {
 		alpha = *opt.Alpha
 	}
+	// Resolve the default face color once here so the reprojector closure
+	// does not re-call NextPatchColor() and advance the color cycle.
+	if opt.FaceColor == nil {
+		faceColor := a.NextPatchColor()
+		opt.FaceColor = &faceColor
+	}
+	// Default edge width matches matplotlib's patch.linewidth (1.0) when an
+	// edge color is configured; without a positive width the edges are invisible.
+	edgeWidth := 0.0
+	if opt.EdgeColor != nil && opt.EdgeColor.A > 0 {
+		edgeWidth = 1.0
+	}
 	limitsChanged := a.observe3DVoxels(filled)
 	projected := a.projectVoxelCollections(filled, opt, alpha)
 	if len(projected) == 0 {
@@ -3074,6 +3086,7 @@ func (a *Axes3D) Voxels(filled [][][]bool, opts ...VoxelOptions) map[[3]int]*Pol
 				Collection: Collection{Coords: Coords(CoordData), Label: opt.Label, Alpha: 1, z: voxel.zorder},
 				FaceColors: voxel.faceColors,
 				EdgeColor:  voxel.edgeColor,
+				EdgeWidth:  edgeWidth,
 				LineJoin:   render.JoinMiter,
 				LineCap:    render.CapButt,
 			},
@@ -3091,6 +3104,7 @@ func (a *Axes3D) Voxels(filled [][][]bool, opts ...VoxelOptions) map[[3]int]*Pol
 			collection.Polygons = voxel.polygons
 			collection.FaceColors = voxel.faceColors
 			collection.EdgeColor = voxel.edgeColor
+			collection.EdgeWidth = edgeWidth
 			collection.z = voxel.zorder
 		}
 	}, limitsChanged)
