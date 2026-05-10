@@ -154,7 +154,7 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 	layouts := make([]singleLineTextLayout, len(lines))
 	fontSize := resolvedFontSize(a.FontSize, ctx)
 	for i, line := range lines {
-		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
+		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 	}
 
 	boxLayout := a.layout(r, ctx, layouts, fontSize)
@@ -195,6 +195,7 @@ func (a *AnchoredTextBox) Draw(r render.Renderer, ctx *DrawContext) {
 			fontSize,
 			resolvedTextColor(a.TextColor, ctx),
 			ctx.RC.FontKey,
+			ctx.RC.UseTeX,
 		)
 		y += a.lineAdvance(fontSize, ctx)
 	}
@@ -227,7 +228,7 @@ func (a *AnchoredTextBox) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rec
 	fontSize := resolvedFontSize(a.FontSize, ctx)
 	layouts := make([]singleLineTextLayout, len(lines))
 	for i, line := range lines {
-		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey)
+		layouts[i] = measureSingleLineTextLayout(r, line, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 	}
 
 	return a.layout(r, ctx, layouts, fontSize).patchBox, true

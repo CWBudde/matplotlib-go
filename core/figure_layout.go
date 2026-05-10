@@ -130,7 +130,7 @@ func titleTopExtent(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect)
 		}
 	}
 	if ax.XLabel != "" && ax.effectiveXLabelSide() == AxisTop {
-		layout := measureSingleLineTextLayout(r, ax.XLabel, axisLabelFontSize(ctx), ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, ax.XLabel, axisLabelFontSize(ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 		anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, AxisTop, figureTextAlignment{})
 		if bounds, ok := textInkRect(alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign), layout); ok {
 			extent = math.Min(extent, bounds.Min.Y)
@@ -219,13 +219,13 @@ func initialFigureArtistStackOffsets(fig *Figure, r render.Renderer, ctx *DrawCo
 	}
 	pad := pointsToPixels(ctx.RC, 4)
 	if fig.SupTitle != "" {
-		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleFontSize(ctx), ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleFontSize(ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 		offset := layout.Height + pad
 		offsets[LegendUpperLeft] = offset
 		offsets[LegendUpperRight] = offset
 	}
 	if fig.SupXLabel != "" {
-		layout := measureSingleLineTextLayout(r, fig.SupXLabel, axisLabelFontSize(ctx), ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, fig.SupXLabel, axisLabelFontSize(ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 		offset := layout.Height + pad
 		offsets[LegendLowerLeft] = offset
 		offsets[LegendLowerRight] = offset
@@ -287,7 +287,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 	centerY := figureRect.Min.Y + figureRect.H()/2
 
 	if fig.SupTitle != "" {
-		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleSize, fig.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleSize, fig.RC.FontKey, fig.RC.UseTeX)
 		anchor := geom.Pt{
 			X: centerX,
 			Y: figureRect.Min.Y,
@@ -299,11 +299,12 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 			titleSize,
 			titleColor,
 			fig.RC.FontKey,
+			fig.RC.UseTeX,
 		)
 	}
 
 	if fig.SupXLabel != "" {
-		layout := measureSingleLineTextLayout(r, fig.SupXLabel, labelSize, fig.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, fig.SupXLabel, labelSize, fig.RC.FontKey, fig.RC.UseTeX)
 		anchor := geom.Pt{
 			X: centerX,
 			Y: figureRect.Max.Y - pointsToPixels(fig.RC, 4),
@@ -315,11 +316,12 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 			labelSize,
 			labelColor,
 			fig.RC.FontKey,
+			fig.RC.UseTeX,
 		)
 	}
 
 	if fig.SupYLabel != "" {
-		layout := measureSingleLineTextLayout(r, fig.SupYLabel, labelSize, fig.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, fig.SupYLabel, labelSize, fig.RC.FontKey, fig.RC.UseTeX)
 		leftPad := pointsToPixels(fig.RC, 4)
 		anchor := geom.Pt{
 			X: figureRect.Min.X + leftPad + layout.Height,
@@ -338,6 +340,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 				labelSize,
 				labelColor,
 				fig.RC.FontKey,
+				fig.RC.UseTeX,
 			)
 		}
 	}

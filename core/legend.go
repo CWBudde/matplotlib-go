@@ -171,7 +171,7 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 	rowHeights := make([]float64, len(entries))
 	labelLayouts := make([]singleLineTextLayout, len(entries))
 	for i, entry := range entries {
-		layout := measureSingleLineTextLayout(r, entry.Label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, entry.Label, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 		labelLayouts[i] = layout
 		if layout.Width > maxLabelWidth {
 			maxLabelWidth = layout.Width
@@ -226,6 +226,7 @@ func (l *Legend) Draw(r render.Renderer, ctx *DrawContext) {
 			fontSize,
 			l.TextColor,
 			ctx.RC.FontKey,
+			ctx.RC.UseTeX,
 		)
 
 		y += rowHeight + l.RowGap
@@ -274,7 +275,7 @@ func (l *Legend) boxRect(r render.Renderer, ctx *DrawContext) (geom.Rect, bool) 
 	maxLabelWidth := 0.0
 	contentHeight := 0.0
 	for _, entry := range entries {
-		layout := measureSingleLineTextLayout(r, entry.Label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, entry.Label, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 		if layout.Width > maxLabelWidth {
 			maxLabelWidth = layout.Width
 		}

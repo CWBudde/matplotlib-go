@@ -2003,12 +2003,12 @@ func (t *Table) Draw(r render.Renderer, ctx *DrawContext) {
 				continue
 			}
 			anchor := transformedPoint(ctx, t.Coords, tableTextAnchor(cell.Rect, cell.HAlign), 0, 0)
-			layout := measureSingleLineTextLayout(r, text, t.FontSize, ctx.RC.FontKey)
+			layout := measureSingleLineTextLayout(r, text, t.FontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 			color := t.TextColor
 			if cell.IsHeader {
 				color = t.HeaderTextColor
 			}
-			drawDisplayText(textRen, text, alignedSingleLineOrigin(anchor, layout, cell.HAlign, textLayoutVAlignCenter), t.FontSize, color, ctx.RC.FontKey)
+			drawDisplayText(textRen, text, alignedSingleLineOrigin(anchor, layout, cell.HAlign, textLayoutVAlignCenter), t.FontSize, color, ctx.RC.FontKey, ctx.RC.UseTeX)
 		}
 	}
 }

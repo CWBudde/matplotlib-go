@@ -262,7 +262,7 @@ func titleBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, al
 	if ax == nil || ax.Title == "" {
 		return geom.Rect{}, false
 	}
-	layout := measureSingleLineTextLayout(r, ax.Title, titleFontSize(ctx), ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, ax.Title, titleFontSize(ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 	return textInkRect(alignedSingleLineOrigin(titleAnchorPoint(ax, r, ctx, px, alignment), layout, TextAlignCenter, textLayoutVAlignBaseline), layout)
 }
 
@@ -272,7 +272,7 @@ func xLabelBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, a
 	}
 	side := ax.effectiveXLabelSide()
 	size := axisLabelFontSize(ctx)
-	layout := measureSingleLineTextLayout(r, ax.XLabel, size, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, ax.XLabel, size, ctx.RC.FontKey, ctx.RC.UseTeX)
 	anchor, vAlign := xLabelAnchorPoint(ax, r, ctx, px, side, alignment)
 	return alignedTextLayoutRect(anchor, layout, TextAlignCenter, vAlign, pointsToPixels(ctx.RC, size))
 }
@@ -283,7 +283,7 @@ func yLabelBounds(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect, a
 	}
 	side := ax.effectiveYLabelSide()
 	size := axisLabelFontSize(ctx)
-	layout := measureSingleLineTextLayout(r, ax.YLabel, size, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, ax.YLabel, size, ctx.RC.FontKey, ctx.RC.UseTeX)
 	lineHeight := pointsToPixels(ctx.RC, size)
 	anchor := yLabelAnchorPoint(ax, r, ctx, px, side, alignment)
 	centerY := px.Min.Y + px.H()/2
@@ -308,15 +308,15 @@ func figureLabelMarginsPx(fig *Figure, r render.Renderer, vp geom.Rect, engine L
 
 	ctx := newFigureDrawContext(fig, vp)
 	if fig.SupTitle != "" {
-		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleFontSize(ctx), fig.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, fig.SupTitle, titleFontSize(ctx), fig.RC.FontKey, fig.RC.UseTeX)
 		margins.top += layout.Height + pad
 	}
 	if fig.SupXLabel != "" {
-		layout := measureSingleLineTextLayout(r, fig.SupXLabel, axisLabelFontSize(ctx), fig.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, fig.SupXLabel, axisLabelFontSize(ctx), fig.RC.FontKey, fig.RC.UseTeX)
 		margins.bottom += layout.Height + pad
 	}
 	if fig.SupYLabel != "" {
-		layout := measureSingleLineTextLayout(r, fig.SupYLabel, axisLabelFontSize(ctx), fig.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, fig.SupYLabel, axisLabelFontSize(ctx), fig.RC.FontKey, fig.RC.UseTeX)
 		margins.left += layout.Height + 2*pad
 	}
 	return margins

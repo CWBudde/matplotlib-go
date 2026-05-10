@@ -125,15 +125,15 @@ func (c *ContourSet) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 		}
 
 		if rotated, ok := r.(render.RotatedTextDrawer); ok {
-			layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey)
+			layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 			anchor := contourRotatedTextAnchor(displayPt, layout, label.Angle)
 			drawDisplayTextRotated(rotated, text, anchor, fontSize, label.Angle, color, ctx.RC.FontKey)
 			continue
 		}
 
-		layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 		origin := alignedSingleLineOrigin(displayPt, layout, TextAlignCenter, textLayoutVAlignCenter)
-		drawDisplayText(textRen, text, origin, fontSize, color, ctx.RC.FontKey)
+		drawDisplayText(textRen, text, origin, fontSize, color, ctx.RC.FontKey, ctx.RC.UseTeX)
 	}
 }
 
@@ -1056,10 +1056,12 @@ func contourInlineLabelSegments(lines *LineCollection, levels []float64, formatt
 
 func contourLabelWidth(text string, fontSize float64, r render.Renderer, ctx *DrawContext) float64 {
 	fontKey := ""
+	useTeX := false
 	if ctx != nil {
 		fontKey = ctx.RC.FontKey
+		useTeX = ctx.RC.UseTeX
 	}
-	layout := measureSingleLineTextLayout(r, text, fontSize, fontKey)
+	layout := measureSingleLineTextLayout(r, text, fontSize, fontKey, useTeX)
 	if layout.Width > 0 {
 		return layout.Width
 	}

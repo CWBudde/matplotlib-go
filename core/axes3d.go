@@ -2830,9 +2830,9 @@ func draw3DTextAtAnchorAligned(textRen render.TextDrawer, r render.Renderer, ctx
 	if label == "" {
 		return
 	}
-	layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 	origin := alignedSingleLineOrigin(anchor, layout, TextAlignCenter, vAlign)
-	drawDisplayText(textRen, label, origin, fontSize, textColor, ctx.RC.FontKey)
+	drawDisplayText(textRen, label, origin, fontSize, textColor, ctx.RC.FontKey, ctx.RC.UseTeX)
 }
 
 func frameAxisTicks(minVal, maxVal float64) []float64 {

@@ -239,12 +239,12 @@ func (a *Axis) drawGeoTickLabels(r render.Renderer, ctx *DrawContext) {
 		if label == "" {
 			continue
 		}
-		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 		origin, ok := geoTickLabelOrigin(a, ctx, tick, layout)
 		if !ok {
 			continue
 		}
-		drawDisplayText(textRen, label, origin, fontSize, a.Color, ctx.RC.FontKey)
+		drawDisplayText(textRen, label, origin, fontSize, a.Color, ctx.RC.FontKey, ctx.RC.UseTeX)
 	}
 }
 
@@ -266,7 +266,7 @@ func (a *Axis) geoTickLabelBounds(r render.Renderer, ctx *DrawContext) (geom.Rec
 		if label == "" {
 			continue
 		}
-		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 		origin, ok := geoTickLabelOrigin(a, ctx, tick, layout)
 		if !ok {
 			continue

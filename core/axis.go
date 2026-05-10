@@ -543,7 +543,7 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 			continue
 		}
 
-		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey, ctx.RC.UseTeX)
 
 		labelPos, ok := tickLabelOrigin(a, ctx, tickValue, layout, labelPadPx, style, isXAxis)
 		if !ok {
@@ -557,7 +557,7 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 			continue
 		}
 
-		drawDisplayText(textRen, label, labelPos, fontSize, a.Color, fontKey)
+		drawDisplayText(textRen, label, labelPos, fontSize, a.Color, fontKey, ctx.RC.UseTeX)
 	}
 }
 
@@ -1037,11 +1037,11 @@ func (a *Axis) drawPolarThetaTickLabels(textRen render.TextDrawer, r render.Rend
 		if label == "" {
 			continue
 		}
-		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey, ctx.RC.UseTeX)
 		angle := polarAngleForTheta(ctx.Projection, ctx.DataToPixel.XScale, tick)
 		anchor := polarPixelPoint(center, radius+labelPadPx, angle)
 		hAlign, vAlign := polarTickLabelAlignments(angle)
-		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, fontKey)
+		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, fontKey, ctx.RC.UseTeX)
 	}
 }
 
@@ -1062,11 +1062,11 @@ func (a *Axis) drawPolarRadialTickLabels(textRen render.TextDrawer, r render.Ren
 		if label == "" {
 			continue
 		}
-		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey, ctx.RC.UseTeX)
 		radius := outerRadius * ctx.DataToPixel.YScale.Fwd(tick)
 		anchor := polarPixelPoint(center, radius+labelPadPx, labelAngle)
 		hAlign, vAlign := polarTickLabelAlignments(labelAngle)
-		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, fontKey)
+		drawDisplayText(textRen, label, alignedSingleLineOrigin(anchor, layout, hAlign, vAlign), fontSize, a.Color, fontKey, ctx.RC.UseTeX)
 	}
 }
 
@@ -1155,7 +1155,7 @@ func (a *Axis) polarTickLabelBoundsForLevel(r render.Renderer, ctx *DrawContext,
 		if label == "" {
 			continue
 		}
-		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey, ctx.RC.UseTeX)
 
 		var (
 			anchor geom.Pt
@@ -1221,7 +1221,7 @@ func tickLabelBoundsForLevel(a *Axis, r render.Renderer, ctx *DrawContext, ticks
 			continue
 		}
 
-		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey)
+		layout := measureSingleLineTextLayout(r, label, fontSize, fontKey, ctx.RC.UseTeX)
 		origin, ok := tickLabelOrigin(a, ctx, tickValue, layout, labelPadPx, style, isXAxis)
 		if !ok {
 			continue

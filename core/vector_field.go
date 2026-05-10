@@ -1139,9 +1139,9 @@ func (k *QuiverKey) DrawOverlay(r render.Renderer, ctx *DrawContext) {
 	}
 
 	fontSize := resolvedFontSize(k.FontSize, ctx)
-	layout := measureSingleLineTextLayout(r, k.Label, fontSize, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, k.Label, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 	origin := alignedSingleLineOrigin(labelPos, layout, quiverKeyHAlign(k.LabelPos), quiverKeyVAlign(k.LabelPos))
-	drawDisplayText(textRen, k.Label, origin, fontSize, resolvedTextColor(k.LabelColor, ctx), ctx.RC.FontKey)
+	drawDisplayText(textRen, k.Label, origin, fontSize, resolvedTextColor(k.LabelColor, ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 }
 
 func (k *QuiverKey) displayVector(ctx *DrawContext, state vectorRenderState) geom.Pt {

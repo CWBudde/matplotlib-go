@@ -473,9 +473,9 @@ func drawWidgetText(r render.Renderer, ctx *DrawContext, anchor geom.Pt, text st
 		return
 	}
 	fontSize := resolvedFontSize(size, ctx)
-	layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey)
+	layout := measureSingleLineTextLayout(r, text, fontSize, ctx.RC.FontKey, ctx.RC.UseTeX)
 	origin := alignedSingleLineOrigin(anchor, layout, hAlign, vAlign)
-	drawDisplayText(textRen, text, origin, fontSize, resolvedTextColor(color, ctx), ctx.RC.FontKey)
+	drawDisplayText(textRen, text, origin, fontSize, resolvedTextColor(color, ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 }
 
 func insetRect(rect geom.Rect, pad float64) geom.Rect {
