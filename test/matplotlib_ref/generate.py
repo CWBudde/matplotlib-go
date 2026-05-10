@@ -21,8 +21,14 @@ try:
     from test.matplotlib_ref.common import histogram_payload, normal_data, pcg_float64_values, _to_list
     from test.parity import CASE_IDS as PLOT_NAMES, all_plots, load_plot
 except ModuleNotFoundError:
-    sys.path.append(os.path.dirname(__file__))
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+    # Prepend (not append) so our repo's `test` package wins over Python's
+    # stdlib `test/` module, which can otherwise shadow `test.parity`.
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+    sys.path.insert(0, os.path.dirname(__file__))
+    # The failed `from test.matplotlib_ref.common` import above may have left
+    # a partial `test` entry in sys.modules pointing at the stdlib package.
+    # Drop it so the re-import below finds our repo's test/ package instead.
+    sys.modules.pop("test", None)
     from common import histogram_payload, normal_data, pcg_float64_values, _to_list
     from test.parity import CASE_IDS as PLOT_NAMES, all_plots, load_plot
 

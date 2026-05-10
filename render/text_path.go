@@ -74,13 +74,13 @@ func loadTextPathFontFace(face FontFace) (*sfnt.Font, error) {
 func textRunsPath(runs []FontRun, origin geom.Pt, size float64) (geom.Path, bool) {
 	var out geom.Path
 	ok := false
-	layout, haveLayout := LayoutTextGlyphRuns(runs, origin, size)
-	if !haveLayout {
+	shaped, haveShape := ShapeTextRuns(runs, origin, size, TextShapingOptions{})
+	if !haveShape {
 		return geom.Path{}, false
 	}
 	ppem := fixed.Int26_6(math.Round(size * 64))
 	var buf sfnt.Buffer
-	for _, glyph := range layout.Glyphs {
+	for _, glyph := range shaped.Glyphs {
 		fontData, err := loadTextPathFontFace(glyph.Face)
 		if err != nil {
 			return geom.Path{}, false
