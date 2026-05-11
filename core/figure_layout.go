@@ -329,7 +329,7 @@ func drawFigureLabels(fig *Figure, r render.Renderer, figureRect geom.Rect) {
 		}
 		switch ren := r.(type) {
 		case render.RotatedTextDrawer:
-			drawDisplayTextRotated(ren, fig.SupYLabel, anchor, labelSize, math.Pi/2, labelColor, fig.RC.FontKey)
+			drawDisplayTextRotated(ren, fig.SupYLabel, anchor, labelSize, math.Pi/2, labelColor, fig.RC.FontKey, fig.RC.UseTeX)
 		case render.VerticalTextDrawer:
 			drawDisplayTextVertical(ren, fig.SupYLabel, anchor, labelSize, labelColor, fig.RC.FontKey)
 		default:

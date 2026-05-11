@@ -1196,6 +1196,7 @@ Verification reference:
 - [x] Added GoBasic capability-status coverage for native DPI/text/text-path/rotated/vertical/PNG/path-clip support, renderer-neutral marker/path-collection/quad-mesh/hatch fallback status, and unsupported image-transform/font-bound/vector/Gouraud/SVG capabilities.
 - [x] Wired GoBasic capability registration to the runtime interfaces it actually implements and added compile-time interface assertions.
 - [x] Ran the shared backend contract suite against GoBasic; fixed `Path` to tolerate nil paint without panicking.
+- [x] Added a GoBasic image drawing contract for `render.ImageAlpha` and applied image-level alpha before bitmap blending.
 
 ### 14.3 SVG Vector Backend Parity
 

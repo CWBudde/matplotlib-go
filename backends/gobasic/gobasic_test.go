@@ -59,6 +59,27 @@ func TestImageScalingUsesPixelEdges(t *testing.T) {
 	}
 }
 
+func TestImageAppliesImageAlpha(t *testing.T) {
+	r := New(1, 1, render.Color{R: 1, G: 1, B: 1, A: 1})
+	src := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	src.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
+
+	img := render.NewImageData(src)
+	img.SetAlpha(0.25)
+	r.Image(img, geom.Rect{
+		Min: geom.Pt{X: 0, Y: 0},
+		Max: geom.Pt{X: 1, Y: 1},
+	})
+
+	got := r.GetImage().RGBAAt(0, 0)
+	if got.G < 180 || got.B < 180 {
+		t.Fatalf("image alpha was not applied before blending; got %+v", got)
+	}
+	if got.R < 250 {
+		t.Fatalf("red source channel unexpectedly dimmed; got %+v", got)
+	}
+}
+
 func TestBeginEnd(t *testing.T) {
 	r := New(100, 50, render.Color{R: 0, G: 0, B: 0, A: 1})
 

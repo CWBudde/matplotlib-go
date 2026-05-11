@@ -92,6 +92,8 @@ type Renderer struct {
 	fallback    bool   // true if any text path had to fall back to GSV
 	lastFontKey string
 	outlineText *agglib.FreeTypeOutlineText
+	texManager  *texManager
+	texErr      error
 }
 
 // state represents a saved graphics state.
@@ -158,6 +160,7 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		height:      h,
 		resolution:  72,
 		clipMaskMap: make(map[clipMaskKey][]uint8),
+		texManager:  newTeXManager(texManagerConfig{}),
 	}
 
 	// Prefer DejaVu Sans (the same default font Matplotlib ships with) via AGG's

@@ -1850,7 +1850,7 @@ func drawAxesLabels(ax *Axes, r render.Renderer, ctx *DrawContext, px geom.Rect,
 		}
 		switch ren := r.(type) {
 		case render.RotatedTextDrawer:
-			drawDisplayTextRotated(ren, ax.YLabel, anchor, labelSize, angle, labelColor, ctx.RC.FontKey)
+			drawDisplayTextRotated(ren, ax.YLabel, anchor, labelSize, angle, labelColor, ctx.RC.FontKey, ctx.RC.UseTeX)
 		case render.VerticalTextDrawer:
 			if angle < 0 {
 				layout := measureSingleLineTextLayout(r, ax.YLabel, labelSize, ctx.RC.FontKey, ctx.RC.UseTeX)

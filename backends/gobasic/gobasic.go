@@ -405,7 +405,7 @@ func (r *Renderer) Image(img render.Image, dst geom.Rect) {
 		return
 	}
 
-	r.drawBitmapScaled(src, minX, minY, maxX-minX, maxY-minY)
+	r.drawBitmapScaledWithAlpha(src, minX, minY, maxX-minX, maxY-minY, imageAlphaMultiplier(img))
 }
 
 // GlyphRun renders glyph IDs as code points where available.
@@ -568,8 +568,18 @@ func (r *Renderer) renderTextBitmap(text string, size float64, textColor render.
 }
 
 func (r *Renderer) drawBitmapScaled(src *image.RGBA, dstX, dstY, dstW, dstH int) {
+	r.drawBitmapScaledWithAlpha(src, dstX, dstY, dstW, dstH, 1)
+}
+
+func (r *Renderer) drawBitmapScaledWithAlpha(src *image.RGBA, dstX, dstY, dstW, dstH int, alpha float64) {
 	if src == nil || dstW <= 0 || dstH <= 0 {
 		return
+	}
+	if alpha <= 0 {
+		return
+	}
+	if alpha > 1 {
+		alpha = 1
 	}
 
 	srcW := src.Bounds().Dx()
@@ -610,6 +620,9 @@ func (r *Renderer) drawBitmapScaled(src *image.RGBA, dstX, dstY, dstW, dstH int)
 				G: srcRow[srcOffset+1],
 				B: srcRow[srcOffset+2],
 				A: srcRow[srcOffset+3],
+			}
+			if alpha < 1 {
+				srcColor.A = uint8(math.Round(float64(srcColor.A) * alpha))
 			}
 			r.blendPixel(x, y, srcColor)
 		}
@@ -907,6 +920,21 @@ func asRGBAImage(img render.Image) *image.RGBA {
 		return rgbaImage.RGBA()
 	}
 	return nil
+}
+
+func imageAlphaMultiplier(img render.Image) float64 {
+	alphaImage, ok := img.(render.ImageAlpha)
+	if !ok {
+		return 1
+	}
+	alpha := alphaImage.Alpha()
+	if alpha <= 0 {
+		return 0
+	}
+	if alpha >= 1 {
+		return 1
+	}
+	return alpha
 }
 
 func renderColorToRGBA(c render.Color) color.RGBA {
