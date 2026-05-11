@@ -12,11 +12,19 @@ func init() {
 		Description: "Pure Go renderer using golang.org/x/image/vector",
 		Capabilities: []backends.Capability{
 			backends.AntiAliasing, // Basic AA via vector rasterizer
+			backends.PathClip,
+			backends.DPIAware,
+			backends.TextShaping,
+			backends.TextPathing,
+			backends.RotatedText,
+			backends.VerticalText,
+			backends.PNGExport,
 		},
 		FallbackCapabilities: []backends.Capability{
 			backends.MarkerBatch,
 			backends.PathCollectionBatch,
 			backends.QuadMeshBatch,
+			backends.NativeHatcher,
 		},
 		SaveFormats: map[string]backends.SaveHandler{
 			".png": backends.SavePNG,

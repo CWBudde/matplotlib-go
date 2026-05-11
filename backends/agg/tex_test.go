@@ -1,0 +1,178 @@
+package agg
+
+import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/render"
+)
+
+func TestTeXManagerBuildsAndCachesPNG(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell commands are POSIX-only")
+	}
+	dir := t.TempDir()
+	fixture := filepath.Join(dir, "fixture.png")
+	writeTestPNG(t, fixture, color.RGBA{A: 255})
+
+	latexLog := filepath.Join(dir, "latex.log")
+	dvipngLog := filepath.Join(dir, "dvipng.log")
+	latex := writeFakeCommand(t, dir, "latex", `#!/bin/sh
+printf '%s\n' "$@" >> "$LATEX_LOG"
+test -f file.tex || exit 7
+touch file.dvi
+`)
+	dvipng := writeFakeCommand(t, dir, "dvipng", `#!/bin/sh
+printf '%s\n' "$@" >> "$DVIPNG_LOG"
+out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then
+    shift
+    out="$1"
+  fi
+  shift
+done
+cp "$FAKE_TEX_PNG" "$out"
+`)
+	t.Setenv("LATEX_LOG", latexLog)
+	t.Setenv("DVIPNG_LOG", dvipngLog)
+	t.Setenv("FAKE_TEX_PNG", fixture)
+
+	manager := newTeXManager(texManagerConfig{
+		CacheDir:      filepath.Join(dir, "cache"),
+		LaTeXCommand:  latex,
+		DVIPNGCommand: dvipng,
+	})
+
+	first, err := manager.render(`signal $\alpha$`, 12, 144, "DejaVu Sans")
+	if err != nil {
+		t.Fatalf("first render: %v", err)
+	}
+	second, err := manager.render(`signal $\alpha$`, 12, 144, "DejaVu Sans")
+	if err != nil {
+		t.Fatalf("second render: %v", err)
+	}
+	if first.PNGPath != second.PNGPath {
+		t.Fatalf("cache path changed between renders: %q != %q", first.PNGPath, second.PNGPath)
+	}
+	if first.Metrics.W != 2 || first.Metrics.H != 2 || first.Metrics.Ascent != 2 {
+		t.Fatalf("metrics from cached PNG = %+v, want width/height/ascent of fixture", first.Metrics)
+	}
+	if got := lineCount(t, latexLog); got != 1 {
+		t.Fatalf("latex command count = %d, want 1", got)
+	}
+	if got := lineCount(t, dvipngLog); got != 1 {
+		t.Fatalf("dvipng command count = %d, want 1", got)
+	}
+}
+
+func TestTeXManagerReportsSubprocessFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell commands are POSIX-only")
+	}
+	dir := t.TempDir()
+	latex := writeFakeCommand(t, dir, "latex-fail", `#!/bin/sh
+echo "latex exploded"
+exit 42
+`)
+
+	manager := newTeXManager(texManagerConfig{
+		CacheDir:      filepath.Join(dir, "cache"),
+		LaTeXCommand:  latex,
+		DVIPNGCommand: "unused",
+	})
+
+	_, err := manager.render(`bad $\tex$`, 12, 100, "DejaVu Sans")
+	if err == nil {
+		t.Fatal("expected render error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "latex-fail") || !strings.Contains(msg, "bad") || !strings.Contains(msg, "latex exploded") {
+		t.Fatalf("error message missing command, TeX text, or output: %v", err)
+	}
+}
+
+func TestAggDrawTeXCompositesCachedPNG(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell commands are POSIX-only")
+	}
+	dir := t.TempDir()
+	fixture := filepath.Join(dir, "fixture.png")
+	writeTestPNG(t, fixture, color.RGBA{A: 255})
+	latex := writeFakeCommand(t, dir, "latex", `#!/bin/sh
+touch file.dvi
+`)
+	dvipng := writeFakeCommand(t, dir, "dvipng", `#!/bin/sh
+out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then
+    shift
+    out="$1"
+  fi
+  shift
+done
+cp "$FAKE_TEX_PNG" "$out"
+`)
+	t.Setenv("FAKE_TEX_PNG", fixture)
+
+	r, err := New(24, 24, render.Color{})
+	if err != nil {
+		t.Fatalf("New renderer: %v", err)
+	}
+	r.texManager = newTeXManager(texManagerConfig{
+		CacheDir:      filepath.Join(dir, "cache"),
+		LaTeXCommand:  latex,
+		DVIPNGCommand: dvipng,
+	})
+
+	if !r.DrawTeX(`x`, geom.Pt{X: 8, Y: 10}, 12, render.Color{R: 1, A: 1}, "DejaVu Sans") {
+		t.Fatal("DrawTeX returned false")
+	}
+	got := r.GetImage().RGBAAt(8, 8)
+	if got.R < 200 || got.G != 0 || got.B != 0 || got.A < 200 {
+		t.Fatalf("DrawTeX pixel = %+v, want opaque red text image", got)
+	}
+}
+
+func writeFakeCommand(t *testing.T, dir, name, body string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatalf("write fake command: %v", err)
+	}
+	return path
+}
+
+func writeTestPNG(t *testing.T, path string, c color.RGBA) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	for y := 0; y < 2; y++ {
+		for x := 0; x < 2; x++ {
+			img.SetRGBA(x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode fixture PNG: %v", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write fixture PNG: %v", err)
+	}
+}
+
+func lineCount(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	return bytes.Count(data, []byte{'\n'})
+}

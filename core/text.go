@@ -256,7 +256,7 @@ func (t *Text) drawText(r render.Renderer, ctx *DrawContext) {
 		if rotated, ok := r.(render.RotatedTextDrawer); ok {
 			angle := t.Angle * math.Pi / 180
 			rotAnchor := tickLabelRotationAnchor(origin, layout, t.HAlign, layoutVerticalAlign(t.VAlign, false), angle)
-			drawDisplayTextRotated(rotated, t.Content, rotAnchor, fontSize, angle, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey)
+			drawDisplayTextRotated(rotated, t.Content, rotAnchor, fontSize, angle, resolvedTextColor(t.Color, ctx), ctx.RC.FontKey, ctx.RC.UseTeX)
 			return
 		}
 	}

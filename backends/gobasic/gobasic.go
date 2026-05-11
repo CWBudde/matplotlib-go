@@ -85,9 +85,13 @@ type clipMaskKey struct {
 }
 
 var (
-	_ render.Renderer   = (*Renderer)(nil)
-	_ render.DPIAware   = (*Renderer)(nil)
-	_ render.TextPather = (*Renderer)(nil)
+	_ render.Renderer           = (*Renderer)(nil)
+	_ render.DPIAware           = (*Renderer)(nil)
+	_ render.TextDrawer         = (*Renderer)(nil)
+	_ render.TextPather         = (*Renderer)(nil)
+	_ render.RotatedTextDrawer  = (*Renderer)(nil)
+	_ render.VerticalTextDrawer = (*Renderer)(nil)
+	_ render.PNGExporter        = (*Renderer)(nil)
 )
 
 // New creates a new GoBasic renderer with the specified dimensions and background color.
@@ -192,6 +196,9 @@ func (r *Renderer) ClipPath(p geom.Path) {
 
 // Path draws a path with the given paint style.
 func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
+	if paint == nil {
+		return
+	}
 	if !p.Validate() {
 		return // Invalid path
 	}

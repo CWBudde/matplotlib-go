@@ -427,6 +427,19 @@ func TestDrawDisplayTextUsesTeXRendererWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestDrawDisplayTextRotatedUsesTeXRendererWhenEnabled(t *testing.T) {
+	r := &texRecordingRenderer{}
+
+	drawDisplayTextRotated(r, `signal $\alpha$`, geom.Pt{X: 10, Y: 20}, 20, math.Pi/6, render.Color{A: 1}, "DejaVu Sans", true)
+
+	if len(r.texRotatedDraws) != 1 {
+		t.Fatalf("expected one rotated TeX draw, got %+v", r.texRotatedDraws)
+	}
+	if len(r.texts) != 0 {
+		t.Fatalf("TeX-enabled rotated draw should not fall back to DrawText, got %+v", r.texts)
+	}
+}
+
 func TestTextArtistUsesTeXRendererWhenRCUseTeX(t *testing.T) {
 	fig := NewFigure(320, 240)
 	fig.RC.UseTeX = true
@@ -731,7 +744,8 @@ func (r *verticalMathTextRecordingRenderer) TextPath(text string, origin geom.Pt
 
 type texRecordingRenderer struct {
 	textRecordingRenderer
-	texDraws []string
+	texDraws        []string
+	texRotatedDraws []string
 }
 
 func (r *texRecordingRenderer) MeasureTeX(text string, size float64, fontKey string) (render.TextMetrics, bool) {
@@ -740,6 +754,11 @@ func (r *texRecordingRenderer) MeasureTeX(text string, size float64, fontKey str
 
 func (r *texRecordingRenderer) DrawTeX(text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) bool {
 	r.texDraws = append(r.texDraws, text)
+	return true
+}
+
+func (r *texRecordingRenderer) DrawTeXRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) bool {
+	r.texRotatedDraws = append(r.texRotatedDraws, text)
 	return true
 }
 

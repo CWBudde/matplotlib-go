@@ -725,6 +725,7 @@ Current slice landed:
   - [x] support missing grammar, stretchy delimiters, spacing/control semantics, boxes, and font style interactions
   - [x] render MathText glyphs and boxes through the same shaped glyph/path pipeline
 - [ ] Complete `usetex` integration for AGG:
+  - [x] renderer-facing TeX measurement/draw hook and core routing when `text.usetex` is enabled
   - [ ] external TeX/DVI/dvipng pipeline and artifact cache
   - [ ] error reporting and reproducible invalidation
   - [ ] raster/vector import of TeX output back into AGG rendering
@@ -1177,8 +1178,8 @@ Verification reference:
 
 **Reference sources:** `backends/gobasic/`, `backends/test_suite.go`, `backends/contract_test.go`, `render/`.
 
-- [ ] Define GoBasic's supported scope as a pure-Go correctness fallback rather than a pixel-identical Matplotlib renderer.
-- [ ] Bring GoBasic capability reporting into exact agreement with runtime interfaces: text, clipping, image transforms, batch fallbacks, hatching, export formats, and DPI behavior.
+- [x] Define GoBasic's supported scope as a pure-Go correctness fallback rather than a pixel-identical Matplotlib renderer.
+- [x] Bring GoBasic capability reporting into exact agreement with runtime interfaces: text, clipping, image transforms, batch fallbacks, hatching, export formats, and DPI behavior.
 - [ ] Make GoBasic implement all renderer-neutral fallback paths required by `core` without silently dropping paint state such as alpha, line joins/caps, dashes, clipping, hatches, and antialiasing flags.
 - [ ] Add GoBasic contract tests for path state save/restore, clip stack behavior, image drawing, transformed image fallback, text metrics, and collection fallback routing.
 - [ ] Add a small GoBasic visual smoke fixture set that checks semantic output stability without using AGG-level pixel thresholds.
@@ -1189,6 +1190,12 @@ Exit criteria:
 - [ ] GoBasic can render every committed non-interactive example without panics or missing mandatory artist output.
 - [ ] GoBasic capability reports match actual behavior and fail tests when a claimed capability is absent.
 - [ ] GoBasic remains dependency-light and pure Go while sharing as much renderer-neutral logic as possible with AGG/SVG/Skia.
+
+Verification reference:
+
+- [x] Added GoBasic capability-status coverage for native DPI/text/text-path/rotated/vertical/PNG/path-clip support, renderer-neutral marker/path-collection/quad-mesh/hatch fallback status, and unsupported image-transform/font-bound/vector/Gouraud/SVG capabilities.
+- [x] Wired GoBasic capability registration to the runtime interfaces it actually implements and added compile-time interface assertions.
+- [x] Ran the shared backend contract suite against GoBasic; fixed `Path` to tolerate nil paint without panicking.
 
 ### 14.3 SVG Vector Backend Parity
 

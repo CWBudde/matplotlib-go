@@ -553,7 +553,7 @@ func (a *Axis) drawTickLabels(r render.Renderer, ctx *DrawContext, ticks []float
 		if style.Rotation != 0 && rotRen != nil {
 			hAlign, vAlign := resolvedTickLabelLayoutAlignments(a.Side, style, isXAxis)
 			angle := style.Rotation * math.Pi / 180.0
-			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout, hAlign, vAlign, angle), fontSize, angle, a.Color, fontKey)
+			drawDisplayTextRotated(rotRen, label, tickLabelRotationAnchor(labelPos, layout, hAlign, vAlign, angle), fontSize, angle, a.Color, fontKey, ctx.RC.UseTeX)
 			continue
 		}
 

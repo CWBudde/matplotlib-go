@@ -4,11 +4,30 @@
 // path filling and stroking. It is designed to be deterministic and work without
 // CGO dependencies.
 //
+// GoBasic is a correctness fallback, not a pixel-identical Matplotlib renderer.
+// Use AGG when exact visual parity, higher-quality rasterization, native image
+// transforms, native hatching, or collection-specialized drawing is required.
+//
 // The GoBasic renderer supports:
-//   - Fill and stroke operations (no dashes in Phase B)
-//   - Rectangular clipping
-//   - State stack for Save/Restore operations
-//   - PNG export via image/png package
+//   - Fill and stroke operations, including alpha, line joins, line caps, and
+//     dashed strokes through renderer-neutral stroke geometry.
+//   - Rectangular and path clipping with Save/Restore state isolation.
+//   - Basic text drawing, rotated text, vertical text, text measurement, and
+//     text-to-path conversion through pure-Go font paths.
+//   - DPI-aware text sizing via render.DPIAware.
+//   - Raster image drawing and PNG export via image/png.
+//   - Renderer-neutral fallbacks for marker, path-collection, quad-mesh, and
+//     hatch rendering.
+//
+// Known fidelity limitations:
+//   - Text metrics are approximate and do not expose font-wide metric or ink
+//     bounds interfaces.
+//   - Image transforms are not native; rotated images fall back to axis-aligned
+//     drawing in core.
+//   - Hatches and collection batches are handled by core fallbacks rather than
+//     by backend-native batched render paths.
+//   - Gouraud triangle shading, vector output, SVG export, GPU acceleration,
+//     threading, and Matplotlib-level subpixel fidelity are unsupported.
 //
 // This backend is the default pure-Go renderer used by default.
 package gobasic

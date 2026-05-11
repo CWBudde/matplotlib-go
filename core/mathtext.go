@@ -109,7 +109,13 @@ func drawDisplayText(textRen render.TextDrawer, text string, origin geom.Pt, siz
 	textRen.DrawText(display, origin, size, textColor)
 }
 
-func drawDisplayTextRotated(textRen render.RotatedTextDrawer, text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) {
+func drawDisplayTextRotated(textRen render.RotatedTextDrawer, text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string, useTeX ...bool) {
+	if texEnabled(useTeX) {
+		if texRen, ok := textRen.(render.RotatedTeXDrawer); ok && texRen.DrawTeXRotated(text, anchor, size, angle, textColor, fontKey) {
+			return
+		}
+	}
+
 	if expr, ok := fullMathExpression(text); ok {
 		if ren, ok := textRen.(render.Renderer); ok {
 			if layout, ok := LayoutMathText(ren, expr, size, fontKey); ok {

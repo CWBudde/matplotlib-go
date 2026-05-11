@@ -51,6 +51,13 @@ type TeXDrawer interface {
 	DrawTeX(text string, origin geom.Pt, size float64, textColor Color, fontKey string) bool
 }
 
+// RotatedTeXDrawer is implemented by renderers that can draw TeX output with a
+// rotation around the same anchor used by RotatedTextDrawer.
+type RotatedTeXDrawer interface {
+	TeXDrawer
+	DrawTeXRotated(text string, anchor geom.Pt, size, angle float64, textColor Color, fontKey string) bool
+}
+
 // VerticalTextDrawer is implemented by renderers that support vertical text.
 type VerticalTextDrawer interface {
 	TextDrawer
