@@ -775,11 +775,17 @@ Latest text-parity note:
 - [ ] Retire `ClipPath` no-op behavior in AGG and add regression tests for polar/geo/projection frames.
 - [ ] Move hatch clipping out of `core` once backend-native hatching lands, keeping only renderer-neutral hatch style metadata in artists.
 - [ ] Remove text draw state resets as a hidden correctness dependency by isolating text, path, and stroke state in the AGG surface.
-- [ ] Replace `lastFontKey` side state with explicit text/font context propagation from artists through renderer calls.
+- [x] Replace `lastFontKey` side state with explicit text/font context propagation from artists through renderer calls.
 - [ ] Replace rune-by-rune text path generation with shaped glyph-outline generation.
 - [ ] Replace character-stacked vertical text with rotated text runs where applicable.
 - [ ] Replace unconditional image no-filter/no-resample behavior with rc/image artist interpolation policy.
 - [ ] Split "simple renderer fallback" tests from "AGG-native parity" tests so fallback behavior does not mask missing backend features.
+
+**Progress notes:**
+
+- Added renderer-neutral font-aware text draw interfaces (`FontTextDrawer`, `FontRotatedTextDrawer`, `FontVerticalTextDrawer`) so core can pass font keys into draw calls directly instead of measuring text first to prime backend-local state.
+- Routed normal, rotated, vertical, and MathText run drawing through the explicit font-context path when available; the old text draw methods remain as compatibility fallbacks.
+- AGG implements the font-aware draw interfaces and restores `lastFontKey` around explicit-font draw calls, keeping legacy state from leaking across artist-rendered text.
 
 ### 8.1F AGG Text Kerning and Glyph Layout Parity
 

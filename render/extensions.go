@@ -16,6 +16,14 @@ type TextDrawer interface {
 	DrawText(text string, origin geom.Pt, size float64, textColor Color)
 }
 
+// FontTextDrawer is implemented by renderers that can draw text with an
+// explicit font key instead of relying on prior measurement calls to configure
+// renderer-local font state.
+type FontTextDrawer interface {
+	TextDrawer
+	DrawTextWithFont(text string, origin geom.Pt, size float64, textColor Color, fontKey string)
+}
+
 // RotatedTextDrawer is implemented by renderers that support rotated text.
 type RotatedTextDrawer interface {
 	TextDrawer
@@ -23,6 +31,13 @@ type RotatedTextDrawer interface {
 	// the point is the bottom-center anchor of the unrotated text box, and the
 	// text is then rotated around that anchor.
 	DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor Color)
+}
+
+// FontRotatedTextDrawer is implemented by renderers that can draw rotated text
+// with an explicit font key.
+type FontRotatedTextDrawer interface {
+	RotatedTextDrawer
+	DrawTextRotatedWithFont(text string, anchor geom.Pt, size, angle float64, textColor Color, fontKey string)
 }
 
 // TextBounder is implemented by renderers that can report the actual ink bounds
@@ -66,6 +81,13 @@ type RotatedTeXDrawer interface {
 type VerticalTextDrawer interface {
 	TextDrawer
 	DrawTextVertical(text string, center geom.Pt, size float64, textColor Color)
+}
+
+// FontVerticalTextDrawer is implemented by renderers that can draw vertical
+// text with an explicit font key.
+type FontVerticalTextDrawer interface {
+	VerticalTextDrawer
+	DrawTextVerticalWithFont(text string, center geom.Pt, size float64, textColor Color, fontKey string)
 }
 
 // ImageTransformer is implemented by renderers that support affine image transforms.

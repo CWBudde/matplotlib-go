@@ -121,27 +121,30 @@ type clipMaskKey struct {
 }
 
 var (
-	_ render.Renderer              = (*Renderer)(nil)
-	_ render.DPIAware              = (*Renderer)(nil)
-	_ render.TextDrawer            = (*Renderer)(nil)
-	_ render.RotatedTextDrawer     = (*Renderer)(nil)
-	_ render.VerticalTextDrawer    = (*Renderer)(nil)
-	_ render.TextBounder           = (*Renderer)(nil)
-	_ render.TextFontMetricer      = (*Renderer)(nil)
-	_ render.TextPather            = (*Renderer)(nil)
-	_ render.TeXMetricer           = (*Renderer)(nil)
-	_ render.TeXDrawer             = (*Renderer)(nil)
-	_ render.RotatedTeXDrawer      = (*Renderer)(nil)
-	_ render.ImageTransformer      = (*Renderer)(nil)
-	_ render.RGBAExporter          = (*Renderer)(nil)
-	_ render.BufferRegioner        = (*Renderer)(nil)
-	_ render.FilterRenderer        = (*Renderer)(nil)
-	_ render.MarkerDrawer          = (*Renderer)(nil)
-	_ render.PathCollectionDrawer  = (*Renderer)(nil)
-	_ render.QuadMeshDrawer        = (*Renderer)(nil)
-	_ render.GouraudTriangleDrawer = (*Renderer)(nil)
-	_ render.NativeHatcher         = (*Renderer)(nil)
-	_ render.PNGExporter           = (*Renderer)(nil)
+	_ render.Renderer               = (*Renderer)(nil)
+	_ render.DPIAware               = (*Renderer)(nil)
+	_ render.TextDrawer             = (*Renderer)(nil)
+	_ render.FontTextDrawer         = (*Renderer)(nil)
+	_ render.RotatedTextDrawer      = (*Renderer)(nil)
+	_ render.FontRotatedTextDrawer  = (*Renderer)(nil)
+	_ render.VerticalTextDrawer     = (*Renderer)(nil)
+	_ render.FontVerticalTextDrawer = (*Renderer)(nil)
+	_ render.TextBounder            = (*Renderer)(nil)
+	_ render.TextFontMetricer       = (*Renderer)(nil)
+	_ render.TextPather             = (*Renderer)(nil)
+	_ render.TeXMetricer            = (*Renderer)(nil)
+	_ render.TeXDrawer              = (*Renderer)(nil)
+	_ render.RotatedTeXDrawer       = (*Renderer)(nil)
+	_ render.ImageTransformer       = (*Renderer)(nil)
+	_ render.RGBAExporter           = (*Renderer)(nil)
+	_ render.BufferRegioner         = (*Renderer)(nil)
+	_ render.FilterRenderer         = (*Renderer)(nil)
+	_ render.MarkerDrawer           = (*Renderer)(nil)
+	_ render.PathCollectionDrawer   = (*Renderer)(nil)
+	_ render.QuadMeshDrawer         = (*Renderer)(nil)
+	_ render.GouraudTriangleDrawer  = (*Renderer)(nil)
+	_ render.NativeHatcher          = (*Renderer)(nil)
+	_ render.PNGExporter            = (*Renderer)(nil)
 )
 
 // New creates a new AGG renderer with the specified dimensions and background color.
@@ -1141,22 +1144,34 @@ func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey s
 // DrawText renders text at the given position with the specified size and color.
 // This is a helper method (not part of the Renderer interface).
 func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor render.Color) {
+	r.drawTextWithFontContext(text, origin, size, textColor, r.lastFontKey)
+}
+
+// DrawTextWithFont renders text with an explicit font key, avoiding the legacy
+// MeasureText-before-DrawText state handoff.
+func (r *Renderer) DrawTextWithFont(text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) {
+	r.withTemporaryFontKey(func() {
+		r.drawTextWithFontContext(text, origin, size, textColor, fontKey)
+	})
+}
+
+func (r *Renderer) drawTextWithFontContext(text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) {
 	if r.hasClipPath() {
-		bounds, haveBounds := r.textDrawBounds(text, origin, size)
+		bounds, haveBounds := r.textDrawBounds(text, origin, size, fontKey)
 		r.withClipPathMask(bounds, haveBounds, func() {
-			r.drawTextDirect(text, origin, size, textColor)
+			r.drawTextDirect(text, origin, size, textColor, fontKey)
 		})
 		return
 	}
-	r.drawTextDirect(text, origin, size, textColor)
+	r.drawTextDirect(text, origin, size, textColor, fontKey)
 }
 
-func (r *Renderer) drawTextDirect(text string, origin geom.Pt, size float64, textColor render.Color) {
+func (r *Renderer) drawTextDirect(text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) {
 	if text == "" || size <= 0 {
 		return
 	}
 
-	font := r.configureTextFont(size, r.lastFontKey)
+	font := r.configureTextFont(size, fontKey)
 
 	switch font.backend {
 	case textBackendRaster:
@@ -1184,29 +1199,40 @@ func (r *Renderer) drawTextDirect(text string, origin geom.Pt, size float64, tex
 // DrawTextRotated renders text using Matplotlib-like anchor rotation. The
 // anchor is the bottom-center of the unrotated text box.
 func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
+	r.drawTextRotatedWithFontContext(text, anchor, size, angle, textColor, r.lastFontKey)
+}
+
+// DrawTextRotatedWithFont renders rotated text with an explicit font key.
+func (r *Renderer) DrawTextRotatedWithFont(text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) {
+	r.withTemporaryFontKey(func() {
+		r.drawTextRotatedWithFontContext(text, anchor, size, angle, textColor, fontKey)
+	})
+}
+
+func (r *Renderer) drawTextRotatedWithFontContext(text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) {
 	if r.hasClipPath() {
-		bounds, haveBounds := r.rotatedTextDrawBounds(text, anchor, size, angle)
+		bounds, haveBounds := r.rotatedTextDrawBounds(text, anchor, size, angle, fontKey)
 		r.withClipPathMask(bounds, haveBounds, func() {
-			r.drawTextRotatedDirect(text, anchor, size, angle, textColor)
+			r.drawTextRotatedDirect(text, anchor, size, angle, textColor, fontKey)
 		})
 		return
 	}
-	r.drawTextRotatedDirect(text, anchor, size, angle, textColor)
+	r.drawTextRotatedDirect(text, anchor, size, angle, textColor, fontKey)
 }
 
-func (r *Renderer) drawTextRotatedDirect(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
+func (r *Renderer) drawTextRotatedDirect(text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) {
 	if text == "" || size <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
 		return
 	}
 
-	metrics := r.MeasureText(text, size, "")
+	metrics := r.MeasureText(text, size, fontKey)
 	if metrics.W <= 0 || metrics.H <= 0 {
 		return
 	}
 
-	bounds, haveBounds := r.MeasureTextBounds(text, size, "")
+	bounds, haveBounds := r.MeasureTextBounds(text, size, fontKey)
 	origin := rotatedTextOrigin(anchor, metrics, bounds, haveBounds)
-	font := r.configureTextFont(size, r.lastFontKey)
+	font := r.configureTextFont(size, fontKey)
 
 	r.ctx.PushTransform()
 	defer r.ctx.PopTransform()
@@ -1279,17 +1305,17 @@ func rotatedTextOrigin(anchor geom.Pt, metrics render.TextMetrics, bounds render
 	}
 }
 
-func (r *Renderer) textDrawBounds(text string, origin geom.Pt, size float64) (geom.Rect, bool) {
+func (r *Renderer) textDrawBounds(text string, origin geom.Pt, size float64, fontKey string) (geom.Rect, bool) {
 	if text == "" || size <= 0 {
 		return geom.Rect{}, false
 	}
-	if bounds, ok := r.MeasureTextBounds(text, size, ""); ok && bounds.W > 0 && bounds.H > 0 {
+	if bounds, ok := r.MeasureTextBounds(text, size, fontKey); ok && bounds.W > 0 && bounds.H > 0 {
 		return geom.Rect{
 			Min: geom.Pt{X: origin.X + bounds.X, Y: origin.Y + bounds.Y},
 			Max: geom.Pt{X: origin.X + bounds.X + bounds.W, Y: origin.Y + bounds.Y + bounds.H},
 		}.Inflate(2, 2), true
 	}
-	metrics := r.MeasureText(text, size, "")
+	metrics := r.MeasureText(text, size, fontKey)
 	if metrics.W <= 0 || metrics.H <= 0 {
 		return geom.Rect{}, false
 	}
@@ -1299,15 +1325,15 @@ func (r *Renderer) textDrawBounds(text string, origin geom.Pt, size float64) (ge
 	}.Inflate(2, 2), true
 }
 
-func (r *Renderer) rotatedTextDrawBounds(text string, anchor geom.Pt, size, angle float64) (geom.Rect, bool) {
+func (r *Renderer) rotatedTextDrawBounds(text string, anchor geom.Pt, size, angle float64, fontKey string) (geom.Rect, bool) {
 	if text == "" || size <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
 		return geom.Rect{}, false
 	}
-	metrics := r.MeasureText(text, size, "")
+	metrics := r.MeasureText(text, size, fontKey)
 	if metrics.W <= 0 || metrics.H <= 0 {
 		return geom.Rect{}, false
 	}
-	bounds, haveBounds := r.MeasureTextBounds(text, size, "")
+	bounds, haveBounds := r.MeasureTextBounds(text, size, fontKey)
 	origin := rotatedTextOrigin(anchor, metrics, bounds, haveBounds)
 	var rect geom.Rect
 	if haveBounds && bounds.W > 0 && bounds.H > 0 {
@@ -1349,12 +1375,22 @@ func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, t
 	if text == "" || size <= 0 {
 		return
 	}
-	r.drawTextVerticalDirect(text, center, size, textColor)
+	r.drawTextVerticalWithFontContext(text, center, size, textColor, r.lastFontKey)
 }
 
-func (r *Renderer) drawTextVerticalDirect(text string, center geom.Pt, size float64, textColor render.Color) {
+// DrawTextVerticalWithFont renders vertical text with an explicit font key.
+func (r *Renderer) DrawTextVerticalWithFont(text string, center geom.Pt, size float64, textColor render.Color, fontKey string) {
+	if text == "" || size <= 0 {
+		return
+	}
+	r.withTemporaryFontKey(func() {
+		r.drawTextVerticalWithFontContext(text, center, size, textColor, fontKey)
+	})
+}
+
+func (r *Renderer) drawTextVerticalWithFontContext(text string, center geom.Pt, size float64, textColor render.Color, fontKey string) {
 	if r.hasClipPath() {
-		metrics := r.MeasureText(text, size, "")
+		metrics := r.MeasureText(text, size, fontKey)
 		if metrics.W <= 0 || metrics.H <= 0 {
 			return
 		}
@@ -1363,10 +1399,18 @@ func (r *Renderer) drawTextVerticalDirect(text string, center geom.Pt, size floa
 		r.ctx.Translate(center.X, center.Y)
 		r.ctx.Rotate(-math.Pi / 2)
 		r.ctx.Translate(-center.X, -center.Y)
-		r.drawTextDirect(text, geom.Pt{X: center.X + metrics.Descent, Y: center.Y}, size, textColor)
+		r.drawTextDirect(text, geom.Pt{X: center.X + metrics.Descent, Y: center.Y}, size, textColor, fontKey)
 		return
 	}
-	r.drawTextRotatedDirect(text, center, size, -math.Pi/2, textColor)
+	r.drawTextRotatedDirect(text, center, size, -math.Pi/2, textColor, fontKey)
+}
+
+func (r *Renderer) withTemporaryFontKey(draw func()) {
+	previous := r.lastFontKey
+	defer func() {
+		r.lastFontKey = previous
+	}()
+	draw()
 }
 
 // GetImage returns the rendered image as a standard Go image.RGBA.

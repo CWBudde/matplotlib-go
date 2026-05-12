@@ -186,6 +186,25 @@ func TestFilterStackStartStop(t *testing.T) {
 	}
 }
 
+func TestDrawTextWithFontDoesNotMutateLegacyFontState(t *testing.T) {
+	r := mustNew(t, 120, 80)
+	r.lastFontKey = "legacy-font"
+
+	if err := r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 120, Y: 80}}); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	r.DrawTextWithFont("explicit", geom.Pt{X: 10, Y: 35}, 12, render.Color{A: 1}, "DejaVu Sans")
+	r.DrawTextRotatedWithFont("rotated", geom.Pt{X: 60, Y: 50}, 12, math.Pi/8, render.Color{A: 1}, "DejaVu Sans")
+	r.DrawTextVerticalWithFont("vertical", geom.Pt{X: 90, Y: 50}, 12, render.Color{A: 1}, "DejaVu Sans")
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+
+	if r.lastFontKey != "legacy-font" {
+		t.Fatalf("lastFontKey = %q, want legacy-font", r.lastFontKey)
+	}
+}
+
 func TestClipPathMasksPathDrawing(t *testing.T) {
 	r := mustNew(t, 100, 100)
 	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}}

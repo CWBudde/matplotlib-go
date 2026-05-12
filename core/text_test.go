@@ -440,6 +440,54 @@ func TestDrawDisplayTextRotatedUsesTeXRendererWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestDrawDisplayTextUsesExplicitFontDrawer(t *testing.T) {
+	r := &fontAwareTextRecordingRenderer{}
+
+	drawDisplayText(r, "plain", geom.Pt{X: 10, Y: 20}, 12, render.Color{A: 1}, "DejaVu Sans")
+
+	if len(r.fontTextCalls) != 1 {
+		t.Fatalf("expected one font-aware text draw, got %+v", r.fontTextCalls)
+	}
+	if r.fontTextCalls[0].fontKey != "DejaVu Sans" {
+		t.Fatalf("font-aware draw fontKey = %q, want DejaVu Sans", r.fontTextCalls[0].fontKey)
+	}
+	if len(r.texts) != 0 {
+		t.Fatalf("legacy DrawText should not be used when font-aware draw is available, got %+v", r.texts)
+	}
+}
+
+func TestDrawDisplayTextRotatedUsesExplicitFontDrawer(t *testing.T) {
+	r := &fontAwareTextRecordingRenderer{}
+
+	drawDisplayTextRotated(r, "rotated", geom.Pt{X: 10, Y: 20}, 12, math.Pi/8, render.Color{A: 1}, "DejaVu Sans")
+
+	if len(r.fontRotatedCalls) != 1 {
+		t.Fatalf("expected one font-aware rotated text draw, got %+v", r.fontRotatedCalls)
+	}
+	if r.fontRotatedCalls[0].fontKey != "DejaVu Sans" {
+		t.Fatalf("font-aware rotated draw fontKey = %q, want DejaVu Sans", r.fontRotatedCalls[0].fontKey)
+	}
+	if len(r.texts) != 0 {
+		t.Fatalf("legacy DrawTextRotated should not be used when font-aware draw is available, got %+v", r.texts)
+	}
+}
+
+func TestDrawDisplayTextVerticalUsesExplicitFontDrawer(t *testing.T) {
+	r := &fontAwareTextRecordingRenderer{}
+
+	drawDisplayTextVertical(r, "vertical", geom.Pt{X: 10, Y: 20}, 12, render.Color{A: 1}, "DejaVu Sans")
+
+	if len(r.fontVerticalCalls) != 1 {
+		t.Fatalf("expected one font-aware vertical text draw, got %+v", r.fontVerticalCalls)
+	}
+	if r.fontVerticalCalls[0].fontKey != "DejaVu Sans" {
+		t.Fatalf("font-aware vertical draw fontKey = %q, want DejaVu Sans", r.fontVerticalCalls[0].fontKey)
+	}
+	if len(r.verticalCalls) != 0 {
+		t.Fatalf("legacy DrawTextVertical should not be used when font-aware draw is available, got %+v", r.verticalCalls)
+	}
+}
+
 func TestTextArtistUsesTeXRendererWhenRCUseTeX(t *testing.T) {
 	fig := NewFigure(320, 240)
 	fig.RC.UseTeX = true
@@ -722,6 +770,40 @@ func (r *textRecordingRenderer) MeasureText(text string, size float64, _ string)
 func (r *textRecordingRenderer) DrawText(text string, origin geom.Pt, _ float64, _ render.Color) {
 	r.texts = append(r.texts, text)
 	r.origins = append(r.origins, origin)
+}
+
+type recordedFontTextCall struct {
+	text    string
+	fontKey string
+}
+
+type fontAwareTextRecordingRenderer struct {
+	textRecordingRenderer
+	fontTextCalls     []recordedFontTextCall
+	fontRotatedCalls  []recordedFontTextCall
+	fontVerticalCalls []recordedFontTextCall
+	verticalCalls     []string
+}
+
+func (r *fontAwareTextRecordingRenderer) DrawTextWithFont(text string, _ geom.Pt, _ float64, _ render.Color, fontKey string) {
+	r.fontTextCalls = append(r.fontTextCalls, recordedFontTextCall{text: text, fontKey: fontKey})
+}
+
+func (r *fontAwareTextRecordingRenderer) DrawTextRotated(text string, anchor geom.Pt, _ float64, _ float64, _ render.Color) {
+	r.texts = append(r.texts, text)
+	r.origins = append(r.origins, anchor)
+}
+
+func (r *fontAwareTextRecordingRenderer) DrawTextRotatedWithFont(text string, _ geom.Pt, _ float64, _ float64, _ render.Color, fontKey string) {
+	r.fontRotatedCalls = append(r.fontRotatedCalls, recordedFontTextCall{text: text, fontKey: fontKey})
+}
+
+func (r *fontAwareTextRecordingRenderer) DrawTextVertical(text string, _ geom.Pt, _ float64, _ render.Color) {
+	r.verticalCalls = append(r.verticalCalls, text)
+}
+
+func (r *fontAwareTextRecordingRenderer) DrawTextVerticalWithFont(text string, _ geom.Pt, _ float64, _ render.Color, fontKey string) {
+	r.fontVerticalCalls = append(r.fontVerticalCalls, recordedFontTextCall{text: text, fontKey: fontKey})
 }
 
 type verticalMathTextRecordingRenderer struct {

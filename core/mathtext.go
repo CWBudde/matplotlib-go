@@ -105,8 +105,7 @@ func drawDisplayText(textRen render.TextDrawer, text string, origin geom.Pt, siz
 	if display == "" {
 		return
 	}
-	primeTextFont(textRen, display, size, fontKey)
-	textRen.DrawText(display, origin, size, textColor)
+	drawTextWithFontContext(textRen, display, origin, size, textColor, fontKey)
 }
 
 func drawDisplayTextRotated(textRen render.RotatedTextDrawer, text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string, useTeX ...bool) {
@@ -129,8 +128,7 @@ func drawDisplayTextRotated(textRen render.RotatedTextDrawer, text string, ancho
 	if display == "" {
 		return
 	}
-	primeTextFont(textRen, display, size, fontKey)
-	textRen.DrawTextRotated(display, anchor, size, angle, textColor)
+	drawTextRotatedWithFontContext(textRen, display, anchor, size, angle, textColor, fontKey)
 }
 
 func drawDisplayTextVertical(textRen render.VerticalTextDrawer, text string, center geom.Pt, size float64, textColor render.Color, fontKey string) {
@@ -147,8 +145,34 @@ func drawDisplayTextVertical(textRen render.VerticalTextDrawer, text string, cen
 	if display == "" {
 		return
 	}
-	primeTextFont(textRen, display, size, fontKey)
-	textRen.DrawTextVertical(display, center, size, textColor)
+	drawTextVerticalWithFontContext(textRen, display, center, size, textColor, fontKey)
+}
+
+func drawTextWithFontContext(textRen render.TextDrawer, text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) {
+	if fontRen, ok := textRen.(render.FontTextDrawer); ok {
+		fontRen.DrawTextWithFont(text, origin, size, textColor, fontKey)
+		return
+	}
+	primeTextFont(textRen, text, size, fontKey)
+	textRen.DrawText(text, origin, size, textColor)
+}
+
+func drawTextRotatedWithFontContext(textRen render.RotatedTextDrawer, text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) {
+	if fontRen, ok := textRen.(render.FontRotatedTextDrawer); ok {
+		fontRen.DrawTextRotatedWithFont(text, anchor, size, angle, textColor, fontKey)
+		return
+	}
+	primeTextFont(textRen, text, size, fontKey)
+	textRen.DrawTextRotated(text, anchor, size, angle, textColor)
+}
+
+func drawTextVerticalWithFontContext(textRen render.VerticalTextDrawer, text string, center geom.Pt, size float64, textColor render.Color, fontKey string) {
+	if fontRen, ok := textRen.(render.FontVerticalTextDrawer); ok {
+		fontRen.DrawTextVerticalWithFont(text, center, size, textColor, fontKey)
+		return
+	}
+	primeTextFont(textRen, text, size, fontKey)
+	textRen.DrawTextVertical(text, center, size, textColor)
 }
 
 func primeTextFont(textRen render.TextDrawer, sample string, size float64, fontKey string) {
@@ -170,8 +194,7 @@ func drawMathTextLayout(r render.Renderer, textRen render.TextDrawer, layout Mat
 	}
 	for _, run := range layout.Runs {
 		runFontKey := resolveRunFontKey(run, fontKey)
-		primeTextFont(textRen, run.Text, run.FontSize, runFontKey)
-		textRen.DrawText(run.Text, geom.Pt{X: origin.X + run.Offset.X, Y: origin.Y + run.Offset.Y}, run.FontSize, textColor)
+		drawTextWithFontContext(textRen, run.Text, geom.Pt{X: origin.X + run.Offset.X, Y: origin.Y + run.Offset.Y}, run.FontSize, textColor, runFontKey)
 	}
 }
 
