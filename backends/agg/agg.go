@@ -110,12 +110,9 @@ type filterState struct {
 	clipPaths []geom.Path
 }
 
-// BufferRegion holds copied pixels and their destination rectangle in renderer
-// coordinates.
-type BufferRegion struct {
-	Image *image.RGBA
-	Rect  geom.Rect
-}
+// BufferRegion is kept as a package-local alias for existing AGG callers; the
+// shared optional renderer contract lives in render.BufferRegion.
+type BufferRegion = render.BufferRegion
 
 type clipMaskKey struct {
 	width  int
@@ -132,7 +129,13 @@ var (
 	_ render.TextBounder           = (*Renderer)(nil)
 	_ render.TextFontMetricer      = (*Renderer)(nil)
 	_ render.TextPather            = (*Renderer)(nil)
+	_ render.TeXMetricer           = (*Renderer)(nil)
+	_ render.TeXDrawer             = (*Renderer)(nil)
+	_ render.RotatedTeXDrawer      = (*Renderer)(nil)
 	_ render.ImageTransformer      = (*Renderer)(nil)
+	_ render.RGBAExporter          = (*Renderer)(nil)
+	_ render.BufferRegioner        = (*Renderer)(nil)
+	_ render.FilterRenderer        = (*Renderer)(nil)
 	_ render.MarkerDrawer          = (*Renderer)(nil)
 	_ render.PathCollectionDrawer  = (*Renderer)(nil)
 	_ render.QuadMeshDrawer        = (*Renderer)(nil)

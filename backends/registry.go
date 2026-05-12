@@ -37,18 +37,21 @@ const (
 	Threading Capability = "threading"
 
 	// Output capabilities
-	DPIAware       Capability = "dpiaware"
-	VectorOutput   Capability = "vectoroutput"
-	TextShaping    Capability = "textshaping"
-	FontHinting    Capability = "fonthinting"
-	TextBounds     Capability = "textbounds"
-	TextPathing    Capability = "textpathing"
-	RotatedText    Capability = "rotatedtext"
-	VerticalText   Capability = "verticaltext"
-	ImageTransform Capability = "imagetransform"
-	NativeHatcher  Capability = "nativehatcher"
-	PNGExport      Capability = "pngexport"
-	SVGExport      Capability = "svgexport"
+	DPIAware        Capability = "dpiaware"
+	VectorOutput    Capability = "vectoroutput"
+	TextShaping     Capability = "textshaping"
+	FontHinting     Capability = "fonthinting"
+	TextBounds      Capability = "textbounds"
+	TextPathing     Capability = "textpathing"
+	RotatedText     Capability = "rotatedtext"
+	VerticalText    Capability = "verticaltext"
+	ImageTransform  Capability = "imagetransform"
+	RGBABuffer      Capability = "rgbabuffer"
+	BufferRegion    Capability = "bufferregion"
+	OffscreenFilter Capability = "offscreenfilter"
+	NativeHatcher   Capability = "nativehatcher"
+	PNGExport       Capability = "pngexport"
+	SVGExport       Capability = "svgexport"
 
 	// Batch drawing capabilities
 	MarkerBatch          Capability = "markerbatch"
@@ -111,6 +114,18 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 	},
 	ImageTransform: func(r render.Renderer) bool {
 		_, ok := r.(render.ImageTransformer)
+		return ok
+	},
+	RGBABuffer: func(r render.Renderer) bool {
+		_, ok := r.(render.RGBAExporter)
+		return ok
+	},
+	BufferRegion: func(r render.Renderer) bool {
+		_, ok := r.(render.BufferRegioner)
+		return ok
+	},
+	OffscreenFilter: func(r render.Renderer) bool {
+		_, ok := r.(render.FilterRenderer)
 		return ok
 	},
 	MarkerBatch: func(r render.Renderer) bool {

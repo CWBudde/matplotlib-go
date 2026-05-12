@@ -14,7 +14,8 @@ func CapabilityMatrix() string {
 		GPUAccel, Threading,
 		DPIAware, VectorOutput, TextShaping, FontHinting,
 		TextBounds, TextPathing, RotatedText, VerticalText,
-		ImageTransform, NativeHatcher, PNGExport, SVGExport,
+		ImageTransform, RGBABuffer, BufferRegion, OffscreenFilter,
+		NativeHatcher, PNGExport, SVGExport,
 		MarkerBatch, PathCollectionBatch, QuadMeshBatch, GouraudTriangleBatch,
 	}
 

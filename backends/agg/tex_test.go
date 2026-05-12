@@ -26,12 +26,12 @@ func TestTeXManagerBuildsAndCachesPNG(t *testing.T) {
 	latexLog := filepath.Join(dir, "latex.log")
 	dvipngLog := filepath.Join(dir, "dvipng.log")
 	latex := writeFakeCommand(t, dir, "latex", `#!/bin/sh
-printf '%s\n' "$@" >> "$LATEX_LOG"
+echo latex >> "$LATEX_LOG"
 test -f file.tex || exit 7
 touch file.dvi
 `)
 	dvipng := writeFakeCommand(t, dir, "dvipng", `#!/bin/sh
-printf '%s\n' "$@" >> "$DVIPNG_LOG"
+echo dvipng >> "$DVIPNG_LOG"
 out=""
 while [ "$#" -gt 0 ]; do
   if [ "$1" = "-o" ]; then
@@ -142,6 +142,61 @@ cp "$FAKE_TEX_PNG" "$out"
 	}
 }
 
+func TestAggDrawTeXRotatedCompositesCachedPNG(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell commands are POSIX-only")
+	}
+	dir := t.TempDir()
+	fixture := filepath.Join(dir, "fixture.png")
+	writeTestPNG(t, fixture, color.RGBA{A: 255})
+	latex := writeFakeCommand(t, dir, "latex", `#!/bin/sh
+touch file.dvi
+`)
+	dvipng := writeFakeCommand(t, dir, "dvipng", `#!/bin/sh
+out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then
+    shift
+    out="$1"
+  fi
+  shift
+done
+cp "$FAKE_TEX_PNG" "$out"
+`)
+	t.Setenv("FAKE_TEX_PNG", fixture)
+
+	r, err := New(32, 32, render.Color{})
+	if err != nil {
+		t.Fatalf("New renderer: %v", err)
+	}
+	r.texManager = newTeXManager(texManagerConfig{
+		CacheDir:      filepath.Join(dir, "cache"),
+		LaTeXCommand:  latex,
+		DVIPNGCommand: dvipng,
+	})
+
+	if !r.DrawTeXRotated(`x`, geom.Pt{X: 16, Y: 16}, 12, 0.4, render.Color{B: 1, A: 1}, "DejaVu Sans") {
+		t.Fatal("DrawTeXRotated returned false")
+	}
+	if got := nonZeroPixelCount(r.GetImage()); got == 0 {
+		t.Fatal("DrawTeXRotated produced a blank image")
+	}
+}
+
+func TestTeXSourcePreservesBoxesRulesAndFontFamily(t *testing.T) {
+	source := texSource(`\fbox{\rule{1em}{0.4pt}}`, 12, "DejaVu Sans")
+	for _, want := range []string{
+		`\sffamily \fbox{\rule{1em}{0.4pt}}`,
+		`\@ifpackageloaded{underscore}`,
+		`\@ifpackageloaded{textcomp}`,
+		`\fontsize{12}{15}%`,
+	} {
+		if !strings.Contains(source, want) {
+			t.Fatalf("TeX source missing %q:\n%s", want, source)
+		}
+	}
+}
+
 func writeFakeCommand(t *testing.T, dir, name, body string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -175,4 +230,19 @@ func lineCount(t *testing.T, path string) int {
 		t.Fatalf("read log: %v", err)
 	}
 	return bytes.Count(data, []byte{'\n'})
+}
+
+func nonZeroPixelCount(img *image.RGBA) int {
+	if img == nil {
+		return 0
+	}
+	n := 0
+	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+			if img.RGBAAt(x, y).A != 0 {
+				n++
+			}
+		}
+	}
+	return n
 }

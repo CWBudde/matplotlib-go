@@ -762,6 +762,11 @@ func (r *texRecordingRenderer) DrawTeXRotated(text string, anchor geom.Pt, size,
 	return true
 }
 
+func (r *texRecordingRenderer) DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
+	r.texts = append(r.texts, text)
+	r.origins = append(r.origins, anchor)
+}
+
 func TestAxesTextSupportsAxesAndBlendedCoordinates(t *testing.T) {
 	fig := NewFigure(800, 600)
 	ax := fig.AddAxes(geom.Rect{

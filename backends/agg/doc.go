@@ -1,7 +1,7 @@
 // Package agg implements the AGG backend for matplotlib-go.
 //
-// Phase 14.1 task (AGG reference parity) status
-// ----------------------------------------------
+// Phase 8.1D task (AGG image/effects/buffer parity) status
+// ---------------------------------------------------------
 //
 // This package is treated as the AGG reference backend and should track
 // parity against:
@@ -15,13 +15,12 @@
 // - Image drawing and affine image drawing
 // - Text raster and path rendering, text measurement, font metrics
 // - PNG export
+// - Direct RGBA buffer access through GetImage
 // - `copy_from_bbox` / `restore_region` equivalent (`CopyFromBBox` / `RestoreRegion`)
 // - `start_filter` / `stop_filter` equivalent (`StartFilter` / `StopFilter`)
 //
 // Intentionally unsupported for now
-//   - Full upstream `draw_mathtext` / `draw_tex` pipeline parity; MatplotlibTeX/MathText
-//     glyph shaping is handled by existing native text fallback plumbing where used.
-//   - Raw pixel-readback helpers (`buffer_rgba`, `tostring_argb`).
+//   - ARGB string export helpers such as Matplotlib's `tostring_argb`.
 //
-// These intentional gaps should be revisited as part of ongoing 14.1 sub-tasks.
+// These intentional gaps should be revisited as part of ongoing 8.1 sub-tasks.
 package agg

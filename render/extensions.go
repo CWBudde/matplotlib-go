@@ -1,6 +1,10 @@
 package render
 
-import "github.com/cwbudde/matplotlib-go/internal/geom"
+import (
+	"image"
+
+	"github.com/cwbudde/matplotlib-go/internal/geom"
+)
 
 // DPIAware is implemented by renderers that adapt text/layout behavior to DPI.
 type DPIAware interface {
@@ -67,6 +71,34 @@ type VerticalTextDrawer interface {
 // ImageTransformer is implemented by renderers that support affine image transforms.
 type ImageTransformer interface {
 	ImageTransformed(img Image, dst geom.Rect, transform geom.Affine)
+}
+
+// RGBAExporter is implemented by raster renderers that expose direct RGBA
+// buffer access in display pixel order.
+type RGBAExporter interface {
+	GetImage() *image.RGBA
+}
+
+// BufferRegion holds copied pixels and their destination rectangle in renderer
+// coordinates. It is the renderer-neutral equivalent of Matplotlib's
+// BufferRegion used by copy_from_bbox / restore_region.
+type BufferRegion struct {
+	Image *image.RGBA
+	Rect  geom.Rect
+}
+
+// BufferRegioner is implemented by renderers that support blitting-style
+// region copy and restore.
+type BufferRegioner interface {
+	CopyFromBBox(bbox geom.Rect) *BufferRegion
+	RestoreRegion(region *BufferRegion, bbox *geom.Rect, offset geom.Pt)
+}
+
+// FilterRenderer is implemented by renderers that support drawing into a
+// temporary offscreen surface and compositing a post-processed result.
+type FilterRenderer interface {
+	StartFilter()
+	StopFilter(postProcess func(img *image.RGBA, dpi float64) (*image.RGBA, geom.Pt))
 }
 
 // MarkerItem is one positioned marker instance in a repeated marker batch.

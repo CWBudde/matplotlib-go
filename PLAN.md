@@ -724,12 +724,12 @@ Current slice landed:
   - [x] compare parser/layout behavior directly against upstream `MathTextParser('path')`
   - [x] support missing grammar, stretchy delimiters, spacing/control semantics, boxes, and font style interactions
   - [x] render MathText glyphs and boxes through the same shaped glyph/path pipeline
-- [ ] Complete `usetex` integration for AGG:
+- [x] Complete `usetex` integration for AGG:
   - [x] renderer-facing TeX measurement/draw hook and core routing when `text.usetex` is enabled
-  - [ ] external TeX/DVI/dvipng pipeline and artifact cache
-  - [ ] error reporting and reproducible invalidation
-  - [ ] raster/vector import of TeX output back into AGG rendering
-  - [ ] parity tests for rotated TeX, boxes/rules, and font/package coordination
+  - [x] external TeX/DVI/dvipng pipeline and artifact cache
+  - [x] error reporting and reproducible invalidation
+  - [x] raster/vector import of TeX output back into AGG rendering
+  - [x] parity tests for rotated TeX, boxes/rules, and font/package coordination
 
 Latest text-parity note:
 
@@ -751,14 +751,22 @@ Latest text-parity note:
 
 **Goal:** support the AGG image/effects features Matplotlib relies on for complex artists and interactive redraw.
 
-- [ ] Implement AGG image clipping through the same clipbox/clippath mask path used by vector primitives.
-- [ ] Add image interpolation/resampling controls instead of hard-coding `NoFilter`/`NoResample`.
-- [ ] Preserve image alpha and GC alpha semantics in the backend instead of pre-flattening policy in callers.
-- [ ] Make transformed images handle affine orientation, clipping, and interpolation consistently with upstream AGG behavior.
-- [ ] Add a safe fallback policy for image transforms only when a backend genuinely lacks the capability, and expose that limitation in backend capability tests.
-- [ ] Add `copy_from_bbox` / `restore_region`-style buffer region APIs for blitting, animation, and interactive redraw.
-- [ ] Add `start_filter` / `stop_filter`-style offscreen filter rendering for path effects and post-processing passes.
-- [ ] Add direct buffer access/export tests for RGBA/ARGB ordering, clearing, and background alpha semantics.
+- [x] Implement AGG image clipping through the same clipbox/clippath mask path used by vector primitives.
+- [x] Add image interpolation/resampling controls instead of hard-coding `NoFilter`/`NoResample`.
+- [x] Preserve image alpha and GC alpha semantics in the backend instead of pre-flattening policy in callers.
+- [x] Make transformed images handle affine orientation, clipping, and interpolation consistently with upstream AGG behavior.
+- [x] Add a safe fallback policy for image transforms only when a backend genuinely lacks the capability, and expose that limitation in backend capability tests.
+- [x] Add `copy_from_bbox` / `restore_region`-style buffer region APIs for blitting, animation, and interactive redraw.
+- [x] Add `start_filter` / `stop_filter`-style offscreen filter rendering for path effects and post-processing passes.
+- [x] Add direct buffer access/export tests for RGBA/ARGB ordering, clearing, and background alpha semantics.
+
+**Progress notes:**
+
+- AGG image and transformed-image drawing now route through the same clip-path mask compositor used by vector primitives, preserving straight RGBA and image-level alpha before source-over blending.
+- Matplotlib-style interpolation names are mapped to AGG image filters, including `auto` / `antialiased` scale-dependent behavior, and transformed images reuse the same filter/resample state.
+- `core.Image2D` uses native affine image transforms only when a renderer implements `render.ImageTransformer`; renderers without that capability keep the documented axis-aligned fallback path.
+- Added renderer-neutral optional contracts for direct RGBA buffer access, `copy_from_bbox` / `restore_region`, and `start_filter` / `stop_filter`; AGG reports those as native capabilities.
+- Added AGG tests for RGBA byte ordering, transparent background clearing, PNG round-trip export, image alpha composition, interpolation selection, transformed-image orientation, buffer-region restore, and filter compositing.
 
 ### 8.1E AGG Workaround and Oversimplification Paydown
 
@@ -1184,6 +1192,18 @@ Verification reference:
 - [ ] Add GoBasic contract tests for path state save/restore, clip stack behavior, image drawing, transformed image fallback, text metrics, and collection fallback routing.
 - [ ] Add a small GoBasic visual smoke fixture set that checks semantic output stability without using AGG-level pixel thresholds.
 - [ ] Document every known GoBasic fidelity limitation in `backends/gobasic/doc.go` and surface those limitations through the capability matrix.
+
+Current contract checklist:
+
+- [x] Capability/status reporting: native DPI/text/text-path/rotated/vertical/PNG/path-clip support, fallback marker/path-collection/quad-mesh/hatch support, and unsupported image-transform/font-bound/vector/Gouraud/SVG support are covered.
+- [x] Shared backend lifecycle/path contract suite runs against GoBasic.
+- [x] `Path` tolerates nil paint without panicking.
+- [x] Image drawing preserves source pixel sampling and applies `render.ImageAlpha` before bitmap blending.
+- [ ] Path paint-state contract audit: alpha, line joins/caps, dashes, clip rect/path stacking, hatch fallback, and antialias flags all need explicit GoBasic tests that inspect rendered semantics rather than only no-panic behavior.
+- [ ] Transformed image fallback contract: rotated/transformed images should have an explicit GoBasic test documenting that `core` falls back to axis-aligned `Image` when `render.ImageTransformer` is absent.
+- [ ] Text metrics contract: basic `MeasureText`, DPI scaling, missing-font fallback, rotated text, vertical text, and text-path behavior need grouped contract coverage; unsupported font-wide metrics and ink bounds should stay explicitly unsupported.
+- [ ] Collection fallback routing contract: marker, path collection, patch collection, quad mesh, hatches, and Gouraud fallback/unsupported behavior need tests proving GoBasic receives renderer-neutral `Path`/`Image` calls instead of silently dropping output.
+- [ ] Example smoke contract: render every committed non-interactive showcase/parity case with GoBasic and assert no panic plus non-blank output under semantic, non-AGG thresholds.
 
 Exit criteria:
 

@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"image"
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -37,6 +38,20 @@ func (r *capabilityRendererWithPNG) SavePNG(_ string) error {
 
 func (r *capabilityRendererWithPNG) ImageTransformed(_ render.Image, _ geom.Rect, _ geom.Affine) {}
 
+func (r *capabilityRendererWithPNG) GetImage() *image.RGBA {
+	return nil
+}
+
+func (r *capabilityRendererWithPNG) CopyFromBBox(_ geom.Rect) *render.BufferRegion {
+	return nil
+}
+
+func (r *capabilityRendererWithPNG) RestoreRegion(_ *render.BufferRegion, _ *geom.Rect, _ geom.Pt) {}
+
+func (r *capabilityRendererWithPNG) StartFilter() {}
+
+func (r *capabilityRendererWithPNG) StopFilter(_ func(*image.RGBA, float64) (*image.RGBA, geom.Pt)) {}
+
 type capabilityRendererWithBatches struct {
 	capabilityRendererWithPNG
 }
@@ -66,7 +81,7 @@ func TestSupportsRendererCapability(t *testing.T) {
 	reg.Register(Backend("contract"), &BackendInfo{
 		Name:         "Contract Backend",
 		Available:    true,
-		Capabilities: []Capability{TextShaping, FontHinting, VectorOutput, MarkerBatch, PathCollectionBatch, QuadMeshBatch, GouraudTriangleBatch},
+		Capabilities: []Capability{TextShaping, FontHinting, VectorOutput, ImageTransform, RGBABuffer, BufferRegion, OffscreenFilter, MarkerBatch, PathCollectionBatch, QuadMeshBatch, GouraudTriangleBatch},
 		Factory:      func(Config) (render.Renderer, error) { return &capabilityRendererWithBatches{}, nil },
 	})
 	withDefaultRegistry(t, reg)
@@ -79,6 +94,18 @@ func TestSupportsRendererCapability(t *testing.T) {
 	}
 	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, VectorOutput) {
 		t.Fatal("expected VectorOutput capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, ImageTransform) {
+		t.Fatal("expected ImageTransform capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, RGBABuffer) {
+		t.Fatal("expected RGBABuffer capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, BufferRegion) {
+		t.Fatal("expected BufferRegion capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, OffscreenFilter) {
+		t.Fatal("expected OffscreenFilter capability to be supported")
 	}
 	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, MarkerBatch) {
 		t.Fatal("expected MarkerBatch capability to be supported")
@@ -104,6 +131,18 @@ func TestSupportsRendererCapability(t *testing.T) {
 	}
 	if SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, VectorOutput) {
 		t.Fatal("expected VectorOutput capability to be unsupported with only PNG export")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, ImageTransform) {
+		t.Fatal("expected ImageTransform capability to be unsupported without ImageTransformed")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, RGBABuffer) {
+		t.Fatal("expected RGBABuffer capability to be unsupported without GetImage")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, BufferRegion) {
+		t.Fatal("expected BufferRegion capability to be unsupported without copy/restore methods")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, OffscreenFilter) {
+		t.Fatal("expected OffscreenFilter capability to be unsupported without filter methods")
 	}
 	if SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, MarkerBatch) {
 		t.Fatal("expected MarkerBatch capability to be unsupported without batch interface")
