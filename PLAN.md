@@ -1034,19 +1034,77 @@ Verification reference:
 
 **Reference sources:** `third_party/matplotlib/lib/matplotlib/backends/backend_svg.py`, `backends/svg/`, `render/`, `test/`.
 
-- [ ] Audit SVG output against upstream `RendererSVG` for path serialization, clipping, transforms, opacity groups, hatches, markers, images, text-as-text, and text-as-path behavior.
-- [~] Add deterministic SVG serialization tests that normalize IDs, ordering, float formatting, and metadata so diffs are reviewable. *(Phase 1 landed: compact `shortFloat` mirrors matplotlib's `_short_float_fmt`, `rotateTransform` helper centralizes transform formatting, `TestSerializationDeterministic` and `TestShortFloat` pin behavior. Metadata normalization deferred to Phase 4.)*
-- [~] Implement SVG clip paths, nested clip groups, and transformed clip paths consistently with the shared renderer clip contract. *(Path clipping and nested clip groups landed: `ClipPath` now registers deduped `<clipPath>` defs and the serializer wraps content in nested `<g clip-path>` groups with rect outer / path inner. Transformed clip paths still pending — needs the matrix-transform refactor.)*
-- [~] Add SVG support for hatches, alpha groups, raster image embedding, transformed images, and Gouraud/gradient fallbacks where vector-native output is practical. *(Landed: `ImageTransformed` emits `transform="matrix(a b c d e f)"` (advertised native `ImageTransform`); native `DrawMarkers` registers one `<defs><path id="markerN" d="…"/>` per unique marker geometry and emits short `<use href="#markerN" transform=… fill=… stroke=…/>` per item (advertised native `MarkerBatch`). Hatches, alpha groups, and Gouraud fallbacks still pending.)*
-- [ ] Align SVG font handling with the shared font manager: preserve text when possible, emit path text when requested or required, and keep measurement behavior consistent with layout.
-- [ ] Route figure/filetype save dispatch through backend capabilities so `.svg` output uses the SVG backend without ad-hoc save helpers.
-- [ ] Add SVG reference fixtures for core plot families, text/mathtext, images, clipped projections, hatches, and collection-heavy plots.
+Bring the SVG backend to functional parity with upstream Matplotlib's `RendererSVG`: deterministic serialization, real vector clip paths, native marker/hatch defs, an explicit text-as-text vs text-as-path policy, and a structural test surface that does not depend on rasterized screenshots. Work is split into six dependency-ordered subtasks; each can ship independently and any subtask audits the matching upstream behavior as part of its own work item.
+
+**14.3.1 Deterministic serialization foundation (landed):**
+
+- [x] Compact float formatter mirroring matplotlib's `_short_float_fmt` (6 decimals max, trailing zeros stripped, `-0` normalized, NaN/Inf clamped to `0`).
+- [x] Centralized rotation formatter (`rotateTransform`) so the eventual matrix-transform switch only touches one helper.
+- [x] Deterministic ID assignment across rect clips, path clips, and marker defs via a single shared counter and registration-ordered slices (no map iteration in the writer).
+- [x] Byte-for-byte reproducibility test (`TestSerializationDeterministic`) and table-driven `TestShortFloat` / `TestRotateTransformUsesShortFloat` pinning formatter semantics.
+
+**14.3.2 Clip paths, nested clip groups, transformed clips (mostly landed):**
+
+- [x] `ClipPath(geom.Path)` registers a deduped `<clipPath><path d="…"/></clipPath>` def in `<defs>` keyed by path data.
+- [x] Nested clip stacks: `Save`/`Restore` snapshot/truncate the path-clip stack; each rendered node captures the full active chain (rect outer, path inner).
+- [x] Serializer wraps content in nested `<g clip-path="url(#…)">` groups in outer-to-inner order.
+- [x] Tests for nested rect+path composition, dedup across nodes, restore-pop unwind, empty-path rejection.
+- [ ] Switch per-element rotation strings to canonical `matrix(a b c d e f)` transforms everywhere a transform is applied (text, image, marker `<use>`). Single helper (`matrixTransform`) already exists from 14.3.3 and is reused.
+- [ ] Transformed clip paths: apply an affine to a stored clip-path def via `<clipPath><path … transform="…"/></clipPath>` once matrix transforms are universal.
+
+**14.3.3 Native batches, image transforms, hatches, alpha (in progress):**
+
+- [x] `ImageTransformed` emits `transform="matrix(a b c d e f)"` on `<image>`; advertised native `ImageTransform`.
+- [x] Native `DrawMarkers`: one `<defs><path id="markerN" d="…"/>` per unique marker geometry; short `<use href="#markerN" transform=… fill=… stroke=…/>` per item, all wrapped in a single clip-group node; advertised native `MarkerBatch`.
+- [ ] Native `DrawPathCollection` via `<defs>` + `<use>` per unique path geometry (mirrors the marker treatment); advertise native `PathCollectionBatch`.
+- [ ] Native hatches via `<pattern>` defs (72×72 user-space, keyed by `(hatch, faceColor, edgeColor, lineWidth)`); advertise `NativeHatch` once `<pattern>` reuse is structural and the existing core-side rasterizer is no longer invoked for SVG.
+- [ ] Forced-alpha group wrapping: when `paint.ForceAlpha && paint.Alpha < 1`, emit `opacity="alpha"` on the element (or a `<g opacity>` wrapper for batches) and skip per-color `*-opacity`. Requires coordinated changes to `render/graphics_context.go` so colors are not double-multiplied.
+- [ ] Gouraud triangle fallback: continue rasterizing via core but document the limitation explicitly; native `<linearGradient>` emission deferred until use cases warrant it.
+
+**14.3.4 Font policy, metadata, and SVG-specific save options (not started):**
+
+- [ ] `FontPolicy` option on `svg.Renderer` (`"none"` text-as-text default, `"path"` text-as-path via `render.TextPather`); analogue of matplotlib's `svg.fonttype` rcParam.
+- [ ] Plumb `FontPolicy`, `Metadata`, and `HashSalt` options through `core.SaveSVG`/canvas save dispatch via a typed options interface.
+- [ ] Default empty `<metadata>` block; opt-in via explicit `Metadata` option or `SOURCE_DATE_EPOCH` env var for date stability.
+- [ ] Opt-in `HashSalt`: when set, switch IDs to `SHA256(salt+content)[:10]` (matches matplotlib's `svg.hashsalt`); default keeps the existing sequential `clipN`/`markerN` IDs.
+- [ ] Document the option set in `backends/svg/doc.go`.
+
+**14.3.5 Reference fixtures and structural diff helper (not started):**
+
+- [ ] `testdata/golden/svg/` populated with structural goldens for canonical plot families: line, scatter, bar, errorbar, hist, collection, image, clipped polar, hatch_bars, text_layout, mathtext.
+- [ ] New `internal/svgcompare/` helper: parse, normalize attribute ordering, structural diff. Unit-test the normalizer before any golden lands.
+- [ ] `-update` flag on the golden test to re-bake fixtures when intentional output changes ship.
+
+**14.3.6 Capability matrix contract and audit coverage (in progress):**
+
+- [x] `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` invokes `VerifyRendererCapabilities`; over-advertised `FontHinting` removed (its runtime check expected `render.TextFontMetricer` which SVG never implemented).
+- [ ] Cross-backend semantic tests: render the same figure through AGG and SVG; compare clip/marker/text-glyph counts rather than pixel/byte parity.
+- [ ] `backends/svg/audit_test.go` exercising every `render.Renderer` surface method so silent-drop regressions surface as test failures rather than missing artist output.
+
+**Save dispatch (already routed via registry, completed before 14.3 began):**
+
+- [x] `BackendInfo.SaveFormats[".svg"] = backends.SaveSVG` is wired in `backends/svg/init.go` and exercised end-to-end by `backends/registry_save_test.go` and `core/savesvg_test.go`. The original "route save dispatch through backend capabilities" bullet shipped before this task started; promoted to exit criterion.
 
 Exit criteria:
 
 - [ ] SVG output is deterministic, standards-compliant enough for browser viewing, and covered by structural tests instead of only rasterized screenshots.
 - [ ] SVG supports the same high-level artist surface as AGG, with documented vector-specific fallbacks for unsupported raster-only effects.
-- [ ] `.svg` save dispatch works through the backend registry/canvas path.
+- [x] `.svg` save dispatch works through the backend registry/canvas path.
+
+Progress notes:
+
+- The original "Audit SVG output against upstream `RendererSVG`" bullet has been folded into the per-subtask design rather than tracked separately — each subtask cites the upstream behavior it is matching, so the audit ships incrementally with the implementation.
+- 14.3.2 and 14.3.3 share a transitive dependency: transformed clip paths (14.3.2) and `<pattern>`-based hatch defs (14.3.3) both benefit from the matrix-transform helper introduced for `ImageTransformed`/`DrawMarkers`. The remaining matrix-transform refactor in 14.3.2 unblocks both.
+- Moving `MarkerBatch` from fallback to native (14.3.3) exposed that `PathCollectionBatch` and `QuadMeshBatch` remain core-side fallbacks; native treatment of path collections is the next natural step.
+- Default-no-metadata in 14.3.4 diverges intentionally from matplotlib (which always emits a generated date) to maximize byte-for-byte determinism out of the box; users opt in via `SOURCE_DATE_EPOCH` or explicit options.
+
+Verification reference:
+
+- [x] Formatter pinning: `TestShortFloat`, `TestRotateTransformUsesShortFloat`, `TestSerializationDeterministic`.
+- [x] Clip paths: `TestClipPathNestsInsideActiveRectClip`, `TestClipPathDedupesIdenticalPathsAcrossNodes`, `TestClipPathStackUnwindsOnRestore`, `TestClipPathRejectsEmptyPath`, plus the existing `TestRenderSVGPreservesClipStackAcrossSaveRestore` for rect-only intersection semantics.
+- [x] Image transforms: `TestImageTransformedEmitsMatrixAttribute`, `TestImageTransformedHonorsClip`, `TestImageTransformedSkipsUnsupportedImage`, `TestMatrixTransformFormat`.
+- [x] Marker batches: `TestDrawMarkersEmitsDefAndUseElements`, `TestDrawMarkersDedupesIdenticalMarkerGeometry`, `TestDrawMarkersHonorsActiveClip`, `TestDrawMarkersRejectsEmptyBatchOrInvalidMarker`.
+- [x] Capability advertising: `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` (registry-level contract).
 
 ### 14.4 Skia Backend Parity
 
