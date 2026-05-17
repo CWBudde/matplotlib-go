@@ -255,3 +255,88 @@ type PNGExporter interface {
 type SVGExporter interface {
 	SaveSVG(path string) error
 }
+
+// SVGFontPolicy controls whether SVG text is emitted as native <text> nodes
+// or converted to filled glyph paths.
+type SVGFontPolicy string
+
+const (
+	SVGFontPolicyNone SVGFontPolicy = "none"
+	SVGFontPolicyPath SVGFontPolicy = "path"
+)
+
+// SVGOptions carries SVG-specific export and renderer behavior knobs.
+type SVGOptions struct {
+	FontPolicy SVGFontPolicy
+	Metadata   map[string]string
+	HashSalt   string
+}
+
+// SVGOption mutates SVGOptions.
+type SVGOption func(*SVGOptions)
+
+// DefaultSVGOptions returns deterministic SVG defaults.
+func DefaultSVGOptions() SVGOptions {
+	return SVGOptions{FontPolicy: SVGFontPolicyNone}
+}
+
+// ResolveSVGOptions applies opts onto deterministic SVG defaults.
+func ResolveSVGOptions(opts ...SVGOption) SVGOptions {
+	cfg := DefaultSVGOptions()
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	cfg.Metadata = cloneSVGMetadata(cfg.Metadata)
+	return cfg
+}
+
+// WithSVGFontPolicy configures native text versus glyph-path text output.
+func WithSVGFontPolicy(policy SVGFontPolicy) SVGOption {
+	return func(cfg *SVGOptions) {
+		switch policy {
+		case SVGFontPolicyPath:
+			cfg.FontPolicy = SVGFontPolicyPath
+		default:
+			cfg.FontPolicy = SVGFontPolicyNone
+		}
+	}
+}
+
+// WithSVGMetadata adds deterministic metadata entries to the SVG document.
+func WithSVGMetadata(metadata map[string]string) SVGOption {
+	return func(cfg *SVGOptions) {
+		cfg.Metadata = cloneSVGMetadata(metadata)
+	}
+}
+
+// WithSVGHashSalt enables content-hashed SVG IDs using the provided salt.
+func WithSVGHashSalt(salt string) SVGOption {
+	return func(cfg *SVGOptions) {
+		cfg.HashSalt = salt
+	}
+}
+
+// SVGOptionExporter is implemented by SVG renderers that accept resolved
+// options at export time.
+type SVGOptionExporter interface {
+	SaveSVGWithOptions(path string, opts SVGOptions) error
+}
+
+// SVGOptionSetter is implemented by renderers whose draw-time behavior depends
+// on SVGOptions, such as text-as-path and content-hashed IDs.
+type SVGOptionSetter interface {
+	SetSVGOptions(opts SVGOptions)
+}
+
+func cloneSVGMetadata(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}

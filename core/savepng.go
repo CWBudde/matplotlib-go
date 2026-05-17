@@ -8,7 +8,7 @@ import (
 
 // SavePNG saves a figure to a PNG file using the provided renderer.
 // This function draws the figure using the renderer and then exports to PNG.
-func SavePNG(fig *Figure, r render.Renderer, path string) error {
+func SavePNG(fig *Figure, r render.Renderer, path string, _ ...render.SVGOption) error {
 	// Draw the figure using the renderer
 	DrawFigure(fig, r)
 

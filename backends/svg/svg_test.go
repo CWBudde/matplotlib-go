@@ -133,6 +133,74 @@ func TestSaveSVG(t *testing.T) {
 	}
 }
 
+func TestRenderSVGEmitsDefaultEmptyMetadata(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.DrawText("plain", geom.Pt{X: 10, Y: 20}, 12, render.Color{A: 1})
+	})
+
+	if !strings.Contains(content, "  <metadata></metadata>\n") {
+		t.Fatalf("default SVG should contain an empty metadata block, got %q", content)
+	}
+	if strings.Contains(content, `name="Date"`) {
+		t.Fatalf("default SVG metadata should not include a generated date, got %q", content)
+	}
+}
+
+func TestRenderSVGMetadataOptionAndSourceDateEpoch(t *testing.T) {
+	t.Setenv("SOURCE_DATE_EPOCH", "0")
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.SetSVGOptions(render.ResolveSVGOptions(
+			render.WithSVGMetadata(map[string]string{
+				"Title":  "Plot",
+				"Author": "Codex",
+			}),
+		))
+	})
+
+	for _, want := range []string{
+		`<meta name="Author" content="Codex" />`,
+		`<meta name="Date" content="1970-01-01T00:00:00Z" />`,
+		`<meta name="Title" content="Plot" />`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("expected metadata fragment %q in %q", want, content)
+		}
+	}
+	if strings.Index(content, `name="Author"`) > strings.Index(content, `name="Title"`) {
+		t.Fatalf("metadata entries should serialize in deterministic key order, got %q", content)
+	}
+}
+
+func TestHashSaltUsesContentDerivedIDs(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.SetSVGOptions(render.ResolveSVGOptions(render.WithSVGHashSalt("stable")))
+		r.ClipRect(geom.Rect{Min: geom.Pt{X: 1, Y: 2}, Max: geom.Pt{X: 11, Y: 12}})
+		r.DrawText("clipped", geom.Pt{X: 5, Y: 6}, 12, render.Color{A: 1})
+	})
+
+	if strings.Contains(content, `id="clip1"`) || strings.Contains(content, `url(#clip1)`) {
+		t.Fatalf("hash-salted SVG should not use sequential clip IDs, got %q", content)
+	}
+	re := regexp.MustCompile(`id="clip[0-9a-f]{10}"`)
+	if !re.MatchString(content) {
+		t.Fatalf("hash-salted clip ID should use a stable content hash, got %q", content)
+	}
+}
+
+func TestFontPolicyPathDrawsTextAsPath(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.SetSVGOptions(render.ResolveSVGOptions(render.WithSVGFontPolicy(render.SVGFontPolicyPath)))
+		r.DrawText("A", geom.Pt{X: 10, Y: 30}, 14, render.Color{A: 1})
+	})
+
+	if strings.Contains(content, "<text") {
+		t.Fatalf("path font policy should not emit native text nodes, got %q", content)
+	}
+	if !strings.Contains(content, `<path d="`) || !strings.Contains(content, `fill="rgb(0,0,0)"`) {
+		t.Fatalf("path font policy should emit filled glyph paths, got %q", content)
+	}
+}
+
 func TestDrawTeXEmbedsCachedPNG(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake shell commands are POSIX-only")

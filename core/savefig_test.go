@@ -14,10 +14,11 @@ import (
 // records which export path was exercised so tests can assert dispatch.
 type testPNGSVGRenderer struct {
 	render.NullRenderer
-	savedPNG bool
-	savedSVG bool
-	pngPath  string
-	svgPath  string
+	savedPNG   bool
+	savedSVG   bool
+	pngPath    string
+	svgPath    string
+	svgOptions render.SVGOptions
 }
 
 func newTestPNGSVGRenderer() *testPNGSVGRenderer { return &testPNGSVGRenderer{} }
@@ -32,6 +33,11 @@ func (r *testPNGSVGRenderer) SaveSVG(path string) error {
 	r.savedSVG = true
 	r.svgPath = path
 	return nil
+}
+
+func (r *testPNGSVGRenderer) SaveSVGWithOptions(path string, opts render.SVGOptions) error {
+	r.svgOptions = opts
+	return r.SaveSVG(path)
 }
 
 // defaultAxesRect is the unit-square rect used by SaveFig tests when adding
@@ -82,6 +88,25 @@ func TestSaveFig_DispatchesByExtension_SVG(t *testing.T) {
 	}
 	if r.svgPath != path {
 		t.Fatalf("SaveSVG received path %q, want %q", r.svgPath, path)
+	}
+}
+
+func TestSaveFig_ForwardsSVGOptions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "out.svg")
+
+	fig := NewFigure(100, 80)
+	fig.AddAxes(defaultAxesRect)
+
+	r := newTestPNGSVGRenderer()
+	if err := SaveFig(fig, r, path, render.WithSVGMetadata(map[string]string{"Title": "From SaveFig"})); err != nil {
+		t.Fatalf("SaveFig: %v", err)
+	}
+	if !r.savedSVG {
+		t.Fatal("expected SVG path to be exercised")
+	}
+	if got := r.svgOptions.Metadata["Title"]; got != "From SaveFig" {
+		t.Fatalf("SaveFig did not forward SVG metadata option, got %q", got)
 	}
 }
 

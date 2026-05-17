@@ -242,7 +242,7 @@ type BackendInfo struct {
 }
 
 // SaveHandler writes output in a specific file format using the renderer.
-type SaveHandler func(render.Renderer, string) error
+type SaveHandler func(render.Renderer, string, ...render.SVGOption) error
 
 func normalizeSaveFormat(format string) string {
 	ext := strings.ToLower(strings.TrimSpace(format))
@@ -256,7 +256,7 @@ func normalizeSaveFormat(format string) string {
 }
 
 // SavePNG saves using the renderer PNG export interface.
-func SavePNG(renderer render.Renderer, path string) error {
+func SavePNG(renderer render.Renderer, path string, _ ...render.SVGOption) error {
 	exporter, ok := renderer.(render.PNGExporter)
 	if !ok {
 		return fmt.Errorf("backends: renderer does not implement PNG export")
@@ -265,10 +265,18 @@ func SavePNG(renderer render.Renderer, path string) error {
 }
 
 // SaveSVG saves using the renderer SVG export interface.
-func SaveSVG(renderer render.Renderer, path string) error {
+func SaveSVG(renderer render.Renderer, path string, opts ...render.SVGOption) error {
 	exporter, ok := renderer.(render.SVGExporter)
 	if !ok {
 		return fmt.Errorf("backends: renderer does not implement SVG export")
+	}
+	if len(opts) > 0 {
+		if setter, ok := renderer.(render.SVGOptionSetter); ok {
+			setter.SetSVGOptions(render.ResolveSVGOptions(opts...))
+		}
+	}
+	if optionExporter, ok := renderer.(render.SVGOptionExporter); ok && len(opts) > 0 {
+		return optionExporter.SaveSVGWithOptions(path, render.ResolveSVGOptions(opts...))
 	}
 	return exporter.SaveSVG(path)
 }
@@ -411,15 +419,15 @@ func (r *Registry) VerifyRendererCapabilities(backend Backend, renderer render.R
 }
 
 // SaveViaExtension dispatches to the backend-specific save handler for extension.
-func (r *Registry) SaveViaExtension(backend Backend, renderer render.Renderer, path string) error {
+func (r *Registry) SaveViaExtension(backend Backend, renderer render.Renderer, path string, opts ...render.SVGOption) error {
 	info, ok := r.Get(backend)
 	if !ok {
 		return fmt.Errorf("unknown backend: %s", backend)
 	}
-	return info.saveViaExtension(renderer, path)
+	return info.saveViaExtension(renderer, path, opts...)
 }
 
-func (i *BackendInfo) saveViaExtension(renderer render.Renderer, path string) error {
+func (i *BackendInfo) saveViaExtension(renderer render.Renderer, path string, opts ...render.SVGOption) error {
 	if i == nil {
 		return errors.New("backends: nil backend info")
 	}
@@ -431,16 +439,16 @@ func (i *BackendInfo) saveViaExtension(renderer render.Renderer, path string) er
 
 	if i.SaveFormats != nil {
 		if handler, ok := i.SaveFormats[ext]; ok {
-			return handler(renderer, path)
+			return handler(renderer, path, opts...)
 		}
 		return fmt.Errorf("backends: backend does not support extension %q", ext)
 	}
 
 	switch ext {
 	case ".png":
-		return SavePNG(renderer, path)
+		return SavePNG(renderer, path, opts...)
 	case ".svg":
-		return SaveSVG(renderer, path)
+		return SaveSVG(renderer, path, opts...)
 	default:
 		return fmt.Errorf("backends: unsupported save extension %q", ext)
 	}

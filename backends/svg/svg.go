@@ -2,7 +2,9 @@ package svg
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -12,8 +14,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	tex "github.com/cwbudde/matplotlib-go/internal/tex"
@@ -115,6 +119,7 @@ type Renderer struct {
 	lastFontKey string
 	texManager  *tex.Manager
 	texErr      error
+	options     render.SVGOptions
 }
 
 var (
@@ -153,7 +158,16 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		hatchDefs:    map[string]string{},
 		fontFaces:    map[string]fontFaceDef{},
 		texManager:   tex.NewManager(tex.ManagerConfig{}),
+		options:      render.DefaultSVGOptions(),
 	}, nil
+}
+
+// SetSVGOptions configures SVG-specific draw and serialization behavior.
+func (r *Renderer) SetSVGOptions(opts render.SVGOptions) {
+	if r == nil {
+		return
+	}
+	r.options = normalizeSVGOptions(opts)
 }
 
 // Begin starts a drawing session with the given viewport.
@@ -463,7 +477,7 @@ func (r *Renderer) registerMarker(d string) string {
 	}
 
 	r.markerIDCounter++
-	id := "marker" + strconv.Itoa(r.markerIDCounter)
+	id := r.defID("marker", d, r.markerIDCounter)
 	r.markerDefs[d] = id
 	r.markerOrder = append(r.markerOrder, markerDef{id: id, data: d})
 	return id
@@ -539,7 +553,7 @@ func (r *Renderer) registerCollectionPath(d string) string {
 	}
 
 	r.pathIDCounter++
-	id := "pathcoll" + strconv.Itoa(r.pathIDCounter)
+	id := r.defID("pathcoll", d, r.pathIDCounter)
 	r.pathDefs[d] = id
 	r.pathOrder = append(r.pathOrder, pathCollectionDef{id: id, data: d})
 	return id
@@ -563,7 +577,7 @@ func (r *Renderer) registerHatch(paint render.Paint) string {
 	}
 
 	r.hatchIDCounter++
-	id := "hatch" + strconv.Itoa(r.hatchIDCounter)
+	id := r.defID("hatch", key, r.hatchIDCounter)
 	r.hatchDefs[key] = id
 	r.hatchOrder = append(r.hatchOrder, hatchDef{
 		id:        id,
@@ -799,9 +813,16 @@ func (r *Renderer) SetResolution(dpi uint) {
 
 // SaveSVG writes all recorded content into an SVG document.
 func (r *Renderer) SaveSVG(path string) error {
+	return r.SaveSVGWithOptions(path, r.options)
+}
+
+// SaveSVGWithOptions writes all recorded content into an SVG document using
+// the provided serialization options.
+func (r *Renderer) SaveSVGWithOptions(path string, opts render.SVGOptions) error {
 	if path == "" {
 		return errors.New("svg: path is required")
 	}
+	r.SetSVGOptions(opts)
 
 	file, err := os.Create(path)
 	if err != nil {
@@ -822,6 +843,7 @@ func (r *Renderer) renderSVG() string {
 		formatFloat(float64(r.height)),
 		r.width,
 		r.height))
+	writeMetadata(&b, r.options)
 
 	if len(r.clipOrder) > 0 || len(r.markerOrder) > 0 || len(r.pathOrder) > 0 || len(r.hatchOrder) > 0 || len(r.fontFaceOrder) > 0 {
 		b.WriteString("  <defs>\n")
@@ -930,6 +952,10 @@ func (r *Renderer) renderTextNode(text string, x, y, size float64, textColor ren
 	if text == "" || size <= 0 {
 		return
 	}
+	if r.options.FontPolicy == render.SVGFontPolicyPath {
+		r.renderTextPathNode(text, geom.Pt{X: x, Y: y}, size, textColor, transform)
+		return
+	}
 
 	var content strings.Builder
 	content.WriteString(`<text`)
@@ -953,6 +979,14 @@ func (r *Renderer) renderTextNode(text string, x, y, size float64, textColor ren
 		content: content.String(),
 		clipIDs: r.currentClipIDs(),
 	})
+}
+
+func (r *Renderer) renderTextPathNode(text string, origin geom.Pt, size float64, textColor render.Color, transform string) {
+	path, ok := r.TextPath(text, origin, size, r.lastFontKey)
+	if !ok {
+		return
+	}
+	r.Path(path, &render.Paint{Fill: textColor})
 }
 
 // currentClipIDs returns the active clip-path chain in outer-to-inner order.
@@ -981,7 +1015,7 @@ func (r *Renderer) registerClip(rect geom.Rect) string {
 	}
 
 	r.clipIDCounter++
-	id := "clip" + strconv.Itoa(r.clipIDCounter)
+	id := r.defID("clip", key, r.clipIDCounter)
 	r.clipDefs[key] = id
 	rectCopy := rect
 	r.clipOrder = append(r.clipOrder, clipDef{id: id, rect: &rectCopy})
@@ -998,7 +1032,7 @@ func (r *Renderer) registerPathClip(d, transform string) string {
 	}
 
 	r.clipIDCounter++
-	id := "clip" + strconv.Itoa(r.clipIDCounter)
+	id := r.defID("clip", key, r.clipIDCounter)
 	r.clipPathDefs[key] = id
 	r.clipOrder = append(r.clipOrder, clipDef{id: id, path: d, transform: transform})
 	return id
@@ -1185,6 +1219,59 @@ func colorToHex(c render.Color) string {
 
 func colorToStyle(c render.Color) (string, float64) {
 	return colorToHex(c), clamp01(c.A)
+}
+
+func normalizeSVGOptions(opts render.SVGOptions) render.SVGOptions {
+	if opts.FontPolicy != render.SVGFontPolicyPath {
+		opts.FontPolicy = render.SVGFontPolicyNone
+	}
+	if len(opts.Metadata) > 0 {
+		metadata := make(map[string]string, len(opts.Metadata))
+		for k, v := range opts.Metadata {
+			metadata[k] = v
+		}
+		opts.Metadata = metadata
+	}
+	return opts
+}
+
+func (r *Renderer) defID(prefix, content string, sequence int) string {
+	if r != nil && r.options.HashSalt != "" {
+		sum := sha256.Sum256([]byte(r.options.HashSalt + content))
+		return prefix + hex.EncodeToString(sum[:])[:10]
+	}
+	return prefix + strconv.Itoa(sequence)
+}
+
+func writeMetadata(b *strings.Builder, opts render.SVGOptions) {
+	metadata := normalizeSVGOptions(opts).Metadata
+	if epoch := strings.TrimSpace(os.Getenv("SOURCE_DATE_EPOCH")); epoch != "" {
+		if _, ok := metadata["Date"]; !ok {
+			if ts, err := strconv.ParseInt(epoch, 10, 64); err == nil {
+				if metadata == nil {
+					metadata = map[string]string{}
+				}
+				metadata["Date"] = time.Unix(ts, 0).UTC().Format(time.RFC3339)
+			}
+		}
+	}
+	if len(metadata) == 0 {
+		b.WriteString("  <metadata></metadata>\n")
+		return
+	}
+	keys := make([]string, 0, len(metadata))
+	for key := range metadata {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	b.WriteString("  <metadata>\n")
+	for _, key := range keys {
+		b.WriteString("    <meta")
+		writeAttr(b, "name", key)
+		writeAttr(b, "content", metadata[key])
+		b.WriteString(" />\n")
+	}
+	b.WriteString("  </metadata>\n")
 }
 
 func writeColorAttrs(b *strings.Builder, attr string, c render.Color, forced bool) {
