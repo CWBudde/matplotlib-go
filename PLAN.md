@@ -102,7 +102,7 @@ lists.
 - [x] Add a `Plot() *core.Figure` accessor to every non-fixture showcase package so the figure body is backend-agnostic and the AGG `Render()` is a thin wrapper.
 - [x] Split shared `internal/parityutil.RenderBarBasicScaffold` / `RenderGeoProjectionAxes` into `Plot…` + `Render…` pairs so the bar-progression and geo-projection cases also expose a backend-agnostic `Plot()`.
 - [x] Thin out duplicate top-level CLI runners (`examples/scatter/basic.go`, `examples/lines/basic.go`, etc.) so each one calls `examples/{id}.Plot()` instead of carrying its own copy of the figure body.
-- [x] Curate the showcase set to 31 polished examples tagged `Showcase: true` in the catalog. Bodies of dropped non-fixture cases (joins_caps, scatter_marker_types, scatter_advanced, the bar_basic_* progression, fill_between, fill_stacked, hist_density/strategies, units_dates/categories/custom_converter, geo_hammer/lambert, etc.) moved back into `test/parity/{id}/plot.go` only, with `examples/{id}/` deleted.
+- [x] Curate the showcase set to 31 polished examples tagged `Showcase: true` in the catalog. Bodies of dropped non-fixture cases (joins*caps, scatter_marker_types, scatter_advanced, the bar_basic*\* progression, fill_between, fill_stacked, hist_density/strategies, units_dates/categories/custom_converter, geo_hammer/lambert, etc.) moved back into `test/parity/{id}/plot.go` only, with `examples/{id}/` deleted.
 - [x] Retire the top-level `package main` wrapper directories (`examples/annotation/`, `examples/scatter/`, `examples/lines/basic.go`, etc.) — duplicated thin runners deleted; nested unique educational demos (`examples/axes/limits/`, `examples/lines/styles/`, `examples/lines/dash/`, `examples/geo/aitoff/`, `examples/mplot3d/terrain/`, `examples/backends/`, etc.) kept.
 - [x] Replace the 22 hand-maintained `buildXxxDemo()` builders in `internal/webdemo/demo.go` with calls to `examples/{id}.Plot()` for the 11 cataloged web demos. `demo.go` is now a ~210-line dispatcher importing the 11 showcase packages; `demo_test.go` was simplified to smoke-test that every cataloged web demo produces a non-blank figure and renders without error.
 - [x] Add a unified `cmd/example -name <id> -o out.png` runner with a `-list` mode that enumerates every `Showcase: true` catalog row. Uses `MATPLOTLIB_BACKEND` env selection. The remaining nested topic runners (`examples/lines/styles`, `examples/mplot3d/terrain`, etc.) are kept as topical educational demos but are no longer the only way to render a showcase.
@@ -652,16 +652,16 @@ Phase 8 has been condensed to remaining work only. Completed AGG, text, TeX, sha
 
 ### 8.2 AGG Text and Font Pipeline Paydown
 
-- [ ] Replace the temporary DejaVu font-file bootstrap with an explicit font-resource strategy that can use embedded, shipped, and system fonts without leaking backend policy into draw calls.
+- [x] Replace the temporary DejaVu font-file bootstrap with an explicit font-resource strategy that can use embedded, shipped, and system fonts without leaking backend policy into draw calls.
 - [ ] Remove the GSV text fallback as a normal parity path; keep it only as an explicit emergency fallback with tests and diagnostics.
 - [ ] Match Matplotlib glyph bitmap compositing for antialiased and mono glyphs, including color-alpha application and clipping semantics.
 - [ ] Isolate text, path, and stroke state in the AGG surface so hidden draw-state resets and legacy font state no longer affect correctness.
 
 ### 8.3 Hatch, Pattern, and Fallback Cleanup
 
-- [ ] Move residual hatch clipping/fallback logic out of `core` once backend-native hatches and renderer-neutral hatch fallbacks are fully covered.
-- [ ] Split renderer-neutral fallback tests from AGG-native parity tests so missing native backend behavior cannot be hidden by fallback drawing.
-- [ ] Add focused diagnostics for remaining non-text AGG residuals that are not already owned by Phase 10 or Phase 14.
+- [x] Move residual hatch clipping/fallback logic out of `core` once backend-native hatches and renderer-neutral hatch fallbacks are fully covered.
+- [x] Split renderer-neutral fallback tests from AGG-native parity tests so missing native backend behavior cannot be hidden by fallback drawing.
+- [x] Add focused diagnostics for remaining non-text AGG residuals that are not already owned by Phase 10 or Phase 14.
 
 ### 8.4 MathText Packaging
 
@@ -1035,7 +1035,7 @@ Verification reference:
 **Reference sources:** `third_party/matplotlib/lib/matplotlib/backends/backend_svg.py`, `backends/svg/`, `render/`, `test/`.
 
 - [ ] Audit SVG output against upstream `RendererSVG` for path serialization, clipping, transforms, opacity groups, hatches, markers, images, text-as-text, and text-as-path behavior.
-- [ ] Add deterministic SVG serialization tests that normalize IDs, ordering, float formatting, and metadata so diffs are reviewable.
+- [~] Add deterministic SVG serialization tests that normalize IDs, ordering, float formatting, and metadata so diffs are reviewable. *(Phase 1 landed: compact `shortFloat` mirrors matplotlib's `_short_float_fmt`, `rotateTransform` helper centralizes transform formatting, `TestSerializationDeterministic` and `TestShortFloat` pin behavior. Metadata normalization deferred to Phase 4.)*
 - [ ] Implement SVG clip paths, nested clip groups, and transformed clip paths consistently with the shared renderer clip contract.
 - [ ] Add SVG support for hatches, alpha groups, raster image embedding, transformed images, and Gouraud/gradient fallbacks where vector-native output is practical.
 - [ ] Align SVG font handling with the shared font manager: preserve text when possible, emit path text when requested or required, and keep measurement behavior consistent with layout.

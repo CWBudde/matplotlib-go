@@ -24,11 +24,14 @@ import (
 
 func TestUsesDejaVuSansWithoutFallback(t *testing.T) {
 	r := mustNew(t, 200, 100)
-	if r.fontPath == "" {
-		t.Fatal("expected DejaVu Sans font path to be configured")
+	if fontReference(r.defaultFontFace) == "" {
+		t.Fatal("expected DejaVu Sans font resource to be configured")
 	}
-	if want := localMatplotlibDejaVuSansPath(); want != "" && r.fontPath != want {
-		t.Fatalf("font path = %q, want vendored matplotlib font %q", r.fontPath, want)
+	if want := localMatplotlibDejaVuSansPath(); want != "" && r.defaultFontFace.Path != want {
+		t.Fatalf("font path = %q, want vendored matplotlib font %q", r.defaultFontFace.Path, want)
+	}
+	if r.defaultFontFace.Path == "" && len(r.defaultFontFace.Data) == 0 {
+		t.Fatalf("default font face has no path or embedded data: %+v", r.defaultFontFace)
 	}
 	if r.ctx.textForceAuto {
 		t.Fatal("expected current x/image raster text path not to enable the unused agg_go force-autohint flag")
@@ -88,6 +91,7 @@ func TestRasterTextWidthTracksRendererDPI(t *testing.T) {
 
 func TestRasterTextKerningMatchesSharedGlyphLayout(t *testing.T) {
 	r := mustNew(t, 260, 120)
+	fontKey := fontReference(r.defaultFontFace)
 
 	for _, dpi := range []uint{72, 96, 144} {
 		r.SetResolution(dpi)
@@ -95,7 +99,7 @@ func TestRasterTextKerningMatchesSharedGlyphLayout(t *testing.T) {
 			for _, text := range []string{"Tr", "Te", "To", "Ta", "AV", "WA", "Yo"} {
 				t.Run(text, func(t *testing.T) {
 					metrics := r.MeasureText(text, size, "")
-					layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), r.fontPath)
+					layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), fontKey)
 					if !ok {
 						t.Fatalf("LayoutTextGlyphs(%q) failed", text)
 					}
@@ -119,6 +123,7 @@ func TestRasterTextKerningMatchesSharedGlyphLayout(t *testing.T) {
 func TestRasterTextBoundsMatchSharedGlyphLayout(t *testing.T) {
 	r := mustNew(t, 260, 120)
 	r.SetResolution(96)
+	fontKey := fontReference(r.defaultFontFace)
 
 	for _, text := range []string{"Tr", "Te", "AV"} {
 		t.Run(text, func(t *testing.T) {
@@ -127,7 +132,7 @@ func TestRasterTextBoundsMatchSharedGlyphLayout(t *testing.T) {
 			if !ok {
 				t.Fatalf("MeasureTextBounds(%q) failed", text)
 			}
-			layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), r.fontPath)
+			layout, ok := render.LayoutTextGlyphs(text, geom.Pt{}, r.fontPixelSize(size), fontKey)
 			if !ok {
 				t.Fatalf("LayoutTextGlyphs(%q) failed", text)
 			}
@@ -144,7 +149,7 @@ func TestRasterTextBoundsMatchSharedGlyphLayout(t *testing.T) {
 func TestKerningMetricsMatchMatplotlibRendererAgg(t *testing.T) {
 	r := mustNew(t, 260, 120)
 	if r.fontPath == "" {
-		t.Fatal("expected DejaVu Sans font path to be configured")
+		t.Skip("Matplotlib comparison needs a path-backed DejaVu Sans font")
 	}
 
 	cases := []mplTextMetricCase{}
@@ -183,7 +188,7 @@ func TestKerningMetricsMatchMatplotlibRendererAgg(t *testing.T) {
 func TestAggTextSingleBaselineDiagnostic(t *testing.T) {
 	r := mustNew(t, 420, 120)
 	if r.fontPath == "" {
-		t.Fatal("expected DejaVu Sans font path to be configured")
+		t.Skip("Matplotlib text baseline diagnostic needs a path-backed DejaVu Sans font")
 	}
 	nativeFreetypeVersion := nativeFreetypeVersion()
 
@@ -382,6 +387,7 @@ func renderAggTextBaseline(t *testing.T, fontPath string, tc aggTextBaselineCase
 	r := mustNew(t, tc.Width, tc.Height)
 	r.SetResolution(tc.DPI)
 	r.fontPath = fontPath
+	r.defaultFontFace = render.FontFace{Path: fontPath, Family: "DejaVu Sans", Style: render.FontStyleNormal, Weight: 400}
 	r.ctx.textForceAuto = forceAuto
 	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: float64(tc.Width), Y: float64(tc.Height)}}
 	if err := r.Begin(viewport); err != nil {

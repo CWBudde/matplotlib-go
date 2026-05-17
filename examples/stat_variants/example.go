@@ -9,7 +9,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-
 const (
 	Width  = 840
 	Height = 620

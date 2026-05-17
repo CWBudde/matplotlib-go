@@ -8,7 +8,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
-
 const (
 	Width  = 640
 	Height = 360

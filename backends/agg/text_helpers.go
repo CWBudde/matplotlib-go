@@ -222,14 +222,14 @@ func (r *Renderer) resolveTextFontPath(fontKey string) string {
 }
 
 func (r *Renderer) resolveTextFontFace(fontKey string) render.FontFace {
-	if r.fontPath != "" && wantsDefaultDejaVuSans(fontKey) {
-		return render.FontFace{Path: r.fontPath, Family: "DejaVu Sans"}
+	if wantsDefaultDejaVuSans(fontKey) && fontReference(r.defaultFontFace) != "" {
+		return r.defaultFontFace
 	}
 	if face, ok := resolveFontFace(fontKey); ok {
 		return face
 	}
-	if r.fontPath != "" {
-		return render.FontFace{Path: r.fontPath, Family: "DejaVu Sans"}
+	if fontReference(r.defaultFontFace) != "" {
+		return r.defaultFontFace
 	}
 	if face, ok := resolveFontFace("DejaVu Sans"); ok {
 		return face

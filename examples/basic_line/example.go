@@ -12,7 +12,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-
 const (
 	Width  = 640
 	Height = 360
@@ -23,6 +22,7 @@ const (
 //   - cmd/example (CLI runner, planned)
 //   - internal/webdemo (browser demo)
 //   - test/parity/basic_line (parity test wrapper)
+//
 // Plot builds the showcase figure (backend-agnostic).
 func Plot() *core.Figure {
 	fig := core.NewFigure(640, 360)

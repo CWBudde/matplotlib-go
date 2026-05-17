@@ -381,11 +381,7 @@ func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle floa
 		X: anchor.X - metrics.W/2,
 		Y: anchor.Y - metrics.Descent,
 	}
-	transform := fmt.Sprintf("rotate(%s %s %s)",
-		formatFloat(-angle*180/math.Pi),
-		formatFloat(anchor.X),
-		formatFloat(anchor.Y),
-	)
+	transform := rotateTransform(-angle*180/math.Pi, anchor.X, anchor.Y)
 	r.renderTextNode(text, origin.X, origin.Y, size, textColor, transform)
 }
 
@@ -481,11 +477,7 @@ func (r *Renderer) DrawTeXRotated(text string, anchor geom.Pt, size, angle float
 	metrics := result.Metrics
 	origin := geom.Pt{X: anchor.X - metrics.W/2, Y: anchor.Y - metrics.Descent}
 	topLeft := geom.Pt{X: origin.X, Y: origin.Y - metrics.Ascent}
-	transform := fmt.Sprintf("rotate(%s %s %s)",
-		formatFloat(-angle*180/math.Pi),
-		formatFloat(anchor.X),
-		formatFloat(anchor.Y),
-	)
+	transform := rotateTransform(-angle*180/math.Pi, anchor.X, anchor.Y)
 	r.renderImageNode(img, geom.Rect{
 		Min: topLeft,
 		Max: geom.Pt{X: topLeft.X + float64(img.Bounds().Dx()), Y: topLeft.Y + float64(img.Bounds().Dy())},
@@ -902,7 +894,37 @@ func writeFloatAttr(b *strings.Builder, name string, value float64) {
 }
 
 func formatFloat(v float64) string {
-	return strconv.FormatFloat(clampFloat(v), 'f', 6, 64)
+	return shortFloat(v)
+}
+
+// shortFloat formats v with up to 6 decimal digits, mirroring matplotlib's
+// _short_float_fmt: trailing zeros (and a trailing decimal point) are stripped,
+// negative zero is normalized to "0", and NaN/Inf are clamped to "0". The
+// output stays in fixed (non-exponent) notation so SVG number attributes remain
+// portable across viewers.
+func shortFloat(v float64) string {
+	s := strconv.FormatFloat(clampFloat(v), 'f', 6, 64)
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		end := len(s)
+		for end > i && s[end-1] == '0' {
+			end--
+		}
+		if end > 0 && s[end-1] == '.' {
+			end--
+		}
+		s = s[:end]
+	}
+	if s == "-0" || s == "" {
+		s = "0"
+	}
+	return s
+}
+
+// rotateTransform returns an SVG rotate() transform string with compact float
+// formatting. Centralizing the format keeps later phases (matrix transforms)
+// free to swap the implementation without touching call sites.
+func rotateTransform(angleDeg, cx, cy float64) string {
+	return "rotate(" + shortFloat(angleDeg) + " " + shortFloat(cx) + " " + shortFloat(cy) + ")"
 }
 
 func clampFloat(v float64) float64 {

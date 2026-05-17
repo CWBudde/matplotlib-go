@@ -535,6 +535,34 @@ func TestNativeHatchDrawsWithinPathClip(t *testing.T) {
 	}
 }
 
+func TestNativeHatchResidualAgainstFallbackDiagnostic(t *testing.T) {
+	clip := upperLeftTriangleClip()
+	paint := render.Paint{
+		Hatch:          "/",
+		HatchColor:     render.Color{A: 1},
+		HatchLineWidth: 1,
+		HatchSpacing:   8,
+	}
+
+	native := mustNew(t, 80, 80)
+	_ = native.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 80, Y: 80}})
+	native.Path(clip, &paint)
+	_ = native.End()
+
+	fallback := mustNew(t, 80, 80)
+	_ = fallback.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 80, Y: 80}})
+	if !render.DrawHatchFallback(fallback, clip, paint) {
+		t.Fatal("renderer-neutral hatch fallback drew no paths")
+	}
+	_ = fallback.End()
+
+	diffPixels, maxChannelDiff := hatchImageResidual(native.GetImage(), fallback.GetImage())
+	t.Logf("native hatch vs fallback residual: diffPixels=%d maxChannelDiff=%d", diffPixels, maxChannelDiff)
+	if diffPixels > 1600 || maxChannelDiff > 240 {
+		t.Fatalf("native hatch residual too large: diffPixels=%d maxChannelDiff=%d", diffPixels, maxChannelDiff)
+	}
+}
+
 func upperLeftTriangleClip() geom.Path {
 	var p geom.Path
 	p.MoveTo(geom.Pt{X: 0, Y: 0})
@@ -542,6 +570,46 @@ func upperLeftTriangleClip() geom.Path {
 	p.LineTo(geom.Pt{X: 0, Y: 70})
 	p.Close()
 	return p
+}
+
+func hatchImageResidual(a, b *image.RGBA) (diffPixels int, maxChannelDiff uint8) {
+	bounds := a.Bounds().Intersect(b.Bounds())
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			ac := a.RGBAAt(x, y)
+			bc := b.RGBAAt(x, y)
+			dr := byteAbsDiff(ac.R, bc.R)
+			dg := byteAbsDiff(ac.G, bc.G)
+			db := byteAbsDiff(ac.B, bc.B)
+			da := byteAbsDiff(ac.A, bc.A)
+			maxDiff := maxByteDiff(dr, dg, db, da)
+			if maxDiff == 0 {
+				continue
+			}
+			diffPixels++
+			if maxDiff > maxChannelDiff {
+				maxChannelDiff = maxDiff
+			}
+		}
+	}
+	return diffPixels, maxChannelDiff
+}
+
+func byteAbsDiff(a, b uint8) uint8 {
+	if a > b {
+		return a - b
+	}
+	return b - a
+}
+
+func maxByteDiff(values ...uint8) uint8 {
+	var out uint8
+	for _, v := range values {
+		if v > out {
+			out = v
+		}
+	}
+	return out
 }
 
 func fullRectPath(w, h float64) geom.Path {

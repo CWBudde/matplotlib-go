@@ -8,14 +8,14 @@ package examplecatalog
 //
 // Layout rules:
 //   - Showcase: true        → body lives at examples/<id>/example.go (also
-//                              the GoPath for source display); test/parity
-//                              wrapper imports it.
+//     the GoPath for source display); test/parity
+//     wrapper imports it.
 //   - FixtureOnly: true     → body lives at test/parity/<id>/plot.go; no
-//                              examples/<id>/ entry. These are stress
-//                              fixtures, not user examples.
+//     examples/<id>/ entry. These are stress
+//     fixtures, not user examples.
 //   - neither               → body lives at test/parity/<id>/plot.go; not
-//                              surfaced in examples/. They participate in
-//                              parity testing but are not curated showcases.
+//     surfaced in examples/. They participate in
+//     parity testing but are not curated showcases.
 type Case struct {
 	ID          string
 	Topic       string

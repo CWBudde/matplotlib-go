@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"sync"
 
-	"codeberg.org/go-fonts/dejavu/dejavusans"
 	agglib "github.com/cwbudde/agg_go"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 	tex "github.com/cwbudde/matplotlib-go/internal/tex"
@@ -23,38 +22,6 @@ import (
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
-
-// dejaVuFontPath holds the path to the extracted DejaVu Sans TTF, initialised once.
-// DejaVu Sans is the same font matplotlib uses by default.
-var (
-	fontOnce sync.Once
-	fontPath string
-	fontErr  error
-)
-
-func loadFontPath() (string, error) {
-	fontOnce.Do(func() {
-		if path := localMatplotlibDejaVuSansPath(); path != "" {
-			fontPath = path
-			return
-		}
-
-		f, err := os.CreateTemp("", "matplotlib-go-*.ttf")
-		if err != nil {
-			fontErr = err
-			return
-		}
-		_, err = f.Write(dejavusans.TTF)
-		f.Close()
-		if err != nil {
-			os.Remove(f.Name())
-			fontErr = err
-			return
-		}
-		fontPath = f.Name()
-	})
-	return fontPath, fontErr
-}
 
 func localMatplotlibDejaVuSansPath() string {
 	const rel = "third_party/matplotlib/lib/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf"
@@ -75,27 +42,36 @@ func localMatplotlibDejaVuSansPath() string {
 	}
 }
 
+func defaultTextFontFace() render.FontFace {
+	if path := localMatplotlibDejaVuSansPath(); path != "" {
+		return render.FontFace{Path: path, Family: "DejaVu Sans", Style: render.FontStyleNormal, Weight: 400}
+	}
+	face, _ := render.DefaultFontManager().FindFont(render.ParseFontProperties("DejaVu Sans"))
+	return face
+}
+
 // Renderer implements render.Renderer using the AGG rendering backend.
 type Renderer struct {
-	ctx         *aggSurface
-	width       int
-	height      int
-	resolution  uint
-	began       bool
-	viewport    geom.Rect
-	stack       []state
-	clipRect    *geom.Rect
-	clipPaths   []geom.Path
-	clipMaskMap map[clipMaskKey][]uint8
-	clipScratch *aggSurface
-	clipDepth   int
-	filterStack []filterState
-	fontPath    string // path to TrueType font; empty means use GSV fallback
-	fallback    bool   // true if any text path had to fall back to GSV
-	lastFontKey string
-	outlineText *agglib.FreeTypeOutlineText
-	texManager  *tex.Manager
-	texErr      error
+	ctx             *aggSurface
+	width           int
+	height          int
+	resolution      uint
+	began           bool
+	viewport        geom.Rect
+	stack           []state
+	clipRect        *geom.Rect
+	clipPaths       []geom.Path
+	clipMaskMap     map[clipMaskKey][]uint8
+	clipScratch     *aggSurface
+	clipDepth       int
+	filterStack     []filterState
+	defaultFontFace render.FontFace
+	fontPath        string // path to default TrueType font when one is available on disk
+	fallback        bool   // true if any text path had to fall back to GSV
+	lastFontKey     string
+	outlineText     *agglib.FreeTypeOutlineText
+	texManager      *tex.Manager
+	texErr          error
 }
 
 // state represents a saved graphics state.
@@ -163,21 +139,20 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	ctx.Clear(bgColor)
 
 	r := &Renderer{
-		ctx:         ctx,
-		width:       w,
-		height:      h,
-		resolution:  72,
-		clipMaskMap: make(map[clipMaskKey][]uint8),
-		texManager:  tex.NewManager(tex.ManagerConfig{}),
+		ctx:             ctx,
+		width:           w,
+		height:          h,
+		resolution:      72,
+		clipMaskMap:     make(map[clipMaskKey][]uint8),
+		defaultFontFace: defaultTextFontFace(),
+		texManager:      tex.NewManager(tex.ManagerConfig{}),
 	}
 
-	// Prefer DejaVu Sans (the same default font Matplotlib ships with) via AGG's
-	// raster FreeType text path. Fall back to the legacy GSV vector font only
-	// when the FreeType-backed path is unavailable in the current build.
-	fp, err := loadFontPath()
-	if err == nil {
-		r.fontPath = fp
-	}
+	// Prefer DejaVu Sans (the same default font Matplotlib ships with) through
+	// an explicit font resource. Path-backed resources can also prime the
+	// legacy AGG text context; embedded resources are handled by the raster
+	// pipeline without writing a temporary font file.
+	r.fontPath = r.defaultFontFace.Path
 	if err := r.ctx.ConfigureTextFont(r.fontPath, 12, r.resolution); err != nil && nativeFreetypeVersion() == "" {
 		r.fallback = true
 	}

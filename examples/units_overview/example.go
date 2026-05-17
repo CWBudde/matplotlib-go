@@ -12,7 +12,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/style"
 )
 
-
 const (
 	Width  = 1200
 	Height = 420

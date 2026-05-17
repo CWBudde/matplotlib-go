@@ -56,11 +56,11 @@ func runStrictMatplotlibRef(t *testing.T, name string) {
 	t.Helper()
 
 	const (
-		strictTolerance        = 1
-		textLabelsMinPSNR      = 48.0
-		textLabelsMaxMeanAbs   = 1.25
-		titleMinPSNR           = 46.5
-		titleMaxMeanAbs        = 2.00
+		strictTolerance      = 1
+		textLabelsMinPSNR    = 48.0
+		textLabelsMaxMeanAbs = 1.25
+		titleMinPSNR         = 46.5
+		titleMaxMeanAbs      = 2.00
 	)
 
 	got, _, err := parity.Render(name)

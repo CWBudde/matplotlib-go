@@ -11,9 +11,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends/agg"
 	"github.com/cwbudde/matplotlib-go/backends/gobasic"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
-	"github.com/cwbudde/matplotlib-go/render"
-
 	arrays_showcase "github.com/cwbudde/matplotlib-go/examples/arrays_showcase"
 	axes_control_surface "github.com/cwbudde/matplotlib-go/examples/axes_control_surface"
 	geo_mollweide_axes "github.com/cwbudde/matplotlib-go/examples/geo_mollweide_axes"
@@ -25,6 +22,8 @@ import (
 	stat_variants "github.com/cwbudde/matplotlib-go/examples/stat_variants"
 	units_overview "github.com/cwbudde/matplotlib-go/examples/units_overview"
 	vector_fields "github.com/cwbudde/matplotlib-go/examples/vector_fields"
+	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 const (

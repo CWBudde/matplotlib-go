@@ -18,9 +18,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/backends"
 	_ "github.com/cwbudde/matplotlib-go/backends/all"
 	"github.com/cwbudde/matplotlib-go/core"
-	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
-	"github.com/cwbudde/matplotlib-go/render"
-
 	annotation_composition "github.com/cwbudde/matplotlib-go/examples/annotation_composition"
 	arrays_showcase "github.com/cwbudde/matplotlib-go/examples/arrays_showcase"
 	axes_control_surface "github.com/cwbudde/matplotlib-go/examples/axes_control_surface"
@@ -52,6 +49,8 @@ import (
 	units_overview "github.com/cwbudde/matplotlib-go/examples/units_overview"
 	unstructured_showcase "github.com/cwbudde/matplotlib-go/examples/unstructured_showcase"
 	vector_fields "github.com/cwbudde/matplotlib-go/examples/vector_fields"
+	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
+	"github.com/cwbudde/matplotlib-go/render"
 )
 
 // registry maps a catalog showcase ID to the Plot() function that builds the

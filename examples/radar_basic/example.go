@@ -10,7 +10,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/transform"
 )
 
-
 const (
 	Width  = 720
 	Height = 720

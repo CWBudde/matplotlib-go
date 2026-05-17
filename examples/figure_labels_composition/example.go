@@ -11,7 +11,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-
 const (
 	Width  = 1100
 	Height = 720

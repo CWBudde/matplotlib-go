@@ -10,7 +10,6 @@ import (
 	"github.com/cwbudde/matplotlib-go/style"
 )
 
-
 const (
 	Width  = 760
 	Height = 360

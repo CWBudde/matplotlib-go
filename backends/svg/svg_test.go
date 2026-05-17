@@ -61,6 +61,29 @@ func TestNewInvalidDimensions(t *testing.T) {
 	}
 }
 
+func TestSerializationDeterministic(t *testing.T) {
+	draw := func(r *Renderer) {
+		var path geom.Path
+		path.MoveTo(geom.Pt{X: 10, Y: 10})
+		path.LineTo(geom.Pt{X: 170, Y: 110})
+		path.Close()
+		r.Path(path, &render.Paint{
+			Stroke:    render.Color{R: 0, G: 0, B: 0, A: 1},
+			Fill:      render.Color{R: 0.5, G: 0.25, B: 0.1, A: 0.5},
+			LineWidth: 2,
+		})
+		r.DrawText("hello", geom.Pt{X: 20, Y: 30}, 14, render.Color{R: 0, G: 0, B: 0, A: 1})
+		r.DrawTextRotated("rot", geom.Pt{X: 80, Y: 60}, 12, 0.5, render.Color{R: 0, G: 0, B: 0, A: 1})
+	}
+
+	first := renderSVGDocument(t, draw)
+	second := renderSVGDocument(t, draw)
+
+	if first != second {
+		t.Fatalf("SVG output not deterministic across renders:\nfirst:\n%s\nsecond:\n%s", first, second)
+	}
+}
+
 func TestSaveSVG(t *testing.T) {
 	r := mustNewRenderer(t)
 	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 180, Y: 120}}
@@ -148,7 +171,7 @@ cp "$FAKE_TEX_PNG" "$out"
 	}
 
 	content := r.renderSVG()
-	if !strings.Contains(content, `<image x="8.000000" y="8.000000" width="2.000000" height="2.000000"`) {
+	if !strings.Contains(content, `<image x="8" y="8" width="2" height="2"`) {
 		t.Fatalf("TeX image should be placed from baseline-adjusted origin, got %q", content)
 	}
 	if !strings.Contains(content, `data:image/png;base64,`) {
@@ -194,7 +217,7 @@ cp "$FAKE_TEX_PNG" "$out"
 	}
 
 	content := r.renderSVG()
-	if !strings.Contains(content, `<image`) || !strings.Contains(content, `transform="rotate(-90.000000 20.000000 30.000000)"`) {
+	if !strings.Contains(content, `<image`) || !strings.Contains(content, `transform="rotate(-90 20 30)"`) {
 		t.Fatalf("rotated TeX should embed an image with anchor rotation, got %q", content)
 	}
 }
@@ -263,7 +286,7 @@ func TestDrawTextSupportsNegativeCoordinates(t *testing.T) {
 		t.Fatalf("ReadFile failed: %v", err)
 	}
 	content := string(data)
-	if !strings.Contains(content, "x=\"-15.000000\"") {
+	if !strings.Contains(content, "x=\"-15\"") {
 		t.Fatalf("expected preserved negative x coordinate, got %q", content)
 	}
 }
@@ -284,10 +307,10 @@ func TestGlyphRunUsesFontKeyAndOffsetsWithoutAccumulatingOffset(t *testing.T) {
 	if !strings.Contains(content, `font-family="DejaVu Sans, Arial, sans-serif"`) {
 		t.Fatalf("glyph run should honor sans-serif font selection, got %q", content)
 	}
-	if !strings.Contains(content, `<text x="12.000000" y="23.000000"`) {
+	if !strings.Contains(content, `<text x="12" y="23"`) {
 		t.Fatalf("first glyph should render at origin plus its offset, got %q", content)
 	}
-	if !strings.Contains(content, `<text x="19.000000" y="19.000000"`) {
+	if !strings.Contains(content, `<text x="19" y="19"`) {
 		t.Fatalf("second glyph should advance from origin without accumulating prior offsets, got %q", content)
 	}
 }
@@ -341,10 +364,10 @@ func TestRenderSVGPreservesClipStackAcrossSaveRestore(t *testing.T) {
 	if strings.Count(content, "<clipPath") != 2 {
 		t.Fatalf("expected two clip path definitions after nested clipping, got %q", content)
 	}
-	if !strings.Contains(content, `<rect x="5.000000" y="5.000000" width="45.000000" height="55.000000" />`) {
+	if !strings.Contains(content, `<rect x="5" y="5" width="45" height="55" />`) {
 		t.Fatalf("missing outer clip rect in SVG defs: %q", content)
 	}
-	if !strings.Contains(content, `<rect x="10.000000" y="20.000000" width="20.000000" height="20.000000" />`) {
+	if !strings.Contains(content, `<rect x="10" y="20" width="20" height="20" />`) {
 		t.Fatalf("missing intersected inner clip rect in SVG defs: %q", content)
 	}
 
@@ -379,14 +402,14 @@ func TestPathSerializesStrokeFillOpacityAndDashes(t *testing.T) {
 
 	for _, want := range []string{
 		`fill="rgb(0,255,0)"`,
-		`fill-opacity="0.500000"`,
+		`fill-opacity="0.5"`,
 		`stroke="rgb(255,0,0)"`,
-		`stroke-opacity="0.250000"`,
-		`stroke-width="2.500000"`,
+		`stroke-opacity="0.25"`,
+		`stroke-width="2.5"`,
 		`stroke-linejoin="round"`,
 		`stroke-linecap="square"`,
-		`stroke-miterlimit="7.000000"`,
-		`stroke-dasharray="4.000000,2.000000,1.000000,3.000000"`,
+		`stroke-miterlimit="7"`,
+		`stroke-dasharray="4,2,1,3"`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("expected serialized path attribute %q in %q", want, content)
@@ -405,7 +428,7 @@ func TestImageSerializesEmbeddedPNGAndNormalizesDestinationRect(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		`<image x="10.000000" y="20.000000" width="20.000000" height="20.000000"`,
+		`<image x="10" y="20" width="20" height="20"`,
 		`preserveAspectRatio="none"`,
 		`href="data:image/png;base64,`,
 		`xlink:href="data:image/png;base64,`,
@@ -422,9 +445,9 @@ func TestTextEscapingAndRotationSerialization(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		`transform="rotate(-28.647890 90.000000 70.000000)"`,
+		`transform="rotate(-28.64789 90 70)"`,
 		`fill="rgb(51,102,153)"`,
-		`fill-opacity="0.750000"`,
+		`fill-opacity="0.75"`,
 		`A&lt;&amp;&#34;B`,
 	} {
 		if !strings.Contains(content, want) {
@@ -466,7 +489,7 @@ func TestClipPathIsNoOpAndDoesNotReplaceRectClip(t *testing.T) {
 	if strings.Count(content, "<clipPath") != 1 {
 		t.Fatalf("ClipPath should currently be a no-op and not add extra defs, got %q", content)
 	}
-	if !strings.Contains(content, `<rect x="10.000000" y="15.000000" width="60.000000" height="60.000000" />`) {
+	if !strings.Contains(content, `<rect x="10" y="15" width="60" height="60" />`) {
 		t.Fatalf("expected rectangular clip to remain active, got %q", content)
 	}
 }
@@ -499,7 +522,7 @@ func TestBuildPathDataSupportsQuadraticCubicAndClose(t *testing.T) {
 	}
 
 	got := buildPathData(path)
-	want := "M 1.000000 2.000000 Q 3.000000 4.000000 5.000000 6.000000 C 7.000000 8.000000 9.000000 10.000000 11.000000 12.000000 Z"
+	want := "M 1 2 Q 3 4 5 6 C 7 8 9 10 11 12 Z"
 	if got != want {
 		t.Fatalf("unexpected path data:\nwant %q\ngot  %q", want, got)
 	}
@@ -525,7 +548,7 @@ func TestHelperFormattingBranches(t *testing.T) {
 	if got := dashedArray([]float64{5}); got != "" {
 		t.Fatalf("single dash segment should not emit dash array, got %q", got)
 	}
-	if got := dashedArray([]float64{5, 2, 9}); got != "5.000000,2.000000" {
+	if got := dashedArray([]float64{5, 2, 9}); got != "5,2" {
 		t.Fatalf("odd dash lists should ignore trailing value, got %q", got)
 	}
 
@@ -637,7 +660,7 @@ func TestGlyphRunSkipsMissingGlyphsAndFallsBackToMeasuredAdvance(t *testing.T) {
 	if strings.Count(content, "<text") != 2 {
 		t.Fatalf("expected only visible glyphs to emit text nodes, got %q", content)
 	}
-	if !strings.Contains(content, `<text x="15.000000" y="20.000000"`) {
+	if !strings.Contains(content, `<text x="15" y="20"`) {
 		t.Fatalf("expected skipped glyph advance to shift first visible glyph, got %q", content)
 	}
 	secondX := `x="` + formatFloat(15+expectedAdvance) + `"`
