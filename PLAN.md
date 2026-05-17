@@ -842,17 +842,27 @@ Latest text-parity note:
 #### 8.3.2 LaTeX / `usetex` integration
 
 - [x] `text.usetex` rcParam support in style defaults, mplstyle parsing, and runtime context handling
-- [ ] External TeX command pipeline
-- [ ] Artifact caching and reproducible invalidation for TeX output
-- [ ] Error reporting and fallback behavior when TeX toolchain execution fails
-- [ ] Font/package coordination between TeX output and renderer expectations
-- [ ] Raster/vector import of TeX output back into the renderer pipeline
-- [ ] Backend-specific integration behavior and tests across raster and vector backends
+- [x] External TeX command pipeline
+- [x] Artifact caching and reproducible invalidation for TeX output
+- [x] Error reporting and fallback behavior when TeX toolchain execution fails
+- [x] Font/package coordination between TeX output and renderer expectations
+- [x] Raster/vector import of TeX output back into the renderer pipeline
+- [x] Backend-specific integration behavior and tests across raster and vector backends
+
+Notes:
+- Shared TeX artifact generation now lives in `internal/tex`, following the Matplotlib `TexManager` shape of LaTeX-to-DVI, `dvipng` rasterization, cache-keyed outputs, and command-output-rich failures.
+- AGG and SVG both consume the shared manager. AGG composites the cached PNG into the raster surface; SVG embeds the colorized PNG as a data URI, including rotated TeX output via SVG image transforms.
 
 #### 8.3.3 Complex text shaping beyond the current basic glyph flow
 
 - [ ] OpenType shaping for scripts that need glyph substitution and positioning
 - [ ] Ligatures, bidi handling, combining-mark placement, and script-aware glyph selection
+  - [x] Standard GSUB ligature substitution for common `liga` / `clig` lookups, with `liga=0` feature disable support
+  - [x] Basic decomposed combining-mark composition when an NFC precomposed glyph exists
+  - [x] Basic non-composed combining-mark fallback that centers mark outlines over the previous base glyph without expanding advance
+  - [x] Basic visual-order bidi reordering for RTL spans while preserving logical byte clusters
+  - [ ] True mark positioning for combining marks that do not compose to one glyph
+  - [ ] Script-aware glyph selection and positional substitution for joining scripts
 - [ ] Backend-independent shaping layer or shaping-library integration
 - [ ] Measurement and text-path parity for shaped output
 

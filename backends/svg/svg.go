@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"math"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	tex "github.com/cwbudde/matplotlib-go/internal/tex"
 	"github.com/cwbudde/matplotlib-go/render"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -65,6 +67,8 @@ type Renderer struct {
 	fontFaceOrder []fontFaceDef
 
 	lastFontKey string
+	texManager  *tex.Manager
+	texErr      error
 }
 
 var (
@@ -74,6 +78,9 @@ var (
 	_ render.RotatedTextDrawer  = (*Renderer)(nil)
 	_ render.VerticalTextDrawer = (*Renderer)(nil)
 	_ render.TextPather         = (*Renderer)(nil)
+	_ render.TeXMetricer        = (*Renderer)(nil)
+	_ render.TeXDrawer          = (*Renderer)(nil)
+	_ render.RotatedTeXDrawer   = (*Renderer)(nil)
 	_ render.SVGExporter        = (*Renderer)(nil)
 )
 
@@ -90,6 +97,7 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		resolution: 72,
 		clipDefs:   map[string]string{},
 		fontFaces:  map[string]fontFaceDef{},
+		texManager: tex.NewManager(tex.ManagerConfig{}),
 	}, nil
 }
 
@@ -227,7 +235,10 @@ func (r *Renderer) Image(img render.Image, dst geom.Rect) {
 	if rgba == nil {
 		return
 	}
+	r.renderImageNode(rgba, dst, "")
+}
 
+func (r *Renderer) renderImageNode(rgba *image.RGBA, dst geom.Rect, transform string) {
 	x := dst.Min.X
 	y := dst.Min.Y
 	w := dst.W()
@@ -265,7 +276,11 @@ func (r *Renderer) Image(img render.Image, dst geom.Rect) {
 	b.WriteString(uri)
 	b.WriteString(`" xlink:href="`)
 	b.WriteString(uri)
-	b.WriteString(`" />`)
+	b.WriteString(`"`)
+	if transform != "" {
+		writeAttr(&b, "transform", transform)
+	}
+	b.WriteString(` />`)
 
 	r.nodes = append(r.nodes, svgNode{
 		content: b.String(),
@@ -409,6 +424,89 @@ func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey s
 		fontKey = r.lastFontKey
 	}
 	return render.TextPath(text, origin, size, fontKey)
+}
+
+// LastTeXError returns the most recent TeX pipeline error recorded by MeasureTeX
+// or DrawTeX. A nil value means the last TeX operation succeeded.
+func (r *Renderer) LastTeXError() error {
+	if r == nil {
+		return nil
+	}
+	return r.texErr
+}
+
+// MeasureTeX measures a TeX string by rendering it through the external
+// latex+dvipng cache and using the resulting tight PNG dimensions.
+func (r *Renderer) MeasureTeX(text string, size float64, fontKey string) (render.TextMetrics, bool) {
+	result, ok := r.renderTeX(text, size, fontKey)
+	if !ok {
+		return render.TextMetrics{}, false
+	}
+	return result.Metrics, true
+}
+
+// DrawTeX embeds a TeX-rendered PNG as an SVG image element.
+func (r *Renderer) DrawTeX(text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) bool {
+	result, ok := r.renderTeX(text, size, fontKey)
+	if !ok || result.Image == nil {
+		return false
+	}
+	img := colorizeTeXImage(result.Image, textColor)
+	if img == nil {
+		return false
+	}
+	topLeft := geom.Pt{X: origin.X, Y: origin.Y - result.Metrics.Ascent}
+	r.renderImageNode(img, geom.Rect{
+		Min: topLeft,
+		Max: geom.Pt{X: topLeft.X + float64(img.Bounds().Dx()), Y: topLeft.Y + float64(img.Bounds().Dy())},
+	}, "")
+	return true
+}
+
+// DrawTeXRotated embeds a TeX-rendered PNG and rotates it around the
+// Matplotlib-style text rotation anchor.
+func (r *Renderer) DrawTeXRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) bool {
+	if math.IsNaN(angle) || math.IsInf(angle, 0) {
+		return false
+	}
+	result, ok := r.renderTeX(text, size, fontKey)
+	if !ok || result.Image == nil {
+		return false
+	}
+	img := colorizeTeXImage(result.Image, textColor)
+	if img == nil {
+		return false
+	}
+
+	metrics := result.Metrics
+	origin := geom.Pt{X: anchor.X - metrics.W/2, Y: anchor.Y - metrics.Descent}
+	topLeft := geom.Pt{X: origin.X, Y: origin.Y - metrics.Ascent}
+	transform := fmt.Sprintf("rotate(%s %s %s)",
+		formatFloat(-angle*180/math.Pi),
+		formatFloat(anchor.X),
+		formatFloat(anchor.Y),
+	)
+	r.renderImageNode(img, geom.Rect{
+		Min: topLeft,
+		Max: geom.Pt{X: topLeft.X + float64(img.Bounds().Dx()), Y: topLeft.Y + float64(img.Bounds().Dy())},
+	}, transform)
+	return true
+}
+
+func (r *Renderer) renderTeX(text string, size float64, fontKey string) (tex.RenderResult, bool) {
+	if r == nil || text == "" || size <= 0 {
+		return tex.RenderResult{}, false
+	}
+	if r.texManager == nil {
+		r.texManager = tex.NewManager(tex.ManagerConfig{})
+	}
+	result, err := r.texManager.Render(text, size, r.resolution, fontKey)
+	if err != nil {
+		r.texErr = err
+		return tex.RenderResult{}, false
+	}
+	r.texErr = nil
+	return result, true
 }
 
 // SetResolution sets raster-free text metric scale basis.
@@ -595,6 +693,26 @@ func asRGBAImage(img render.Image) *image.RGBA {
 	}
 
 	return rgbaImage.RGBA()
+}
+
+func colorizeTeXImage(src *image.RGBA, c render.Color) *image.RGBA {
+	if src == nil {
+		return nil
+	}
+	bounds := src.Bounds()
+	dst := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+	r := uint8(clamp01(c.R)*255 + 0.5)
+	g := uint8(clamp01(c.G)*255 + 0.5)
+	b := uint8(clamp01(c.B)*255 + 0.5)
+	alphaScale := clamp01(c.A)
+	for y := 0; y < bounds.Dy(); y++ {
+		for x := 0; x < bounds.Dx(); x++ {
+			_, _, _, a16 := src.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
+			a := uint8(float64(a16>>8)*alphaScale + 0.5)
+			dst.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: a})
+		}
+	}
+	return dst
 }
 
 func buildPathData(p geom.Path) string {

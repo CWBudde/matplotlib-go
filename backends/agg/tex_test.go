@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	tex "github.com/cwbudde/matplotlib-go/internal/tex"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
@@ -46,17 +47,17 @@ cp "$FAKE_TEX_PNG" "$out"
 	t.Setenv("DVIPNG_LOG", dvipngLog)
 	t.Setenv("FAKE_TEX_PNG", fixture)
 
-	manager := newTeXManager(texManagerConfig{
+	manager := tex.NewManager(tex.ManagerConfig{
 		CacheDir:      filepath.Join(dir, "cache"),
 		LaTeXCommand:  latex,
 		DVIPNGCommand: dvipng,
 	})
 
-	first, err := manager.render(`signal $\alpha$`, 12, 144, "DejaVu Sans")
+	first, err := manager.Render(`signal $\alpha$`, 12, 144, "DejaVu Sans")
 	if err != nil {
 		t.Fatalf("first render: %v", err)
 	}
-	second, err := manager.render(`signal $\alpha$`, 12, 144, "DejaVu Sans")
+	second, err := manager.Render(`signal $\alpha$`, 12, 144, "DejaVu Sans")
 	if err != nil {
 		t.Fatalf("second render: %v", err)
 	}
@@ -84,13 +85,13 @@ echo "latex exploded"
 exit 42
 `)
 
-	manager := newTeXManager(texManagerConfig{
+	manager := tex.NewManager(tex.ManagerConfig{
 		CacheDir:      filepath.Join(dir, "cache"),
 		LaTeXCommand:  latex,
 		DVIPNGCommand: "unused",
 	})
 
-	_, err := manager.render(`bad $\tex$`, 12, 100, "DejaVu Sans")
+	_, err := manager.Render(`bad $\tex$`, 12, 100, "DejaVu Sans")
 	if err == nil {
 		t.Fatal("expected render error")
 	}
@@ -127,7 +128,7 @@ cp "$FAKE_TEX_PNG" "$out"
 	if err != nil {
 		t.Fatalf("New renderer: %v", err)
 	}
-	r.texManager = newTeXManager(texManagerConfig{
+	r.texManager = tex.NewManager(tex.ManagerConfig{
 		CacheDir:      filepath.Join(dir, "cache"),
 		LaTeXCommand:  latex,
 		DVIPNGCommand: dvipng,
@@ -169,7 +170,7 @@ cp "$FAKE_TEX_PNG" "$out"
 	if err != nil {
 		t.Fatalf("New renderer: %v", err)
 	}
-	r.texManager = newTeXManager(texManagerConfig{
+	r.texManager = tex.NewManager(tex.ManagerConfig{
 		CacheDir:      filepath.Join(dir, "cache"),
 		LaTeXCommand:  latex,
 		DVIPNGCommand: dvipng,
@@ -184,7 +185,7 @@ cp "$FAKE_TEX_PNG" "$out"
 }
 
 func TestTeXSourcePreservesBoxesRulesAndFontFamily(t *testing.T) {
-	source := texSource(`\fbox{\rule{1em}{0.4pt}}`, 12, "DejaVu Sans")
+	source := tex.Source(`\fbox{\rule{1em}{0.4pt}}`, 12, "DejaVu Sans")
 	for _, want := range []string{
 		`\sffamily \fbox{\rule{1em}{0.4pt}}`,
 		`\@ifpackageloaded{underscore}`,

@@ -1,17 +1,21 @@
 package svg
 
 import (
+	"bytes"
 	"image"
 	"image/color"
+	"image/png"
 	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
 	"codeberg.org/go-fonts/dejavu/dejavusans"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	tex "github.com/cwbudde/matplotlib-go/internal/tex"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
@@ -103,6 +107,95 @@ func TestSaveSVG(t *testing.T) {
 	}
 	if !strings.Contains(content, "<text") || !strings.Contains(content, ">line<") {
 		t.Fatal("SVG output missing text node")
+	}
+}
+
+func TestDrawTeXEmbedsCachedPNG(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell commands are POSIX-only")
+	}
+	dir := t.TempDir()
+	fixture := filepath.Join(dir, "fixture.png")
+	writeSVGTestPNG(t, fixture, color.RGBA{A: 255})
+	latex := writeSVGFakeCommand(t, dir, "latex", `#!/bin/sh
+touch file.dvi
+`)
+	dvipng := writeSVGFakeCommand(t, dir, "dvipng", `#!/bin/sh
+out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then
+    shift
+    out="$1"
+  fi
+  shift
+done
+cp "$FAKE_TEX_PNG" "$out"
+`)
+	t.Setenv("FAKE_TEX_PNG", fixture)
+
+	r := mustNewRenderer(t)
+	r.texManager = tex.NewManager(tex.ManagerConfig{
+		CacheDir:      filepath.Join(dir, "cache"),
+		LaTeXCommand:  latex,
+		DVIPNGCommand: dvipng,
+	})
+
+	if metrics, ok := r.MeasureTeX(`signal $\alpha$`, 12, "DejaVu Sans"); !ok || metrics.W != 2 || metrics.H != 2 {
+		t.Fatalf("MeasureTeX = %+v, %v; want 2x2 metrics and ok", metrics, ok)
+	}
+	if !r.DrawTeX(`signal $\alpha$`, geom.Pt{X: 8, Y: 10}, 12, render.Color{R: 1, A: 1}, "DejaVu Sans") {
+		t.Fatal("DrawTeX returned false")
+	}
+
+	content := r.renderSVG()
+	if !strings.Contains(content, `<image x="8.000000" y="8.000000" width="2.000000" height="2.000000"`) {
+		t.Fatalf("TeX image should be placed from baseline-adjusted origin, got %q", content)
+	}
+	if !strings.Contains(content, `data:image/png;base64,`) {
+		t.Fatalf("TeX image should be embedded as a PNG data URI, got %q", content)
+	}
+	if strings.Contains(content, `>signal`) {
+		t.Fatalf("TeX text should not fall back to native SVG text, got %q", content)
+	}
+}
+
+func TestDrawTeXRotatedEmbedsCachedPNGWithTransform(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake shell commands are POSIX-only")
+	}
+	dir := t.TempDir()
+	fixture := filepath.Join(dir, "fixture.png")
+	writeSVGTestPNG(t, fixture, color.RGBA{A: 255})
+	latex := writeSVGFakeCommand(t, dir, "latex", `#!/bin/sh
+touch file.dvi
+`)
+	dvipng := writeSVGFakeCommand(t, dir, "dvipng", `#!/bin/sh
+out=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then
+    shift
+    out="$1"
+  fi
+  shift
+done
+cp "$FAKE_TEX_PNG" "$out"
+`)
+	t.Setenv("FAKE_TEX_PNG", fixture)
+
+	r := mustNewRenderer(t)
+	r.texManager = tex.NewManager(tex.ManagerConfig{
+		CacheDir:      filepath.Join(dir, "cache"),
+		LaTeXCommand:  latex,
+		DVIPNGCommand: dvipng,
+	})
+
+	if !r.DrawTeXRotated(`x`, geom.Pt{X: 20, Y: 30}, 12, math.Pi/2, render.Color{B: 1, A: 1}, "DejaVu Sans") {
+		t.Fatal("DrawTeXRotated returned false")
+	}
+
+	content := r.renderSVG()
+	if !strings.Contains(content, `<image`) || !strings.Contains(content, `transform="rotate(-90.000000 20.000000 30.000000)"`) {
+		t.Fatalf("rotated TeX should embed an image with anchor rotation, got %q", content)
 	}
 }
 
@@ -598,5 +691,31 @@ func TestHelperImageBranches(t *testing.T) {
 	converted := asRGBAImage(render.NewImageData(img))
 	if converted == nil || converted.Bounds() != img.Bounds() {
 		t.Fatalf("expected RGBA image conversion to preserve bounds, got %#v", converted)
+	}
+}
+
+func writeSVGFakeCommand(t *testing.T, dir, name, body string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatalf("write fake command: %v", err)
+	}
+	return path
+}
+
+func writeSVGTestPNG(t *testing.T, path string, c color.RGBA) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	for y := 0; y < 2; y++ {
+		for x := 0; x < 2; x++ {
+			img.SetRGBA(x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode fixture PNG: %v", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write fixture PNG: %v", err)
 	}
 }

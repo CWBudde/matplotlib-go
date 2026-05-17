@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"codeberg.org/go-fonts/dejavu/dejavusans"
@@ -161,6 +162,89 @@ func TestShapeTextComposesCombiningMarksWhenPrecomposedGlyphExists(t *testing.T)
 	}
 	if decomposed.Glyphs[0].Cluster != 0 {
 		t.Fatalf("composed glyph cluster = %d, want original base byte offset 0", decomposed.Glyphs[0].Cluster)
+	}
+}
+
+func TestShapeTextPlacesUncomposedCombiningMarksOnBaseGlyph(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	base, ok := ShapeText("x", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(base.Glyphs) != 1 {
+		t.Fatalf("ShapeText base x = %+v, %v; want one glyph", base, ok)
+	}
+	shaped, ok := ShapeText("x\u0301", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(shaped.Glyphs) != 2 {
+		t.Fatalf("ShapeText x+combining acute = %+v, %v; want base plus mark glyph", shaped, ok)
+	}
+
+	mark := shaped.Glyphs[1]
+	if mark.Rune != '\u0301' {
+		t.Fatalf("second glyph rune = %q, want combining acute", mark.Rune)
+	}
+	if math.Abs(shaped.Advance.X-base.Advance.X) > 1e-6 {
+		t.Fatalf("combining mark should not expand advance: base=%v shaped=%v glyphs=%+v", base.Advance.X, shaped.Advance.X, shaped.Glyphs)
+	}
+	if mark.Origin.X >= shaped.Glyphs[0].Origin.X+shaped.Glyphs[0].Advance.X {
+		t.Fatalf("combining mark origin should stay over base glyph, got base=%+v mark=%+v", shaped.Glyphs[0], mark)
+	}
+	if mark.Advance.X != 0 {
+		t.Fatalf("combining mark advance = %v, want zero", mark.Advance.X)
+	}
+}
+
+func TestShapeTextPlacesExplicitRTLRunInVisualOrder(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	shaped, ok := ShapeText("אב", geom.Pt{}, 72, TextShapingOptions{
+		FontKey:   "DejaVu Sans",
+		Direction: TextDirectionRTL,
+	})
+	if !ok || len(shaped.Runs) != 1 || len(shaped.Glyphs) != 2 {
+		t.Fatalf("ShapeText RTL Hebrew = %+v, %v; want one two-glyph run", shaped, ok)
+	}
+	if shaped.Runs[0].Direction != TextDirectionRTL {
+		t.Fatalf("run direction = %q, want rtl", shaped.Runs[0].Direction)
+	}
+	if shaped.Glyphs[0].Rune != 'ב' || shaped.Glyphs[1].Rune != 'א' {
+		t.Fatalf("glyph visual rune order = %q %q, want bet then alef", shaped.Glyphs[0].Rune, shaped.Glyphs[1].Rune)
+	}
+	if shaped.Glyphs[0].Cluster != 2 || shaped.Glyphs[1].Cluster != 0 {
+		t.Fatalf("glyph clusters = [%d %d], want original byte offsets [2 0]", shaped.Glyphs[0].Cluster, shaped.Glyphs[1].Cluster)
+	}
+	if shaped.Glyphs[1].Origin.X <= shaped.Glyphs[0].Origin.X {
+		t.Fatalf("visual glyph origins should advance left-to-right after reordering: %+v", shaped.Glyphs)
+	}
+}
+
+func TestShapeTextReordersMixedLTRAndRTLText(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	shaped, ok := ShapeText("ab אב cd", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok {
+		t.Fatal("ShapeText mixed bidi text failed")
+	}
+	var runes strings.Builder
+	for _, glyph := range shaped.Glyphs {
+		runes.WriteRune(glyph.Rune)
+	}
+	got := runes.String()
+	if !strings.Contains(got, "בא") {
+		t.Fatalf("mixed bidi glyph order = %q, want Hebrew run in visual order", got)
+	}
+	bet, alef := -1, -1
+	for i, glyph := range shaped.Glyphs {
+		switch glyph.Rune {
+		case 'ב':
+			bet = i
+		case 'א':
+			alef = i
+		}
+	}
+	if bet < 0 || alef < 0 || bet > alef {
+		t.Fatalf("Hebrew glyph indices in %q = bet %d alef %d, want bet before alef", got, bet, alef)
+	}
+	if shaped.Glyphs[bet].Cluster != 5 || shaped.Glyphs[alef].Cluster != 3 {
+		t.Fatalf("Hebrew clusters = [%d %d], want original byte offsets [5 3]", shaped.Glyphs[bet].Cluster, shaped.Glyphs[alef].Cluster)
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 	"codeberg.org/go-fonts/dejavu/dejavusans"
 	agglib "github.com/cwbudde/agg_go"
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	tex "github.com/cwbudde/matplotlib-go/internal/tex"
 	"github.com/cwbudde/matplotlib-go/render"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
@@ -92,7 +93,7 @@ type Renderer struct {
 	fallback    bool   // true if any text path had to fall back to GSV
 	lastFontKey string
 	outlineText *agglib.FreeTypeOutlineText
-	texManager  *texManager
+	texManager  *tex.Manager
 	texErr      error
 }
 
@@ -166,7 +167,7 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		height:      h,
 		resolution:  72,
 		clipMaskMap: make(map[clipMaskKey][]uint8),
-		texManager:  newTeXManager(texManagerConfig{}),
+		texManager:  tex.NewManager(tex.ManagerConfig{}),
 	}
 
 	// Prefer DejaVu Sans (the same default font Matplotlib ships with) via AGG's

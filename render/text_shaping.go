@@ -9,6 +9,7 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
+	"golang.org/x/text/unicode/bidi"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -21,8 +22,7 @@ const (
 )
 
 // TextFeature describes one OpenType feature toggle requested for shaping.
-// The current fallback shaper records the request surface but does not yet
-// apply GSUB/GPOS features.
+// The current fallback shaper supports selected GSUB and positioning features.
 type TextFeature struct {
 	Tag   string
 	Value int
@@ -138,20 +138,29 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 			return ShapedText{}, false
 		}
 		inputGlyphs = applyGSUBLigatures(inputRun.Face, inputGlyphs, opts)
+		reorderDirectionalGlyphs(inputGlyphs, opts.Direction)
 
+		attachCenterX := 0.0
+		haveAttachCenter := false
 		for _, inputGlyph := range inputGlyphs {
+			isMark := isCombiningMark(inputGlyph.Rune)
 			kern := 0.0
-			if kernEnabled && havePrevious && previousFace == faceKey {
+			if !isMark && kernEnabled && havePrevious && previousFace == faceKey {
 				if k, err := fontData.Kern(&buf, previous, inputGlyph.GlyphIndex, ppem, font.HintingNone); err == nil {
 					kern = fixedToFloat(k)
 					penX += kern
 				}
 			}
 
-			originPt := geom.Pt{X: penX, Y: origin.Y}
 			segments, err := fontData.LoadGlyph(&buf, inputGlyph.GlyphIndex, ppem, nil)
 			if err != nil {
 				return ShapedText{}, false
+			}
+			originPt := geom.Pt{X: penX, Y: origin.Y}
+			if isMark && haveAttachCenter && len(segments) > 0 {
+				segBounds := segments.Bounds()
+				markCenter := fixedToFloat(segBounds.Min.X+segBounds.Max.X) / 2
+				originPt.X = attachCenterX - markCenter
 			}
 			if len(segments) > 0 {
 				bounds := segments.Bounds()
@@ -184,6 +193,9 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 				return ShapedText{}, false
 			}
 			advancePt := geom.Pt{X: fixedToFloat(advance)}
+			if isMark {
+				advancePt = geom.Pt{}
+			}
 			glyph := ShapedGlyph{
 				Rune:       inputGlyph.Rune,
 				Cluster:    inputGlyph.Cluster,
@@ -195,10 +207,19 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 			}
 			run.Glyphs = append(run.Glyphs, glyph)
 			shaped.Glyphs = append(shaped.Glyphs, glyph)
-			penX += advancePt.X
-			previous = inputGlyph.GlyphIndex
-			previousFace = faceKey
-			havePrevious = true
+			if !isMark {
+				penX += advancePt.X
+				previous = inputGlyph.GlyphIndex
+				previousFace = faceKey
+				havePrevious = true
+				if len(segments) > 0 {
+					bounds := segments.Bounds()
+					attachCenterX = originPt.X + fixedToFloat(bounds.Min.X+bounds.Max.X)/2
+				} else {
+					attachCenterX = originPt.X + advancePt.X/2
+				}
+				haveAttachCenter = true
+			}
 			laidOutGlyphs = true
 		}
 
@@ -282,4 +303,39 @@ func composedGlyph(fontData *sfnt.Font, buf *sfnt.Buffer, runes []rune, cluster 
 
 func isCombiningMark(r rune) bool {
 	return unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) || unicode.Is(unicode.Me, r)
+}
+
+func reorderDirectionalGlyphs(glyphs []shapingGlyph, direction TextDirection) {
+	if direction == TextDirectionRTL {
+		reverseShapingGlyphs(glyphs)
+		return
+	}
+	for start := 0; start < len(glyphs); {
+		if !isRTLGlyph(glyphs[start]) {
+			start++
+			continue
+		}
+		end := start + 1
+		for end < len(glyphs) && isRTLGlyph(glyphs[end]) {
+			end++
+		}
+		reverseShapingGlyphs(glyphs[start:end])
+		start = end
+	}
+}
+
+func isRTLGlyph(glyph shapingGlyph) bool {
+	props, _ := bidi.LookupRune(glyph.Rune)
+	switch props.Class() {
+	case bidi.R, bidi.AL:
+		return true
+	default:
+		return false
+	}
+}
+
+func reverseShapingGlyphs(glyphs []shapingGlyph) {
+	for i, j := 0, len(glyphs)-1; i < j; i, j = i+1, j-1 {
+		glyphs[i], glyphs[j] = glyphs[j], glyphs[i]
+	}
 }
