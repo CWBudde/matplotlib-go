@@ -217,7 +217,7 @@ cp "$FAKE_TEX_PNG" "$out"
 	}
 
 	content := r.renderSVG()
-	if !strings.Contains(content, `<image`) || !strings.Contains(content, `transform="rotate(-90 20 30)"`) {
+	if !strings.Contains(content, `<image`) || !strings.Contains(content, `transform="matrix(0 -1 1 0 -10 50)"`) {
 		t.Fatalf("rotated TeX should embed an image with anchor rotation, got %q", content)
 	}
 }
@@ -632,7 +632,7 @@ func TestTextEscapingAndRotationSerialization(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		`transform="rotate(-28.64789 90 70)"`,
+		`transform="matrix(0.877583 -0.479426 0.479426 0.877583 -22.542218 51.717519)"`,
 		`fill="rgb(51,102,153)"`,
 		`fill-opacity="0.75"`,
 		`A&lt;&amp;&#34;B`,
@@ -768,6 +768,54 @@ func TestClipPathRejectsEmptyPath(t *testing.T) {
 	}
 	if strings.Contains(content, "clip-path=") {
 		t.Fatalf("empty path should not wrap content in clip groups, got %q", content)
+	}
+}
+
+func TestClipPathTransformedEmitsPathTransformAndDedupesByTransform(t *testing.T) {
+	makePath := func() geom.Path {
+		var p geom.Path
+		p.MoveTo(geom.Pt{X: 0, Y: 0})
+		p.LineTo(geom.Pt{X: 20, Y: 0})
+		p.LineTo(geom.Pt{X: 20, Y: 20})
+		p.Close()
+		return p
+	}
+	shift := geom.Affine{A: 1, D: 1, E: 10, F: 15}
+	scale := geom.Affine{A: 2, D: 2}
+
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.Save()
+		r.ClipPathTransformed(makePath(), shift)
+		r.DrawText("first", geom.Pt{X: 5, Y: 5}, 12, render.Color{A: 1})
+		r.Restore()
+
+		r.Save()
+		r.ClipPathTransformed(makePath(), shift)
+		r.DrawText("second", geom.Pt{X: 5, Y: 20}, 12, render.Color{A: 1})
+		r.Restore()
+
+		r.Save()
+		r.ClipPathTransformed(makePath(), scale)
+		r.DrawText("third", geom.Pt{X: 5, Y: 35}, 12, render.Color{A: 1})
+		r.Restore()
+	})
+
+	if got := strings.Count(content, "<clipPath"); got != 2 {
+		t.Fatalf("path clips should dedupe by path plus transform, got %d defs in %q", got, content)
+	}
+	for _, want := range []string{
+		`<path d="M 0 0 L 20 0 L 20 20 Z" transform="matrix(1 0 0 1 10 15)" />`,
+		`<path d="M 0 0 L 20 0 L 20 20 Z" transform="matrix(2 0 0 2 0 0)" />`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("expected transformed clip def %q in %q", want, content)
+		}
+	}
+	if got := strings.Count(content, `clip-path="url(#clip1)"`); got != 2 {
+		t.Fatalf("first transform should share clip1 across two nodes, got %d refs in %q", got, content)
+	}
+	if got := strings.Count(content, `clip-path="url(#clip2)"`); got != 1 {
+		t.Fatalf("second transform should use clip2 once, got %d refs in %q", got, content)
 	}
 }
 

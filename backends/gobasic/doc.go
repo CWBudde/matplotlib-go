@@ -22,6 +22,8 @@
 // Known fidelity limitations:
 //   - Text metrics are approximate and do not expose font-wide metric or ink
 //     bounds interfaces.
+//   - Path rasterization uses the vector rasterizer's antialiasing behavior;
+//     per-path AntialiasOn/AntialiasOff switches are not fidelity controls.
 //   - Image transforms are not native; rotated images fall back to axis-aligned
 //     drawing in core.
 //   - Hatches and collection batches are handled by core fallbacks rather than

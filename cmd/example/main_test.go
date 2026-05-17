@@ -1,0 +1,76 @@
+package main
+
+import (
+	"image"
+	"image/color"
+	"testing"
+
+	"github.com/cwbudde/matplotlib-go/backends"
+	_ "github.com/cwbudde/matplotlib-go/backends/all"
+	"github.com/cwbudde/matplotlib-go/core"
+	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
+	"github.com/cwbudde/matplotlib-go/render"
+)
+
+func TestExampleRequiredCapabilitiesAllowGoBasic(t *testing.T) {
+	_, _, err := backends.NewRenderer(string(backends.GoBasic), backends.TestDefaultConfig(120, 80), exampleRequiredCapabilities())
+	if err != nil {
+		t.Fatalf("example required capabilities should allow GoBasic: %v", err)
+	}
+}
+
+func hasNonBackgroundPixel(img image.Image, bg color.RGBA) bool {
+	if img == nil {
+		return false
+	}
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			if color.RGBAModel.Convert(img.At(x, y)).(color.RGBA) != bg {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestShowcaseRegistryRendersWithGoBasic(t *testing.T) {
+	for id, plot := range registry {
+		id := id
+		plot := plot
+		t.Run(id, func(t *testing.T) {
+			fig := plot()
+			w := int(fig.SizePx.X)
+			h := int(fig.SizePx.Y)
+			r, _, err := backends.NewRenderer(string(backends.GoBasic), backends.Config{
+				Width:      w,
+				Height:     h,
+				Background: render.Color{R: 1, G: 1, B: 1, A: 1},
+				DPI:        fig.RC.DPI,
+			}, exampleRequiredCapabilities())
+			if err != nil {
+				t.Fatalf("create GoBasic renderer: %v", err)
+			}
+			core.DrawFigure(fig, r)
+
+			exporter, ok := r.(render.RGBAExporter)
+			if !ok {
+				t.Fatal("GoBasic renderer should expose RGBA output")
+			}
+			if !hasNonBackgroundPixel(exporter.GetImage(), color.RGBA{R: 255, G: 255, B: 255, A: 255}) {
+				t.Fatal("GoBasic showcase output is blank")
+			}
+		})
+	}
+}
+
+func TestShowcaseRegistryCoversCatalogShowcases(t *testing.T) {
+	for _, c := range examplecatalog.Cases() {
+		if !c.Showcase {
+			continue
+		}
+		if _, ok := registry[c.ID]; !ok {
+			t.Fatalf("catalog showcase %q is missing from cmd/example registry", c.ID)
+		}
+	}
+}

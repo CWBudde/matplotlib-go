@@ -1000,10 +1000,10 @@ Verification reference:
 
 - [x] Define GoBasic's supported scope as a pure-Go correctness fallback rather than a pixel-identical Matplotlib renderer.
 - [x] Bring GoBasic capability reporting into exact agreement with runtime interfaces: text, clipping, image transforms, batch fallbacks, hatching, export formats, and DPI behavior.
-- [ ] Make GoBasic implement all renderer-neutral fallback paths required by `core` without silently dropping paint state such as alpha, line joins/caps, dashes, clipping, hatches, and antialiasing flags.
-- [ ] Add GoBasic contract tests for path state save/restore, clip stack behavior, image drawing, transformed image fallback, text metrics, and collection fallback routing.
-- [ ] Add a small GoBasic visual smoke fixture set that checks semantic output stability without using AGG-level pixel thresholds.
-- [ ] Document every known GoBasic fidelity limitation in `backends/gobasic/doc.go` and surface those limitations through the capability matrix.
+- [x] Make GoBasic implement all renderer-neutral fallback paths required by `core` without silently dropping paint state such as alpha, line joins/caps, dashes, clipping, hatches, and antialiasing flags.
+- [x] Add GoBasic contract tests for path state save/restore, clip stack behavior, image drawing, transformed image fallback, text metrics, and collection fallback routing.
+- [x] Add a small GoBasic visual smoke fixture set that checks semantic output stability without using AGG-level pixel thresholds.
+- [x] Document every known GoBasic fidelity limitation in `backends/gobasic/doc.go` and surface those limitations through the capability matrix.
 
 Current contract checklist:
 
@@ -1011,17 +1011,17 @@ Current contract checklist:
 - [x] Shared backend lifecycle/path contract suite runs against GoBasic.
 - [x] `Path` tolerates nil paint without panicking.
 - [x] Image drawing preserves source pixel sampling and applies `render.ImageAlpha` before bitmap blending.
-- [ ] Path paint-state contract audit: alpha, line joins/caps, dashes, clip rect/path stacking, hatch fallback, and antialias flags all need explicit GoBasic tests that inspect rendered semantics rather than only no-panic behavior.
-- [ ] Transformed image fallback contract: rotated/transformed images should have an explicit GoBasic test documenting that `core` falls back to axis-aligned `Image` when `render.ImageTransformer` is absent.
-- [ ] Text metrics contract: basic `MeasureText`, DPI scaling, missing-font fallback, rotated text, vertical text, and text-path behavior need grouped contract coverage; unsupported font-wide metrics and ink bounds should stay explicitly unsupported.
-- [ ] Collection fallback routing contract: marker, path collection, patch collection, quad mesh, hatches, and Gouraud fallback/unsupported behavior need tests proving GoBasic receives renderer-neutral `Path`/`Image` calls instead of silently dropping output.
-- [ ] Example smoke contract: render every committed non-interactive showcase/parity case with GoBasic and assert no panic plus non-blank output under semantic, non-AGG thresholds.
+- [x] Path paint-state contract audit: alpha, line joins/caps, dashes, clip rect/path stacking, hatch fallback, and antialias flags all need explicit GoBasic tests that inspect rendered semantics rather than only no-panic behavior. Per-path antialias toggling remains documented as unsupported by GoBasic's vector rasterizer, while AntialiasOff draw paths are covered against output drops.
+- [x] Transformed image fallback contract: rotated/transformed images should have an explicit GoBasic test documenting that `core` falls back to axis-aligned `Image` when `render.ImageTransformer` is absent.
+- [x] Text metrics contract: basic `MeasureText`, DPI scaling, missing-font fallback, rotated text, vertical text, and text-path behavior need grouped contract coverage; unsupported font-wide metrics and ink bounds should stay explicitly unsupported.
+- [x] Collection fallback routing contract: marker, path collection, patch collection, quad mesh, hatches, and Gouraud fallback/unsupported behavior need tests proving GoBasic receives renderer-neutral `Path`/`Image` calls instead of silently dropping output.
+- [x] Example smoke contract: render every committed non-interactive showcase/parity case with GoBasic and assert no panic plus non-blank output under semantic, non-AGG thresholds.
 
 Exit criteria:
 
-- [ ] GoBasic can render every committed non-interactive example without panics or missing mandatory artist output.
-- [ ] GoBasic capability reports match actual behavior and fail tests when a claimed capability is absent.
-- [ ] GoBasic remains dependency-light and pure Go while sharing as much renderer-neutral logic as possible with AGG/SVG/Skia.
+- [x] GoBasic can render every committed non-interactive example without panics or missing mandatory artist output.
+- [x] GoBasic capability reports match actual behavior and fail tests when a claimed capability is absent.
+- [x] GoBasic remains dependency-light and pure Go while sharing as much renderer-neutral logic as possible with AGG/SVG/Skia.
 
 Verification reference:
 
@@ -1029,6 +1029,9 @@ Verification reference:
 - [x] Wired GoBasic capability registration to the runtime interfaces it actually implements and added compile-time interface assertions.
 - [x] Ran the shared backend contract suite against GoBasic; fixed `Path` to tolerate nil paint without panicking.
 - [x] Added a GoBasic image drawing contract for `render.ImageAlpha` and applied image-level alpha before bitmap blending.
+- [x] Added rendered GoBasic semantic contracts for alpha blending, line joins/caps, dashes, nested clip rect restore, missing-font text metrics/text paths, unsupported text bounds/font metrics, rotated image fallback without `render.ImageTransformer`, and renderer-neutral collection/hatch/Gouraud fallbacks.
+- [x] Added `cmd/example` GoBasic smoke coverage for every registered showcase and relaxed the CLI's required capability set so the pure-Go backend can render examples.
+- [x] Documented GoBasic's per-path antialias fidelity limitation in `backends/gobasic/doc.go` while keeping `AntiAliasing` capability scoped to vector rasterizer output.
 
 ### 14.3 SVG Vector Backend Parity
 
@@ -1043,14 +1046,14 @@ Bring the SVG backend to functional parity with upstream Matplotlib's `RendererS
 - [x] Deterministic ID assignment across rect clips, path clips, and marker defs via a single shared counter and registration-ordered slices (no map iteration in the writer).
 - [x] Byte-for-byte reproducibility test (`TestSerializationDeterministic`) and table-driven `TestShortFloat` / `TestRotateTransformUsesShortFloat` pinning formatter semantics.
 
-**14.3.2 Clip paths, nested clip groups, transformed clips (mostly landed):**
+**14.3.2 Clip paths, nested clip groups, transformed clips (landed):**
 
 - [x] `ClipPath(geom.Path)` registers a deduped `<clipPath><path d="…"/></clipPath>` def in `<defs>` keyed by path data.
 - [x] Nested clip stacks: `Save`/`Restore` snapshot/truncate the path-clip stack; each rendered node captures the full active chain (rect outer, path inner).
 - [x] Serializer wraps content in nested `<g clip-path="url(#…)">` groups in outer-to-inner order.
 - [x] Tests for nested rect+path composition, dedup across nodes, restore-pop unwind, empty-path rejection.
-- [ ] Switch per-element rotation strings to canonical `matrix(a b c d e f)` transforms everywhere a transform is applied (text, image, marker `<use>`). Single helper (`matrixTransform`) already exists from 14.3.3 and is reused.
-- [ ] Transformed clip paths: apply an affine to a stored clip-path def via `<clipPath><path … transform="…"/></clipPath>` once matrix transforms are universal.
+- [x] Switch per-element rotation strings to canonical `matrix(a b c d e f)` transforms everywhere a transform is applied (text, image, marker `<use>`). Single helper (`matrixTransform`) already exists from 14.3.3 and is reused.
+- [x] Transformed clip paths: apply an affine to a stored clip-path def via `<clipPath><path … transform="…"/></clipPath>` once matrix transforms are universal.
 
 **14.3.3 Native batches, image transforms, hatches, alpha (in progress):**
 
@@ -1094,14 +1097,14 @@ Exit criteria:
 Progress notes:
 
 - The original "Audit SVG output against upstream `RendererSVG`" bullet has been folded into the per-subtask design rather than tracked separately — each subtask cites the upstream behavior it is matching, so the audit ships incrementally with the implementation.
-- 14.3.2 and 14.3.3 share a transitive dependency: transformed clip paths (14.3.2) and `<pattern>`-based hatch defs (14.3.3) both benefit from the matrix-transform helper introduced for `ImageTransformed`/`DrawMarkers`. The remaining matrix-transform refactor in 14.3.2 unblocks both.
+- 14.3.2 and 14.3.3 share a transitive dependency: transformed clip paths (14.3.2) and `<pattern>`-based hatch defs (14.3.3) both benefit from the matrix-transform helper introduced for `ImageTransformed`/`DrawMarkers`. The matrix-transform refactor in 14.3.2 has landed; native path collections and hatch patterns are now unblocked.
 - Moving `MarkerBatch` from fallback to native (14.3.3) exposed that `PathCollectionBatch` and `QuadMeshBatch` remain core-side fallbacks; native treatment of path collections is the next natural step.
 - Default-no-metadata in 14.3.4 diverges intentionally from matplotlib (which always emits a generated date) to maximize byte-for-byte determinism out of the box; users opt in via `SOURCE_DATE_EPOCH` or explicit options.
 
 Verification reference:
 
-- [x] Formatter pinning: `TestShortFloat`, `TestRotateTransformUsesShortFloat`, `TestSerializationDeterministic`.
-- [x] Clip paths: `TestClipPathNestsInsideActiveRectClip`, `TestClipPathDedupesIdenticalPathsAcrossNodes`, `TestClipPathStackUnwindsOnRestore`, `TestClipPathRejectsEmptyPath`, plus the existing `TestRenderSVGPreservesClipStackAcrossSaveRestore` for rect-only intersection semantics.
+- [x] Formatter pinning: `TestShortFloat`, `TestRotateTransformUsesMatrixTransform`, `TestSerializationDeterministic`.
+- [x] Clip paths: `TestClipPathNestsInsideActiveRectClip`, `TestClipPathDedupesIdenticalPathsAcrossNodes`, `TestClipPathStackUnwindsOnRestore`, `TestClipPathRejectsEmptyPath`, `TestClipPathTransformedEmitsPathTransformAndDedupesByTransform`, plus the existing `TestRenderSVGPreservesClipStackAcrossSaveRestore` for rect-only intersection semantics.
 - [x] Image transforms: `TestImageTransformedEmitsMatrixAttribute`, `TestImageTransformedHonorsClip`, `TestImageTransformedSkipsUnsupportedImage`, `TestMatrixTransformFormat`.
 - [x] Marker batches: `TestDrawMarkersEmitsDefAndUseElements`, `TestDrawMarkersDedupesIdenticalMarkerGeometry`, `TestDrawMarkersHonorsActiveClip`, `TestDrawMarkersRejectsEmptyBatchOrInvalidMarker`.
 - [x] Capability advertising: `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` (registry-level contract).

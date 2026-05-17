@@ -44,9 +44,10 @@ type svgNode struct {
 // of rect or path is populated. Storing both in a single ordered slice keeps
 // emission in registration order so def IDs and document order stay aligned.
 type clipDef struct {
-	id   string
-	rect *geom.Rect
-	path string
+	id        string
+	rect      *geom.Rect
+	path      string
+	transform string
 }
 
 // markerDef caches one marker-path's `d` attribute for `<defs><path id="…"/>`
@@ -94,18 +95,19 @@ type Renderer struct {
 }
 
 var (
-	_ render.Renderer           = (*Renderer)(nil)
-	_ render.DPIAware           = (*Renderer)(nil)
-	_ render.TextDrawer         = (*Renderer)(nil)
-	_ render.RotatedTextDrawer  = (*Renderer)(nil)
-	_ render.VerticalTextDrawer = (*Renderer)(nil)
-	_ render.TextPather         = (*Renderer)(nil)
-	_ render.TeXMetricer        = (*Renderer)(nil)
-	_ render.TeXDrawer          = (*Renderer)(nil)
-	_ render.RotatedTeXDrawer   = (*Renderer)(nil)
-	_ render.ImageTransformer   = (*Renderer)(nil)
-	_ render.MarkerDrawer       = (*Renderer)(nil)
-	_ render.SVGExporter        = (*Renderer)(nil)
+	_ render.Renderer            = (*Renderer)(nil)
+	_ render.DPIAware            = (*Renderer)(nil)
+	_ render.TextDrawer          = (*Renderer)(nil)
+	_ render.RotatedTextDrawer   = (*Renderer)(nil)
+	_ render.VerticalTextDrawer  = (*Renderer)(nil)
+	_ render.TextPather          = (*Renderer)(nil)
+	_ render.TeXMetricer         = (*Renderer)(nil)
+	_ render.TeXDrawer           = (*Renderer)(nil)
+	_ render.RotatedTeXDrawer    = (*Renderer)(nil)
+	_ render.ImageTransformer    = (*Renderer)(nil)
+	_ render.ClipPathTransformer = (*Renderer)(nil)
+	_ render.MarkerDrawer        = (*Renderer)(nil)
+	_ render.SVGExporter         = (*Renderer)(nil)
 )
 
 // New creates a new SVG renderer with the specified dimensions and background color.
@@ -208,6 +210,19 @@ func (r *Renderer) ClipRect(rect geom.Rect) {
 // wrapped in nested <g clip-path="…"> groups (outer-most first) so SVG's
 // natural clip-on-clip composition applies.
 func (r *Renderer) ClipPath(p geom.Path) {
+	r.clipPath(p, "")
+}
+
+// ClipPathTransformed pushes a path-based clip region with an affine transform
+// attached to the stored SVG <clipPath> definition. The active content is still
+// wrapped in clip groups, matching Matplotlib's approach for transformed text
+// and images where applying clip-path directly to the element would transform
+// the clip again.
+func (r *Renderer) ClipPathTransformed(p geom.Path, transform geom.Affine) {
+	r.clipPath(p, matrixTransform(transform))
+}
+
+func (r *Renderer) clipPath(p geom.Path, transform string) {
 	if !p.Validate() {
 		return
 	}
@@ -215,7 +230,7 @@ func (r *Renderer) ClipPath(p geom.Path) {
 	if d == "" {
 		return
 	}
-	id := r.registerPathClip(d)
+	id := r.registerPathClip(d, transform)
 	r.clipPathStack = append(r.clipPathStack, id)
 }
 
@@ -731,6 +746,10 @@ func (r *Renderer) renderSVG() string {
 			} else {
 				b.WriteString(`<path d="`)
 				b.WriteString(clip.path)
+				if clip.transform != "" {
+					b.WriteString(`" transform="`)
+					b.WriteString(clip.transform)
+				}
 				b.WriteString(`" />`)
 			}
 			b.WriteString("</clipPath>\n")
@@ -848,15 +867,19 @@ func (r *Renderer) registerClip(rect geom.Rect) string {
 	return id
 }
 
-func (r *Renderer) registerPathClip(d string) string {
-	if id, ok := r.clipPathDefs[d]; ok {
+func (r *Renderer) registerPathClip(d, transform string) string {
+	key := d
+	if transform != "" {
+		key += "\x00" + transform
+	}
+	if id, ok := r.clipPathDefs[key]; ok {
 		return id
 	}
 
 	r.clipIDCounter++
 	id := "clip" + strconv.Itoa(r.clipIDCounter)
-	r.clipPathDefs[d] = id
-	r.clipOrder = append(r.clipOrder, clipDef{id: id, path: d})
+	r.clipPathDefs[key] = id
+	r.clipOrder = append(r.clipOrder, clipDef{id: id, path: d, transform: transform})
 	return id
 }
 
@@ -1127,11 +1150,20 @@ func shortFloat(v float64) string {
 	return s
 }
 
-// rotateTransform returns an SVG rotate() transform string with compact float
-// formatting. Centralizing the format keeps later phases (matrix transforms)
-// free to swap the implementation without touching call sites.
+// rotateTransform returns a canonical SVG matrix transform for rotation around
+// (cx, cy), using the same compact float formatting as other transforms.
 func rotateTransform(angleDeg, cx, cy float64) string {
-	return "rotate(" + shortFloat(angleDeg) + " " + shortFloat(cx) + " " + shortFloat(cy) + ")"
+	rad := angleDeg * math.Pi / 180
+	cos := math.Cos(rad)
+	sin := math.Sin(rad)
+	return matrixTransform(geom.Affine{
+		A: cos,
+		B: sin,
+		C: -sin,
+		D: cos,
+		E: cx - cos*cx + sin*cy,
+		F: cy - sin*cx - cos*cy,
+	})
 }
 
 func clampFloat(v float64) float64 {

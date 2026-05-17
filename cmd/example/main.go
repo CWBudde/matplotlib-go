@@ -5,7 +5,7 @@
 //
 //	go run ./cmd/example -list
 //	go run ./cmd/example -name basic_line -o /tmp/basic_line.png
-//	BACKEND=agg go run ./cmd/example -name polar_axes -o polar.png
+//	MATPLOTLIB_BACKEND=agg go run ./cmd/example -name polar_axes -o polar.png
 package main
 
 import (
@@ -125,7 +125,7 @@ func main() {
 		Height:     h,
 		Background: render.Color{R: 1, G: 1, B: 1, A: 1},
 		DPI:        fig.RC.DPI,
-	}, backends.TextCapabilities)
+	}, exampleRequiredCapabilities())
 	if err != nil {
 		log.Fatalf("renderer: %v", err)
 	}
@@ -133,6 +133,10 @@ func main() {
 		log.Fatalf("save: %v", err)
 	}
 	log.Printf("saved %s", output)
+}
+
+func exampleRequiredCapabilities() []backends.Capability {
+	return []backends.Capability{backends.TextShaping}
 }
 
 func listShowcases() {

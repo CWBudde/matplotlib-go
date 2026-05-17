@@ -95,6 +95,12 @@ type ImageTransformer interface {
 	ImageTransformed(img Image, dst geom.Rect, transform geom.Affine)
 }
 
+// ClipPathTransformer is implemented by renderers that can apply an affine
+// transform directly to a path-based clip definition.
+type ClipPathTransformer interface {
+	ClipPathTransformed(path geom.Path, transform geom.Affine)
+}
+
 // RGBAExporter is implemented by raster renderers that expose direct RGBA
 // buffer access in display pixel order.
 type RGBAExporter interface {

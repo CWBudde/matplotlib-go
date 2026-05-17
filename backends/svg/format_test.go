@@ -34,16 +34,16 @@ func TestShortFloat(t *testing.T) {
 	}
 }
 
-func TestRotateTransformUsesShortFloat(t *testing.T) {
+func TestRotateTransformUsesMatrixTransform(t *testing.T) {
 	got := rotateTransform(-90, 20, 30)
-	want := "rotate(-90 20 30)"
+	want := "matrix(0 -1 1 0 -10 50)"
 	if got != want {
 		t.Errorf("rotateTransform(-90, 20, 30) = %q, want %q", got, want)
 	}
 
-	got = rotateTransform(45.5, 1.5, 2.25)
-	want = "rotate(45.5 1.5 2.25)"
+	got = rotateTransform(45, 10, 20)
+	want = "matrix(0.707107 0.707107 -0.707107 0.707107 17.071068 -1.213203)"
 	if got != want {
-		t.Errorf("rotateTransform(45.5, 1.5, 2.25) = %q, want %q", got, want)
+		t.Errorf("rotateTransform(45, 10, 20) = %q, want %q", got, want)
 	}
 }
