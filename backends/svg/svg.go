@@ -665,7 +665,7 @@ func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor
 		return
 	}
 
-	r.renderTextNode(text, origin.X, origin.Y, size, textColor, "")
+	r.renderTextNode(text, origin.X, origin.Y, size, textColor, "", geom.Affine{}, false)
 }
 
 // DrawTextRotated renders text using Matplotlib-like anchor rotation. The
@@ -684,8 +684,8 @@ func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle floa
 		X: anchor.X - metrics.W/2,
 		Y: anchor.Y - metrics.Descent,
 	}
-	transform := rotateTransform(-angle*180/math.Pi, anchor.X, anchor.Y)
-	r.renderTextNode(text, origin.X, origin.Y, size, textColor, transform)
+	affine := rotationAffine(-angle*180/math.Pi, anchor.X, anchor.Y)
+	r.renderTextNode(text, origin.X, origin.Y, size, textColor, matrixTransform(affine), affine, true)
 }
 
 // DrawTextVertical renders one character per line.
@@ -712,7 +712,7 @@ func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, t
 		}
 
 		x := center.X - chMetrics.W/2
-		r.renderTextNode(s, x, y, size, textColor, "")
+		r.renderTextNode(s, x, y, size, textColor, "", geom.Affine{}, false)
 		y += lineH
 	}
 }
@@ -948,12 +948,12 @@ func (r *Renderer) renderSVG() string {
 	return b.String()
 }
 
-func (r *Renderer) renderTextNode(text string, x, y, size float64, textColor render.Color, transform string) {
+func (r *Renderer) renderTextNode(text string, x, y, size float64, textColor render.Color, transform string, affine geom.Affine, hasAffine bool) {
 	if text == "" || size <= 0 {
 		return
 	}
 	if r.options.FontPolicy == render.SVGFontPolicyPath {
-		r.renderTextPathNode(text, geom.Pt{X: x, Y: y}, size, textColor, transform)
+		r.renderTextPathNode(text, geom.Pt{X: x, Y: y}, size, textColor, affine, hasAffine)
 		return
 	}
 
@@ -981,10 +981,13 @@ func (r *Renderer) renderTextNode(text string, x, y, size float64, textColor ren
 	})
 }
 
-func (r *Renderer) renderTextPathNode(text string, origin geom.Pt, size float64, textColor render.Color, transform string) {
+func (r *Renderer) renderTextPathNode(text string, origin geom.Pt, size float64, textColor render.Color, affine geom.Affine, hasAffine bool) {
 	path, ok := r.TextPath(text, origin, size, r.lastFontKey)
 	if !ok {
 		return
+	}
+	if hasAffine {
+		path = affinePath(path, affine)
 	}
 	r.Path(path, &render.Paint{Fill: textColor})
 }
@@ -1478,17 +1481,35 @@ func shortFloat(v float64) string {
 // rotateTransform returns a canonical SVG matrix transform for rotation around
 // (cx, cy), using the same compact float formatting as other transforms.
 func rotateTransform(angleDeg, cx, cy float64) string {
+	return matrixTransform(rotationAffine(angleDeg, cx, cy))
+}
+
+func rotationAffine(angleDeg, cx, cy float64) geom.Affine {
 	rad := angleDeg * math.Pi / 180
 	cos := math.Cos(rad)
 	sin := math.Sin(rad)
-	return matrixTransform(geom.Affine{
+	return geom.Affine{
 		A: cos,
 		B: sin,
 		C: -sin,
 		D: cos,
 		E: cx - cos*cx + sin*cy,
 		F: cy - sin*cx - cos*cy,
-	})
+	}
+}
+
+func affinePath(path geom.Path, affine geom.Affine) geom.Path {
+	if len(path.V) == 0 {
+		return path
+	}
+	out := geom.Path{
+		C: append([]geom.Cmd(nil), path.C...),
+		V: make([]geom.Pt, len(path.V)),
+	}
+	for i, pt := range path.V {
+		out.V[i] = affine.Apply(pt)
+	}
+	return out
 }
 
 func clampFloat(v float64) float64 {

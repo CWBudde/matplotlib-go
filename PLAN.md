@@ -1064,13 +1064,13 @@ Bring the SVG backend to functional parity with upstream Matplotlib's `RendererS
 - [x] Forced-alpha group wrapping: when `paint.ForceAlpha && paint.Alpha < 1`, emit `opacity="alpha"` on the element (or a `<g opacity>` wrapper for batches) and skip per-color `*-opacity`. Requires coordinated changes to `render/graphics_context.go` so colors are not double-multiplied.
 - [x] Gouraud triangle fallback: continue rasterizing via core but document the limitation explicitly; native `<linearGradient>` emission deferred until use cases warrant it.
 
-**14.3.4 Font policy, metadata, and SVG-specific save options (not started):**
+**14.3.4 Font policy, metadata, and SVG-specific save options (landed):**
 
-- [ ] `FontPolicy` option on `svg.Renderer` (`"none"` text-as-text default, `"path"` text-as-path via `render.TextPather`); analogue of matplotlib's `svg.fonttype` rcParam.
-- [ ] Plumb `FontPolicy`, `Metadata`, and `HashSalt` options through `core.SaveSVG`/canvas save dispatch via a typed options interface.
-- [ ] Default empty `<metadata>` block; opt-in via explicit `Metadata` option or `SOURCE_DATE_EPOCH` env var for date stability.
-- [ ] Opt-in `HashSalt`: when set, switch IDs to `SHA256(salt+content)[:10]` (matches matplotlib's `svg.hashsalt`); default keeps the existing sequential `clipN`/`markerN` IDs.
-- [ ] Document the option set in `backends/svg/doc.go`.
+- [x] `FontPolicy` option on `svg.Renderer` (`"none"` text-as-text default, `"path"` text-as-path via `render.TextPather`); analogue of matplotlib's `svg.fonttype` rcParam.
+- [x] Plumb `FontPolicy`, `Metadata`, and `HashSalt` options through `core.SaveSVG`/canvas save dispatch via a typed options interface.
+- [x] Default empty `<metadata>` block; opt-in via explicit `Metadata` option or `SOURCE_DATE_EPOCH` env var for date stability.
+- [x] Opt-in `HashSalt`: when set, switch IDs to `SHA256(salt+content)[:10]` (matches matplotlib's `svg.hashsalt`); default keeps the existing sequential `clipN`/`markerN` IDs.
+- [x] Document the option set in `backends/svg/doc.go`.
 
 **14.3.5 Reference fixtures and structural diff helper (in progress):**
 
@@ -1109,6 +1109,7 @@ Verification reference:
 - [x] Image transforms: `TestImageTransformedEmitsMatrixAttribute`, `TestImageTransformedHonorsClip`, `TestImageTransformedSkipsUnsupportedImage`, `TestMatrixTransformFormat`.
 - [x] Marker batches: `TestDrawMarkersEmitsDefAndUseElements`, `TestDrawMarkersDedupesIdenticalMarkerGeometry`, `TestDrawMarkersHonorsActiveClip`, `TestDrawMarkersRejectsEmptyBatchOrInvalidMarker`.
 - [x] Path collections, hatches, and forced alpha: `TestDrawPathCollectionEmitsDefsAndUseElements`, `TestDrawPathCollectionHonorsActiveClipAndRejectsEmptyBatch`, `TestPathWithHatchEmitsPatternFill`, `TestHatchPatternDefsAreReused`, `TestPathForcedAlphaUsesElementOpacity`, `TestSupportsNativeHatch`, and `TestGraphicsContextEffectivePaintCombinesForcedAndContextAlpha`.
+- [x] SVG options: `TestRenderSVGEmitsDefaultEmptyMetadata`, `TestRenderSVGMetadataOptionAndSourceDateEpoch`, `TestHashSaltUsesContentDerivedIDs`, `TestFontPolicyPathDrawsTextAsPath`, `TestSaveSVGPassesSVGOptionsToRenderer`, `TestSaveFig_ForwardsSVGOptions`, and `TestRegistry_SaveViaExtension_ForwardsSVGOptions`.
 - [x] Capability advertising: `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` (registry-level contract).
 - [x] Structural diff helper: `TestEqualIgnoresAttributeOrder`, `TestEqualIgnoresInsignificantWhitespace`, `TestDiffReportsAttributeValueMismatch`, `TestDiffReportsMissingAttribute`, `TestDiffReportsUnexpectedAttribute`, `TestDiffReportsChildCountMismatch`, `TestDiffReportsTextMismatch`, `TestParseSupportsXlinkHref`, `TestParseRejectsMalformed` (all under `internal/svgcompare`).
 - [x] Golden fixtures: `TestSVGGoldens/{line_stroked,scatter_markers,clipped_text,image_transformed}` exercising the structural diff helper end-to-end.

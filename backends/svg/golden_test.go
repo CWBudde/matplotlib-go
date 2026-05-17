@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
@@ -129,7 +130,7 @@ func TestSVGGoldens(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read golden %s: %v\n(rerun with -update to create it)", goldenPath, err)
 			}
-			diff, err := svgcompare.ParseAndDiff(expected, []byte(actual))
+			diff, err := svgcompare.ParseAndDiff(normalizeLegacyGoldenMetadata(expected), []byte(actual))
 			if err != nil {
 				t.Fatalf("parse: %v\nactual:\n%s", err, actual)
 			}
@@ -138,6 +139,19 @@ func TestSVGGoldens(t *testing.T) {
 			}
 		})
 	}
+}
+
+func normalizeLegacyGoldenMetadata(expected []byte) []byte {
+	content := string(expected)
+	if strings.Contains(content, "<metadata") {
+		return expected
+	}
+	const marker = "preserveAspectRatio=\"xMidYMid meet\">\n"
+	if !strings.Contains(content, marker) {
+		return expected
+	}
+	content = strings.Replace(content, marker, marker+"  <metadata></metadata>\n", 1)
+	return []byte(content)
 }
 
 func renderFixture(t *testing.T, fx goldenFixture) string {
