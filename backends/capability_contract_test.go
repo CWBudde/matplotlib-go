@@ -76,12 +76,32 @@ func (r *capabilityRendererWithBatches) DrawGouraudTriangles(_ render.GouraudTri
 	return true
 }
 
+func (r *capabilityRendererWithBatches) SupportsPatternFill() bool {
+	return true
+}
+
+func (r *capabilityRendererWithBatches) SupportsGradientFill() bool {
+	return true
+}
+
+func (r *capabilityRendererWithBatches) DrawPathWithEffects(_ geom.Path, _ *render.Paint) bool {
+	return true
+}
+
+func (r *capabilityRendererWithBatches) StartRasterized(_ render.Rasterization) bool {
+	return true
+}
+
+func (r *capabilityRendererWithBatches) StopRasterized() bool {
+	return true
+}
+
 func TestSupportsRendererCapability(t *testing.T) {
 	reg := NewRegistry()
 	reg.Register(Backend("contract"), &BackendInfo{
 		Name:         "Contract Backend",
 		Available:    true,
-		Capabilities: []Capability{TextShaping, FontHinting, VectorOutput, ImageTransform, RGBABuffer, BufferRegion, OffscreenFilter, MarkerBatch, PathCollectionBatch, QuadMeshBatch, GouraudTriangleBatch},
+		Capabilities: []Capability{TextShaping, FontHinting, VectorOutput, ImageTransform, RGBABuffer, BufferRegion, OffscreenFilter, PatternFill, GradientFill, PathEffects, MixedRasterVector, MarkerBatch, PathCollectionBatch, QuadMeshBatch, GouraudTriangleBatch},
 		Factory:      func(Config) (render.Renderer, error) { return &capabilityRendererWithBatches{}, nil },
 	})
 	withDefaultRegistry(t, reg)
@@ -106,6 +126,18 @@ func TestSupportsRendererCapability(t *testing.T) {
 	}
 	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, OffscreenFilter) {
 		t.Fatal("expected OffscreenFilter capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, PatternFill) {
+		t.Fatal("expected PatternFill capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, GradientFill) {
+		t.Fatal("expected GradientFill capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, PathEffects) {
+		t.Fatal("expected PathEffects capability to be supported")
+	}
+	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, MixedRasterVector) {
+		t.Fatal("expected MixedRasterVector capability to be supported")
 	}
 	if !SupportsRendererCapability(Backend("contract"), &capabilityRendererWithBatches{}, MarkerBatch) {
 		t.Fatal("expected MarkerBatch capability to be supported")
@@ -143,6 +175,18 @@ func TestSupportsRendererCapability(t *testing.T) {
 	}
 	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, OffscreenFilter) {
 		t.Fatal("expected OffscreenFilter capability to be unsupported without filter methods")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, PatternFill) {
+		t.Fatal("expected PatternFill capability to be unsupported without pattern fill interface")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, GradientFill) {
+		t.Fatal("expected GradientFill capability to be unsupported without gradient fill interface")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, PathEffects) {
+		t.Fatal("expected PathEffects capability to be unsupported without path effects interface")
+	}
+	if SupportsRendererCapability(Backend("contract"), &capabilityRendererBase{}, MixedRasterVector) {
+		t.Fatal("expected MixedRasterVector capability to be unsupported without rasterization interface")
 	}
 	if SupportsRendererCapability(Backend("contract"), &capabilityRendererWithPNG{}, MarkerBatch) {
 		t.Fatal("expected MarkerBatch capability to be unsupported without batch interface")

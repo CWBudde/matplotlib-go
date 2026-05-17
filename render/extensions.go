@@ -123,6 +123,31 @@ type FilterRenderer interface {
 	StopFilter(postProcess func(img *image.RGBA, dpi float64) (*image.RGBA, geom.Pt))
 }
 
+// PatternFiller is implemented by renderers that consume Paint.FillPattern
+// natively instead of relying on renderer-neutral fallback expansion.
+type PatternFiller interface {
+	SupportsPatternFill() bool
+}
+
+// GradientFiller is implemented by renderers that consume Paint.FillGradient
+// natively instead of relying on renderer-neutral fallback expansion.
+type GradientFiller interface {
+	SupportsGradientFill() bool
+}
+
+// PathEffectDrawer is implemented by renderers that can apply path effects as
+// native post-stroke/post-fill rendering passes.
+type PathEffectDrawer interface {
+	DrawPathWithEffects(path geom.Path, paint *Paint) bool
+}
+
+// RasterizationController is implemented by vector-capable renderers that can
+// bracket a draw group into a raster sub-output for mixed raster/vector files.
+type RasterizationController interface {
+	StartRasterized(options Rasterization) bool
+	StopRasterized() bool
+}
+
 // MarkerItem is one positioned marker instance in a repeated marker batch.
 // Transform is applied to Marker first, then Offset is added in display space.
 type MarkerItem struct {

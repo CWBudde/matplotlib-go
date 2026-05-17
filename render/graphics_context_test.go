@@ -57,6 +57,67 @@ func TestGraphicsContextEffectivePaintCarriesRendererState(t *testing.T) {
 	}
 }
 
+func TestGraphicsContextEffectivePaintCarriesEffectsAndMixedOutputState(t *testing.T) {
+	patternPath := geom.Path{
+		V: []geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 1}},
+		C: []geom.Cmd{geom.MoveTo, geom.LineTo},
+	}
+	gc := NewGraphicsContext().
+		WithCompositeMode(CompositeMultiply).
+		WithRasterization(Rasterization{Mode: RasterizeAlways, DPI: 144})
+	gc.Paint = Paint{
+		FillPattern: PatternFill{
+			ID:         "diag",
+			Cell:       geom.Rect{Max: geom.Pt{X: 4, Y: 4}},
+			Path:       patternPath,
+			Foreground: Color{A: 1},
+		},
+		FillGradient: GradientFill{
+			Kind:  LinearGradient,
+			Start: geom.Pt{X: 0, Y: 0},
+			End:   geom.Pt{X: 10, Y: 0},
+			Stops: []GradientStop{
+				{Offset: 0, Color: Color{R: 1, A: 1}},
+				{Offset: 1, Color: Color{B: 1, A: 0.5}},
+			},
+		},
+		PathEffects: []PathEffect{
+			{Kind: PathEffectStroke, Stroke: Color{A: 1}, LineWidth: 4, Offset: geom.Pt{X: 1, Y: 2}},
+			{Kind: PathEffectNormal},
+		},
+	}
+
+	paint := gc.EffectivePaint()
+	if paint.CompositeMode != CompositeMultiply {
+		t.Fatalf("effective paint composite mode = %v, want %v", paint.CompositeMode, CompositeMultiply)
+	}
+	if paint.Rasterization.Mode != RasterizeAlways || paint.Rasterization.DPI != 144 {
+		t.Fatalf("effective paint rasterization = %+v, want always at 144dpi", paint.Rasterization)
+	}
+	if paint.FillPattern.ID != "diag" || len(paint.FillPattern.Path.V) != 2 {
+		t.Fatalf("effective paint lost fill pattern: %+v", paint.FillPattern)
+	}
+	if paint.FillGradient.Kind != LinearGradient || len(paint.FillGradient.Stops) != 2 {
+		t.Fatalf("effective paint lost fill gradient: %+v", paint.FillGradient)
+	}
+	if len(paint.PathEffects) != 2 || paint.PathEffects[0].Kind != PathEffectStroke {
+		t.Fatalf("effective paint lost path effects: %+v", paint.PathEffects)
+	}
+
+	paint.FillPattern.Path.V[0].X = 99
+	paint.FillGradient.Stops[0].Offset = 0.25
+	paint.PathEffects[0].Offset.X = 99
+	if gc.Paint.FillPattern.Path.V[0].X == 99 {
+		t.Fatal("EffectivePaint reused mutable pattern path backing storage")
+	}
+	if gc.Paint.FillGradient.Stops[0].Offset == 0.25 {
+		t.Fatal("EffectivePaint reused mutable gradient stop backing storage")
+	}
+	if gc.Paint.PathEffects[0].Offset.X == 99 {
+		t.Fatal("EffectivePaint reused mutable path-effect backing storage")
+	}
+}
+
 func geomIdentity() geom.Affine {
 	return geom.Affine{A: 1, D: 1}
 }

@@ -25,11 +25,113 @@ type Paint struct {
 	HatchColor        Color
 	HatchLineWidth    float64
 	HatchSpacing      float64
+	FillPattern       PatternFill
+	FillGradient      GradientFill
+	PathEffects       []PathEffect
+	CompositeMode     CompositeMode
+	Rasterization     Rasterization
 	Sketch            SketchParams
 	ForceAlpha        bool
 	Alpha             float64
 	ClipPathTransform geom.Affine
 	HasClipPathTrans  bool
+}
+
+// CompositeMode identifies the Porter-Duff/blend operation used for a draw.
+//
+// SourceOver is the zero value because it is the default model used by the
+// existing raster and vector backends.
+type CompositeMode uint8
+
+const (
+	CompositeSourceOver CompositeMode = iota
+	CompositeSource
+	CompositeMultiply
+	CompositeScreen
+	CompositeOverlay
+	CompositeDarken
+	CompositeLighten
+)
+
+// PatternFill describes a renderer-neutral tiled path pattern.
+//
+// Backends that cannot consume it natively may fall back to normal solid fill
+// handling or a core-side pattern expansion path.
+type PatternFill struct {
+	ID            string
+	Cell          geom.Rect
+	Path          geom.Path
+	Foreground    Color
+	Background    Color
+	LineWidth     float64
+	Transform     geom.Affine
+	HasTransform  bool
+	CompositeMode CompositeMode
+}
+
+// GradientKind identifies a renderer-neutral gradient geometry.
+type GradientKind uint8
+
+const (
+	GradientNone GradientKind = iota
+	LinearGradient
+	RadialGradient
+)
+
+// GradientStop is one color stop in a gradient fill.
+type GradientStop struct {
+	Offset float64
+	Color  Color
+}
+
+// GradientFill describes a renderer-neutral linear or radial gradient.
+type GradientFill struct {
+	Kind         GradientKind
+	Start        geom.Pt
+	End          geom.Pt
+	Center       geom.Pt
+	Focal        geom.Pt
+	Radius       float64
+	Stops        []GradientStop
+	Transform    geom.Affine
+	HasTransform bool
+}
+
+// PathEffectKind identifies a post-stroke/post-fill path rendering pass.
+type PathEffectKind uint8
+
+const (
+	PathEffectNormal PathEffectKind = iota
+	PathEffectStroke
+	PathEffectShadow
+	PathEffectFilter
+)
+
+// PathEffect describes one renderer-neutral path effect pass.
+type PathEffect struct {
+	Kind          PathEffectKind
+	Offset        geom.Pt
+	Stroke        Color
+	Fill          Color
+	LineWidth     float64
+	CompositeMode CompositeMode
+	Filter        string
+}
+
+// RasterizationMode controls artist-level mixed raster/vector intent.
+type RasterizationMode uint8
+
+const (
+	RasterizeDefault RasterizationMode = iota
+	RasterizeNever
+	RasterizeAlways
+	RasterizeAuto
+)
+
+// Rasterization carries mixed raster/vector output policy for a draw group.
+type Rasterization struct {
+	Mode RasterizationMode
+	DPI  float64
 }
 
 // AntialiasMode controls path antialiasing behavior.

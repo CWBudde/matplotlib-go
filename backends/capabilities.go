@@ -10,12 +10,12 @@ func CapabilityMatrix() string {
 	}
 
 	capabilities := []Capability{
-		AntiAliasing, SubPixel, GradientFill, PathClip,
+		AntiAliasing, SubPixel, PatternFill, GradientFill, PathEffects, PathClip,
 		GPUAccel, Threading,
 		DPIAware, VectorOutput, TextShaping, FontHinting,
 		TextBounds, TextPathing, RotatedText, VerticalText,
 		ImageTransform, RGBABuffer, BufferRegion, OffscreenFilter,
-		NativeHatcher, PNGExport, SVGExport,
+		NativeHatcher, MixedRasterVector, PNGExport, SVGExport,
 		MarkerBatch, PathCollectionBatch, QuadMeshBatch, GouraudTriangleBatch,
 	}
 

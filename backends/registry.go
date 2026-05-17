@@ -29,7 +29,9 @@ const (
 	// Rendering quality capabilities
 	AntiAliasing Capability = "antialiasing"
 	SubPixel     Capability = "subpixel"
+	PatternFill  Capability = "patternfill"
 	GradientFill Capability = "gradientfill"
+	PathEffects  Capability = "patheffects"
 	PathClip     Capability = "pathclip"
 
 	// Performance capabilities
@@ -37,21 +39,22 @@ const (
 	Threading Capability = "threading"
 
 	// Output capabilities
-	DPIAware        Capability = "dpiaware"
-	VectorOutput    Capability = "vectoroutput"
-	TextShaping     Capability = "textshaping"
-	FontHinting     Capability = "fonthinting"
-	TextBounds      Capability = "textbounds"
-	TextPathing     Capability = "textpathing"
-	RotatedText     Capability = "rotatedtext"
-	VerticalText    Capability = "verticaltext"
-	ImageTransform  Capability = "imagetransform"
-	RGBABuffer      Capability = "rgbabuffer"
-	BufferRegion    Capability = "bufferregion"
-	OffscreenFilter Capability = "offscreenfilter"
-	NativeHatcher   Capability = "nativehatcher"
-	PNGExport       Capability = "pngexport"
-	SVGExport       Capability = "svgexport"
+	DPIAware          Capability = "dpiaware"
+	VectorOutput      Capability = "vectoroutput"
+	TextShaping       Capability = "textshaping"
+	FontHinting       Capability = "fonthinting"
+	TextBounds        Capability = "textbounds"
+	TextPathing       Capability = "textpathing"
+	RotatedText       Capability = "rotatedtext"
+	VerticalText      Capability = "verticaltext"
+	ImageTransform    Capability = "imagetransform"
+	RGBABuffer        Capability = "rgbabuffer"
+	BufferRegion      Capability = "bufferregion"
+	OffscreenFilter   Capability = "offscreenfilter"
+	NativeHatcher     Capability = "nativehatcher"
+	MixedRasterVector Capability = "mixedrastervector"
+	PNGExport         Capability = "pngexport"
+	SVGExport         Capability = "svgexport"
 
 	// Batch drawing capabilities
 	MarkerBatch          Capability = "markerbatch"
@@ -126,6 +129,22 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 	},
 	OffscreenFilter: func(r render.Renderer) bool {
 		_, ok := r.(render.FilterRenderer)
+		return ok
+	},
+	PatternFill: func(r render.Renderer) bool {
+		filler, ok := r.(render.PatternFiller)
+		return ok && filler.SupportsPatternFill()
+	},
+	GradientFill: func(r render.Renderer) bool {
+		filler, ok := r.(render.GradientFiller)
+		return ok && filler.SupportsGradientFill()
+	},
+	PathEffects: func(r render.Renderer) bool {
+		_, ok := r.(render.PathEffectDrawer)
+		return ok
+	},
+	MixedRasterVector: func(r render.Renderer) bool {
+		_, ok := r.(render.RasterizationController)
 		return ok
 	},
 	MarkerBatch: func(r render.Renderer) bool {

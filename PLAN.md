@@ -640,262 +640,44 @@ Current slice landed:
 
 # Phase 8: Advanced Rendering, Text & Backend Depth
 
-**Goal:** Deepen the renderer/backends so the broader artist surface above can be implemented with fidelity and performance
+**Goal:** finish the renderer-depth cleanup that still belongs in Phase 8. Backend-specific parity programs now live in Phase 14, plot-category raster parity lives in Phase 10, and interaction/runtime behavior lives in Phase 9.
 
-### 8.1 Renderer Contract Parity
+Phase 8 has been condensed to remaining work only. Completed AGG, text, TeX, shaping, and performance history has been collapsed out of this section; use git history and the dedicated later phases for detailed implementation provenance.
 
-- [ ] Clip paths implemented consistently across raster and vector backends
-- [ ] Batch drawing primitives for collections/path collections
-- [ ] Gouraud-shaded triangles and mixed raster/vector rendering controls
-- [ ] Pattern fills, gradients, and richer alpha compositing
-- [ ] Path effects and other post-stroke/post-fill rendering passes
+### 8.1 Renderer Contract and Effects Cleanup
 
-### 8.1A AGG Backend Parity: RendererAgg Surface
+- [ ] Expose renderer-neutral pattern fill, gradient fill, and richer alpha-compositing contracts beyond AGG-local hatch support.
+- [ ] Surface path effects and post-stroke/post-fill rendering passes to artists and backends, using AGG offscreen filter support where native.
+- [ ] Add mixed raster/vector rendering controls at the artist/save-dispatch level, with backend capability checks instead of backend-name conditionals.
 
-**Goal:** close the architectural gap between the current compact Go renderer and upstream Matplotlib's AGG renderer without forcing every backend to expose the full AGG surface.
+### 8.2 AGG Text and Font Pipeline Paydown
 
-- [x] Add optional renderer capability interfaces for AGG-style batch primitives:
-  - [x] `draw_markers` equivalent for marker paths rendered at many positions
-  - [x] `draw_path_collection` equivalent with per-item display paths, face/edge colors, linewidths, dashes, hatch metadata, and antialiasing flags
-  - [x] `draw_quad_mesh` equivalent for pcolor/pcolormesh-style meshes
-  - [x] `draw_gouraud_triangles` equivalent for interpolated triangle shading
-- [x] Keep the small `render.Renderer` interface as the portable baseline, but route high-volume artists through capability checks instead of decomposing everything into one path call per primitive.
-- [x] Extend backend capability reporting so tests can distinguish "not supported", "fallback supported", and "native AGG parity path supported".
-- [x] Add parity fixtures that exercise large scatter/collection, quad mesh, Gouraud triangle, and mixed face/edge collection cases against `third_party/matplotlib`.
+- [ ] Replace the temporary DejaVu font-file bootstrap with an explicit font-resource strategy that can use embedded, shipped, and system fonts without leaking backend policy into draw calls.
+- [ ] Remove the GSV text fallback as a normal parity path; keep it only as an explicit emergency fallback with tests and diagnostics.
+- [ ] Match Matplotlib glyph bitmap compositing for antialiased and mono glyphs, including color-alpha application and clipping semantics.
+- [ ] Isolate text, path, and stroke state in the AGG surface so hidden draw-state resets and legacy font state no longer affect correctness.
 
-**Progress notes:**
+### 8.3 Hatch, Pattern, and Fallback Cleanup
 
-- Added `render.MarkerDrawer`, `render.PathCollectionDrawer`, `render.QuadMeshDrawer`, and `render.GouraudTriangleDrawer` optional interfaces; AGG implements all four, while GoBasic/SVG/Skia report renderer-neutral fallback support for decomposable collection batches.
-- Routed `PathCollection`, hatch-free `PatchCollection`, and hatch-free `QuadMesh` through native batch checks before falling back to existing per-path drawing.
-- Added backend capability status reporting (`unsupported`, `fallback`, `native`) plus unit coverage for core routing, AGG batch output, and Gouraud color interpolation.
-- Added Go golden and Matplotlib reference fixtures for `large_scatter`, `mixed_collection`, `quad_mesh`, and `gouraud_triangles`.
-- Kept hatch-native AGG rendering, cached marker scanlines, and full Matplotlib path/raster pipeline behavior in Phase 8.1B/E as planned.
+- [ ] Move residual hatch clipping/fallback logic out of `core` once backend-native hatches and renderer-neutral hatch fallbacks are fully covered.
+- [ ] Split renderer-neutral fallback tests from AGG-native parity tests so missing native backend behavior cannot be hidden by fallback drawing.
+- [ ] Add focused diagnostics for remaining non-text AGG residuals that are not already owned by Phase 10 or Phase 14.
 
-### 8.1B AGG Backend Parity: Clip, Path, and Raster Pipeline
+### 8.4 MathText Packaging
 
-**Goal:** replace `Agg2D` convenience-only drawing with a backend-owned raster pipeline where Matplotlib depends on low-level AGG behavior.
+- [ ] Promote `internal/mathtext` to a focused standalone module/repo once the grammar and cache APIs stabilize.
 
-- [x] Implement path clipping in `backends/agg` using an alpha-mask/clippath model comparable to upstream `RendererAgg::render_clippath`.
-- [x] Cache transformed clip paths and invalidate the cache by path identity/content plus transform.
-- [x] Make projected/non-rectangular axes clipping use real path clips instead of relying on `ClipPath` no-op behavior.
-- [x] Add a Matplotlib-like path pipeline before rasterization:
-  - [x] transform into display coordinates with y-axis orientation handled in one place
-  - [x] remove or split on NaN/Inf vertices
-  - [x] cull paths outside the figure when safe
-  - [x] snap paths with linewidth-aware pixel alignment
-  - [x] simplify paths using a configurable threshold
-  - [x] chunk very large paths and surface actionable overflow/error messages
-- [x] Replace global `1e-6` coordinate quantization as the primary parity mechanism with explicit path snapping and simplification policy.
-- [x] Add antialiasing control to path rendering instead of assuming one backend-wide behavior.
-- [x] Move AGG hatching from `core` polygon-clipped stroke generation toward backend-native hatch pattern buffers with repeat wrapping, hatch linewidth, hatch color, and clippath interaction.
-- [x] Expand `render.Paint`/draw-state or a backend-side graphics context to cover Matplotlib GC fields currently absent from `Paint`: antialiasing, snap mode, hatch path/color/linewidth, sketch parameters, forced alpha, and clip path transform.
+### 8.5 Work Moved to Dedicated Phases
 
-**Progress notes:**
-
-- Added AGG-owned clip path state with alpha-mask rasterization, content-keyed mask caching, and save/restore integration.
-- Routed AGG path, image, transformed image, text helper, and Gouraud batch drawing through the mask-composite path whenever a non-rectangular clip is active.
-- Added focused unit coverage for clipped path drawing, clipped raster images, cache creation, and restored clip state.
-- Added an AGG-local path preprocessing pipeline with finite-vertex cleanup, visible-area culling, Matplotlib-style snap modes, opt-in line simplification, and chunked stroke rendering for very large open line paths.
-- Shifted AGG path rasterization off unconditional coordinate quantization; quantization remains only for text metrics/cache keys while paths use explicit snapping/simplification controls.
-- Added `render.Paint`/`GraphicsContext` fields for antialiasing, snap, hatching, sketch parameters, forced alpha, and clip-path transforms; AGG now consumes antialias, forced-alpha, and native hatch metadata.
-- Matched Matplotlib's `RendererAgg` framebuffer policy more closely by routing the AGG surface through a plain RGBA pixfmt and the same fixed-precision plain blender used by upstream's `fixed_blender_rgba_plain`. Local clip-surface compositing now treats temporary buffers as straight RGBA and uses the same fixed integer blend math.
-- Matched Matplotlib draw ordering for endpoint tick/spine overlaps: Axis ticks and tick labels render before spines/frame, reflecting upstream Axis zorder 1.5 vs Spine zorder 2.5.
-- Native FreeType is now the default AGG text path when cgo is enabled; `-tags purego` keeps the old non-cgo fallback path and its separate golden baseline.
-- Matched Matplotlib's collection marker fast-path gate: `PathCollection` now uses `draw_markers` only for the same homogeneous single-path optimization case and uses `draw_path_collection` for varying size/color/linewidth cases. `DrawMarkers` now preserves the snap mode it used for the marker-path decision, and scatter marker prototypes/styles now match upstream for circle, square, triangle, diamond, plus, and cross. The core scatter fixtures now compare within one LSB of Matplotlib (`scatter_basic`, `scatter_marker_types`, and `scatter_advanced`: `MaxDiff=1`).
-
-### 8.1C AGG Backend Parity: Text, Glyphs, MathText, and TeX
-
-**Goal:** make text a shaped glyph pipeline rather than a set of fallback string-drawing paths.
-
-- [x] Implement AGG `GlyphRun` rendering instead of leaving it as a no-op.
-- [x] Add the backend-independent shaped-run surface for glyph IDs, byte clusters, advances, offsets, resolved faces, and bounds.
-- [x] Route `TextPath` and legacy glyph layout helpers through the shared shaped-run model so path text and shaped bounds agree.
-- [x] Apply standard OpenType GSUB ligature substitutions in the shaping layer, including explicit `liga=0` disabling.
-- [x] Honor the OpenType `kern=0` feature toggle by disabling pair kerning in shaped glyph placement.
-- [x] Compose base-plus-combining-mark sequences to precomposed glyphs when Unicode NFC yields a supported glyph, preserving the base byte cluster.
-- [ ] Extend the shaping layer to apply broader OpenType features, full mark positioning, bidi text, and script/language-aware glyph selection.
-- [x] Route `DrawText`, `DrawTextRotated`, and measurement through the same shaped run model so raster text, path text, and bounds agree.
-- [ ] Replace `lastFontKey`/`MeasureText` priming with explicit font properties or text draw context passed through the renderer-facing API.
-- [ ] Replace the temp-file DejaVu bootstrap with a font-resource strategy that can use embedded fonts, shipped fonts, and system fonts without leaking backend policy into draw calls.
-- [ ] Remove the GSV fallback as a normal parity path; keep it only as an explicit emergency fallback with test coverage and diagnostics.
-- [x] Replace character-by-character vertical text with rotated/shaped glyph output where Matplotlib would rotate a text run.
-- [ ] Match Matplotlib's glyph image compositing model for antialiased and mono glyph bitmaps, including color alpha application and clipping.
-- [x] Broaden MathText parity beyond the lightweight parser:
-  - [x] compare parser/layout behavior directly against upstream `MathTextParser('path')`
-  - [x] support missing grammar, stretchy delimiters, spacing/control semantics, boxes, and font style interactions
-  - [x] render MathText glyphs and boxes through the same shaped glyph/path pipeline
-- [x] Complete `usetex` integration for AGG:
-  - [x] renderer-facing TeX measurement/draw hook and core routing when `text.usetex` is enabled
-  - [x] external TeX/DVI/dvipng pipeline and artifact cache
-  - [x] error reporting and reproducible invalidation
-  - [x] raster/vector import of TeX output back into AGG rendering
-  - [x] parity tests for rotated TeX, boxes/rules, and font/package coordination
-
-Latest text-parity note:
-
-- AGG now prefers the vendored Matplotlib `DejaVuSans.ttf` when present and draws unrotated raster text as individual glyph bitmap submissions instead of one packed run image.
-- Added a backend-independent shaped text model in `render` (`ShapeText` / `ShapeTextRuns`) that exposes shaped runs, glyph IDs, byte clusters, advances, offsets, faces, and bounds. The first implementation wraps the existing font fallback + glyph selection + pair-kerning engine, and `TextPath`/legacy glyph layout helpers now consume that shared shaped run model; full OpenType GSUB/GPOS shaping, bidi, script/language behavior, and feature application remain open under 8.1C.
-- The shaping layer now parses GSUB ligature substitution lookups for enabled standard ligature features and honors `TextFeature{Tag: "liga", Value: 0}` to preserve component glyphs. This covers common `fi`/`fl`-style ligatures without claiming full HarfBuzz/libraqm parity.
-- The shaping layer also honors `TextFeature{Tag: "kern", Value: 0}` by disabling pair kerning while preserving the same glyph sequence.
-- Combining-mark handling now composes base-plus-mark sequences through Unicode NFC when the current font has the resulting precomposed glyph, so common decomposed accents such as `e` + U+0301 use the same glyph as `é`; full GPOS mark attachment remains open.
-- MathText grammar now covers Matplotlib's generalized fraction family for `\dfrac`, `\binom`, and `\genfrac`, including display-style sizing, rule-less stacked fractions, requested delimiters, and zero-rule `\genfrac` behavior. Full upstream `MathTextParser('path')` object comparison and shaped glyph/box rendering remain open.
-- AGG text drawing, width metrics, and ink bounds now enter through `ShapeText`. Rune-equivalent runs still use the native FreeType hinting-factor path for Matplotlib parity, while shaped substitutions/compositions use the shared shaped glyph model and fall through to shaped path rendering when a glyph cannot be drawn back through a Unicode rune.
-- The root cause of the `bar_basic_title` fixed-baseline text mismatch was Matplotlib's legacy `text.hinting_factor=8`, not the FreeType library version by itself. The diagnostic now proves native FreeType at factor 1 matches Matplotlib factor 1 byte-for-byte, and native FreeType at factor 8 matches Matplotlib default factor 8 byte-for-byte for `"Basic Bars"`.
-- Under `-tags freetype`, AGG now measures bounds/width and draws unrotated raster text through a native FreeType run that mirrors Matplotlib's horizontal hinting-factor transform. The run bbox intentionally includes empty glyph CBoxes such as spaces, while rasterization only composites non-empty glyph bitmaps; this matches Matplotlib's FT2Font bitmap offset behavior for strings like `"Basic Bars"` without breaking trailing/internal spaces.
-- A backend-call diagnostic (`MPL_GO_TEXT_DIAG=1 go test -tags freetype ./test -run TestBarBasicTextPlacementDiagnostic -v`) confirms the bar tick-label/title `DrawText` origins now match Matplotlib's `RendererAgg.draw_text` calls. Renderer-level diagnostics are byte-identical to Matplotlib for `"Basic Bars"` at both a fixed baseline and the actual title origin.
-- The residual `bar_basic_*` component mismatch after fixing text was split between tick-marker snapping, AGG plain-blender precision, draw order, and default build-path selection. Matplotlib draws ticks as snapped marker paths, so a 3.5 pt tick at 100 dpi behaves like a 5 px segment rather than the unsnapped `4.861 px` length. Go axis ticks now round tick lengths before building tick segments; the AGG backend now uses Matplotlib-style fixed plain RGBA blending; endpoint ticks now render before spines/frame like upstream; and native FreeType is enabled by default under cgo. In the normal cgo build, `bar_basic_frame`, `bar_basic_ticks`, `bar_basic_tick_labels`, `bar_basic_title`, full `bar_basic`, `bar_horizontal`, and `title_strict` now compare byte-identically to Matplotlib (`MaxDiff=0`, `PSNR=+Inf`).
-- Current non-text residuals are concentrated in broader artist/backend cases: fill/hist/quadmesh/large-collection coverage and alpha accumulation still differ visibly from upstream AGG, while the focused bar/title/scatter fixtures have reached byte-identical or one-LSB parity.
-- Lower-level AGG diagnostics now rule out marker-circle curve flattening, scanline AA coverage, and Matplotlib's patched plain RGBA blender for repeated translucent overlaps as the cause of the remaining `large_scatter` mismatch. The remaining scatter delta is therefore above those primitives: collection path placement/transform/snap/stroke behavior or another batch-routing policy. A direct `agg_go` pixfmt clipping bug was fixed for negative-start spans so direct lower-level callers now shorten spans and advance cover/color arrays correctly.
-
-### 8.1D AGG Backend Parity: Images, Effects, and Buffer Management
-
-**Goal:** support the AGG image/effects features Matplotlib relies on for complex artists and interactive redraw.
-
-- [x] Implement AGG image clipping through the same clipbox/clippath mask path used by vector primitives.
-- [x] Add image interpolation/resampling controls instead of hard-coding `NoFilter`/`NoResample`.
-- [x] Preserve image alpha and GC alpha semantics in the backend instead of pre-flattening policy in callers.
-- [x] Make transformed images handle affine orientation, clipping, and interpolation consistently with upstream AGG behavior.
-- [x] Add a safe fallback policy for image transforms only when a backend genuinely lacks the capability, and expose that limitation in backend capability tests.
-- [x] Add `copy_from_bbox` / `restore_region`-style buffer region APIs for blitting, animation, and interactive redraw.
-- [x] Add `start_filter` / `stop_filter`-style offscreen filter rendering for path effects and post-processing passes.
-- [x] Add direct buffer access/export tests for RGBA/ARGB ordering, clearing, and background alpha semantics.
-
-**Progress notes:**
-
-- AGG image and transformed-image drawing now route through the same clip-path mask compositor used by vector primitives, preserving straight RGBA and image-level alpha before source-over blending.
-- Matplotlib-style interpolation names are mapped to AGG image filters, including `auto` / `antialiased` scale-dependent behavior, and transformed images reuse the same filter/resample state.
-- `core.Image2D` uses native affine image transforms only when a renderer implements `render.ImageTransformer`; renderers without that capability keep the documented axis-aligned fallback path.
-- Added renderer-neutral optional contracts for direct RGBA buffer access, `copy_from_bbox` / `restore_region`, and `start_filter` / `stop_filter`; AGG reports those as native capabilities.
-- Added AGG tests for RGBA byte ordering, transparent background clearing, PNG round-trip export, image alpha composition, interpolation selection, transformed-image orientation, buffer-region restore, and filter compositing.
-
-### 8.1E AGG Workaround and Oversimplification Paydown
-
-**Goal:** remove current compatibility shortcuts once native AGG parity paths exist.
-
-- [ ] Retire `ClipPath` no-op behavior in AGG and add regression tests for polar/geo/projection frames.
-- [ ] Move hatch clipping out of `core` once backend-native hatching lands, keeping only renderer-neutral hatch style metadata in artists.
-- [ ] Remove text draw state resets as a hidden correctness dependency by isolating text, path, and stroke state in the AGG surface.
-- [x] Replace `lastFontKey` side state with explicit text/font context propagation from artists through renderer calls.
-- [ ] Replace rune-by-rune text path generation with shaped glyph-outline generation.
-- [ ] Replace character-stacked vertical text with rotated text runs where applicable.
-- [ ] Replace unconditional image no-filter/no-resample behavior with rc/image artist interpolation policy.
-- [ ] Split "simple renderer fallback" tests from "AGG-native parity" tests so fallback behavior does not mask missing backend features.
-
-**Progress notes:**
-
-- Added renderer-neutral font-aware text draw interfaces (`FontTextDrawer`, `FontRotatedTextDrawer`, `FontVerticalTextDrawer`) so core can pass font keys into draw calls directly instead of measuring text first to prime backend-local state.
-- Routed normal, rotated, vertical, and MathText run drawing through the explicit font-context path when available; the old text draw methods remain as compatibility fallbacks.
-- AGG implements the font-aware draw interfaces and restores `lastFontKey` around explicit-font draw calls, keeping legacy state from leaking across artist-rendered text.
-
-### 8.1F AGG Text Kerning and Glyph Layout Parity
-
-**Goal:** fix visible kerning/layout mismatches such as `Tr` and `Te` by aligning the Go text pipeline with upstream Matplotlib's shaped FreeType glyph layout.
-
-- [x] Add targeted parity fixtures for kerning-sensitive strings (`Tr`, `Te`, `To`, `Ta`, `AV`, `WA`, `Yo`) at multiple font sizes and DPI values.
-- [x] Compare Go AGG raster text metrics, Go text-path metrics, and upstream Matplotlib `RendererAgg.get_text_width_height_descent` for the same font file and hinting mode.
-- [x] Audit and normalize kerning units across all Go text paths:
-  - [x] `backends/agg` raster text now measures and draws through shared `sfnt.Kern`/glyph-origin layout instead of `x/image/font.DrawString` / `font.MeasureString`
-  - [x] `render.TextPath` glyph-outline placement now consumes the same shared glyph-origin layout
-  - [x] AGG `FreeTypeOutlineText` fallback is no longer the primary rotated-text path when a font file can be resolved
-  - [x] AGG native text context fallback no longer participates in normal text measurement, bounds, or drawing after shared glyph layout is available.
-- [x] Avoid relying on `opentype.Face.Kern` if its returned adjustment is not scaled to the active pixel size; use a shared glyph layout helper that calls `sfnt.Kern` with the same ppem as glyph advances.
-- [x] Make raster text drawing consume explicit glyph positions instead of drawing whole strings when kerning, ligatures, or fallback font runs are active.
-- [x] Add tests that fail when a kerned pair's rendered advance diverges from the text-path advance beyond a small tolerance.
-- [x] Ensure hinting mode and DPI are included in the measurement/layout cache key so kerning does not drift between measuring and drawing; there is currently no text-measurement/layout cache, and the parsed-font caches stay independent of size, DPI, and hinting.
-- [x] Document the remaining difference between pair kerning and full shaping until the 8.1C shaping layer lands: 8.1F fixes Latin pair kerning and shared glyph origins; full libraqm-style shaping, ligatures, bidi, combining marks, and feature/language handling remain tracked in 8.1C.
-
-### 8.2 Font Manager and Text Layout
-
-- [x] Real font discovery/cache and `FontProperties`-style selection instead of a fixed fallback story
-- [x] Shared single-line text layout metrics helper used by core layout
-- [x] TTF/OTF loading across raster text backends
-- [x] SVG font embedding and broader backend font-file parity
-- [x] Better fallback/substitution and text-path support
-
-### 8.3 MathText and TeX
-
-#### 8.3.1 MathText parser/layout and renderer integration
-
-- [x] Inline MathText fallback normalization for `$...$` segments and common commands
-- [x] Lightweight MathText parser/layout model for scripts, fractions, roots, operator names, and simple accents
-- [x] Full-expression horizontal MathText rendering in text artists, annotations, legends, axis labels, and figure labels
-- [x] Full-expression rotated MathText rendering through text paths when backend text-path support is available
-- [x] True mixed inline layout for strings that combine plain text and MathText in one line
-- [x] Vertical full-expression MathText rendering through structured layout/path output
-- [x] Renderer-neutral internal MathText engine boundary extracted to `internal/mathtext`; `core` now only adapts it to renderer/font APIs
-- [x] Broader MathText grammar
-  - [x] Limits on large operators such as `\sum`, `\prod`, and `\lim`
-  - [x] Basic spacing commands such as `\,`, `\:`, `\;`, `\quad`, and `\qquad`
-  - [x] Font/style switches with layout consequences for `\mathrm`, `\mathsf`, `\mathtt`, `\mathit`, and `\mathbf`
-  - [x] Basic fenced delimiters via `\left...\right` with size-aware delimiter rendering
-  - [x] Matrices/arrays
-  - [x] Generalized fraction commands: `\dfrac`, `\binom`, and `\genfrac`
-  - [x] More complete stretchy delimiter behavior beyond the current basic `\left...\right` handling
-    - [x] `\middle` and omitted `.` delimiters within `\left...\right`
-    - [x] Extensible rule-based rendering for vertical bar and bracket-style delimiters
-  - [x] Richer TeX spacing/control semantics beyond the current small command subset
-    - [x] Named spacing commands and explicit `\hspace{...}` / `\kern{...}` dimensions
-- [x] Caching/performance pass for parsed and laid-out MathText expressions
-  - [x] Shared parse cache plus opt-in layout cache keyed by renderer measurement context
-- [ ] Promote `internal/mathtext` to a focused standalone module/repo once the grammar/cache API stabilizes
-
-#### 8.3.2 LaTeX / `usetex` integration
-
-- [x] `text.usetex` rcParam support in style defaults, mplstyle parsing, and runtime context handling
-- [x] External TeX command pipeline
-- [x] Artifact caching and reproducible invalidation for TeX output
-- [x] Error reporting and fallback behavior when TeX toolchain execution fails
-- [x] Font/package coordination between TeX output and renderer expectations
-- [x] Raster/vector import of TeX output back into the renderer pipeline
-- [x] Backend-specific integration behavior and tests across raster and vector backends
-
-Notes:
-- Shared TeX artifact generation now lives in `internal/tex`, following the Matplotlib `TexManager` shape of LaTeX-to-DVI, `dvipng` rasterization, cache-keyed outputs, and command-output-rich failures.
-- AGG and SVG both consume the shared manager. AGG composites the cached PNG into the raster surface; SVG embeds the colorized PNG as a data URI, including rotated TeX output via SVG image transforms.
-
-#### 8.3.3 Complex text shaping beyond the current basic glyph flow
-
-- [x] OpenType shaping for scripts that need glyph substitution and positioning
-- [x] Ligatures, bidi handling, combining-mark placement, and script-aware glyph selection
-  - [x] Standard GSUB ligature substitution for common `liga` / `clig` lookups, with `liga=0` feature disable support
-  - [x] GSUB single-substitution support for Arabic positional features (`isol` / `init` / `medi` / `fina`) with feature disable support
-  - [x] Basic decomposed combining-mark composition when an NFC precomposed glyph exists
-  - [x] Basic non-composed combining-mark fallback that centers mark outlines over the previous base glyph without expanding advance
-  - [x] GPOS mark-to-base positioning for fonts with `mark` lookups
-  - [x] Basic visual-order bidi reordering for RTL spans while preserving logical byte clusters
-  - [x] Basic Arabic contextual presentation-form fallback for joining letters when the font provides those glyphs
-  - [x] True mark positioning for combining marks that do not compose to one glyph
-  - [x] Script-aware glyph selection and positional substitution for joining scripts
-- [x] Backend-independent shaping layer or shaping-library integration
-- [x] Measurement and text-path parity for shaped output
-
-Notes:
-- The shared pure-Go shaper now covers GSUB ligatures, GSUB single substitutions, GPOS mark-to-base placement, bidi visual ordering for RTL spans, combining-mark composition/fallback, and Arabic joining behavior. This closes the planned 8.3.3 scope without introducing a HarfBuzz/libraqm runtime dependency; full external shaping-library integration can still be reconsidered later if parity gaps require it.
-- `TextPath` bounds are covered against the shared shaped layout for Latin kerning/ligatures, decomposed marks, RTL Hebrew, and Arabic joining text.
-
-### 8.4 Performance Optimization
-
-- [x] Path simplification and culling
-- [x] Large dataset handling (100k+ points)
-- [x] Parallel rendering
-
-Notes:
-- Path simplification/culling is implemented in the AGG path pipeline from 8.1B. `Line2D` now feeds Matplotlib-compatible rc settings (`path.simplify`, `path.simplify_threshold`, `agg.path.chunksize`) into backend paint so high-density lines can use simplification and chunked stroke rendering without caller-specific backend options.
-- Clipped AGG compositing now splits large pixel regions across worker row ranges, keeping renderer state mutation single-threaded while parallelizing the safe per-row framebuffer blend step.
-
-### 8.5 Additional Backends
-
-- [x] Finish the Skia backend beyond the current scaffold
-- [x] GPU-accelerated or browser-native backends if they prove necessary
-- [x] Backend capability matrix kept aligned with actual implementation depth
-
-Notes:
-- Closed here in favor of the dedicated Phase 14 Backend Parity Program. Skia work continues under 14.4, and cross-backend capability/save-dispatch work continues under 14.5 so backend depth is tracked in one ordered program instead of duplicated in Phase 8.
+- [x] Backend parity, Skia, SVG, GoBasic, and cross-backend capability/save dispatch now live in Phase 14.
+- [x] Plot-category AGG raster parity now lives in Phase 10.
+- [x] Interactive redraw, widgets, animation, and runtime host behavior now live in Phase 9.
 
 **Exit Criteria:**
 
-- [ ] Renderer/backends are no longer the limiting factor for advanced artists and projections
-- [ ] Text fidelity and performance are good enough to support a much larger Matplotlib surface
+- [ ] Remaining Phase 8 renderer cleanup is either complete or explicitly moved to a dedicated later phase.
+- [ ] Renderer APIs expose effects, pattern, and mixed-output controls without backend-name conditionals.
+- [ ] AGG text/font cleanup no longer depends on temporary font-file bootstrap behavior or normal GSV fallback rendering.
 
 ---
 
