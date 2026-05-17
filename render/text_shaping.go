@@ -137,11 +137,18 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 		if !ok {
 			return ShapedText{}, false
 		}
+		inputGlyphs, ok = applyArabicFormSubstitutions(fontData, &buf, inputRun.Face, inputGlyphs, opts)
+		if !ok {
+			return ShapedText{}, false
+		}
 		inputGlyphs = applyGSUBLigatures(inputRun.Face, inputGlyphs, opts)
 		reorderDirectionalGlyphs(inputGlyphs, opts.Direction)
+		markTable, haveMarkTable := gposMarkToBaseTableForFace(inputRun.Face, opts)
+		scale := size / float64(fontData.UnitsPerEm())
 
 		attachCenterX := 0.0
 		haveAttachCenter := false
+		var previousOrigin geom.Pt
 		for _, inputGlyph := range inputGlyphs {
 			isMark := isCombiningMark(inputGlyph.Rune)
 			kern := 0.0
@@ -157,10 +164,26 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 				return ShapedText{}, false
 			}
 			originPt := geom.Pt{X: penX, Y: origin.Y}
-			if isMark && haveAttachCenter && len(segments) > 0 {
-				segBounds := segments.Bounds()
-				markCenter := fixedToFloat(segBounds.Min.X+segBounds.Max.X) / 2
-				originPt.X = attachCenterX - markCenter
+			offsetPt := geom.Pt{}
+			if isMark {
+				if haveMarkTable && havePrevious {
+					if offset, ok := markTable.offset(previous, inputGlyph.GlyphIndex); ok {
+						offsetPt = geom.Pt{
+							X: float64(offset.x) * scale,
+							Y: float64(offset.y) * scale,
+						}
+						originPt = geom.Pt{
+							X: previousOrigin.X + offsetPt.X,
+							Y: previousOrigin.Y + offsetPt.Y,
+						}
+					}
+				}
+				if offsetPt == (geom.Pt{}) && haveAttachCenter && len(segments) > 0 {
+					segBounds := segments.Bounds()
+					markCenter := fixedToFloat(segBounds.Min.X+segBounds.Max.X) / 2
+					originPt.X = attachCenterX - markCenter
+					offsetPt = geom.Pt{X: originPt.X - previousOrigin.X, Y: originPt.Y - previousOrigin.Y}
+				}
 			}
 			if len(segments) > 0 {
 				bounds := segments.Bounds()
@@ -202,6 +225,7 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 				Face:       inputRun.Face,
 				GlyphIndex: inputGlyph.GlyphIndex,
 				Origin:     originPt,
+				Offset:     offsetPt,
 				Advance:    advancePt,
 				Kern:       kern,
 			}
@@ -211,6 +235,7 @@ func ShapeTextRuns(runs []FontRun, origin geom.Pt, size float64, opts TextShapin
 				penX += advancePt.X
 				previous = inputGlyph.GlyphIndex
 				previousFace = faceKey
+				previousOrigin = originPt
 				havePrevious = true
 				if len(segments) > 0 {
 					bounds := segments.Bounds()
@@ -268,8 +293,7 @@ func shapeRunInputGlyphs(fontData *sfnt.Font, buf *sfnt.Buffer, text string, clu
 			}
 		}
 
-		shapingRune := contextualArabicPresentationForm(fontData, buf, runes, i)
-		glyphIndex, err := fontData.GlyphIndex(buf, shapingRune)
+		glyphIndex, err := fontData.GlyphIndex(buf, r)
 		if err != nil {
 			return nil, false
 		}
@@ -277,7 +301,7 @@ func shapeRunInputGlyphs(fontData *sfnt.Font, buf *sfnt.Buffer, text string, clu
 			continue
 		}
 		out = append(out, shapingGlyph{
-			Rune:       shapingRune,
+			Rune:       r,
 			Cluster:    cluster,
 			GlyphIndex: glyphIndex,
 		})
@@ -346,30 +370,65 @@ var arabicPresentationForms = map[rune]arabicForms{
 	'\u064a': {isolated: '\ufef1', final: '\ufef2', initial: '\ufef3', medial: '\ufef4'},
 }
 
-func contextualArabicPresentationForm(fontData *sfnt.Font, buf *sfnt.Buffer, runes []rune, i int) rune {
+func applyArabicFormSubstitutions(fontData *sfnt.Font, buf *sfnt.Buffer, face FontFace, glyphs []shapingGlyph, opts TextShapingOptions) ([]shapingGlyph, bool) {
+	out := append([]shapingGlyph(nil), glyphs...)
+	runes := make([]rune, len(out))
+	for i, glyph := range out {
+		runes[i] = glyph.Rune
+	}
+	for i, glyph := range out {
+		_, ok := arabicPresentationForms[glyph.Rune]
+		if !ok {
+			continue
+		}
+		presentation, formTag, ok := arabicPresentationFormForContext(runes, i, opts)
+		if !ok {
+			continue
+		}
+		if substitution, ok := gsubSingleSubstitutionForFace(face, formTag, glyph.GlyphIndex); ok {
+			out[i].GlyphIndex = substitution
+			continue
+		}
+		glyphIndex, err := fontData.GlyphIndex(buf, presentation)
+		if err != nil {
+			return nil, false
+		}
+		if glyphIndex != 0 {
+			out[i].Rune = presentation
+			out[i].GlyphIndex = glyphIndex
+		}
+	}
+	return out, true
+}
+
+func arabicPresentationFormForContext(runes []rune, i int, opts TextShapingOptions) (rune, string, bool) {
 	r := runes[i]
 	forms, ok := arabicPresentationForms[r]
 	if !ok {
-		return r
+		return 0, "", false
 	}
 	joinPrev := arabicJoinsPrevious(runes, i)
 	joinNext := arabicJoinsNext(runes, i)
 	candidate := forms.isolated
+	formTag := "isol"
 	switch {
 	case joinPrev && joinNext && forms.medial != 0:
 		candidate = forms.medial
+		formTag = "medi"
 	case joinPrev && forms.final != 0:
 		candidate = forms.final
+		formTag = "fina"
 	case joinNext && forms.initial != 0:
 		candidate = forms.initial
+		formTag = "init"
+	}
+	if !enabledArabicFormFeature(formTag, opts) {
+		return 0, formTag, false
 	}
 	if candidate == 0 {
-		return r
+		return 0, formTag, false
 	}
-	if glyphIndex, err := fontData.GlyphIndex(buf, candidate); err == nil && glyphIndex != 0 {
-		return candidate
-	}
-	return r
+	return candidate, formTag, true
 }
 
 func arabicJoinsPrevious(runes []rune, i int) bool {

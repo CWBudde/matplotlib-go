@@ -26,9 +26,16 @@ type gsubLigatureTable struct {
 	ByFirst map[sfnt.GlyphIndex][]gsubLigature
 }
 
+type gsubSingleSubstitutionTable struct {
+	ByGlyph map[sfnt.GlyphIndex]sfnt.GlyphIndex
+}
+
 var (
 	gsubLigatureCacheMu sync.RWMutex
 	gsubLigatureCache   = map[string]gsubLigatureTable{}
+
+	gsubSingleSubstitutionCacheMu sync.RWMutex
+	gsubSingleSubstitutionCache   = map[string]gsubSingleSubstitutionTable{}
 )
 
 func applyGSUBLigatures(face FontFace, glyphs []shapingGlyph, opts TextShapingOptions) []shapingGlyph {
@@ -110,6 +117,15 @@ func compatibilityLigatureRune(glyphs []shapingGlyph) (rune, bool) {
 	}
 }
 
+func gsubSingleSubstitutionForFace(face FontFace, tag string, glyph sfnt.GlyphIndex) (sfnt.GlyphIndex, bool) {
+	table, ok := gsubSingleSubstitutionTableForFace(face, []string{tag})
+	if !ok {
+		return 0, false
+	}
+	substitution, ok := table.ByGlyph[glyph]
+	return substitution, ok && substitution != 0
+}
+
 func enabledLigatureFeatureTags(opts TextShapingOptions) []string {
 	var tags []string
 	for _, tag := range []string{"liga", "clig"} {
@@ -162,6 +178,30 @@ func gsubLigatureTableForFace(face FontFace, tags []string) (gsubLigatureTable, 
 	return table, len(table.ByFirst) > 0
 }
 
+func gsubSingleSubstitutionTableForFace(face FontFace, tags []string) (gsubSingleSubstitutionTable, bool) {
+	key := fontFaceCacheKey(face) + "|" + strings.Join(tags, ",")
+	if key == "|" {
+		return gsubSingleSubstitutionTable{}, false
+	}
+	gsubSingleSubstitutionCacheMu.RLock()
+	if cached, ok := gsubSingleSubstitutionCache[key]; ok {
+		gsubSingleSubstitutionCacheMu.RUnlock()
+		return cached, len(cached.ByGlyph) > 0
+	}
+	gsubSingleSubstitutionCacheMu.RUnlock()
+
+	data, err := loadFontFaceData(face)
+	if err != nil {
+		return gsubSingleSubstitutionTable{}, false
+	}
+	table := parseGSUBSingleSubstitutionTable(data, tags)
+
+	gsubSingleSubstitutionCacheMu.Lock()
+	gsubSingleSubstitutionCache[key] = table
+	gsubSingleSubstitutionCacheMu.Unlock()
+	return table, len(table.ByGlyph) > 0
+}
+
 func parseGSUBLigatureTable(fontData []byte, tags []string) gsubLigatureTable {
 	gsub, ok := sfntTable(fontData, "GSUB")
 	if !ok || len(gsub) < 10 {
@@ -189,6 +229,31 @@ func parseGSUBLigatureTable(fontData []byte, tags []string) gsubLigatureTable {
 			return table.ByFirst[first][i].Components > table.ByFirst[first][j].Components
 		})
 	}
+	return table
+}
+
+func parseGSUBSingleSubstitutionTable(fontData []byte, tags []string) gsubSingleSubstitutionTable {
+	gsub, ok := sfntTable(fontData, "GSUB")
+	if !ok || len(gsub) < 10 {
+		return gsubSingleSubstitutionTable{}
+	}
+	featureListOffset := int(be16(gsub, 6))
+	lookupListOffset := int(be16(gsub, 8))
+	if featureListOffset <= 0 || lookupListOffset <= 0 || featureListOffset >= len(gsub) || lookupListOffset >= len(gsub) {
+		return gsubSingleSubstitutionTable{}
+	}
+
+	wanted := map[string]bool{}
+	for _, tag := range tags {
+		wanted[normalizeOpenTypeTag(tag)] = true
+	}
+	lookupIndices := gsubFeatureLookupIndices(gsub[featureListOffset:], wanted)
+	if len(lookupIndices) == 0 {
+		return gsubSingleSubstitutionTable{}
+	}
+
+	table := gsubSingleSubstitutionTable{ByGlyph: map[sfnt.GlyphIndex]sfnt.GlyphIndex{}}
+	parseGSUBSingleSubstitutionLookups(gsub, lookupListOffset, lookupIndices, table.ByGlyph)
 	return table
 }
 
@@ -276,6 +341,77 @@ func parseGSUBLigatureLookups(gsub []byte, lookupListOffset int, lookupIndices [
 			}
 			subtableOffset := lookupOffset + int(be16(gsub, subOffsetOffset))
 			parseGSUBLigatureSubtable(gsub, subtableOffset, byFirst)
+		}
+	}
+}
+
+func parseGSUBSingleSubstitutionLookups(gsub []byte, lookupListOffset int, lookupIndices []uint16, byGlyph map[sfnt.GlyphIndex]sfnt.GlyphIndex) {
+	if lookupListOffset+2 > len(gsub) {
+		return
+	}
+	lookupCount := int(be16(gsub, lookupListOffset))
+	for _, lookupIndex := range lookupIndices {
+		if int(lookupIndex) >= lookupCount {
+			continue
+		}
+		lookupOffsetOffset := lookupListOffset + 2 + int(lookupIndex)*2
+		if lookupOffsetOffset+2 > len(gsub) {
+			continue
+		}
+		lookupOffset := lookupListOffset + int(be16(gsub, lookupOffsetOffset))
+		if lookupOffset+6 > len(gsub) {
+			continue
+		}
+		lookupType := be16(gsub, lookupOffset)
+		subtableCount := int(be16(gsub, lookupOffset+4))
+		for i := 0; i < subtableCount; i++ {
+			subOffsetOffset := lookupOffset + 6 + i*2
+			if subOffsetOffset+2 > len(gsub) {
+				break
+			}
+			subtableOffset := lookupOffset + int(be16(gsub, subOffsetOffset))
+			switch lookupType {
+			case 1:
+				parseGSUBSingleSubstitutionSubtable(gsub, subtableOffset, byGlyph)
+			case 7:
+				parseGSUBExtensionSubstitutionSubtable(gsub, subtableOffset, 1, byGlyph)
+			}
+		}
+	}
+}
+
+func parseGSUBExtensionSubstitutionSubtable(gsub []byte, offset int, wantedType uint16, byGlyph map[sfnt.GlyphIndex]sfnt.GlyphIndex) {
+	if offset+8 > len(gsub) || be16(gsub, offset) != 1 || be16(gsub, offset+2) != wantedType {
+		return
+	}
+	extensionOffset := offset + int(be32(gsub, offset+4))
+	if extensionOffset <= offset || extensionOffset >= len(gsub) {
+		return
+	}
+	parseGSUBSingleSubstitutionSubtable(gsub, extensionOffset, byGlyph)
+}
+
+func parseGSUBSingleSubstitutionSubtable(gsub []byte, offset int, byGlyph map[sfnt.GlyphIndex]sfnt.GlyphIndex) {
+	if offset+6 > len(gsub) {
+		return
+	}
+	coverage := parseCoverageGlyphs(gsub, offset+int(be16(gsub, offset+2)))
+	if len(coverage) == 0 {
+		return
+	}
+	switch be16(gsub, offset) {
+	case 1:
+		delta := int(beInt16(gsub, offset+4))
+		for _, glyph := range coverage {
+			byGlyph[glyph] = sfnt.GlyphIndex(uint16(int(glyph) + delta))
+		}
+	case 2:
+		count := int(be16(gsub, offset+4))
+		if offset+6+count*2 > len(gsub) {
+			return
+		}
+		for i := 0; i < count && i < len(coverage); i++ {
+			byGlyph[coverage[i]] = sfnt.GlyphIndex(be16(gsub, offset+6+i*2))
 		}
 	}
 }

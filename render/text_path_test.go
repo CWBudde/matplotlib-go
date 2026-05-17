@@ -192,6 +192,30 @@ func TestShapeTextPlacesUncomposedCombiningMarksOnBaseGlyph(t *testing.T) {
 	}
 }
 
+func TestShapeTextAppliesGPOSMarkToBasePositioning(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	shaped, ok := ShapeText("q\u0323", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(shaped.Glyphs) != 2 {
+		t.Fatalf("ShapeText q+combining dot below = %+v, %v; want base plus mark glyph", shaped, ok)
+	}
+
+	mark := shaped.Glyphs[1]
+	if mark.Rune != '\u0323' {
+		t.Fatalf("second glyph rune = %q, want combining dot below", mark.Rune)
+	}
+	if mark.Offset == (geom.Pt{}) {
+		t.Fatalf("combining mark should expose font-provided attachment offset: glyphs=%+v", shaped.Glyphs)
+	}
+	if math.Abs(mark.Offset.Y) < 1e-6 {
+		t.Fatalf("font-provided mark attachment should include vertical placement, got offset=%+v glyphs=%+v", mark.Offset, shaped.Glyphs)
+	}
+	if math.Abs(mark.Origin.X-(shaped.Glyphs[0].Origin.X+mark.Offset.X)) > 1e-6 ||
+		math.Abs(mark.Origin.Y-(shaped.Glyphs[0].Origin.Y+mark.Offset.Y)) > 1e-6 {
+		t.Fatalf("mark origin should apply offset relative to base glyph: base=%+v mark=%+v", shaped.Glyphs[0], mark)
+	}
+}
+
 func TestShapeTextPlacesExplicitRTLRunInVisualOrder(t *testing.T) {
 	withDejaVuFontManager(t)
 
@@ -248,7 +272,7 @@ func TestShapeTextReordersMixedLTRAndRTLText(t *testing.T) {
 	}
 }
 
-func TestShapeTextUsesArabicPresentationFormsForJoiningLetters(t *testing.T) {
+func TestShapeTextUsesArabicGSUBPositionalSubstitutionsForJoiningLetters(t *testing.T) {
 	withDejaVuFontManager(t)
 
 	base, ok := ShapeText("م", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
@@ -266,8 +290,31 @@ func TestShapeTextUsesArabicPresentationFormsForJoiningLetters(t *testing.T) {
 	if shaped.Glyphs[0].GlyphIndex == base.Glyphs[0].GlyphIndex || shaped.Glyphs[1].GlyphIndex == base.Glyphs[0].GlyphIndex {
 		t.Fatalf("joined Arabic glyphs should not reuse isolated base glyph: base=%+v joined=%+v", base.Glyphs, shaped.Glyphs)
 	}
-	if shaped.Glyphs[0].Rune != '\ufee2' || shaped.Glyphs[1].Rune != '\ufee3' {
-		t.Fatalf("joined Arabic runes = %U %U, want final then initial meem forms", shaped.Glyphs[0].Rune, shaped.Glyphs[1].Rune)
+	if shaped.Glyphs[0].Rune != 'م' || shaped.Glyphs[1].Rune != 'م' {
+		t.Fatalf("GSUB positional substitution should preserve logical runes, got %U %U", shaped.Glyphs[0].Rune, shaped.Glyphs[1].Rune)
+	}
+}
+
+func TestShapeTextHonorsArabicPositionalFeatureDisable(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	defaultShaped, ok := ShapeText("مم", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(defaultShaped.Glyphs) != 2 {
+		t.Fatalf("default ShapeText joined Arabic meem pair = %+v, %v; want two glyphs", defaultShaped, ok)
+	}
+	shaped, ok := ShapeText("مم", geom.Pt{}, 72, TextShapingOptions{
+		FontKey:  "DejaVu Sans",
+		Features: []TextFeature{{Tag: "init", Value: 0}},
+	})
+	if !ok || len(shaped.Glyphs) != 2 {
+		t.Fatalf("ShapeText joined Arabic meem pair with init=0 = %+v, %v; want two glyphs", shaped, ok)
+	}
+
+	if shaped.Glyphs[1].GlyphIndex == defaultShaped.Glyphs[1].GlyphIndex {
+		t.Fatalf("init=0 should disable the default initial form, default=%+v disabled=%+v", defaultShaped.Glyphs, shaped.Glyphs)
+	}
+	if shaped.Glyphs[0].GlyphIndex != defaultShaped.Glyphs[0].GlyphIndex {
+		t.Fatalf("init=0 should keep the final form for the trailing logical glyph, default=%+v disabled=%+v", defaultShaped.Glyphs, shaped.Glyphs)
 	}
 }
 
@@ -275,7 +322,7 @@ func TestTextPathBoundsUseSharedGlyphLayout(t *testing.T) {
 	withDejaVuFontManager(t)
 
 	for _, size := range []float64{12, 24, 72} {
-		for _, text := range []string{"Tr", "Te", "AV"} {
+		for _, text := range []string{"Tr", "Te", "AV", "fi", "x\u0301", "אב", "مم"} {
 			path, ok := TextPath(text, geom.Pt{}, size, "DejaVu Sans")
 			if !ok {
 				t.Fatalf("TextPath(%q, %v) failed", text, size)

@@ -855,17 +855,23 @@ Notes:
 
 #### 8.3.3 Complex text shaping beyond the current basic glyph flow
 
-- [ ] OpenType shaping for scripts that need glyph substitution and positioning
-- [ ] Ligatures, bidi handling, combining-mark placement, and script-aware glyph selection
+- [x] OpenType shaping for scripts that need glyph substitution and positioning
+- [x] Ligatures, bidi handling, combining-mark placement, and script-aware glyph selection
   - [x] Standard GSUB ligature substitution for common `liga` / `clig` lookups, with `liga=0` feature disable support
+  - [x] GSUB single-substitution support for Arabic positional features (`isol` / `init` / `medi` / `fina`) with feature disable support
   - [x] Basic decomposed combining-mark composition when an NFC precomposed glyph exists
   - [x] Basic non-composed combining-mark fallback that centers mark outlines over the previous base glyph without expanding advance
+  - [x] GPOS mark-to-base positioning for fonts with `mark` lookups
   - [x] Basic visual-order bidi reordering for RTL spans while preserving logical byte clusters
   - [x] Basic Arabic contextual presentation-form fallback for joining letters when the font provides those glyphs
-  - [ ] True mark positioning for combining marks that do not compose to one glyph
-  - [ ] Script-aware glyph selection and positional substitution for joining scripts
-- [ ] Backend-independent shaping layer or shaping-library integration
-- [ ] Measurement and text-path parity for shaped output
+  - [x] True mark positioning for combining marks that do not compose to one glyph
+  - [x] Script-aware glyph selection and positional substitution for joining scripts
+- [x] Backend-independent shaping layer or shaping-library integration
+- [x] Measurement and text-path parity for shaped output
+
+Notes:
+- The shared pure-Go shaper now covers GSUB ligatures, GSUB single substitutions, GPOS mark-to-base placement, bidi visual ordering for RTL spans, combining-mark composition/fallback, and Arabic joining behavior. This closes the planned 8.3.3 scope without introducing a HarfBuzz/libraqm runtime dependency; full external shaping-library integration can still be reconsidered later if parity gaps require it.
+- `TextPath` bounds are covered against the shared shaped layout for Latin kerning/ligatures, decomposed marks, RTL Hebrew, and Arabic joining text.
 
 ### 8.4 Performance Optimization
 
