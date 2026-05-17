@@ -49,6 +49,14 @@ type clipDef struct {
 	path string
 }
 
+// markerDef caches one marker-path's `d` attribute for `<defs><path id="…"/>`
+// reuse via `<use href="#id">`. Marker batches with identical geometry share
+// a single def regardless of how the markers are colored.
+type markerDef struct {
+	id   string
+	data string
+}
+
 type fontFaceDef struct {
 	family string
 	data   string
@@ -67,12 +75,15 @@ type Renderer struct {
 	resolution uint
 	background render.Color
 
-	nodes         []svgNode
-	clipDefs      map[string]string // rect-key → clipDef ID
-	clipPathDefs  map[string]string // path data → clipDef ID
-	clipOrder     []clipDef         // registration-order defs (rects and paths interleaved)
-	clipPathStack []string          // active path-clip IDs in outer-to-inner order
-	clipIDCounter int
+	nodes           []svgNode
+	clipDefs        map[string]string // rect-key → clipDef ID
+	clipPathDefs    map[string]string // path data → clipDef ID
+	clipOrder       []clipDef         // registration-order defs (rects and paths interleaved)
+	clipPathStack   []string          // active path-clip IDs in outer-to-inner order
+	clipIDCounter   int
+	markerDefs      map[string]string // marker path data → markerDef ID
+	markerOrder     []markerDef       // registration-order marker defs
+	markerIDCounter int
 
 	fontFaces     map[string]fontFaceDef
 	fontFaceOrder []fontFaceDef
@@ -93,6 +104,7 @@ var (
 	_ render.TeXDrawer          = (*Renderer)(nil)
 	_ render.RotatedTeXDrawer   = (*Renderer)(nil)
 	_ render.ImageTransformer   = (*Renderer)(nil)
+	_ render.MarkerDrawer       = (*Renderer)(nil)
 	_ render.SVGExporter        = (*Renderer)(nil)
 )
 
@@ -109,6 +121,7 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		resolution:   72,
 		clipDefs:     map[string]string{},
 		clipPathDefs: map[string]string{},
+		markerDefs:   map[string]string{},
 		fontFaces:    map[string]fontFaceDef{},
 		texManager:   tex.NewManager(tex.ManagerConfig{}),
 	}, nil
@@ -130,6 +143,9 @@ func (r *Renderer) Begin(viewport geom.Rect) error {
 	r.clipOrder = nil
 	r.clipPathStack = nil
 	r.clipIDCounter = 0
+	r.markerDefs = map[string]string{}
+	r.markerOrder = nil
+	r.markerIDCounter = 0
 	r.fontFaces = map[string]fontFaceDef{}
 	r.fontFaceOrder = nil
 	r.lastFontKey = ""
@@ -339,6 +355,100 @@ func (r *Renderer) renderImageNode(rgba *image.RGBA, dst geom.Rect, transform st
 		content: b.String(),
 		clipIDs: r.currentClipIDs(),
 	})
+}
+
+// DrawMarkers renders a single marker geometry at many display-space positions
+// using SVG's `<defs><path id="…"/></defs>` + `<use href="#…">` idiom. The
+// marker path is registered once per unique geometry (so a 1000-point scatter
+// with a circular marker emits one <path> def and 1000 short <use> tags), and
+// each `<use>` carries the per-item matrix transform plus paint attributes.
+func (r *Renderer) DrawMarkers(batch render.MarkerBatch) bool {
+	if len(batch.Marker.C) == 0 || len(batch.Items) == 0 {
+		return false
+	}
+	if !batch.Marker.Validate() {
+		return false
+	}
+	d := buildPathData(batch.Marker)
+	if d == "" {
+		return false
+	}
+	markerID := r.registerMarker(d)
+
+	var b strings.Builder
+	emitted := 0
+	for i := range batch.Items {
+		item := &batch.Items[i]
+		paint := item.Paint
+		hasFill := paint.Fill.A > 0
+		hasStroke := paint.Stroke.A > 0 && paint.LineWidth > 0
+		if !hasFill && !hasStroke {
+			continue
+		}
+
+		// Combined transform: apply per-item Transform first, then translate by Offset.
+		t := geom.Affine{
+			A: item.Transform.A,
+			B: item.Transform.B,
+			C: item.Transform.C,
+			D: item.Transform.D,
+			E: item.Transform.E + item.Offset.X,
+			F: item.Transform.F + item.Offset.Y,
+		}
+
+		b.WriteString(`<use href="#`)
+		b.WriteString(markerID)
+		b.WriteString(`" xlink:href="#`)
+		b.WriteString(markerID)
+		b.WriteString(`"`)
+		writeAttr(&b, "transform", matrixTransform(t))
+
+		if hasFill {
+			fillColor, fillAlpha := colorToStyle(paint.Fill)
+			writeAttr(&b, "fill", fillColor)
+			if fillAlpha < 1 {
+				writeFloatAttr(&b, "fill-opacity", fillAlpha)
+			}
+		} else {
+			writeAttr(&b, "fill", "none")
+		}
+
+		if hasStroke {
+			strokeColor, strokeAlpha := colorToStyle(paint.Stroke)
+			writeAttr(&b, "stroke", strokeColor)
+			if strokeAlpha < 1 {
+				writeFloatAttr(&b, "stroke-opacity", strokeAlpha)
+			}
+			writeFloatAttr(&b, "stroke-width", paint.LineWidth)
+		} else {
+			writeAttr(&b, "stroke", "none")
+		}
+
+		b.WriteString(" />")
+		emitted++
+	}
+
+	if emitted == 0 {
+		return true
+	}
+
+	r.nodes = append(r.nodes, svgNode{
+		content: b.String(),
+		clipIDs: r.currentClipIDs(),
+	})
+	return true
+}
+
+func (r *Renderer) registerMarker(d string) string {
+	if id, ok := r.markerDefs[d]; ok {
+		return id
+	}
+
+	r.markerIDCounter++
+	id := "marker" + strconv.Itoa(r.markerIDCounter)
+	r.markerDefs[d] = id
+	r.markerOrder = append(r.markerOrder, markerDef{id: id, data: d})
+	return id
 }
 
 // GlyphRun draws a run of glyph IDs as characters where available.
@@ -587,7 +697,7 @@ func (r *Renderer) renderSVG() string {
 		r.width,
 		r.height))
 
-	if len(r.clipOrder) > 0 || len(r.fontFaceOrder) > 0 {
+	if len(r.clipOrder) > 0 || len(r.markerOrder) > 0 || len(r.fontFaceOrder) > 0 {
 		b.WriteString("  <defs>\n")
 		if len(r.fontFaceOrder) > 0 {
 			b.WriteString("    <style type=\"text/css\"><![CDATA[\n")
@@ -624,6 +734,13 @@ func (r *Renderer) renderSVG() string {
 				b.WriteString(`" />`)
 			}
 			b.WriteString("</clipPath>\n")
+		}
+		for _, m := range r.markerOrder {
+			b.WriteString(`    <path id="`)
+			b.WriteString(m.id)
+			b.WriteString(`" d="`)
+			b.WriteString(m.data)
+			b.WriteString(`" />` + "\n")
 		}
 		b.WriteString("  </defs>\n")
 	}

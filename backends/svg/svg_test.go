@@ -417,6 +417,131 @@ func TestPathSerializesStrokeFillOpacityAndDashes(t *testing.T) {
 	}
 }
 
+func circleMarkerPath() geom.Path {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: -1, Y: 0})
+	p.LineTo(geom.Pt{X: 1, Y: 0})
+	p.LineTo(geom.Pt{X: 0, Y: 1})
+	p.Close()
+	return p
+}
+
+func TestDrawMarkersEmitsDefAndUseElements(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		ok := r.DrawMarkers(render.MarkerBatch{
+			Marker: circleMarkerPath(),
+			Items: []render.MarkerItem{
+				{
+					Offset:    geom.Pt{X: 10, Y: 20},
+					Transform: geom.Identity(),
+					Paint:     render.Paint{Fill: render.Color{R: 1, A: 1}, Stroke: render.Color{A: 1}, LineWidth: 1},
+				},
+				{
+					Offset:    geom.Pt{X: 50, Y: 60},
+					Transform: geom.Identity(),
+					Paint:     render.Paint{Fill: render.Color{B: 1, A: 1}, Stroke: render.Color{A: 1}, LineWidth: 1},
+				},
+			},
+		})
+		if !ok {
+			t.Fatal("DrawMarkers returned false")
+		}
+	})
+
+	if !strings.Contains(content, `<path id="marker1" d="M -1 0 L 1 0 L 0 1 Z" />`) {
+		t.Fatalf("expected marker path def, got %q", content)
+	}
+	if got := strings.Count(content, `<use href="#marker1"`); got != 2 {
+		t.Fatalf("expected 2 use references, got %d in %q", got, content)
+	}
+	if !strings.Contains(content, `transform="matrix(1 0 0 1 10 20)"`) {
+		t.Fatalf("expected first item transform, got %q", content)
+	}
+	if !strings.Contains(content, `transform="matrix(1 0 0 1 50 60)"`) {
+		t.Fatalf("expected second item transform, got %q", content)
+	}
+	if !strings.Contains(content, `fill="rgb(255,0,0)"`) || !strings.Contains(content, `fill="rgb(0,0,255)"`) {
+		t.Fatalf("expected per-item fills, got %q", content)
+	}
+}
+
+func TestDrawMarkersDedupesIdenticalMarkerGeometry(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		batch := render.MarkerBatch{
+			Marker: circleMarkerPath(),
+			Items: []render.MarkerItem{
+				{Offset: geom.Pt{X: 0, Y: 0}, Transform: geom.Identity(),
+					Paint: render.Paint{Fill: render.Color{A: 1}}},
+			},
+		}
+		r.DrawMarkers(batch)
+		r.DrawMarkers(batch)
+	})
+
+	if got := strings.Count(content, `<path id="marker`); got != 1 {
+		t.Fatalf("identical marker geometry should share one def, got %d defs in %q", got, content)
+	}
+	if got := strings.Count(content, `<use href="#marker1"`); got != 2 {
+		t.Fatalf("expected 2 use references sharing marker1, got %d in %q", got, content)
+	}
+}
+
+func TestDrawMarkersHonorsActiveClip(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.ClipRect(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}})
+		r.DrawMarkers(render.MarkerBatch{
+			Marker: circleMarkerPath(),
+			Items: []render.MarkerItem{
+				{Offset: geom.Pt{X: 50, Y: 50}, Transform: geom.Identity(),
+					Paint: render.Paint{Fill: render.Color{A: 1}}},
+			},
+		})
+	})
+
+	if !strings.Contains(content, `<g clip-path="url(#clip1)"><use href="#marker1"`) {
+		t.Fatalf("markers should be wrapped in the active clip group, got %q", content)
+	}
+}
+
+func TestDrawMarkersRejectsEmptyBatchOrInvalidMarker(t *testing.T) {
+	r := mustNewRenderer(t)
+	viewport := geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 180, Y: 120}}
+	if err := r.Begin(viewport); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	if ok := r.DrawMarkers(render.MarkerBatch{}); ok {
+		t.Error("DrawMarkers should return false for empty batch")
+	}
+	if ok := r.DrawMarkers(render.MarkerBatch{
+		Marker: circleMarkerPath(),
+		Items:  nil,
+	}); ok {
+		t.Error("DrawMarkers should return false when Items is empty")
+	}
+
+	// Items with no fill and no stroke should produce no output but still
+	// register the marker def (caller asked for a marker batch with that
+	// geometry) — implementation returns true to signal it took ownership.
+	ok := r.DrawMarkers(render.MarkerBatch{
+		Marker: circleMarkerPath(),
+		Items: []render.MarkerItem{
+			{Offset: geom.Pt{}, Transform: geom.Identity(), Paint: render.Paint{}},
+		},
+	})
+	if !ok {
+		t.Error("DrawMarkers should return true even when all items are invisible")
+	}
+
+	if err := r.End(); err != nil {
+		t.Fatalf("End failed: %v", err)
+	}
+	content := r.renderSVG()
+	if strings.Contains(content, "<use ") {
+		t.Fatalf("invisible markers should not emit use elements, got %q", content)
+	}
+}
+
 func TestImageTransformedEmitsMatrixAttribute(t *testing.T) {
 	content := renderSVGDocument(t, func(r *Renderer) {
 		img := image.NewRGBA(image.Rect(0, 0, 2, 2))

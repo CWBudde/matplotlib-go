@@ -15,9 +15,9 @@ func init() {
 			backends.PathClip,
 			backends.TextShaping,
 			backends.ImageTransform,
+			backends.MarkerBatch,
 		},
 		FallbackCapabilities: []backends.Capability{
-			backends.MarkerBatch,
 			backends.PathCollectionBatch,
 			backends.QuadMeshBatch,
 		},
