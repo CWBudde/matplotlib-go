@@ -1059,10 +1059,10 @@ Bring the SVG backend to functional parity with upstream Matplotlib's `RendererS
 
 - [x] `ImageTransformed` emits `transform="matrix(a b c d e f)"` on `<image>`; advertised native `ImageTransform`.
 - [x] Native `DrawMarkers`: one `<defs><path id="markerN" d="…"/>` per unique marker geometry; short `<use href="#markerN" transform=… fill=… stroke=…/>` per item, all wrapped in a single clip-group node; advertised native `MarkerBatch`.
-- [ ] Native `DrawPathCollection` via `<defs>` + `<use>` per unique path geometry (mirrors the marker treatment); advertise native `PathCollectionBatch`.
-- [ ] Native hatches via `<pattern>` defs (72×72 user-space, keyed by `(hatch, faceColor, edgeColor, lineWidth)`); advertise `NativeHatch` once `<pattern>` reuse is structural and the existing core-side rasterizer is no longer invoked for SVG.
-- [ ] Forced-alpha group wrapping: when `paint.ForceAlpha && paint.Alpha < 1`, emit `opacity="alpha"` on the element (or a `<g opacity>` wrapper for batches) and skip per-color `*-opacity`. Requires coordinated changes to `render/graphics_context.go` so colors are not double-multiplied.
-- [ ] Gouraud triangle fallback: continue rasterizing via core but document the limitation explicitly; native `<linearGradient>` emission deferred until use cases warrant it.
+- [x] Native `DrawPathCollection` via `<defs>` + `<use>` per unique path geometry (mirrors the marker treatment); advertise native `PathCollectionBatch`.
+- [x] Native hatches via `<pattern>` defs (72×72 user-space, keyed by hatch, face color, hatch color, line width, spacing, and forced-alpha policy); advertise `NativeHatch` once `<pattern>` reuse is structural and the existing core-side rasterizer is no longer invoked for SVG.
+- [x] Forced-alpha group wrapping: when `paint.ForceAlpha && paint.Alpha < 1`, emit `opacity="alpha"` on the element (or a `<g opacity>` wrapper for batches) and skip per-color `*-opacity`. Requires coordinated changes to `render/graphics_context.go` so colors are not double-multiplied.
+- [x] Gouraud triangle fallback: continue rasterizing via core but document the limitation explicitly; native `<linearGradient>` emission deferred until use cases warrant it.
 
 **14.3.4 Font policy, metadata, and SVG-specific save options (not started):**
 
@@ -1072,11 +1072,12 @@ Bring the SVG backend to functional parity with upstream Matplotlib's `RendererS
 - [ ] Opt-in `HashSalt`: when set, switch IDs to `SHA256(salt+content)[:10]` (matches matplotlib's `svg.hashsalt`); default keeps the existing sequential `clipN`/`markerN` IDs.
 - [ ] Document the option set in `backends/svg/doc.go`.
 
-**14.3.5 Reference fixtures and structural diff helper (not started):**
+**14.3.5 Reference fixtures and structural diff helper (in progress):**
 
-- [ ] `testdata/golden/svg/` populated with structural goldens for canonical plot families: line, scatter, bar, errorbar, hist, collection, image, clipped polar, hatch_bars, text_layout, mathtext.
-- [ ] New `internal/svgcompare/` helper: parse, normalize attribute ordering, structural diff. Unit-test the normalizer before any golden lands.
-- [ ] `-update` flag on the golden test to re-bake fixtures when intentional output changes ship.
+- [x] New `internal/svgcompare/` package: `encoding/xml`-based parser, sorted attribute normalization, whitespace-insensitive structural diff returning human-readable `/path/to/element: reason` reports. Unit-tested for attribute reordering, missing/unexpected attributes, child-count and text mismatches, `xlink:href` round-tripping, and malformed input rejection.
+- [x] `backends/svg/golden_test.go` table-driven harness with `-update` flag; pass `go test ./backends/svg/... -run TestSVGGoldens -update` to rebake fixtures after intentional output changes.
+- [x] Initial golden set under `backends/svg/testdata/golden/`: `line_stroked.svg`, `scatter_markers.svg` (marker batches via `<defs>` + `<use>`), `clipped_text.svg`, `image_transformed.svg`.
+- [ ] Expand golden set to remaining canonical plot families: bar, errorbar, hist, collection, image, clipped polar, hatch_bars, text_layout, mathtext. These require figure-level test fixtures rather than renderer-level closures, so they will piggyback on the parity catalog rather than `backends/svg/testdata`.
 
 **14.3.6 Capability matrix contract and audit coverage (in progress):**
 
@@ -1107,7 +1108,10 @@ Verification reference:
 - [x] Clip paths: `TestClipPathNestsInsideActiveRectClip`, `TestClipPathDedupesIdenticalPathsAcrossNodes`, `TestClipPathStackUnwindsOnRestore`, `TestClipPathRejectsEmptyPath`, `TestClipPathTransformedEmitsPathTransformAndDedupesByTransform`, plus the existing `TestRenderSVGPreservesClipStackAcrossSaveRestore` for rect-only intersection semantics.
 - [x] Image transforms: `TestImageTransformedEmitsMatrixAttribute`, `TestImageTransformedHonorsClip`, `TestImageTransformedSkipsUnsupportedImage`, `TestMatrixTransformFormat`.
 - [x] Marker batches: `TestDrawMarkersEmitsDefAndUseElements`, `TestDrawMarkersDedupesIdenticalMarkerGeometry`, `TestDrawMarkersHonorsActiveClip`, `TestDrawMarkersRejectsEmptyBatchOrInvalidMarker`.
+- [x] Path collections, hatches, and forced alpha: `TestDrawPathCollectionEmitsDefsAndUseElements`, `TestDrawPathCollectionHonorsActiveClipAndRejectsEmptyBatch`, `TestPathWithHatchEmitsPatternFill`, `TestHatchPatternDefsAreReused`, `TestPathForcedAlphaUsesElementOpacity`, `TestSupportsNativeHatch`, and `TestGraphicsContextEffectivePaintCombinesForcedAndContextAlpha`.
 - [x] Capability advertising: `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` (registry-level contract).
+- [x] Structural diff helper: `TestEqualIgnoresAttributeOrder`, `TestEqualIgnoresInsignificantWhitespace`, `TestDiffReportsAttributeValueMismatch`, `TestDiffReportsMissingAttribute`, `TestDiffReportsUnexpectedAttribute`, `TestDiffReportsChildCountMismatch`, `TestDiffReportsTextMismatch`, `TestParseSupportsXlinkHref`, `TestParseRejectsMalformed` (all under `internal/svgcompare`).
+- [x] Golden fixtures: `TestSVGGoldens/{line_stroked,scatter_markers,clipped_text,image_transformed}` exercising the structural diff helper end-to-end.
 
 ### 14.4 Skia Backend Parity
 

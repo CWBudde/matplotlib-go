@@ -194,6 +194,9 @@ func (gc GraphicsContext) EffectivePaint() Paint {
 		forcePathEffectAlpha(paint.PathEffects, gc.ForcedAlpha)
 	}
 	applyPaintAlpha(&paint, gc.Alpha)
+	if gc.ForceAlpha {
+		paint.Alpha = gc.ForcedAlpha * gc.Alpha
+	}
 	return paint
 }
 

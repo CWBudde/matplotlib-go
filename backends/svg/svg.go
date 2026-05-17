@@ -58,6 +58,23 @@ type markerDef struct {
 	data string
 }
 
+// pathCollectionDef caches a collection item's display-space path for reuse
+// via <use>. Collection paths are already positioned in display coordinates.
+type pathCollectionDef struct {
+	id   string
+	data string
+}
+
+type hatchDef struct {
+	id        string
+	hatch     string
+	faceColor render.Color
+	lineColor render.Color
+	lineWidth float64
+	spacing   float64
+	forced    bool
+}
+
 type fontFaceDef struct {
 	family string
 	data   string
@@ -85,6 +102,12 @@ type Renderer struct {
 	markerDefs      map[string]string // marker path data → markerDef ID
 	markerOrder     []markerDef       // registration-order marker defs
 	markerIDCounter int
+	pathDefs        map[string]string // collection path data → pathCollectionDef ID
+	pathOrder       []pathCollectionDef
+	pathIDCounter   int
+	hatchDefs       map[string]string // hatch paint metadata → hatchDef ID
+	hatchOrder      []hatchDef
+	hatchIDCounter  int
 
 	fontFaces     map[string]fontFaceDef
 	fontFaceOrder []fontFaceDef
@@ -95,19 +118,21 @@ type Renderer struct {
 }
 
 var (
-	_ render.Renderer            = (*Renderer)(nil)
-	_ render.DPIAware            = (*Renderer)(nil)
-	_ render.TextDrawer          = (*Renderer)(nil)
-	_ render.RotatedTextDrawer   = (*Renderer)(nil)
-	_ render.VerticalTextDrawer  = (*Renderer)(nil)
-	_ render.TextPather          = (*Renderer)(nil)
-	_ render.TeXMetricer         = (*Renderer)(nil)
-	_ render.TeXDrawer           = (*Renderer)(nil)
-	_ render.RotatedTeXDrawer    = (*Renderer)(nil)
-	_ render.ImageTransformer    = (*Renderer)(nil)
-	_ render.ClipPathTransformer = (*Renderer)(nil)
-	_ render.MarkerDrawer        = (*Renderer)(nil)
-	_ render.SVGExporter         = (*Renderer)(nil)
+	_ render.Renderer             = (*Renderer)(nil)
+	_ render.DPIAware             = (*Renderer)(nil)
+	_ render.TextDrawer           = (*Renderer)(nil)
+	_ render.RotatedTextDrawer    = (*Renderer)(nil)
+	_ render.VerticalTextDrawer   = (*Renderer)(nil)
+	_ render.TextPather           = (*Renderer)(nil)
+	_ render.TeXMetricer          = (*Renderer)(nil)
+	_ render.TeXDrawer            = (*Renderer)(nil)
+	_ render.RotatedTeXDrawer     = (*Renderer)(nil)
+	_ render.ImageTransformer     = (*Renderer)(nil)
+	_ render.ClipPathTransformer  = (*Renderer)(nil)
+	_ render.MarkerDrawer         = (*Renderer)(nil)
+	_ render.PathCollectionDrawer = (*Renderer)(nil)
+	_ render.NativeHatcher        = (*Renderer)(nil)
+	_ render.SVGExporter          = (*Renderer)(nil)
 )
 
 // New creates a new SVG renderer with the specified dimensions and background color.
@@ -124,6 +149,8 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		clipDefs:     map[string]string{},
 		clipPathDefs: map[string]string{},
 		markerDefs:   map[string]string{},
+		pathDefs:     map[string]string{},
+		hatchDefs:    map[string]string{},
 		fontFaces:    map[string]fontFaceDef{},
 		texManager:   tex.NewManager(tex.ManagerConfig{}),
 	}, nil
@@ -148,6 +175,12 @@ func (r *Renderer) Begin(viewport geom.Rect) error {
 	r.markerDefs = map[string]string{}
 	r.markerOrder = nil
 	r.markerIDCounter = 0
+	r.pathDefs = map[string]string{}
+	r.pathOrder = nil
+	r.pathIDCounter = 0
+	r.hatchDefs = map[string]string{}
+	r.hatchOrder = nil
+	r.hatchIDCounter = 0
 	r.fontFaces = map[string]fontFaceDef{}
 	r.fontFaceOrder = nil
 	r.lastFontKey = ""
@@ -246,44 +279,26 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 	}
 
 	hasFill := paint.Fill.A > 0
+	hasHatch := paint.Hatch != "" && paint.HatchColor.A > 0
 	hasStroke := paint.Stroke.A > 0 && paint.LineWidth > 0
-	if !hasFill && !hasStroke {
+	if !hasFill && !hasHatch && !hasStroke {
 		return
 	}
 
 	var b strings.Builder
 	b.WriteString(`<path`)
 	writeAttr(&b, "d", d)
+	writeForcedOpacity(&b, *paint)
 
-	if hasFill {
-		fillColor, fillAlpha := colorToStyle(paint.Fill)
-		writeAttr(&b, "fill", fillColor)
-		if fillAlpha < 1 {
-			writeFloatAttr(&b, "fill-opacity", fillAlpha)
-		}
+	if hasHatch {
+		writeAttr(&b, "fill", "url(#"+r.registerHatch(*paint)+")")
+	} else if hasFill {
+		writeColorAttrs(&b, "fill", paint.Fill, forcedOpacity(*paint))
 	} else {
 		writeAttr(&b, "fill", "none")
 	}
 
-	if hasStroke {
-		strokeColor, strokeAlpha := colorToStyle(paint.Stroke)
-		writeAttr(&b, "stroke", strokeColor)
-		if strokeAlpha < 1 {
-			writeFloatAttr(&b, "stroke-opacity", strokeAlpha)
-		}
-		writeFloatAttr(&b, "stroke-width", paint.LineWidth)
-		writeAttr(&b, "stroke-linejoin", mapLineJoin(paint.LineJoin))
-		writeAttr(&b, "stroke-linecap", mapLineCap(paint.LineCap))
-		if paint.MiterLimit > 0 {
-			writeFloatAttr(&b, "stroke-miterlimit", paint.MiterLimit)
-		}
-
-		if len(paint.Dashes) >= 2 {
-			writeAttr(&b, "stroke-dasharray", dashedArray(paint.Dashes))
-		}
-	} else {
-		writeAttr(&b, "stroke", "none")
-	}
+	writeStrokeAttrs(&b, *paint)
 
 	b.WriteString(" />")
 
@@ -417,27 +432,15 @@ func (r *Renderer) DrawMarkers(batch render.MarkerBatch) bool {
 		b.WriteString(markerID)
 		b.WriteString(`"`)
 		writeAttr(&b, "transform", matrixTransform(t))
+		writeForcedOpacity(&b, paint)
 
 		if hasFill {
-			fillColor, fillAlpha := colorToStyle(paint.Fill)
-			writeAttr(&b, "fill", fillColor)
-			if fillAlpha < 1 {
-				writeFloatAttr(&b, "fill-opacity", fillAlpha)
-			}
+			writeColorAttrs(&b, "fill", paint.Fill, forcedOpacity(paint))
 		} else {
 			writeAttr(&b, "fill", "none")
 		}
 
-		if hasStroke {
-			strokeColor, strokeAlpha := colorToStyle(paint.Stroke)
-			writeAttr(&b, "stroke", strokeColor)
-			if strokeAlpha < 1 {
-				writeFloatAttr(&b, "stroke-opacity", strokeAlpha)
-			}
-			writeFloatAttr(&b, "stroke-width", paint.LineWidth)
-		} else {
-			writeAttr(&b, "stroke", "none")
-		}
+		writeStrokeAttrs(&b, paint)
 
 		b.WriteString(" />")
 		emitted++
@@ -463,6 +466,114 @@ func (r *Renderer) registerMarker(d string) string {
 	id := "marker" + strconv.Itoa(r.markerIDCounter)
 	r.markerDefs[d] = id
 	r.markerOrder = append(r.markerOrder, markerDef{id: id, data: d})
+	return id
+}
+
+// DrawPathCollection renders display-space paths using SVG defs plus use
+// elements. Identical path geometry is registered once and reused with
+// per-item paint attributes.
+func (r *Renderer) DrawPathCollection(batch render.PathCollectionBatch) bool {
+	if len(batch.Items) == 0 {
+		return false
+	}
+
+	var b strings.Builder
+	emitted := 0
+	for i := range batch.Items {
+		item := &batch.Items[i]
+		if !item.Path.Validate() {
+			continue
+		}
+		d := buildPathData(item.Path)
+		if d == "" {
+			continue
+		}
+
+		paint := item.Paint
+		if item.Hatch != "" {
+			paint.Hatch = item.Hatch
+			paint.HatchColor = item.HatchColor
+			paint.HatchLineWidth = item.HatchWidth
+			paint.HatchSpacing = item.HatchSpacing
+		}
+		hasFill := paint.Fill.A > 0
+		hasHatch := paint.Hatch != "" && paint.HatchColor.A > 0
+		hasStroke := paint.Stroke.A > 0 && paint.LineWidth > 0
+		if !hasFill && !hasHatch && !hasStroke {
+			continue
+		}
+
+		pathID := r.registerCollectionPath(d)
+		b.WriteString(`<use href="#`)
+		b.WriteString(pathID)
+		b.WriteString(`" xlink:href="#`)
+		b.WriteString(pathID)
+		b.WriteString(`"`)
+		writeForcedOpacity(&b, paint)
+		if hasHatch {
+			writeAttr(&b, "fill", "url(#"+r.registerHatch(paint)+")")
+		} else if hasFill {
+			writeColorAttrs(&b, "fill", paint.Fill, forcedOpacity(paint))
+		} else {
+			writeAttr(&b, "fill", "none")
+		}
+		writeStrokeAttrs(&b, paint)
+		b.WriteString(" />")
+		emitted++
+	}
+
+	if emitted == 0 {
+		return true
+	}
+
+	r.nodes = append(r.nodes, svgNode{
+		content: b.String(),
+		clipIDs: r.currentClipIDs(),
+	})
+	return true
+}
+
+func (r *Renderer) registerCollectionPath(d string) string {
+	if id, ok := r.pathDefs[d]; ok {
+		return id
+	}
+
+	r.pathIDCounter++
+	id := "pathcoll" + strconv.Itoa(r.pathIDCounter)
+	r.pathDefs[d] = id
+	r.pathOrder = append(r.pathOrder, pathCollectionDef{id: id, data: d})
+	return id
+}
+
+func (r *Renderer) SupportsNativeHatch() bool { return true }
+
+func (r *Renderer) registerHatch(paint render.Paint) string {
+	lineWidth := paint.HatchLineWidth
+	if lineWidth <= 0 {
+		lineWidth = 1
+	}
+	spacing := paint.HatchSpacing
+	if spacing <= 0 {
+		spacing = 8
+	}
+	forced := forcedOpacity(paint)
+	key := hatchKey(paint.Hatch, paint.Fill, paint.HatchColor, lineWidth, spacing, forced)
+	if id, ok := r.hatchDefs[key]; ok {
+		return id
+	}
+
+	r.hatchIDCounter++
+	id := "hatch" + strconv.Itoa(r.hatchIDCounter)
+	r.hatchDefs[key] = id
+	r.hatchOrder = append(r.hatchOrder, hatchDef{
+		id:        id,
+		hatch:     paint.Hatch,
+		faceColor: paint.Fill,
+		lineColor: paint.HatchColor,
+		lineWidth: lineWidth,
+		spacing:   spacing,
+		forced:    forced,
+	})
 	return id
 }
 
@@ -712,7 +823,7 @@ func (r *Renderer) renderSVG() string {
 		r.width,
 		r.height))
 
-	if len(r.clipOrder) > 0 || len(r.markerOrder) > 0 || len(r.fontFaceOrder) > 0 {
+	if len(r.clipOrder) > 0 || len(r.markerOrder) > 0 || len(r.pathOrder) > 0 || len(r.hatchOrder) > 0 || len(r.fontFaceOrder) > 0 {
 		b.WriteString("  <defs>\n")
 		if len(r.fontFaceOrder) > 0 {
 			b.WriteString("    <style type=\"text/css\"><![CDATA[\n")
@@ -754,11 +865,21 @@ func (r *Renderer) renderSVG() string {
 			}
 			b.WriteString("</clipPath>\n")
 		}
+		for _, hatch := range r.hatchOrder {
+			writeHatchDef(&b, hatch)
+		}
 		for _, m := range r.markerOrder {
 			b.WriteString(`    <path id="`)
 			b.WriteString(m.id)
 			b.WriteString(`" d="`)
 			b.WriteString(m.data)
+			b.WriteString(`" />` + "\n")
+		}
+		for _, p := range r.pathOrder {
+			b.WriteString(`    <path id="`)
+			b.WriteString(p.id)
+			b.WriteString(`" d="`)
+			b.WriteString(p.data)
 			b.WriteString(`" />` + "\n")
 		}
 		b.WriteString("  </defs>\n")
@@ -1064,6 +1185,123 @@ func colorToHex(c render.Color) string {
 
 func colorToStyle(c render.Color) (string, float64) {
 	return colorToHex(c), clamp01(c.A)
+}
+
+func writeColorAttrs(b *strings.Builder, attr string, c render.Color, forced bool) {
+	colorValue, alpha := colorToStyle(c)
+	writeAttr(b, attr, colorValue)
+	if !forced && alpha < 1 {
+		writeFloatAttr(b, attr+"-opacity", alpha)
+	}
+}
+
+func writeStrokeAttrs(b *strings.Builder, paint render.Paint) {
+	if paint.Stroke.A <= 0 || paint.LineWidth <= 0 {
+		writeAttr(b, "stroke", "none")
+		return
+	}
+
+	writeColorAttrs(b, "stroke", paint.Stroke, forcedOpacity(paint))
+	writeFloatAttr(b, "stroke-width", paint.LineWidth)
+	writeAttr(b, "stroke-linejoin", mapLineJoin(paint.LineJoin))
+	writeAttr(b, "stroke-linecap", mapLineCap(paint.LineCap))
+	if paint.MiterLimit > 0 {
+		writeFloatAttr(b, "stroke-miterlimit", paint.MiterLimit)
+	}
+	if len(paint.Dashes) >= 2 {
+		writeAttr(b, "stroke-dasharray", dashedArray(paint.Dashes))
+	}
+}
+
+func forcedOpacity(paint render.Paint) bool {
+	return paint.ForceAlpha && clamp01(clampFloat(paint.Alpha)) < 1
+}
+
+func writeForcedOpacity(b *strings.Builder, paint render.Paint) {
+	if forcedOpacity(paint) {
+		writeFloatAttr(b, "opacity", clamp01(clampFloat(paint.Alpha)))
+	}
+}
+
+func hatchKey(hatch string, face, line render.Color, width, spacing float64, forced bool) string {
+	return strings.Join([]string{
+		hatch,
+		formatFloat(face.R),
+		formatFloat(face.G),
+		formatFloat(face.B),
+		formatFloat(face.A),
+		formatFloat(line.R),
+		formatFloat(line.G),
+		formatFloat(line.B),
+		formatFloat(line.A),
+		formatFloat(width),
+		formatFloat(spacing),
+		strconv.FormatBool(forced),
+	}, "\x00")
+}
+
+func writeHatchDef(b *strings.Builder, hatch hatchDef) {
+	b.WriteString(`    <pattern id="`)
+	b.WriteString(hatch.id)
+	b.WriteString(`" patternUnits="userSpaceOnUse" width="72" height="72">`)
+	if hatch.faceColor.A > 0 {
+		b.WriteString(`<rect x="0" y="0" width="72" height="72"`)
+		writeColorAttrs(b, "fill", hatch.faceColor, hatch.forced)
+		b.WriteString(` />`)
+	}
+	if hatch.lineColor.A > 0 {
+		d := hatchPathData(hatch.hatch, hatch.spacing)
+		if d != "" {
+			b.WriteString(`<path`)
+			writeAttr(b, "d", d)
+			writeAttr(b, "fill", "none")
+			writeColorAttrs(b, "stroke", hatch.lineColor, hatch.forced)
+			writeFloatAttr(b, "stroke-width", hatch.lineWidth)
+			writeAttr(b, "stroke-linecap", "butt")
+			b.WriteString(` />`)
+		}
+	}
+	b.WriteString("</pattern>\n")
+}
+
+func hatchPathData(hatch string, spacing float64) string {
+	if spacing <= 0 {
+		spacing = 8
+	}
+	var b strings.Builder
+	writeHatchLines := func(count int, draw func(float64)) {
+		if count <= 0 {
+			return
+		}
+		step := math.Max(2, spacing/float64(count))
+		for v := -72.0; v <= 144; v += step {
+			draw(v)
+		}
+	}
+	line := func(x1, y1, x2, y2 float64) {
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString("M ")
+		b.WriteString(formatFloat(x1))
+		b.WriteByte(' ')
+		b.WriteString(formatFloat(y1))
+		b.WriteString(" L ")
+		b.WriteString(formatFloat(x2))
+		b.WriteByte(' ')
+		b.WriteString(formatFloat(y2))
+	}
+
+	verticalCount := strings.Count(hatch, "|") + strings.Count(hatch, "+")
+	horizontalCount := strings.Count(hatch, "-") + strings.Count(hatch, "+")
+	slashCount := strings.Count(hatch, "/") + strings.Count(hatch, "x") + strings.Count(hatch, "X")
+	backslashCount := strings.Count(hatch, `\`) + strings.Count(hatch, "x") + strings.Count(hatch, "X")
+
+	writeHatchLines(verticalCount, func(x float64) { line(x, 0, x, 72) })
+	writeHatchLines(horizontalCount, func(y float64) { line(0, y, 72, y) })
+	writeHatchLines(slashCount, func(x float64) { line(x, 72, x+72, 0) })
+	writeHatchLines(backslashCount, func(x float64) { line(x, 0, x+72, 72) })
+	return b.String()
 }
 
 func toByte(v float64) uint8 {

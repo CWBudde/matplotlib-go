@@ -542,6 +542,147 @@ func TestDrawMarkersRejectsEmptyBatchOrInvalidMarker(t *testing.T) {
 	}
 }
 
+func TestDrawPathCollectionEmitsDefsAndUseElements(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		itemPath := circleMarkerPath()
+		ok := r.DrawPathCollection(render.PathCollectionBatch{
+			Items: []render.PathCollectionItem{
+				{
+					Path:  itemPath,
+					Paint: render.Paint{Fill: render.Color{R: 1, A: 1}, Stroke: render.Color{A: 1}, LineWidth: 1},
+				},
+				{
+					Path:  itemPath,
+					Paint: render.Paint{Fill: render.Color{B: 1, A: 1}, Stroke: render.Color{A: 1}, LineWidth: 1},
+				},
+			},
+		})
+		if !ok {
+			t.Fatal("DrawPathCollection returned false")
+		}
+	})
+
+	if !strings.Contains(content, `<path id="pathcoll1" d="M -1 0 L 1 0 L 0 1 Z" />`) {
+		t.Fatalf("expected path collection path def, got %q", content)
+	}
+	if got := strings.Count(content, `<use href="#pathcoll1"`); got != 2 {
+		t.Fatalf("expected 2 path collection use references, got %d in %q", got, content)
+	}
+	if !strings.Contains(content, `fill="rgb(255,0,0)"`) || !strings.Contains(content, `fill="rgb(0,0,255)"`) {
+		t.Fatalf("expected per-item fills, got %q", content)
+	}
+}
+
+func TestDrawPathCollectionHonorsActiveClipAndRejectsEmptyBatch(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		if ok := r.DrawPathCollection(render.PathCollectionBatch{}); ok {
+			t.Fatal("DrawPathCollection should reject an empty batch")
+		}
+		r.ClipRect(geom.Rect{Min: geom.Pt{X: 0, Y: 0}, Max: geom.Pt{X: 100, Y: 100}})
+		ok := r.DrawPathCollection(render.PathCollectionBatch{
+			Items: []render.PathCollectionItem{
+				{
+					Path:  circleMarkerPath(),
+					Paint: render.Paint{Fill: render.Color{A: 1}},
+				},
+			},
+		})
+		if !ok {
+			t.Fatal("DrawPathCollection returned false")
+		}
+	})
+
+	if !strings.Contains(content, `<g clip-path="url(#clip1)"><use href="#pathcoll1"`) {
+		t.Fatalf("path collection should be wrapped in the active clip group, got %q", content)
+	}
+}
+
+func TestPathWithHatchEmitsPatternFill(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		var path geom.Path
+		path.MoveTo(geom.Pt{X: 10, Y: 10})
+		path.LineTo(geom.Pt{X: 70, Y: 10})
+		path.LineTo(geom.Pt{X: 70, Y: 50})
+		path.Close()
+		r.Path(path, &render.Paint{
+			Fill:           render.Color{G: 1, A: 0.5},
+			Hatch:          "/",
+			HatchColor:     render.Color{R: 1, A: 0.75},
+			HatchLineWidth: 2,
+			HatchSpacing:   12,
+		})
+	})
+
+	for _, want := range []string{
+		`<pattern id="hatch1" patternUnits="userSpaceOnUse" width="72" height="72">`,
+		`<rect x="0" y="0" width="72" height="72" fill="rgb(0,255,0)" fill-opacity="0.5" />`,
+		`stroke="rgb(255,0,0)"`,
+		`stroke-opacity="0.75"`,
+		`stroke-width="2"`,
+		`fill="url(#hatch1)"`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("expected hatch pattern fragment %q in %q", want, content)
+		}
+	}
+}
+
+func TestHatchPatternDefsAreReused(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		var path geom.Path
+		path.MoveTo(geom.Pt{X: 0, Y: 0})
+		path.LineTo(geom.Pt{X: 10, Y: 0})
+		path.LineTo(geom.Pt{X: 10, Y: 10})
+		path.Close()
+		paint := &render.Paint{
+			Fill:           render.Color{A: 1},
+			Hatch:          "x",
+			HatchColor:     render.Color{A: 1},
+			HatchLineWidth: 1,
+		}
+		r.Path(path, paint)
+		r.Path(path, paint)
+	})
+
+	if got := strings.Count(content, `<pattern id="hatch`); got != 1 {
+		t.Fatalf("identical hatch metadata should share one pattern def, got %d in %q", got, content)
+	}
+	if got := strings.Count(content, `fill="url(#hatch1)"`); got != 2 {
+		t.Fatalf("both paths should reference shared hatch pattern, got %d refs in %q", got, content)
+	}
+}
+
+func TestPathForcedAlphaUsesElementOpacity(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		var path geom.Path
+		path.MoveTo(geom.Pt{X: 0, Y: 0})
+		path.LineTo(geom.Pt{X: 10, Y: 0})
+		path.LineTo(geom.Pt{X: 10, Y: 10})
+		path.Close()
+		r.Path(path, &render.Paint{
+			Fill:       render.Color{R: 1, A: 0.2},
+			Stroke:     render.Color{B: 1, A: 0.2},
+			LineWidth:  1,
+			ForceAlpha: true,
+			Alpha:      0.2,
+		})
+	})
+
+	if !strings.Contains(content, `opacity="0.2"`) {
+		t.Fatalf("forced-alpha path should carry element opacity, got %q", content)
+	}
+	if strings.Contains(content, `fill-opacity=`) || strings.Contains(content, `stroke-opacity=`) {
+		t.Fatalf("forced-alpha path should not double-apply per-color opacity, got %q", content)
+	}
+}
+
+func TestSupportsNativeHatch(t *testing.T) {
+	r := mustNewRenderer(t)
+	if !r.SupportsNativeHatch() {
+		t.Fatal("SVG renderer should advertise native hatch consumption")
+	}
+}
+
 func TestImageTransformedEmitsMatrixAttribute(t *testing.T) {
 	content := renderSVGDocument(t, func(r *Renderer) {
 		img := image.NewRGBA(image.Rect(0, 0, 2, 2))

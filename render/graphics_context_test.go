@@ -57,6 +57,27 @@ func TestGraphicsContextEffectivePaintCarriesRendererState(t *testing.T) {
 	}
 }
 
+func TestGraphicsContextEffectivePaintCombinesForcedAndContextAlpha(t *testing.T) {
+	gc := NewGraphicsContext().
+		WithAlpha(0.5).
+		WithForcedAlpha(0.25)
+	gc.Paint = Paint{
+		Stroke: Color{A: 1},
+		Fill:   Color{A: 1},
+	}
+
+	paint := gc.EffectivePaint()
+	if !paint.ForceAlpha {
+		t.Fatalf("effective paint lost force-alpha flag: %+v", paint)
+	}
+	if paint.Alpha != 0.125 {
+		t.Fatalf("effective forced alpha = %v, want 0.125", paint.Alpha)
+	}
+	if paint.Stroke.A != 0.125 || paint.Fill.A != 0.125 {
+		t.Fatalf("effective color alpha stroke=%v fill=%v, want 0.125/0.125", paint.Stroke.A, paint.Fill.A)
+	}
+}
+
 func TestGraphicsContextEffectivePaintCarriesEffectsAndMixedOutputState(t *testing.T) {
 	patternPath := geom.Path{
 		V: []geom.Pt{{X: 0, Y: 0}, {X: 1, Y: 1}},

@@ -16,9 +16,10 @@ func init() {
 			backends.TextShaping,
 			backends.ImageTransform,
 			backends.MarkerBatch,
+			backends.PathCollectionBatch,
+			backends.NativeHatcher,
 		},
 		FallbackCapabilities: []backends.Capability{
-			backends.PathCollectionBatch,
 			backends.QuadMeshBatch,
 		},
 		SaveFormats: map[string]backends.SaveHandler{
