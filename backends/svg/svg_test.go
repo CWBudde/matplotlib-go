@@ -469,7 +469,7 @@ func TestDrawTextVerticalEmitsOneNodePerRune(t *testing.T) {
 	}
 }
 
-func TestClipPathIsNoOpAndDoesNotReplaceRectClip(t *testing.T) {
+func TestClipPathNestsInsideActiveRectClip(t *testing.T) {
 	content := renderSVGDocument(t, func(r *Renderer) {
 		r.ClipRect(geom.Rect{
 			Min: geom.Pt{X: 10, Y: 15},
@@ -483,14 +483,104 @@ func TestClipPathIsNoOpAndDoesNotReplaceRectClip(t *testing.T) {
 		clipPath.Close()
 		r.ClipPath(clipPath)
 
-		r.DrawText("still-rect-clipped", geom.Pt{X: 20, Y: 30}, 12, render.Color{A: 1})
+		r.DrawText("clipped", geom.Pt{X: 20, Y: 30}, 12, render.Color{A: 1})
 	})
 
-	if strings.Count(content, "<clipPath") != 1 {
-		t.Fatalf("ClipPath should currently be a no-op and not add extra defs, got %q", content)
+	if got := strings.Count(content, "<clipPath"); got != 2 {
+		t.Fatalf("expected two clip defs (rect + path), got %d in %q", got, content)
 	}
 	if !strings.Contains(content, `<rect x="10" y="15" width="60" height="60" />`) {
-		t.Fatalf("expected rectangular clip to remain active, got %q", content)
+		t.Fatalf("expected rect clip def, got %q", content)
+	}
+	if !strings.Contains(content, `<path d="M 0 0 L 30 0 L 30 30 Z" />`) {
+		t.Fatalf("expected path clip def, got %q", content)
+	}
+
+	// Rect clip wraps the outer <g>; path clip nests inside.
+	re := regexp.MustCompile(`<g clip-path="url\(#(clip\d+)\)"><g clip-path="url\(#(clip\d+)\)"><text[^>]*>clipped</text></g></g>`)
+	matches := re.FindStringSubmatch(content)
+	if len(matches) != 3 {
+		t.Fatalf("expected rect-clip outer group wrapping path-clip inner group, got %q", content)
+	}
+	if matches[1] == matches[2] {
+		t.Fatalf("nested groups should reference distinct clip IDs, got %q", content)
+	}
+}
+
+func TestClipPathDedupesIdenticalPathsAcrossNodes(t *testing.T) {
+	makePath := func() geom.Path {
+		var p geom.Path
+		p.MoveTo(geom.Pt{X: 0, Y: 0})
+		p.LineTo(geom.Pt{X: 40, Y: 0})
+		p.LineTo(geom.Pt{X: 40, Y: 40})
+		p.Close()
+		return p
+	}
+
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.Save()
+		r.ClipPath(makePath())
+		r.DrawText("first", geom.Pt{X: 10, Y: 10}, 12, render.Color{A: 1})
+		r.Restore()
+
+		r.Save()
+		r.ClipPath(makePath())
+		r.DrawText("second", geom.Pt{X: 10, Y: 30}, 12, render.Color{A: 1})
+		r.Restore()
+	})
+
+	if got := strings.Count(content, "<clipPath"); got != 1 {
+		t.Fatalf("identical path clips should share one def, got %d in %q", got, content)
+	}
+	if got := strings.Count(content, `clip-path="url(#clip1)"`); got != 2 {
+		t.Fatalf("both nodes should reference the shared clip def, got %d refs in %q", got, content)
+	}
+}
+
+func TestClipPathStackUnwindsOnRestore(t *testing.T) {
+	makePath := func(offset float64) geom.Path {
+		var p geom.Path
+		p.MoveTo(geom.Pt{X: offset, Y: offset})
+		p.LineTo(geom.Pt{X: offset + 20, Y: offset})
+		p.LineTo(geom.Pt{X: offset + 20, Y: offset + 20})
+		p.Close()
+		return p
+	}
+
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.ClipPath(makePath(0))
+		r.Save()
+		r.ClipPath(makePath(50))
+		r.DrawText("nested", geom.Pt{X: 5, Y: 5}, 12, render.Color{A: 1})
+		r.Restore()
+		r.DrawText("popped", geom.Pt{X: 5, Y: 30}, 12, render.Color{A: 1})
+	})
+
+	// "nested" sees both clips; "popped" sees only the outer clip after Restore.
+	nestedRe := regexp.MustCompile(`<g clip-path="url\(#clip1\)"><g clip-path="url\(#clip2\)"><text[^>]*>nested</text></g></g>`)
+	if !nestedRe.MatchString(content) {
+		t.Fatalf("expected nested element wrapped in both clips, got %q", content)
+	}
+	poppedRe := regexp.MustCompile(`<g clip-path="url\(#clip1\)"><text[^>]*>popped</text></g>`)
+	if !poppedRe.MatchString(content) {
+		t.Fatalf("expected popped element wrapped in only the outer clip, got %q", content)
+	}
+	if strings.Contains(content, `<g clip-path="url(#clip2)"><text x="5" y="30"`) {
+		t.Fatalf("inner clip leaked past Restore, got %q", content)
+	}
+}
+
+func TestClipPathRejectsEmptyPath(t *testing.T) {
+	content := renderSVGDocument(t, func(r *Renderer) {
+		r.ClipPath(geom.Path{}) // empty path → no clip, no def
+		r.DrawText("unclipped", geom.Pt{X: 5, Y: 5}, 12, render.Color{A: 1})
+	})
+
+	if strings.Contains(content, "<clipPath") {
+		t.Fatalf("empty path should not register clip defs, got %q", content)
+	}
+	if strings.Contains(content, "clip-path=") {
+		t.Fatalf("empty path should not wrap content in clip groups, got %q", content)
 	}
 }
 

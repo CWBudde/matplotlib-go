@@ -13,7 +13,7 @@ import (
 type textBackend uint8
 
 const (
-	textBackendTrueType textBackend = iota
+	textBackendUnavailable textBackend = iota
 	textBackendRaster
 	textBackendGSV
 )
@@ -31,6 +31,17 @@ func (r *Renderer) configureTextFont(size float64, fontKey string) configuredTex
 		return configuredTextFont{}
 	}
 	if face := r.resolveTextFontFace(fontKey); fontReference(face) != "" {
+		if _, err := loadRasterFont(face); err != nil {
+			if !r.emergencyTextFallback {
+				return configuredTextFont{backend: textBackendUnavailable}
+			}
+			r.markEmergencyTextFallback()
+			return configuredTextFont{
+				backend:  textBackendGSV,
+				size:     math.Max(size, 6),
+				fallback: true,
+			}
+		}
 		return configuredTextFont{
 			backend:  textBackendRaster,
 			face:     face,
@@ -38,12 +49,23 @@ func (r *Renderer) configureTextFont(size float64, fontKey string) configuredTex
 			size:     size,
 		}
 	}
-	r.fallback = true
+	if !r.emergencyTextFallback {
+		return configuredTextFont{backend: textBackendUnavailable}
+	}
+	r.markEmergencyTextFallback()
 	return configuredTextFont{
 		backend:  textBackendGSV,
 		size:     math.Max(size, 6),
 		fallback: true,
 	}
+}
+
+func (r *Renderer) markEmergencyTextFallback() {
+	if r == nil {
+		return
+	}
+	r.fallback = true
+	r.emergencyTextFallbackUsed = true
 }
 
 func measureLocalGSVTextWidth(text string, size float64) float64 {

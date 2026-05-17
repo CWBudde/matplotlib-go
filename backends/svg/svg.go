@@ -28,17 +28,25 @@ const (
 )
 
 type state struct {
-	clipRect *geom.Rect
+	clipRect      *geom.Rect
+	clipPathDepth int
 }
 
 type svgNode struct {
 	content string
-	clipID  string
+	// clipIDs lists active clip-path defs in outer-to-inner order. An empty
+	// slice means the node is unclipped. The serializer wraps the content in
+	// nested <g clip-path="url(#…)"> groups, opening outer-most first.
+	clipIDs []string
 }
 
+// clipDef describes one <clipPath> entry in the SVG <defs> block. Exactly one
+// of rect or path is populated. Storing both in a single ordered slice keeps
+// emission in registration order so def IDs and document order stay aligned.
 type clipDef struct {
 	id   string
-	rect geom.Rect
+	rect *geom.Rect
+	path string
 }
 
 type fontFaceDef struct {
@@ -59,9 +67,12 @@ type Renderer struct {
 	resolution uint
 	background render.Color
 
-	nodes     []svgNode
-	clipDefs  map[string]string
-	clipOrder []clipDef
+	nodes         []svgNode
+	clipDefs      map[string]string // rect-key → clipDef ID
+	clipPathDefs  map[string]string // path data → clipDef ID
+	clipOrder     []clipDef         // registration-order defs (rects and paths interleaved)
+	clipPathStack []string          // active path-clip IDs in outer-to-inner order
+	clipIDCounter int
 
 	fontFaces     map[string]fontFaceDef
 	fontFaceOrder []fontFaceDef
@@ -91,13 +102,14 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	}
 
 	return &Renderer{
-		width:      w,
-		height:     h,
-		background: bg,
-		resolution: 72,
-		clipDefs:   map[string]string{},
-		fontFaces:  map[string]fontFaceDef{},
-		texManager: tex.NewManager(tex.ManagerConfig{}),
+		width:        w,
+		height:       h,
+		background:   bg,
+		resolution:   72,
+		clipDefs:     map[string]string{},
+		clipPathDefs: map[string]string{},
+		fontFaces:    map[string]fontFaceDef{},
+		texManager:   tex.NewManager(tex.ManagerConfig{}),
 	}, nil
 }
 
@@ -113,7 +125,10 @@ func (r *Renderer) Begin(viewport geom.Rect) error {
 	r.stack = r.stack[:0]
 	r.clipRect = nil
 	r.clipDefs = map[string]string{}
+	r.clipPathDefs = map[string]string{}
 	r.clipOrder = nil
+	r.clipPathStack = nil
+	r.clipIDCounter = 0
 	r.fontFaces = map[string]fontFaceDef{}
 	r.fontFaceOrder = nil
 	r.lastFontKey = ""
@@ -139,7 +154,10 @@ func (r *Renderer) Save() {
 		copyRect := *r.clipRect
 		clipCopy = &copyRect
 	}
-	r.stack = append(r.stack, state{clipRect: clipCopy})
+	r.stack = append(r.stack, state{
+		clipRect:      clipCopy,
+		clipPathDepth: len(r.clipPathStack),
+	})
 }
 
 // Restore pops the graphics state from the stack.
@@ -151,6 +169,9 @@ func (r *Renderer) Restore() {
 	s := r.stack[len(r.stack)-1]
 	r.stack = r.stack[:len(r.stack)-1]
 	r.clipRect = s.clipRect
+	if s.clipPathDepth < len(r.clipPathStack) {
+		r.clipPathStack = r.clipPathStack[:s.clipPathDepth]
+	}
 }
 
 // ClipRect sets a rectangular clip region.
@@ -165,9 +186,20 @@ func (r *Renderer) ClipRect(rect geom.Rect) {
 	r.clipRect = &intersected
 }
 
-// ClipPath sets a path-based clip region (not yet supported).
-func (r *Renderer) ClipPath(_ geom.Path) {
-	// Path clips are not fully modeled in the SVG backend for now.
+// ClipPath pushes a path-based clip region onto the active clip stack. Each
+// active path clip becomes its own <clipPath> def and the rendered content is
+// wrapped in nested <g clip-path="…"> groups (outer-most first) so SVG's
+// natural clip-on-clip composition applies.
+func (r *Renderer) ClipPath(p geom.Path) {
+	if !p.Validate() {
+		return
+	}
+	d := buildPathData(p)
+	if d == "" {
+		return
+	}
+	id := r.registerPathClip(d)
+	r.clipPathStack = append(r.clipPathStack, id)
 }
 
 // Path draws a path with the given paint style.
@@ -225,7 +257,7 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 
 	r.nodes = append(r.nodes, svgNode{
 		content: b.String(),
-		clipID:  r.currentClipID(),
+		clipIDs: r.currentClipIDs(),
 	})
 }
 
@@ -284,7 +316,7 @@ func (r *Renderer) renderImageNode(rgba *image.RGBA, dst geom.Rect, transform st
 
 	r.nodes = append(r.nodes, svgNode{
 		content: b.String(),
-		clipID:  r.currentClipID(),
+		clipIDs: r.currentClipIDs(),
 	})
 }
 
@@ -552,18 +584,24 @@ func (r *Renderer) renderSVG() string {
 			b.WriteString("    ]]></style>\n")
 		}
 		for _, clip := range r.clipOrder {
-			w := clip.rect.W()
-			h := clip.rect.H()
 			b.WriteString("    <clipPath id=\"" + clip.id + "\" clipPathUnits=\"userSpaceOnUse\">")
-			b.WriteString("<rect x=\"")
-			b.WriteString(formatFloat(clip.rect.Min.X))
-			b.WriteString(`" y="`)
-			b.WriteString(formatFloat(clip.rect.Min.Y))
-			b.WriteString(`" width="`)
-			b.WriteString(formatFloat(w))
-			b.WriteString(`" height="`)
-			b.WriteString(formatFloat(h))
-			b.WriteString(`" />`)
+			if clip.rect != nil {
+				w := clip.rect.W()
+				h := clip.rect.H()
+				b.WriteString("<rect x=\"")
+				b.WriteString(formatFloat(clip.rect.Min.X))
+				b.WriteString(`" y="`)
+				b.WriteString(formatFloat(clip.rect.Min.Y))
+				b.WriteString(`" width="`)
+				b.WriteString(formatFloat(w))
+				b.WriteString(`" height="`)
+				b.WriteString(formatFloat(h))
+				b.WriteString(`" />`)
+			} else {
+				b.WriteString(`<path d="`)
+				b.WriteString(clip.path)
+				b.WriteString(`" />`)
+			}
 			b.WriteString("</clipPath>\n")
 		}
 		b.WriteString("  </defs>\n")
@@ -587,16 +625,22 @@ func (r *Renderer) renderSVG() string {
 	}
 
 	for _, node := range r.nodes {
-		if node.clipID != "" {
-			b.WriteString("  <g clip-path=\"url(#")
-			b.WriteString(node.clipID)
-			b.WriteString(")\">")
+		if len(node.clipIDs) == 0 {
+			b.WriteString("  ")
 			b.WriteString(node.content)
-			b.WriteString("</g>\n")
+			b.WriteString("\n")
 			continue
 		}
 		b.WriteString("  ")
+		for _, id := range node.clipIDs {
+			b.WriteString("<g clip-path=\"url(#")
+			b.WriteString(id)
+			b.WriteString(")\">")
+		}
 		b.WriteString(node.content)
+		for range node.clipIDs {
+			b.WriteString("</g>")
+		}
 		b.WriteString("\n")
 	}
 
@@ -629,16 +673,27 @@ func (r *Renderer) renderTextNode(text string, x, y, size float64, textColor ren
 
 	r.nodes = append(r.nodes, svgNode{
 		content: content.String(),
-		clipID:  r.currentClipID(),
+		clipIDs: r.currentClipIDs(),
 	})
 }
 
-func (r *Renderer) currentClipID() string {
-	if r.clipRect == nil {
-		return ""
+// currentClipIDs returns the active clip-path chain in outer-to-inner order.
+// Returns nil when no clip is active.
+func (r *Renderer) currentClipIDs() []string {
+	count := len(r.clipPathStack)
+	if r.clipRect != nil {
+		count++
+	}
+	if count == 0 {
+		return nil
 	}
 
-	return r.registerClip(*r.clipRect)
+	ids := make([]string, 0, count)
+	if r.clipRect != nil {
+		ids = append(ids, r.registerClip(*r.clipRect))
+	}
+	ids = append(ids, r.clipPathStack...)
+	return ids
 }
 
 func (r *Renderer) registerClip(rect geom.Rect) string {
@@ -647,9 +702,23 @@ func (r *Renderer) registerClip(rect geom.Rect) string {
 		return id
 	}
 
-	id := "clip" + strconv.Itoa(len(r.clipDefs)+1)
+	r.clipIDCounter++
+	id := "clip" + strconv.Itoa(r.clipIDCounter)
 	r.clipDefs[key] = id
-	r.clipOrder = append(r.clipOrder, clipDef{id: id, rect: rect})
+	rectCopy := rect
+	r.clipOrder = append(r.clipOrder, clipDef{id: id, rect: &rectCopy})
+	return id
+}
+
+func (r *Renderer) registerPathClip(d string) string {
+	if id, ok := r.clipPathDefs[d]; ok {
+		return id
+	}
+
+	r.clipIDCounter++
+	id := "clip" + strconv.Itoa(r.clipIDCounter)
+	r.clipPathDefs[d] = id
+	r.clipOrder = append(r.clipOrder, clipDef{id: id, path: d})
 	return id
 }
 

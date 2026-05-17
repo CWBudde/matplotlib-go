@@ -653,9 +653,9 @@ Phase 8 has been condensed to remaining work only. Completed AGG, text, TeX, sha
 ### 8.2 AGG Text and Font Pipeline Paydown
 
 - [x] Replace the temporary DejaVu font-file bootstrap with an explicit font-resource strategy that can use embedded, shipped, and system fonts without leaking backend policy into draw calls.
-- [ ] Remove the GSV text fallback as a normal parity path; keep it only as an explicit emergency fallback with tests and diagnostics.
-- [ ] Match Matplotlib glyph bitmap compositing for antialiased and mono glyphs, including color-alpha application and clipping semantics.
-- [ ] Isolate text, path, and stroke state in the AGG surface so hidden draw-state resets and legacy font state no longer affect correctness.
+- [x] Remove the GSV text fallback as a normal parity path; keep it only as an explicit emergency fallback with tests and diagnostics.
+- [x] Match Matplotlib glyph bitmap compositing for antialiased and mono glyphs, including color-alpha application and clipping semantics.
+- [x] Isolate text, path, and stroke state in the AGG surface so hidden draw-state resets and legacy font state no longer affect correctness.
 
 ### 8.3 Hatch, Pattern, and Fallback Cleanup
 
@@ -1036,7 +1036,7 @@ Verification reference:
 
 - [ ] Audit SVG output against upstream `RendererSVG` for path serialization, clipping, transforms, opacity groups, hatches, markers, images, text-as-text, and text-as-path behavior.
 - [~] Add deterministic SVG serialization tests that normalize IDs, ordering, float formatting, and metadata so diffs are reviewable. *(Phase 1 landed: compact `shortFloat` mirrors matplotlib's `_short_float_fmt`, `rotateTransform` helper centralizes transform formatting, `TestSerializationDeterministic` and `TestShortFloat` pin behavior. Metadata normalization deferred to Phase 4.)*
-- [ ] Implement SVG clip paths, nested clip groups, and transformed clip paths consistently with the shared renderer clip contract.
+- [~] Implement SVG clip paths, nested clip groups, and transformed clip paths consistently with the shared renderer clip contract. *(Path clipping and nested clip groups landed: `ClipPath` now registers deduped `<clipPath>` defs and the serializer wraps content in nested `<g clip-path>` groups with rect outer / path inner. Transformed clip paths still pending — needs the matrix-transform refactor.)*
 - [ ] Add SVG support for hatches, alpha groups, raster image embedding, transformed images, and Gouraud/gradient fallbacks where vector-native output is practical.
 - [ ] Align SVG font handling with the shared font manager: preserve text when possible, emit path text when requested or required, and keep measurement behavior consistent with layout.
 - [ ] Route figure/filetype save dispatch through backend capabilities so `.svg` output uses the SVG backend without ad-hoc save helpers.

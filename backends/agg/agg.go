@@ -52,26 +52,28 @@ func defaultTextFontFace() render.FontFace {
 
 // Renderer implements render.Renderer using the AGG rendering backend.
 type Renderer struct {
-	ctx             *aggSurface
-	width           int
-	height          int
-	resolution      uint
-	began           bool
-	viewport        geom.Rect
-	stack           []state
-	clipRect        *geom.Rect
-	clipPaths       []geom.Path
-	clipMaskMap     map[clipMaskKey][]uint8
-	clipScratch     *aggSurface
-	clipDepth       int
-	filterStack     []filterState
-	defaultFontFace render.FontFace
-	fontPath        string // path to default TrueType font when one is available on disk
-	fallback        bool   // true if any text path had to fall back to GSV
-	lastFontKey     string
-	outlineText     *agglib.FreeTypeOutlineText
-	texManager      *tex.Manager
-	texErr          error
+	ctx                       *aggSurface
+	width                     int
+	height                    int
+	resolution                uint
+	began                     bool
+	viewport                  geom.Rect
+	stack                     []state
+	clipRect                  *geom.Rect
+	clipPaths                 []geom.Path
+	clipMaskMap               map[clipMaskKey][]uint8
+	clipScratch               *aggSurface
+	clipDepth                 int
+	filterStack               []filterState
+	defaultFontFace           render.FontFace
+	fontPath                  string // path to default TrueType font when one is available on disk
+	fallback                  bool   // true if emergency GSV text fallback was used
+	emergencyTextFallback     bool
+	emergencyTextFallbackUsed bool
+	lastFontKey               string
+	outlineText               *agglib.FreeTypeOutlineText
+	texManager                *tex.Manager
+	texErr                    error
 }
 
 // state represents a saved graphics state.
@@ -153,11 +155,25 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 	// legacy AGG text context; embedded resources are handled by the raster
 	// pipeline without writing a temporary font file.
 	r.fontPath = r.defaultFontFace.Path
-	if err := r.ctx.ConfigureTextFont(r.fontPath, 12, r.resolution); err != nil && nativeFreetypeVersion() == "" {
-		r.fallback = true
-	}
+	_ = r.ctx.ConfigureTextFont(r.fontPath, 12, r.resolution)
 
 	return r, nil
+}
+
+// SetEmergencyTextFallback enables or disables the legacy GSV vector text
+// fallback. It is disabled by default because it is a diagnostic/emergency path,
+// not a Matplotlib parity renderer.
+func (r *Renderer) SetEmergencyTextFallback(enabled bool) {
+	if r == nil {
+		return
+	}
+	r.emergencyTextFallback = enabled
+}
+
+// EmergencyTextFallbackUsed reports whether the explicit GSV emergency fallback
+// has been used by this renderer.
+func (r *Renderer) EmergencyTextFallbackUsed() bool {
+	return r != nil && r.emergencyTextFallbackUsed
 }
 
 // NativeFreetypeVersion returns the linked FreeType library version (e.g.
@@ -771,8 +787,6 @@ func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
 
 	font := r.configureTextFont(run.Size, r.lastFontKey)
 	if font.backend != textBackendRaster {
-		r.fallback = true
-		_ = r.drawGlyphRunLegacy(run, textColor, r.fontPixelSize(font.size))
 		return
 	}
 
@@ -780,7 +794,6 @@ func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
 		return
 	}
 
-	r.fallback = true
 	_ = r.drawGlyphRunLegacy(run, textColor, r.fontPixelSize(font.size))
 }
 
@@ -914,22 +927,15 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 		if metrics, ok := r.measureRasterText(text, font.face, font.size); ok {
 			return metrics
 		}
-		r.fallback = true
 		sizePx := r.fontPixelSize(font.size)
-		fontKey := fontReference(font.face)
-		w = measureLocalGSVTextWidth(text, sizePx)
-		if x, y, bw, h, ok := measureTextPathBounds(text, sizePx, fontKey); ok {
+		if x, y, bw, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
 			w = math.Max(w, x+bw)
 			ascent = math.Max(0, -y)
 			descent = math.Max(0, y+h)
-		} else if _, y, _, h, ok := measureLocalGSVTextBounds(text, sizePx); ok {
-			ascent = math.Max(0, -y)
-			descent = math.Max(0, y+h)
 		} else {
-			ascent = sizePx
-			descent = 0
+			return render.TextMetrics{}
 		}
-	default:
+	case textBackendGSV:
 		sizePx := r.fontPixelSize(font.size)
 		w = measureLocalGSVTextWidth(text, sizePx)
 		if _, y, _, h, ok := measureLocalGSVTextBounds(text, sizePx); ok {
@@ -939,6 +945,8 @@ func (r *Renderer) MeasureText(text string, size float64, fontKey string) render
 			ascent = sizePx
 			descent = 0
 		}
+	default:
+		return render.TextMetrics{}
 	}
 
 	h := ascent + descent
@@ -995,15 +1003,10 @@ func (r *Renderer) MeasureTextBounds(text string, size float64, fontKey string) 
 		}
 		return shaped.Bounds, true
 	}
-	r.fallback = true
-	if x, y, w, h, ok := measureTextPathBounds(text, sizePx, fontKey); ok {
+	if x, y, w, h, ok := measureTextPathBounds(text, sizePx, font.fontPath); ok {
 		return render.TextBounds{X: x, Y: y, W: w, H: h}, true
 	}
-	x, y, w, h, ok := measureLocalGSVTextBounds(text, sizePx)
-	if !ok {
-		return render.TextBounds{}, false
-	}
-	return render.TextBounds{X: x, Y: y, W: w, H: h}, true
+	return render.TextBounds{}, false
 }
 
 // MeasureFontHeights reports font-wide ascent, descent, and line-gap values
@@ -1048,15 +1051,8 @@ func (r *Renderer) MeasureFontHeights(size float64, fontKey string) (render.Font
 	}
 
 	if err := r.ctx.ConfigureTextFont(font.fontPath, font.size, r.resolution); err != nil {
-		r.fallback = true
 		sizePx := r.fontPixelSize(font.size)
-		if _, y, _, h, ok := measureTextPathBounds("lp", sizePx, fontReference(font.face)); ok {
-			return render.FontHeightMetrics{
-				Ascent:  math.Max(0, -y),
-				Descent: math.Max(0, y+h),
-			}, true
-		}
-		if _, y, _, h, ok := measureLocalGSVTextBounds("lp", sizePx); ok {
+		if _, y, _, h, ok := measureTextPathBounds("lp", sizePx, font.fontPath); ok {
 			return render.FontHeightMetrics{
 				Ascent:  math.Max(0, -y),
 				Descent: math.Max(0, y+h),
@@ -1156,20 +1152,18 @@ func (r *Renderer) drawTextDirect(text string, origin geom.Pt, size float64, tex
 			return
 		}
 		sizePx := r.fontPixelSize(font.size)
-		if r.drawTextPathFallback(text, origin, sizePx, textColor, fontReference(font.face)) {
+		if r.drawTextPathFallback(text, origin, sizePx, textColor, font.fontPath) {
 			return
 		}
-		r.fallback = true
-		fallthrough
-	default:
-		sizePx := r.fontPixelSize(font.size)
-		r.ctx.SetStrokeColor(renderColorToAGG(textColor))
-		r.ctx.SetStrokeWidth(math.Max(1, sizePx*0.08))
-		r.ctx.SetLineCap(agglib.CapRound)
-		r.ctx.SetLineJoin(agglib.JoinRound)
-		if appendLocalGSVText(r.ctx, origin.X, origin.Y, sizePx, text) {
-			r.ctx.Stroke()
+		if r.drawEmergencyGSVText(text, origin, font.size, textColor) {
+			return
 		}
+		return
+	case textBackendGSV:
+		_ = r.drawEmergencyGSVText(text, origin, font.size, textColor)
+	default:
+		_ = r.drawEmergencyGSVText(text, origin, size, textColor)
+		return
 	}
 }
 
@@ -1233,17 +1227,13 @@ func (r *Renderer) drawTextRotatedDirect(text string, anchor geom.Pt, size, angl
 				}
 			}
 		}
-		r.fallback = true
 	}
 
-	sizePx := r.fontPixelSize(font.size)
-	r.ctx.SetStrokeColor(renderColorToAGG(textColor))
-	r.ctx.SetStrokeWidth(math.Max(1, sizePx*0.08))
-	r.ctx.SetLineCap(agglib.CapRound)
-	r.ctx.SetLineJoin(agglib.JoinRound)
-	if appendLocalGSVText(r.ctx, origin.X, origin.Y, sizePx, text) {
-		r.ctx.Stroke()
+	if font.backend == textBackendGSV {
+		_ = r.drawEmergencyGSVText(text, origin, font.size, textColor)
+		return
 	}
+	_ = r.drawEmergencyGSVText(text, origin, size, textColor)
 }
 
 func (r *Renderer) fontPixelSize(size float64) float64 {
@@ -1265,6 +1255,34 @@ func (r *Renderer) drawTextPathFallback(text string, origin geom.Pt, size float6
 	r.Path(path, &render.Paint{
 		Fill: textColor,
 	})
+	return true
+}
+
+func (r *Renderer) drawEmergencyGSVText(text string, origin geom.Pt, size float64, textColor render.Color) bool {
+	if r == nil || r.ctx == nil || !r.emergencyTextFallback || text == "" || size <= 0 {
+		return false
+	}
+	lineWidth := r.ctx.painter.GetLineWidth()
+	lineCap := r.ctx.painter.GetLineCap()
+	lineJoin := r.ctx.painter.GetLineJoin()
+	lineColor := r.ctx.painter.GetLineColor()
+	defer func() {
+		r.ctx.painter.LineWidth(lineWidth)
+		r.ctx.painter.LineCap(lineCap)
+		r.ctx.painter.LineJoin(lineJoin)
+		r.ctx.painter.LineColor(lineColor)
+	}()
+
+	sizePx := r.fontPixelSize(size)
+	r.ctx.SetStrokeColor(renderColorToAGG(textColor))
+	r.ctx.SetStrokeWidth(math.Max(1, sizePx*0.08))
+	r.ctx.SetLineCap(agglib.CapRound)
+	r.ctx.SetLineJoin(agglib.JoinRound)
+	if !appendLocalGSVText(r.ctx, origin.X, origin.Y, sizePx, text) {
+		return false
+	}
+	r.ctx.Stroke()
+	r.markEmergencyTextFallback()
 	return true
 }
 
