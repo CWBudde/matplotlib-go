@@ -455,6 +455,27 @@ func TestPathPipelineChunksLargeOpenLinePaths(t *testing.T) {
 	}
 }
 
+func TestParallelRowRangesSplitLargeRegions(t *testing.T) {
+	region := pixelRegion{minY: 3, maxY: 103}
+	ranges := parallelRowRanges(region, 4)
+	if len(ranges) != 4 {
+		t.Fatalf("expected four row ranges, got %d: %+v", len(ranges), ranges)
+	}
+	if ranges[0].minY != 3 || ranges[len(ranges)-1].maxY != 103 {
+		t.Fatalf("ranges should cover the original region, got %+v", ranges)
+	}
+	for i := 1; i < len(ranges); i++ {
+		if ranges[i-1].maxY != ranges[i].minY {
+			t.Fatalf("ranges should be contiguous, got %+v", ranges)
+		}
+	}
+
+	small := parallelRowRanges(region, 1)
+	if len(small) != 1 || small[0] != region {
+		t.Fatalf("single worker should preserve the original region, got %+v", small)
+	}
+}
+
 func TestPathAntialiasModeRestoresGamma(t *testing.T) {
 	r := mustNew(t, 60, 60)
 	_ = r.Begin(geom.Rect{Min: geom.Pt{}, Max: geom.Pt{X: 60, Y: 60}})

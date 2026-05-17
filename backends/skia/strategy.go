@@ -1,0 +1,62 @@
+package skia
+
+// BindingStrategy names the selected integration boundary for the Skia backend.
+type BindingStrategy string
+
+const (
+	// BindingExternalCAPI means matplotlib-go will call a small, explicit C ABI
+	// wrapper around Skia instead of depending on unstable Go bindings directly.
+	BindingExternalCAPI BindingStrategy = "external-c-api"
+)
+
+// RenderMode describes a planned Skia rendering mode.
+type RenderMode string
+
+const (
+	ModeCPU RenderMode = "cpu"
+	ModeGPU RenderMode = "gpu"
+)
+
+// ImplementationStatus describes how far a strategy item has advanced.
+type ImplementationStatus string
+
+const (
+	StatusPlanned  ImplementationStatus = "planned"
+	StatusDeferred ImplementationStatus = "deferred"
+)
+
+// CIBackendPolicy describes which Skia path runs in default CI.
+type CIBackendPolicy string
+
+const (
+	CIDefaultStub CIBackendPolicy = "stub"
+)
+
+// Strategy records the binding/build policy for the Skia backend.
+type Strategy struct {
+	BuildTag          string
+	Binding           BindingStrategy
+	DefaultMode       RenderMode
+	CPUStatus         ImplementationStatus
+	GPUStatus         ImplementationStatus
+	CIDefault         CIBackendPolicy
+	RequiredLibraries []string
+}
+
+// BackendStrategy returns the documented Skia integration strategy. It is kept
+// as code so tests and docs can agree on the same build/dependency contract.
+func BackendStrategy() Strategy {
+	return Strategy{
+		BuildTag:    "skia",
+		Binding:     BindingExternalCAPI,
+		DefaultMode: ModeCPU,
+		CPUStatus:   StatusPlanned,
+		GPUStatus:   StatusDeferred,
+		CIDefault:   CIDefaultStub,
+		RequiredLibraries: []string{
+			"Skia shared library",
+			"C ABI wrapper library",
+			"CGO_ENABLED=1",
+		},
+	}
+}

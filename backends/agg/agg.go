@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"codeberg.org/go-fonts/dejavu/dejavusans"
@@ -2392,17 +2393,86 @@ func clearImageRegion(img *agglib.Image, region pixelRegion) {
 	if stride <= 0 {
 		return
 	}
-	for y := region.minY; y < region.maxY; y++ {
-		start := y*stride + region.minX*4
-		end := y*stride + region.maxX*4
-		if start < 0 {
-			start = 0
+	clearRows := func(rows pixelRegion) {
+		for y := rows.minY; y < rows.maxY; y++ {
+			start := y*stride + rows.minX*4
+			end := y*stride + rows.maxX*4
+			if start < 0 {
+				start = 0
+			}
+			if end > len(img.Data) {
+				end = len(img.Data)
+			}
+			clear(img.Data[start:end])
 		}
-		if end > len(img.Data) {
-			end = len(img.Data)
-		}
-		clear(img.Data[start:end])
 	}
+	runRowWorkers(region, clearRows)
+}
+
+const minParallelClipPixels = 65536
+
+func runRowWorkers(region pixelRegion, fn func(pixelRegion)) {
+	ranges := parallelRowRanges(region, parallelWorkersForRegion(region))
+	if len(ranges) <= 1 {
+		fn(region)
+		return
+	}
+	var wg sync.WaitGroup
+	wg.Add(len(ranges))
+	for _, rows := range ranges {
+		rows := rows
+		go func() {
+			defer wg.Done()
+			fn(rows)
+		}()
+	}
+	wg.Wait()
+}
+
+func parallelWorkersForRegion(region pixelRegion) int {
+	rows := region.maxY - region.minY
+	cols := region.maxX - region.minX
+	if rows <= 0 || cols <= 0 || rows*cols < minParallelClipPixels {
+		return 1
+	}
+	workers := runtime.GOMAXPROCS(0)
+	if workers < 1 {
+		return 1
+	}
+	if workers > rows {
+		workers = rows
+	}
+	return workers
+}
+
+func parallelRowRanges(region pixelRegion, workers int) []pixelRegion {
+	rows := region.maxY - region.minY
+	if rows <= 0 {
+		return nil
+	}
+	if workers <= 1 {
+		return []pixelRegion{region}
+	}
+	if workers > rows {
+		workers = rows
+	}
+	ranges := make([]pixelRegion, 0, workers)
+	base := rows / workers
+	extra := rows % workers
+	start := region.minY
+	for i := 0; i < workers; i++ {
+		n := base
+		if i < extra {
+			n++
+		}
+		next := start + n
+		part := region
+		part.minY = start
+		part.maxY = next
+		ranges = append(ranges, part)
+		start = next
+	}
+	return ranges
 }
 
 func (r *Renderer) compositeClipSurface(src *agglib.Image, masks [][]uint8, region pixelRegion) {
@@ -2419,29 +2489,33 @@ func (r *Renderer) compositeClipSurface(src *agglib.Image, masks [][]uint8, regi
 
 	srcStride := src.Stride()
 	dstStride := dst.Stride()
-	for y := region.minY; y < region.maxY; y++ {
-		for x := region.minX; x < region.maxX; x++ {
-			maskA := clipMaskAlpha(masks, r.width, x, y)
-			if maskA == 0 {
-				continue
+	width := r.width
+	compositeRows := func(rows pixelRegion) {
+		for y := rows.minY; y < rows.maxY; y++ {
+			for x := rows.minX; x < rows.maxX; x++ {
+				maskA := clipMaskAlpha(masks, width, x, y)
+				if maskA == 0 {
+					continue
+				}
+				srcOff := y*srcStride + x*4
+				dstOff := y*dstStride + x*4
+				if srcOff < 0 || srcOff+3 >= len(src.Data) || dstOff < 0 || dstOff+3 >= len(dst.Data) {
+					continue
+				}
+				sa := src.Data[srcOff+3]
+				if sa == 0 {
+					continue
+				}
+				blendPixelRGBA(dst.Data[dstOff:dstOff+4], render.Color{
+					R: float64(src.Data[srcOff]) / 255,
+					G: float64(src.Data[srcOff+1]) / 255,
+					B: float64(src.Data[srcOff+2]) / 255,
+					A: (float64(sa) / 255) * (float64(maskA) / 255),
+				})
 			}
-			srcOff := y*srcStride + x*4
-			dstOff := y*dstStride + x*4
-			if srcOff < 0 || srcOff+3 >= len(src.Data) || dstOff < 0 || dstOff+3 >= len(dst.Data) {
-				continue
-			}
-			sa := src.Data[srcOff+3]
-			if sa == 0 {
-				continue
-			}
-			blendPixelRGBA(dst.Data[dstOff:dstOff+4], render.Color{
-				R: float64(src.Data[srcOff]) / 255,
-				G: float64(src.Data[srcOff+1]) / 255,
-				B: float64(src.Data[srcOff+2]) / 255,
-				A: (float64(sa) / 255) * (float64(maskA) / 255),
-			})
 		}
 	}
+	runRowWorkers(region, compositeRows)
 }
 
 func clipMaskAlpha(masks [][]uint8, width, x, y int) uint8 {

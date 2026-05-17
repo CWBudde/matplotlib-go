@@ -90,6 +90,48 @@ func TestLine2D_DefaultsToButtCaps(t *testing.T) {
 	}
 }
 
+func TestLine2D_UsesRCPathOptimizationSettings(t *testing.T) {
+	line := &Line2D{
+		XY: []geom.Pt{
+			{X: 0, Y: 0},
+			{X: 1, Y: 0},
+		},
+		W:   1.0,
+		Col: render.Color{A: 1},
+	}
+
+	r := &recordingRenderer{}
+	rc := style.Default
+	rc.PathSimplify = true
+	rc.PathSimplifyThreshold = 0.25
+	rc.AggPathChunkSize = 4096
+	ctx := &DrawContext{
+		DataToPixel: Transform2D{
+			XScale:      transform.NewLinear(0, 1),
+			YScale:      transform.NewLinear(0, 1),
+			AxesToPixel: transform.NewAffine(geom.Identity()),
+		},
+		RC:   rc,
+		Clip: geom.Rect{},
+	}
+
+	line.Draw(r, ctx)
+
+	if len(r.pathCalls) != 1 {
+		t.Fatalf("expected one Path call, got %d", len(r.pathCalls))
+	}
+	paint := r.pathCalls[0].paint
+	if !paint.Simplify {
+		t.Fatalf("line paint should enable simplification from RC: %+v", paint)
+	}
+	if paint.SimplifyThreshold != 0.25 {
+		t.Fatalf("line simplify threshold = %v, want 0.25", paint.SimplifyThreshold)
+	}
+	if paint.MaxChunkVertices != 4096 {
+		t.Fatalf("line max chunk vertices = %d, want 4096", paint.MaxChunkVertices)
+	}
+}
+
 func TestLine2D_SetDashesUsesMatplotlibUnits(t *testing.T) {
 	line := &Line2D{
 		XY: []geom.Pt{

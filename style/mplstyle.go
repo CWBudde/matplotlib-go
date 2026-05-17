@@ -29,6 +29,7 @@ type MPLStyleReport struct {
 }
 
 var supportedMPLStyleKeys = []string{
+	"agg.path.chunksize",
 	"axes.edgecolor",
 	"axes.facecolor",
 	"axes.grid",
@@ -61,6 +62,8 @@ var supportedMPLStyleKeys = []string{
 	"legend.labelcolor",
 	"lines.color",
 	"lines.linewidth",
+	"path.simplify",
+	"path.simplify_threshold",
 	"text.color",
 	"text.usetex",
 	"xtick.color",
@@ -265,6 +268,24 @@ func applyMPLStyleEntry(state *mplStyleState, key, value string, lineNo int, rep
 		state.figureWidth = width
 		state.figureHeight = height
 		state.figureSizeSet = true
+	case "path.simplify":
+		parsed, err := parseMPLBool(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.rc.PathSimplify = parsed
+	case "path.simplify_threshold":
+		parsed, err := parseMPLFloat(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.rc.PathSimplifyThreshold = parsed
+	case "agg.path.chunksize":
+		parsed, err := parseMPLInt(value)
+		if err != nil {
+			return fmt.Errorf("parse %s on line %d: %w", key, lineNo, err)
+		}
+		state.rc.AggPathChunkSize = parsed
 	case "font.family":
 		parsed, err := parseMPLFontFamily(value)
 		if err != nil {
@@ -744,6 +765,15 @@ func parseMPLFloat(value string) (float64, error) {
 	parsed, err := strconv.ParseFloat(normalized, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid float %q", value)
+	}
+	return parsed, nil
+}
+
+func parseMPLInt(value string) (int, error) {
+	normalized := normalizeMPLValue(value)
+	parsed, err := strconv.Atoi(normalized)
+	if err != nil {
+		return 0, fmt.Errorf("invalid int %q", value)
 	}
 	return parsed, nil
 }

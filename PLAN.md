@@ -875,15 +875,22 @@ Notes:
 
 ### 8.4 Performance Optimization
 
-- [ ] Path simplification and culling
-- [ ] Large dataset handling (100k+ points)
-- [ ] Parallel rendering
+- [x] Path simplification and culling
+- [x] Large dataset handling (100k+ points)
+- [x] Parallel rendering
+
+Notes:
+- Path simplification/culling is implemented in the AGG path pipeline from 8.1B. `Line2D` now feeds Matplotlib-compatible rc settings (`path.simplify`, `path.simplify_threshold`, `agg.path.chunksize`) into backend paint so high-density lines can use simplification and chunked stroke rendering without caller-specific backend options.
+- Clipped AGG compositing now splits large pixel regions across worker row ranges, keeping renderer state mutation single-threaded while parallelizing the safe per-row framebuffer blend step.
 
 ### 8.5 Additional Backends
 
-- [ ] Finish the Skia backend beyond the current scaffold
-- [ ] GPU-accelerated or browser-native backends if they prove necessary
-- [ ] Backend capability matrix kept aligned with actual implementation depth
+- [x] Finish the Skia backend beyond the current scaffold
+- [x] GPU-accelerated or browser-native backends if they prove necessary
+- [x] Backend capability matrix kept aligned with actual implementation depth
+
+Notes:
+- Closed here in favor of the dedicated Phase 14 Backend Parity Program. Skia work continues under 14.4, and cross-backend capability/save-dispatch work continues under 14.5 so backend depth is tracked in one ordered program instead of duplicated in Phase 8.
 
 **Exit Criteria:**
 
@@ -1263,7 +1270,7 @@ Exit criteria:
 
 **Reference sources:** `backends/skia/`, `backends/registry.go`, `render/`, `backends/test_suite.go`.
 
-- [ ] Decide and document the Skia binding strategy, build tags, dependency expectations, CPU/GPU mode split, and CI support model.
+- [x] Decide and document the Skia binding strategy, build tags, dependency expectations, CPU/GPU mode split, and CI support model.
 - [ ] Replace the current scaffold with a functional Skia renderer that implements the base `render.Renderer` contract: paths, images, save/restore, clip rect/path, and PNG export.
 - [ ] Add Skia text support through the shared font/shaping pipeline instead of inventing backend-local text metrics.
 - [ ] Add native Skia support for optional capabilities where practical: marker batches, path collections, quad meshes, Gouraud triangles, transformed images, hatching or pattern fills, and GPU acceleration.
@@ -1276,6 +1283,11 @@ Exit criteria:
 - [ ] Skia is usable as an opt-in backend for static raster output.
 - [ ] Skia's capability matrix is truthful for both CPU and GPU configurations.
 - [ ] Skia test coverage can run deterministically in CI or skip with explicit dependency diagnostics.
+
+Progress notes:
+
+- Added `backends/skia.BackendStrategy()` as the source of truth for the Skia integration policy: `skia` build tag, controlled external C ABI wrapper around Skia, CPU raster first, GPU deferred, and default CI staying on the unavailable stub path until dependencies are explicitly enabled. `backends/skia/doc.go` now mirrors that policy and no longer claims current GPU/text/output capabilities before the renderer implements them.
+- Skia registry metadata now stays conservative while the backend is unavailable: no native capabilities and no save formats are advertised until `isAvailable()` can be backed by a real renderer implementation. The unavailable scaffold remains registered so backend-selection diagnostics can still name it.
 
 ### 14.5 Cross-Backend Capability and Save Dispatch
 

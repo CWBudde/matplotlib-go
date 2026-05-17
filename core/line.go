@@ -77,6 +77,11 @@ func (l *Line2D) Draw(r render.Renderer, ctx *DrawContext) {
 		Stroke:     l.Col,
 		Dashes:     lineDashesForPaint(l.Dashes, l.W, l.DashUnits),
 		Snap:       render.SnapAuto,
+		Simplify:   ctx != nil && ctx.RC.PathSimplify,
+	}
+	if ctx != nil {
+		paint.SimplifyThreshold = ctx.RC.PathSimplifyThreshold
+		paint.MaxChunkVertices = ctx.RC.AggPathChunkSize
 	}
 	r.Path(p, &paint)
 }

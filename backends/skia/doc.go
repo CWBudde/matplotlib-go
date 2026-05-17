@@ -1,36 +1,31 @@
-// Package skia provides a Skia-based renderer backend for matplotlib-go.
+// Package skia is the reserved Skia renderer backend for matplotlib-go.
 //
-// This backend uses Skia graphics library for high-quality anti-aliased
-// rendering with optional GPU acceleration.
+// # Strategy
 //
-// # Requirements
+// Skia is developed under PLAN.md 14.4, not as a Phase 8 side task. The chosen
+// integration strategy is recorded by BackendStrategy:
+//   - build tag: skia
+//   - binding: a small external C ABI wrapper around Skia
+//   - first implementation target: CPU raster output
+//   - GPU mode: deferred until the CPU path and capability reporting are stable
+//   - default CI: non-Skia stub builds; dependency-enabled Skia tests are gated
 //
-// This backend requires CGO and Skia C++ library bindings. Currently supports:
-//   - go-skia (github.com/go-gl/skia) - Pure Go bindings
-//   - skia-safe (via FFI) - Rust-based bindings with Go wrapper
-//
-// # Build Tags
-//
-// Use build tags to enable Skia support:
-//
-//	go build -tags skia ./...
+// The package deliberately does not depend on an unstable Go Skia binding. The
+// production backend should call a narrow C ABI that this repository controls,
+// keeping build failures and platform policy localized to the skia package.
 //
 // # Dependencies
 //
-// The Skia backend requires:
-//   - Skia shared library (.so/.dylib/.dll)
-//   - CGO_ENABLED=1
-//   - Platform-specific graphics drivers for GPU acceleration
+// A functional Skia build will require CGO_ENABLED=1, a Skia shared library, and
+// the matplotlib-go C ABI wrapper library. GPU mode will additionally require
+// platform-specific graphics drivers and context setup.
 //
-// # Capabilities
+// # Current Status
 //
-// The Skia backend provides:
-//   - High-quality anti-aliasing
-//   - GPU acceleration (optional)
-//   - Advanced text shaping
-//   - Path clipping support
-//   - Gradient fills
-//   - Multiple output formats (PNG, PDF, SVG)
+// Default builds compile the unavailable stub in skia_stub.go. The skia build
+// tag currently compiles a scaffold only; it is not registered as available
+// until the renderer implements the base render.Renderer contract and PNG
+// export. Capability claims must remain aligned with runtime interfaces.
 //
 // # Configuration
 //
@@ -44,9 +39,4 @@
 //			SampleCount: 4, // 4x MSAA
 //		},
 //	}
-//
-// # Status
-//
-// PHASE B: Stub implementation. Skia integration planned for later phases
-// when performance or quality demands exceed GoBasic capabilities.
 package skia

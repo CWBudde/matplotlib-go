@@ -6,32 +6,41 @@ import (
 )
 
 func init() {
-	// Register Skia backend with the global registry
-	backends.Register(backends.Skia, &backends.BackendInfo{
-		Name:        "Skia",
-		Description: "High-quality anti-aliased renderer with optional GPU acceleration",
-		Capabilities: []backends.Capability{
+	available := isAvailable()
+	capabilities := []backends.Capability(nil)
+	fallbackCapabilities := []backends.Capability(nil)
+	saveFormats := map[string]backends.SaveHandler(nil)
+	if available {
+		capabilities = []backends.Capability{
 			backends.AntiAliasing,
 			backends.SubPixel,
 			backends.GradientFill,
 			backends.PathClip,
-			backends.GPUAccel,
-			backends.VectorOutput,
 			backends.TextShaping,
 			backends.FontHinting,
-		},
-		FallbackCapabilities: []backends.Capability{
+			backends.PNGExport,
+		}
+		fallbackCapabilities = []backends.Capability{
 			backends.MarkerBatch,
 			backends.PathCollectionBatch,
 			backends.QuadMeshBatch,
-		},
-		SaveFormats: map[string]backends.SaveHandler{
+		}
+		saveFormats = map[string]backends.SaveHandler{
 			".png": backends.SavePNG,
-		},
+		}
+	}
+
+	// Register Skia backend with the global registry
+	backends.Register(backends.Skia, &backends.BackendInfo{
+		Name:                 "Skia",
+		Description:          "Reserved Skia renderer backend; unavailable until the Phase 14.4 implementation lands",
+		Capabilities:         capabilities,
+		FallbackCapabilities: fallbackCapabilities,
+		SaveFormats:          saveFormats,
 		Factory: func(config backends.Config) (render.Renderer, error) {
 			return New(config)
 		},
-		Available: isAvailable(),
+		Available: available,
 	})
 }
 
