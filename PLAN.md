@@ -861,6 +861,7 @@ Notes:
   - [x] Basic decomposed combining-mark composition when an NFC precomposed glyph exists
   - [x] Basic non-composed combining-mark fallback that centers mark outlines over the previous base glyph without expanding advance
   - [x] Basic visual-order bidi reordering for RTL spans while preserving logical byte clusters
+  - [x] Basic Arabic contextual presentation-form fallback for joining letters when the font provides those glyphs
   - [ ] True mark positioning for combining marks that do not compose to one glyph
   - [ ] Script-aware glyph selection and positional substitution for joining scripts
 - [ ] Backend-independent shaping layer or shaping-library integration

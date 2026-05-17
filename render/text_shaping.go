@@ -268,7 +268,8 @@ func shapeRunInputGlyphs(fontData *sfnt.Font, buf *sfnt.Buffer, text string, clu
 			}
 		}
 
-		glyphIndex, err := fontData.GlyphIndex(buf, r)
+		shapingRune := contextualArabicPresentationForm(fontData, buf, runes, i)
+		glyphIndex, err := fontData.GlyphIndex(buf, shapingRune)
 		if err != nil {
 			return nil, false
 		}
@@ -276,7 +277,7 @@ func shapeRunInputGlyphs(fontData *sfnt.Font, buf *sfnt.Buffer, text string, clu
 			continue
 		}
 		out = append(out, shapingGlyph{
-			Rune:       r,
+			Rune:       shapingRune,
 			Cluster:    cluster,
 			GlyphIndex: glyphIndex,
 		})
@@ -303,6 +304,102 @@ func composedGlyph(fontData *sfnt.Font, buf *sfnt.Buffer, runes []rune, cluster 
 
 func isCombiningMark(r rune) bool {
 	return unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r) || unicode.Is(unicode.Me, r)
+}
+
+type arabicForms struct {
+	isolated rune
+	final    rune
+	initial  rune
+	medial   rune
+}
+
+var arabicPresentationForms = map[rune]arabicForms{
+	'\u0627': {isolated: '\ufe8d', final: '\ufe8e'},
+	'\u0628': {isolated: '\ufe8f', final: '\ufe90', initial: '\ufe91', medial: '\ufe92'},
+	'\u0629': {isolated: '\ufe93', final: '\ufe94'},
+	'\u062a': {isolated: '\ufe95', final: '\ufe96', initial: '\ufe97', medial: '\ufe98'},
+	'\u062b': {isolated: '\ufe99', final: '\ufe9a', initial: '\ufe9b', medial: '\ufe9c'},
+	'\u062c': {isolated: '\ufe9d', final: '\ufe9e', initial: '\ufe9f', medial: '\ufea0'},
+	'\u062d': {isolated: '\ufea1', final: '\ufea2', initial: '\ufea3', medial: '\ufea4'},
+	'\u062e': {isolated: '\ufea5', final: '\ufea6', initial: '\ufea7', medial: '\ufea8'},
+	'\u062f': {isolated: '\ufea9', final: '\ufeaa'},
+	'\u0630': {isolated: '\ufeab', final: '\ufeac'},
+	'\u0631': {isolated: '\ufead', final: '\ufeae'},
+	'\u0632': {isolated: '\ufeaf', final: '\ufeb0'},
+	'\u0633': {isolated: '\ufeb1', final: '\ufeb2', initial: '\ufeb3', medial: '\ufeb4'},
+	'\u0634': {isolated: '\ufeb5', final: '\ufeb6', initial: '\ufeb7', medial: '\ufeb8'},
+	'\u0635': {isolated: '\ufeb9', final: '\ufeba', initial: '\ufebb', medial: '\ufebc'},
+	'\u0636': {isolated: '\ufebd', final: '\ufebe', initial: '\ufebf', medial: '\ufec0'},
+	'\u0637': {isolated: '\ufec1', final: '\ufec2', initial: '\ufec3', medial: '\ufec4'},
+	'\u0638': {isolated: '\ufec5', final: '\ufec6', initial: '\ufec7', medial: '\ufec8'},
+	'\u0639': {isolated: '\ufec9', final: '\ufeca', initial: '\ufecb', medial: '\ufecc'},
+	'\u063a': {isolated: '\ufecd', final: '\ufece', initial: '\ufecf', medial: '\ufed0'},
+	'\u0641': {isolated: '\ufed1', final: '\ufed2', initial: '\ufed3', medial: '\ufed4'},
+	'\u0642': {isolated: '\ufed5', final: '\ufed6', initial: '\ufed7', medial: '\ufed8'},
+	'\u0643': {isolated: '\ufed9', final: '\ufeda', initial: '\ufedb', medial: '\ufedc'},
+	'\u0644': {isolated: '\ufedd', final: '\ufede', initial: '\ufedf', medial: '\ufee0'},
+	'\u0645': {isolated: '\ufee1', final: '\ufee2', initial: '\ufee3', medial: '\ufee4'},
+	'\u0646': {isolated: '\ufee5', final: '\ufee6', initial: '\ufee7', medial: '\ufee8'},
+	'\u0647': {isolated: '\ufee9', final: '\ufeea', initial: '\ufeeb', medial: '\ufeec'},
+	'\u0648': {isolated: '\ufeed', final: '\ufeee'},
+	'\u0649': {isolated: '\ufeef', final: '\ufef0'},
+	'\u064a': {isolated: '\ufef1', final: '\ufef2', initial: '\ufef3', medial: '\ufef4'},
+}
+
+func contextualArabicPresentationForm(fontData *sfnt.Font, buf *sfnt.Buffer, runes []rune, i int) rune {
+	r := runes[i]
+	forms, ok := arabicPresentationForms[r]
+	if !ok {
+		return r
+	}
+	joinPrev := arabicJoinsPrevious(runes, i)
+	joinNext := arabicJoinsNext(runes, i)
+	candidate := forms.isolated
+	switch {
+	case joinPrev && joinNext && forms.medial != 0:
+		candidate = forms.medial
+	case joinPrev && forms.final != 0:
+		candidate = forms.final
+	case joinNext && forms.initial != 0:
+		candidate = forms.initial
+	}
+	if candidate == 0 {
+		return r
+	}
+	if glyphIndex, err := fontData.GlyphIndex(buf, candidate); err == nil && glyphIndex != 0 {
+		return candidate
+	}
+	return r
+}
+
+func arabicJoinsPrevious(runes []rune, i int) bool {
+	forms, ok := arabicPresentationForms[runes[i]]
+	if !ok || forms.final == 0 {
+		return false
+	}
+	for j := i - 1; j >= 0; j-- {
+		if isCombiningMark(runes[j]) {
+			continue
+		}
+		prev, ok := arabicPresentationForms[runes[j]]
+		return ok && prev.initial != 0
+	}
+	return false
+}
+
+func arabicJoinsNext(runes []rune, i int) bool {
+	forms, ok := arabicPresentationForms[runes[i]]
+	if !ok || forms.initial == 0 {
+		return false
+	}
+	for j := i + 1; j < len(runes); j++ {
+		if isCombiningMark(runes[j]) {
+			continue
+		}
+		next, ok := arabicPresentationForms[runes[j]]
+		return ok && next.final != 0
+	}
+	return false
 }
 
 func reorderDirectionalGlyphs(glyphs []shapingGlyph, direction TextDirection) {

@@ -248,6 +248,29 @@ func TestShapeTextReordersMixedLTRAndRTLText(t *testing.T) {
 	}
 }
 
+func TestShapeTextUsesArabicPresentationFormsForJoiningLetters(t *testing.T) {
+	withDejaVuFontManager(t)
+
+	base, ok := ShapeText("م", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(base.Glyphs) != 1 {
+		t.Fatalf("ShapeText Arabic base meem = %+v, %v; want one glyph", base, ok)
+	}
+	shaped, ok := ShapeText("مم", geom.Pt{}, 72, TextShapingOptions{FontKey: "DejaVu Sans"})
+	if !ok || len(shaped.Glyphs) != 2 {
+		t.Fatalf("ShapeText joined Arabic meem pair = %+v, %v; want two glyphs", shaped, ok)
+	}
+
+	if shaped.Glyphs[0].Cluster != 2 || shaped.Glyphs[1].Cluster != 0 {
+		t.Fatalf("Arabic visual clusters = [%d %d], want original byte offsets [2 0]", shaped.Glyphs[0].Cluster, shaped.Glyphs[1].Cluster)
+	}
+	if shaped.Glyphs[0].GlyphIndex == base.Glyphs[0].GlyphIndex || shaped.Glyphs[1].GlyphIndex == base.Glyphs[0].GlyphIndex {
+		t.Fatalf("joined Arabic glyphs should not reuse isolated base glyph: base=%+v joined=%+v", base.Glyphs, shaped.Glyphs)
+	}
+	if shaped.Glyphs[0].Rune != '\ufee2' || shaped.Glyphs[1].Rune != '\ufee3' {
+		t.Fatalf("joined Arabic runes = %U %U, want final then initial meem forms", shaped.Glyphs[0].Rune, shaped.Glyphs[1].Rune)
+	}
+}
+
 func TestTextPathBoundsUseSharedGlyphLayout(t *testing.T) {
 	withDejaVuFontManager(t)
 
