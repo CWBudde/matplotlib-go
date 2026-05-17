@@ -92,6 +92,7 @@ var (
 	_ render.TeXMetricer        = (*Renderer)(nil)
 	_ render.TeXDrawer          = (*Renderer)(nil)
 	_ render.RotatedTeXDrawer   = (*Renderer)(nil)
+	_ render.ImageTransformer   = (*Renderer)(nil)
 	_ render.SVGExporter        = (*Renderer)(nil)
 )
 
@@ -268,6 +269,26 @@ func (r *Renderer) Image(img render.Image, dst geom.Rect) {
 		return
 	}
 	r.renderImageNode(rgba, dst, "")
+}
+
+// ImageTransformed draws an image with an arbitrary affine transform applied
+// to the destination rectangle. The transform is emitted as an SVG
+// matrix(a b c d e f) so viewers reproduce the placement and skew/rotation
+// exactly, without rasterizing the image first.
+func (r *Renderer) ImageTransformed(img render.Image, dst geom.Rect, transform geom.Affine) {
+	rgba := asRGBAImage(img)
+	if rgba == nil {
+		return
+	}
+	r.renderImageNode(rgba, dst, matrixTransform(transform))
+}
+
+// matrixTransform formats a geom.Affine as an SVG matrix(a b c d e f) string.
+// The convention matches SVG's: (x', y') = (a*x + c*y + e, b*x + d*y + f).
+func matrixTransform(a geom.Affine) string {
+	return "matrix(" + shortFloat(a.A) + " " + shortFloat(a.B) + " " +
+		shortFloat(a.C) + " " + shortFloat(a.D) + " " +
+		shortFloat(a.E) + " " + shortFloat(a.F) + ")"
 }
 
 func (r *Renderer) renderImageNode(rgba *image.RGBA, dst geom.Rect, transform string) {

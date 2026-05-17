@@ -14,7 +14,7 @@ func init() {
 			backends.VectorOutput,
 			backends.PathClip,
 			backends.TextShaping,
-			backends.FontHinting,
+			backends.ImageTransform,
 		},
 		FallbackCapabilities: []backends.Capability{
 			backends.MarkerBatch,
