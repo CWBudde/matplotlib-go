@@ -131,24 +131,48 @@ patterns.
 
 ### 1.1 PDF Backend
 
-- [ ] Scaffold `backends/pdf/` following the SVG layout: deterministic
+- [x] Scaffold `backends/pdf/` following the SVG layout: deterministic
   serialization, dedicated `init.go` registration, `doc.go` capability notes.
-- [ ] Page model and content stream encoder: graphics state stack, path
+- [x] Page model and content stream encoder: graphics state stack, path
   construction (`m`/`l`/`c`/`re`/`h`/`f`/`S`), clip operators, color spaces.
 - [ ] Embedded font subsetting (Type 0 / CIDFontType2) using the shared font
   resource strategy that already drives AGG and SVG.
-- [ ] Text-as-text by default with a `FontPolicy: "path"` opt-out, matching
-  the SVG renderer's option surface.
+- [ ] Text-as-path opt-in via `render.TextPather` so PDF can render typography
+  without an embedded font program. Real text-as-text via embedded fonts
+  becomes the default once subsetting lands.
 - [ ] Image XObjects with `/FlateDecode` and `/DCTDecode`, including
   transparency groups for alpha images.
 - [ ] Native hatch via tiling pattern color spaces; native marker / path
   collection batches via form XObjects.
-- [ ] Metadata, `SOURCE_DATE_EPOCH`, and reproducible-output options on par
-  with the SVG renderer.
+- [x] Metadata, `SOURCE_DATE_EPOCH`, and reproducible-output options on par
+  with the SVG renderer (`render.PDFOptions`, `WithPDFFontPolicy`,
+  `WithPDFMetadata`, `WithPDFCreationDate`).
 - [ ] Structural test harness (analogous to `internal/svgcompare/`) for
   whitespace-insensitive PDF object comparison.
 - [ ] Golden fixtures for line, bar, scatter, hist, contour, imshow, polar,
   hatch_bars, text_layout, clipped, and image_transformed cases.
+
+Current slice landed:
+
+- `backends/pdf` package with `doc.go`, `init.go`, `pdf.go`, `pdf_test.go`,
+  `registry_test.go`. Renderer implements `render.Renderer`,
+  `render.PDFExporter`, `render.PDFOptionExporter`, `render.PDFOptionSetter`,
+  and `render.DPIAware`.
+- `backends.PDF` backend constant and `backends.PDFExport` capability with a
+  runtime-checked `PDFExporter` interface mapping. `VectorOutput` capability
+  now accepts either `SVGExporter` or `PDFExporter`.
+- PDF document writer with deterministic xref/trailer, single-page Catalog /
+  Pages / Page / Contents / Info object layout, FlateDecode-compressed content
+  stream, compact `shortFloat` formatter, quadratic-to-cubic curve promotion,
+  literal-string / name escaping, and `SOURCE_DATE_EPOCH`-aware
+  `/CreationDate`.
+- Save dispatch routes `.pdf` through `backends.SavePDF` and the registry
+  `saveViaExtension` fallback. `backends/all/all.go` side-imports the new
+  package.
+- Text drawing (`GlyphRun`) and raster images (`Image`) are no-ops for now;
+  the renderer is functional for path-only output and the remaining bullets
+  above slot in as incremental follow-ups without touching the public
+  surface.
 
 ### 1.2 PostScript and PGF Export
 

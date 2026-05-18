@@ -2,6 +2,7 @@ package render
 
 import (
 	"image"
+	"time"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
 )
@@ -254,6 +255,107 @@ type PNGExporter interface {
 // SVGExporter is implemented by renderers that can export their output to SVG.
 type SVGExporter interface {
 	SaveSVG(path string) error
+}
+
+// PDFExporter is implemented by renderers that can export their output to PDF.
+type PDFExporter interface {
+	SavePDF(path string) error
+}
+
+// PDFFontPolicy controls whether PDF text is emitted using embedded fonts or
+// converted to filled glyph paths.
+type PDFFontPolicy string
+
+const (
+	// PDFFontPolicyPath converts text to filled glyph outlines. This is the
+	// default for the initial PDF backend implementation because it does not
+	// require embedded font subsetting.
+	PDFFontPolicyPath PDFFontPolicy = "path"
+	// PDFFontPolicyEmbed embeds subsetted fonts and emits real PDF text
+	// objects. Currently reserved for future implementation.
+	PDFFontPolicyEmbed PDFFontPolicy = "embed"
+)
+
+// PDFOptions carries PDF-specific export and renderer behavior knobs.
+type PDFOptions struct {
+	FontPolicy PDFFontPolicy
+	// Metadata is written into the PDF /Info dictionary. Empty metadata maps
+	// produce a deterministic empty /Info entry.
+	Metadata map[string]string
+	// CreationDate optionally overrides the document creation date. When zero,
+	// the renderer reads SOURCE_DATE_EPOCH for reproducible output and falls
+	// back to the current time when neither is set.
+	CreationDate time.Time
+}
+
+// PDFOption mutates PDFOptions.
+type PDFOption func(*PDFOptions)
+
+// DefaultPDFOptions returns deterministic PDF defaults.
+func DefaultPDFOptions() PDFOptions {
+	return PDFOptions{FontPolicy: PDFFontPolicyPath}
+}
+
+// ResolvePDFOptions applies opts onto deterministic PDF defaults.
+func ResolvePDFOptions(opts ...PDFOption) PDFOptions {
+	cfg := DefaultPDFOptions()
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	cfg.Metadata = clonePDFMetadata(cfg.Metadata)
+	return cfg
+}
+
+// WithPDFFontPolicy configures embedded versus path-based text output.
+func WithPDFFontPolicy(policy PDFFontPolicy) PDFOption {
+	return func(cfg *PDFOptions) {
+		switch policy {
+		case PDFFontPolicyEmbed:
+			cfg.FontPolicy = PDFFontPolicyEmbed
+		default:
+			cfg.FontPolicy = PDFFontPolicyPath
+		}
+	}
+}
+
+// WithPDFMetadata adds deterministic metadata entries to the PDF /Info
+// dictionary.
+func WithPDFMetadata(metadata map[string]string) PDFOption {
+	return func(cfg *PDFOptions) {
+		cfg.Metadata = clonePDFMetadata(metadata)
+	}
+}
+
+// WithPDFCreationDate overrides the PDF creation date for reproducible output.
+func WithPDFCreationDate(t time.Time) PDFOption {
+	return func(cfg *PDFOptions) {
+		cfg.CreationDate = t
+	}
+}
+
+// PDFOptionExporter is implemented by PDF renderers that accept resolved
+// options at export time.
+type PDFOptionExporter interface {
+	SavePDFWithOptions(path string, opts PDFOptions) error
+}
+
+// PDFOptionSetter is implemented by renderers whose draw-time behavior depends
+// on PDFOptions, such as text-as-path policy and metadata.
+type PDFOptionSetter interface {
+	SetPDFOptions(opts PDFOptions)
+}
+
+func clonePDFMetadata(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 // SVGFontPolicy controls whether SVG text is emitted as native <text> nodes

@@ -19,7 +19,7 @@ const (
 	AGG     Backend = "agg"
 	Skia    Backend = "skia"
 	SVG     Backend = "svg"
-	// Future backends: PDF, SVG, etc.
+	PDF     Backend = "pdf"
 )
 
 // Capability represents a backend feature capability.
@@ -55,6 +55,7 @@ const (
 	MixedRasterVector Capability = "mixedrastervector"
 	PNGExport         Capability = "pngexport"
 	SVGExport         Capability = "svgexport"
+	PDFExport         Capability = "pdfexport"
 
 	// Batch drawing capabilities
 	MarkerBatch          Capability = "markerbatch"
@@ -102,8 +103,13 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 		return ok
 	},
 	VectorOutput: func(r render.Renderer) bool {
-		_, hasSVG := r.(render.SVGExporter)
-		return hasSVG
+		if _, hasSVG := r.(render.SVGExporter); hasSVG {
+			return true
+		}
+		if _, hasPDF := r.(render.PDFExporter); hasPDF {
+			return true
+		}
+		return false
 	},
 	PNGExport: func(r render.Renderer) bool {
 		_, ok := r.(render.PNGExporter)
@@ -111,6 +117,10 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 	},
 	SVGExport: func(r render.Renderer) bool {
 		_, ok := r.(render.SVGExporter)
+		return ok
+	},
+	PDFExport: func(r render.Renderer) bool {
+		_, ok := r.(render.PDFExporter)
 		return ok
 	},
 	TextBounds: func(r render.Renderer) bool {
@@ -310,6 +320,15 @@ func SavePNG(renderer render.Renderer, path string, _ ...render.SVGOption) error
 	return exporter.SavePNG(path)
 }
 
+// SavePDF saves using the renderer PDF export interface.
+func SavePDF(renderer render.Renderer, path string, _ ...render.SVGOption) error {
+	exporter, ok := renderer.(render.PDFExporter)
+	if !ok {
+		return fmt.Errorf("backends: renderer does not implement PDF export")
+	}
+	return exporter.SavePDF(path)
+}
+
 // SaveSVG saves using the renderer SVG export interface.
 func SaveSVG(renderer render.Renderer, path string, opts ...render.SVGOption) error {
 	exporter, ok := renderer.(render.SVGExporter)
@@ -495,6 +514,8 @@ func (i *BackendInfo) saveViaExtension(renderer render.Renderer, path string, op
 		return SavePNG(renderer, path, opts...)
 	case ".svg":
 		return SaveSVG(renderer, path, opts...)
+	case ".pdf":
+		return SavePDF(renderer, path, opts...)
 	default:
 		return fmt.Errorf("backends: unsupported save extension %q", ext)
 	}

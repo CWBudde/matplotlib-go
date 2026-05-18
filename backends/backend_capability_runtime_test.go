@@ -108,8 +108,18 @@ func TestSelectBackendForExtensionRoutesByCapability(t *testing.T) {
 		}
 	})
 
+	t.Run("pdf picks a PDF-capable backend", func(t *testing.T) {
+		backend, err := backends.SelectBackendForExtension("", ".pdf", nil)
+		if err != nil {
+			t.Fatalf("SelectBackendForExtension(.pdf): %v", err)
+		}
+		if backend != backends.PDF {
+			t.Errorf("expected PDF backend for .pdf, got %s", backend)
+		}
+	})
+
 	t.Run("unknown extension errors", func(t *testing.T) {
-		_, err := backends.SelectBackendForExtension("", ".pdf", nil)
+		_, err := backends.SelectBackendForExtension("", ".bogus", nil)
 		if err == nil {
 			t.Fatal("expected error for unsupported extension")
 		}
