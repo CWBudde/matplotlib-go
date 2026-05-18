@@ -137,17 +137,17 @@ patterns.
   construction (`m`/`l`/`c`/`re`/`h`/`f`/`S`), clip operators, color spaces.
 - [ ] Embedded font subsetting (Type 0 / CIDFontType2) using the shared font
   resource strategy that already drives AGG and SVG.
-- [ ] Text-as-path opt-in via `render.TextPather` so PDF can render typography
+- [x] Text-as-path opt-in via `render.TextPather` so PDF can render typography
   without an embedded font program. Real text-as-text via embedded fonts
   becomes the default once subsetting lands.
 - [ ] Image XObjects with `/FlateDecode` and `/DCTDecode`, including
   transparency groups for alpha images.
-- [ ] Native hatch via tiling pattern color spaces; native marker / path
-  collection batches via form XObjects.
+- [x] Native hatch via tiling pattern color spaces.
+- [x] Native marker / path collection batches via form XObjects.
 - [x] Metadata, `SOURCE_DATE_EPOCH`, and reproducible-output options on par
   with the SVG renderer (`render.PDFOptions`, `WithPDFFontPolicy`,
   `WithPDFMetadata`, `WithPDFCreationDate`).
-- [ ] Structural test harness (analogous to `internal/svgcompare/`) for
+- [x] Structural test harness (analogous to `internal/svgcompare/`) for
   whitespace-insensitive PDF object comparison.
 - [ ] Golden fixtures for line, bar, scatter, hist, contour, imshow, polar,
   hatch_bars, text_layout, clipped, and image_transformed cases.
@@ -169,10 +169,25 @@ Current slice landed:
 - Save dispatch routes `.pdf` through `backends.SavePDF` and the registry
   `saveViaExtension` fallback. `backends/all/all.go` side-imports the new
   package.
-- Text drawing (`GlyphRun`) and raster images (`Image`) are no-ops for now;
-  the renderer is functional for path-only output and the remaining bullets
-  above slot in as incremental follow-ups without touching the public
-  surface.
+- Text-as-path output now routes `TextPath`, font-keyed text, rotated text,
+  vertical text, and simple `GlyphRun` fallback through the shared font outline
+  pipeline. PDF advertises the matching text capabilities only via runtime
+  checked renderer interfaces.
+- Raster `Image` draws now emit `/Image` XObjects with deterministic
+  `/FlateDecode` streams and grayscale soft masks for RGBA alpha. JPEG
+  `/DCTDecode` passthrough and full transparency-group semantics remain open.
+- New `internal/pdfcompare` structural comparison helper parses indirect
+  objects, ignores xref offset noise, normalizes object token whitespace, and
+  decodes `/FlateDecode` streams before comparison. PDF backend tests exercise
+  it against generated output.
+- Native hatch fills now emit reusable PDF tiling pattern resources
+  (`/PatternType 1`) with deterministic pattern names and decoded structural
+  coverage through `internal/pdfcompare`.
+- Marker and path collection batches now emit reusable Form XObjects,
+  registered in the page `/XObject` resource dictionary and invoked with
+  per-item paint state, matching Matplotlib's PDF batching strategy.
+- Transformed images now implement `render.ImageTransformer` by reusing image
+  XObjects with arbitrary PDF `cm` matrices, covering rotated image placement.
 
 ### 1.2 PostScript and PGF Export
 

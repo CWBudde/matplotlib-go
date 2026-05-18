@@ -2,6 +2,8 @@ package pdf
 
 import (
 	"bytes"
+	"image"
+	"image/color"
 	"math"
 	"os"
 	"path/filepath"
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/internal/pdfcompare"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
@@ -141,6 +144,277 @@ func TestRendererPathFillsAndStrokes(t *testing.T) {
 	}
 }
 
+func TestRendererNativeHatchEmitsTilingPattern(t *testing.T) {
+	r := newTestRenderer(t)
+	hatcher, ok := any(r).(render.NativeHatcher)
+	if !ok {
+		t.Fatal("PDF renderer should implement render.NativeHatcher")
+	}
+	if !hatcher.SupportsNativeHatch() {
+		t.Fatal("PDF renderer should report native hatch support")
+	}
+
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	r.Path(pdfTestRectPath(10, 10, 60, 50), &render.Paint{
+		Fill:           render.Color{R: 0.9, G: 0.8, B: 0.7, A: 1},
+		Hatch:          "/",
+		HatchColor:     render.Color{R: 0.1, G: 0.2, B: 0.3, A: 1},
+		HatchLineWidth: 1.5,
+		HatchSpacing:   8,
+	})
+	raw := r.content.String()
+	if !strings.Contains(raw, "/Pattern cs") || !strings.Contains(raw, "/Pa1 scn") {
+		t.Fatalf("expected page content to select hatch pattern, got %q", raw)
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	data, err := r.Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+	doc, err := pdfcompare.Parse(data)
+	if err != nil {
+		t.Fatalf("pdfcompare.Parse: %v", err)
+	}
+	if !pdfDocumentBodyContains(doc, "/Pattern << /Pa1") {
+		t.Fatalf("page resources should reference hatch pattern Pa1; objects: %#v", doc.Objects)
+	}
+	patternBody := pdfDocumentObjectBodyContaining(doc, "/PatternType 1")
+	for _, want := range []string{
+		"/Type /Pattern",
+		"/PaintType 1",
+		"/TilingType 1",
+		"/XStep 72",
+		"/YStep 72",
+		"0.9 0.8 0.7 rg 0 0 72 72 re f",
+		"0.1 0.2 0.3 RG",
+		"1.5 w",
+		" S",
+	} {
+		if !strings.Contains(patternBody, want) {
+			t.Fatalf("hatch pattern object missing %q:\n%s", want, patternBody)
+		}
+	}
+}
+
+func TestDrawMarkersEmitsReusableFormXObject(t *testing.T) {
+	r := newTestRenderer(t)
+	drawer, ok := any(r).(render.MarkerDrawer)
+	if !ok {
+		t.Fatal("PDF renderer should implement render.MarkerDrawer")
+	}
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+
+	ok = drawer.DrawMarkers(render.MarkerBatch{
+		Marker: pdfTestTrianglePath(),
+		Items: []render.MarkerItem{
+			{
+				Offset: geom.Pt{X: 20, Y: 30},
+				Paint: render.Paint{
+					Fill:      render.Color{R: 1, A: 1},
+					Stroke:    render.Color{A: 1},
+					LineWidth: 2,
+				},
+				Antialiased: true,
+			},
+			{
+				Offset: geom.Pt{X: 40, Y: 50},
+				Paint: render.Paint{
+					Fill:      render.Color{G: 1, A: 1},
+					Stroke:    render.Color{A: 1},
+					LineWidth: 2,
+				},
+				Antialiased: true,
+			},
+		},
+	})
+	if !ok {
+		t.Fatal("DrawMarkers returned false")
+	}
+	if got := strings.Count(r.content.String(), "/M1 Do"); got != 2 {
+		t.Fatalf("expected two marker form invocations, got %d in %q", got, r.content.String())
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	doc := mustParsePDF(t, r)
+	if !pdfDocumentBodyContains(doc, "/XObject << /M1") {
+		t.Fatalf("page resources should reference marker form M1; objects: %#v", doc.Objects)
+	}
+	formBody := pdfDocumentObjectBodyContaining(doc, "/Subtype /Form")
+	for _, want := range []string{"/Type /XObject", "/Subtype /Form", "/BBox", " m ", " l ", "B"} {
+		if !strings.Contains(formBody, want) {
+			t.Fatalf("marker form object missing %q:\n%s", want, formBody)
+		}
+	}
+}
+
+func TestDrawPathCollectionEmitsFormXObjects(t *testing.T) {
+	r := newTestRenderer(t)
+	drawer, ok := any(r).(render.PathCollectionDrawer)
+	if !ok {
+		t.Fatal("PDF renderer should implement render.PathCollectionDrawer")
+	}
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+
+	ok = drawer.DrawPathCollection(render.PathCollectionBatch{Items: []render.PathCollectionItem{
+		{
+			Path: pdfTestRectPath(10, 10, 30, 25),
+			Paint: render.Paint{
+				Fill: render.Color{B: 1, A: 1},
+			},
+			Antialiased: true,
+		},
+		{
+			Path: pdfTestRectPath(40, 10, 65, 25),
+			Paint: render.Paint{
+				Stroke:    render.Color{R: 1, A: 1},
+				LineWidth: 1,
+			},
+			Antialiased: true,
+		},
+	}})
+	if !ok {
+		t.Fatal("DrawPathCollection returned false")
+	}
+	if !strings.Contains(r.content.String(), "/P1 Do") || !strings.Contains(r.content.String(), "/P2 Do") {
+		t.Fatalf("expected path collection form invocations, got %q", r.content.String())
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	doc := mustParsePDF(t, r)
+	if !pdfDocumentBodyContains(doc, "/XObject << /P1") || !pdfDocumentBodyContains(doc, "/P2") {
+		t.Fatalf("page resources should reference path collection forms; objects: %#v", doc.Objects)
+	}
+	if got := pdfDocumentObjectCountContaining(doc, "/Subtype /Form"); got < 2 {
+		t.Fatalf("expected at least two form XObjects, got %d; objects: %#v", got, doc.Objects)
+	}
+}
+
+func TestRendererImplementsTextAsPathInterfaces(t *testing.T) {
+	r := newTestRenderer(t)
+	if _, ok := any(r).(render.TextPather); !ok {
+		t.Fatal("PDF renderer should implement render.TextPather")
+	}
+	if _, ok := any(r).(render.FontTextDrawer); !ok {
+		t.Fatal("PDF renderer should implement render.FontTextDrawer")
+	}
+	if _, ok := any(r).(render.FontRotatedTextDrawer); !ok {
+		t.Fatal("PDF renderer should implement render.FontRotatedTextDrawer")
+	}
+}
+
+func TestRendererTextPathUsesSharedFontOutlines(t *testing.T) {
+	r := newTestRenderer(t)
+	path, ok := r.TextPath("Ag", geom.Pt{X: 10, Y: 30}, 14, "DejaVu Sans")
+	if !ok {
+		t.Fatal("TextPath returned !ok")
+	}
+	if !path.Validate() {
+		t.Fatalf("TextPath returned invalid path: commands=%d vertices=%d", len(path.C), len(path.V))
+	}
+	if len(path.C) == 0 {
+		t.Fatal("TextPath returned an empty outline")
+	}
+}
+
+func TestDrawTextWithFontEmitsFilledGlyphPath(t *testing.T) {
+	r := newTestRenderer(t)
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+
+	r.DrawTextWithFont("A", geom.Pt{X: 20, Y: 40}, 16, render.Color{R: 0.1, G: 0.2, B: 0.3, A: 1}, "DejaVu Sans")
+
+	raw := r.content.String()
+	if !strings.Contains(raw, "0.1 0.2 0.3 rg") {
+		t.Fatalf("expected text fill color in content stream, got %q", raw)
+	}
+	if !strings.Contains(raw, " m\n") || !strings.Contains(raw, "f\n") {
+		t.Fatalf("expected glyph outline path filled in content stream, got %q", raw)
+	}
+}
+
+func TestImageEmitsXObjectResourceAndDrawOperator(t *testing.T) {
+	r := newTestRenderer(t)
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	img := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	img.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
+	img.SetRGBA(1, 0, color.RGBA{B: 255, A: 255})
+
+	r.Image(render.NewImageData(img), geom.Rect{Min: geom.Pt{X: 10, Y: 20}, Max: geom.Pt{X: 50, Y: 40}})
+
+	raw := r.content.String()
+	if !strings.Contains(raw, "/Im1 Do") {
+		t.Fatalf("expected image draw operator in content stream, got %q", raw)
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	data, err := r.Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+	for _, want := range []string{"/XObject << /Im1", "/Subtype /Image", "/ColorSpace /DeviceRGB", "/Filter /FlateDecode"} {
+		if !bytes.Contains(data, []byte(want)) {
+			t.Fatalf("serialized PDF missing %q:\n%s", want, data)
+		}
+	}
+}
+
+func TestImageWithAlphaEmitsSoftMask(t *testing.T) {
+	r := newTestRenderer(t)
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.SetRGBA(0, 0, color.RGBA{R: 20, G: 40, B: 60, A: 128})
+
+	r.Image(render.NewImageData(img), geom.Rect{Min: geom.Pt{X: 10, Y: 20}, Max: geom.Pt{X: 30, Y: 40}})
+
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	data, err := r.Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+	for _, want := range []string{"/SMask", "/ColorSpace /DeviceGray"} {
+		if !bytes.Contains(data, []byte(want)) {
+			t.Fatalf("serialized PDF missing %q:\n%s", want, data)
+		}
+	}
+}
+
+func TestImageTransformedEmitsAffineImageMatrix(t *testing.T) {
+	r := newTestRenderer(t)
+	if _, ok := any(r).(render.ImageTransformer); !ok {
+		t.Fatal("PDF renderer should implement render.ImageTransformer")
+	}
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	img := image.NewRGBA(image.Rect(0, 0, 2, 3))
+	img.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
+
+	r.ImageTransformed(render.NewImageData(img), geom.Rect{Min: geom.Pt{X: 10, Y: 20}, Max: geom.Pt{X: 30, Y: 50}}, geom.Affine{
+		A: 2,
+		B: 0.5,
+		C: -1,
+		D: 3,
+		E: 7,
+		F: 11,
+	})
+
+	raw := r.content.String()
+	if !strings.Contains(raw, "4 1 -3 9 7 11 cm") || !strings.Contains(raw, "/Im1 Do") {
+		t.Fatalf("expected transformed image matrix and XObject invocation, got %q", raw)
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	doc := mustParsePDF(t, r)
+	if !pdfDocumentBodyContains(doc, "/XObject << /Im1") {
+		t.Fatalf("page resources should reference transformed image Im1; objects: %#v", doc.Objects)
+	}
+}
+
 func TestRendererClipRectEmitsRectangleClip(t *testing.T) {
 	r := newTestRenderer(t)
 	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
@@ -239,6 +513,35 @@ func TestSerializationDeterministic(t *testing.T) {
 	}
 }
 
+func TestGeneratedPDFStructuralCompareIgnoresXRefOffsetNoise(t *testing.T) {
+	r := newTestRenderer(t)
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 10, Y: 10})
+	p.LineTo(geom.Pt{X: 90, Y: 50})
+	r.Path(p, &render.Paint{Stroke: render.Color{A: 1}, LineWidth: 1})
+	r.DrawTextWithFont("A", geom.Pt{X: 20, Y: 70}, 12, render.Color{A: 1}, "DejaVu Sans")
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	data, err := r.Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+	noisy := rewriteXRefOffsetsForTest(data)
+	if bytes.Equal(data, noisy) {
+		t.Fatal("test setup failed: xref rewrite did not change the PDF bytes")
+	}
+
+	diff, err := pdfcompare.ParseAndDiff(data, noisy)
+	if err != nil {
+		t.Fatalf("ParseAndDiff: %v", err)
+	}
+	if diff != "" {
+		t.Fatalf("xref offset noise should not produce a structural diff, got: %s", diff)
+	}
+}
+
 func TestQuadraticPromotedToCubic(t *testing.T) {
 	r := newTestRenderer(t)
 	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
@@ -255,4 +558,101 @@ func TestQuadraticPromotedToCubic(t *testing.T) {
 	if !strings.Contains(raw, " c\n") {
 		t.Errorf("expected cubic-curve operator c in %q", raw)
 	}
+}
+
+func rewriteXRefOffsetsForTest(data []byte) []byte {
+	out := append([]byte(nil), data...)
+	xrefStart := bytes.Index(out, []byte("xref\n"))
+	trailerStart := bytes.Index(out, []byte("trailer\n"))
+	if xrefStart < 0 || trailerStart < 0 || trailerStart <= xrefStart {
+		return out
+	}
+	for i := xrefStart; i+20 <= trailerStart; i++ {
+		if (i == xrefStart || out[i-1] == '\n') && tenDigits(out[i:i+10]) && out[i+10] == ' ' {
+			copy(out[i:i+10], []byte("9999999999"))
+		}
+	}
+	startXRef := bytes.Index(out, []byte("startxref\n"))
+	if startXRef >= 0 {
+		valueStart := startXRef + len("startxref\n")
+		valueEnd := valueStart
+		for valueEnd < len(out) && out[valueEnd] >= '0' && out[valueEnd] <= '9' {
+			out[valueEnd] = '1'
+			valueEnd++
+		}
+	}
+	return out
+}
+
+func tenDigits(b []byte) bool {
+	if len(b) != 10 {
+		return false
+	}
+	for _, c := range b {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func pdfTestRectPath(x0, y0, x1, y1 float64) geom.Path {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: x0, Y: y0})
+	p.LineTo(geom.Pt{X: x1, Y: y0})
+	p.LineTo(geom.Pt{X: x1, Y: y1})
+	p.LineTo(geom.Pt{X: x0, Y: y1})
+	p.Close()
+	return p
+}
+
+func pdfTestTrianglePath() geom.Path {
+	var p geom.Path
+	p.MoveTo(geom.Pt{X: 0, Y: -4})
+	p.LineTo(geom.Pt{X: 4, Y: 4})
+	p.LineTo(geom.Pt{X: -4, Y: 4})
+	p.Close()
+	return p
+}
+
+func mustParsePDF(t *testing.T, r *Renderer) *pdfcompare.Document {
+	t.Helper()
+	data, err := r.Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+	doc, err := pdfcompare.Parse(data)
+	if err != nil {
+		t.Fatalf("pdfcompare.Parse: %v", err)
+	}
+	return doc
+}
+
+func pdfDocumentBodyContains(doc *pdfcompare.Document, needle string) bool {
+	return pdfDocumentObjectBodyContaining(doc, needle) != ""
+}
+
+func pdfDocumentObjectCountContaining(doc *pdfcompare.Document, needle string) int {
+	if doc == nil {
+		return 0
+	}
+	count := 0
+	for _, obj := range doc.Objects {
+		if strings.Contains(obj.Body, needle) {
+			count++
+		}
+	}
+	return count
+}
+
+func pdfDocumentObjectBodyContaining(doc *pdfcompare.Document, needle string) string {
+	if doc == nil {
+		return ""
+	}
+	for _, obj := range doc.Objects {
+		if strings.Contains(obj.Body, needle) {
+			return obj.Body
+		}
+	}
+	return ""
 }

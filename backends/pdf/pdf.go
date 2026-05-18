@@ -30,6 +30,49 @@ type state struct {
 	inContent bool
 }
 
+type pdfImage struct {
+	name     string
+	width    int
+	height   int
+	rgb      []byte
+	alpha    []byte
+	hasAlpha bool
+}
+
+type pdfImageObject struct {
+	pdfImage
+	objectID int
+	smaskID  int
+}
+
+type pdfHatchPattern struct {
+	name      string
+	hatch     string
+	faceColor render.Color
+	lineColor render.Color
+	lineWidth float64
+	spacing   float64
+}
+
+type pdfHatchPatternObject struct {
+	pdfHatchPattern
+	objectID int
+}
+
+type pdfFormXObject struct {
+	name     string
+	path     geom.Path
+	paintOp  string
+	bbox     geom.Rect
+	lineJoin render.LineJoin
+	lineCap  render.LineCap
+}
+
+type pdfFormXObjectObject struct {
+	pdfFormXObject
+	objectID int
+}
+
 // Renderer implements render.Renderer by emitting a PDF document.
 //
 // The renderer buffers a single content stream. Calling End() finalizes the
@@ -47,23 +90,38 @@ type Renderer struct {
 	stack []state
 
 	// content is the page content stream under construction.
-	content bytes.Buffer
+	content       bytes.Buffer
+	images        []pdfImage
+	hatchPatterns []pdfHatchPattern
+	hatchIDs      map[string]string
+	forms         []pdfFormXObject
+	formIDs       map[string]string
 	// document is the fully serialized PDF bytes ready for write.
 	document []byte
 
 	// pdfOpts carries setter-supplied options. SavePDFWithOptions overrides
 	// fields directly for that single call.
 	pdfOpts render.PDFOptions
+
+	lastFontKey string
 }
 
 // Compile-time interface assertions.
 var (
-	_ render.Renderer     = (*Renderer)(nil)
-	_ render.PNGExporter  = nil // explicitly not implemented
-	_ render.PDFExporter  = (*Renderer)(nil)
-	_ render.DPIAware     = (*Renderer)(nil)
-	_ render.PDFOptionExporter = (*Renderer)(nil)
-	_ render.PDFOptionSetter   = (*Renderer)(nil)
+	_ render.Renderer               = (*Renderer)(nil)
+	_ render.PNGExporter            = nil // explicitly not implemented
+	_ render.PDFExporter            = (*Renderer)(nil)
+	_ render.DPIAware               = (*Renderer)(nil)
+	_ render.ImageTransformer       = (*Renderer)(nil)
+	_ render.TextPather             = (*Renderer)(nil)
+	_ render.FontTextDrawer         = (*Renderer)(nil)
+	_ render.FontRotatedTextDrawer  = (*Renderer)(nil)
+	_ render.FontVerticalTextDrawer = (*Renderer)(nil)
+	_ render.NativeHatcher          = (*Renderer)(nil)
+	_ render.MarkerDrawer           = (*Renderer)(nil)
+	_ render.PathCollectionDrawer   = (*Renderer)(nil)
+	_ render.PDFOptionExporter      = (*Renderer)(nil)
+	_ render.PDFOptionSetter        = (*Renderer)(nil)
 )
 
 // New constructs a PDF renderer that produces a single-page document of the
@@ -107,6 +165,12 @@ func (r *Renderer) Begin(viewport geom.Rect) error {
 	r.content.Reset()
 	r.document = nil
 	r.stack = r.stack[:0]
+	r.images = r.images[:0]
+	r.hatchPatterns = r.hatchPatterns[:0]
+	r.hatchIDs = map[string]string{}
+	r.forms = r.forms[:0]
+	r.formIDs = map[string]string{}
+	r.lastFontKey = ""
 
 	// PDF's coordinate origin is bottom-left with +Y up. matplotlib-go uses a
 	// top-left origin with +Y down. Flip Y once at the top of the content
@@ -132,7 +196,7 @@ func (r *Renderer) End() error {
 		return errors.New("pdf: End called before Begin")
 	}
 	r.began = false
-	doc, err := buildDocument(r.width, r.height, r.content.Bytes(), r.pdfOpts)
+	doc, err := buildDocument(r.width, r.height, r.content.Bytes(), r.images, r.hatchPatterns, r.forms, r.pdfOpts)
 	if err != nil {
 		return err
 	}
@@ -184,12 +248,17 @@ func (r *Renderer) ClipPath(p geom.Path) {
 	r.content.WriteString("W n\n")
 }
 
+// SupportsNativeHatch reports that the PDF backend emits hatch fills as
+// native PDF tiling pattern resources.
+func (r *Renderer) SupportsNativeHatch() bool { return true }
+
 // Path draws a path using the provided paint.
 func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 	if !r.began || paint == nil {
 		return
 	}
-	hasFill := paint.Fill.A > 0
+	hasHatch := paint.Hatch != "" && paint.HatchColor.A > 0
+	hasFill := paint.Fill.A > 0 || hasHatch
 	hasStroke := paint.Stroke.A > 0 && paint.LineWidth > 0
 	if !hasFill && !hasStroke {
 		return
@@ -199,7 +268,11 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 	}
 
 	if hasFill {
-		writeFillColor(&r.content, paint.Fill)
+		if hasHatch {
+			writePatternFill(&r.content, r.registerHatchPattern(*paint))
+		} else {
+			writeFillColor(&r.content, paint.Fill)
+		}
 	}
 	if hasStroke {
 		writeStrokeColor(&r.content, paint.Stroke)
@@ -216,25 +289,219 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 	}
 }
 
-// Image draws a raster image into the destination rectangle. Image XObject
-// support is not yet implemented; this method is a no-op so callers fall back
-// to renderer-neutral expansion (typically a path-based placeholder).
-func (r *Renderer) Image(_ render.Image, _ geom.Rect) {
-	// TODO(phase1.1): emit /XObject /Image with FlateDecode pixel data.
+func (r *Renderer) registerHatchPattern(paint render.Paint) string {
+	if r.hatchIDs == nil {
+		r.hatchIDs = map[string]string{}
+	}
+	lineWidth := paint.HatchLineWidth
+	if lineWidth <= 0 {
+		lineWidth = 1
+	}
+	spacing := paint.HatchSpacing
+	if spacing <= 0 {
+		spacing = 8
+	}
+	key := hatchPatternKey(paint.Hatch, paint.Fill, paint.HatchColor, lineWidth, spacing)
+	if id, ok := r.hatchIDs[key]; ok {
+		return id
+	}
+	id := fmt.Sprintf("Pa%d", len(r.hatchPatterns)+1)
+	r.hatchIDs[key] = id
+	r.hatchPatterns = append(r.hatchPatterns, pdfHatchPattern{
+		name:      id,
+		hatch:     paint.Hatch,
+		faceColor: paint.Fill,
+		lineColor: paint.HatchColor,
+		lineWidth: lineWidth,
+		spacing:   spacing,
+	})
+	return id
 }
 
-// GlyphRun draws shaped glyphs. The initial backend has no font subsetting,
-// so glyph drawing is a no-op. Callers can wrap the renderer in a TextPather
-// shim to render text-as-path.
-func (r *Renderer) GlyphRun(_ render.GlyphRun, _ render.Color) {
-	// TODO(phase1.1): route through the text-as-path fallback.
+// DrawMarkers renders one marker path at many display-space offsets using a
+// reusable Form XObject for the marker geometry.
+func (r *Renderer) DrawMarkers(batch render.MarkerBatch) bool {
+	if !r.began || len(batch.Marker.C) == 0 || len(batch.Items) == 0 || !batch.Marker.Validate() {
+		return false
+	}
+	emitted := false
+	for i := range batch.Items {
+		item := batch.Items[i]
+		marker := affinePath(batch.Marker, item.Transform)
+		if !marker.Validate() || len(marker.C) == 0 {
+			continue
+		}
+		paint := item.Paint
+		paintOp := paintOperator(&paint)
+		if paintOp == "" {
+			continue
+		}
+		name := r.registerFormXObject("M", marker, paintOp, &paint)
+		r.writePaintState(&paint)
+		fmt.Fprintf(&r.content, "q\n1 0 0 1 %s %s cm\n/%s Do\nQ\n",
+			shortFloat(item.Offset.X),
+			shortFloat(item.Offset.Y),
+			name,
+		)
+		emitted = true
+	}
+	return emitted
+}
+
+// DrawPathCollection renders display-space paths through Form XObject
+// templates with per-item paint state applied at invocation time.
+func (r *Renderer) DrawPathCollection(batch render.PathCollectionBatch) bool {
+	if !r.began || len(batch.Items) == 0 {
+		return false
+	}
+	emitted := false
+	for i := range batch.Items {
+		item := batch.Items[i]
+		if !item.Path.Validate() || len(item.Path.C) == 0 {
+			continue
+		}
+		paint := item.Paint
+		if item.Hatch != "" {
+			paint.Hatch = item.Hatch
+			paint.HatchColor = item.HatchColor
+			paint.HatchLineWidth = item.HatchWidth
+			paint.HatchSpacing = item.HatchSpacing
+		}
+		paintOp := paintOperator(&paint)
+		if paintOp == "" {
+			continue
+		}
+		name := r.registerFormXObject("P", item.Path, paintOp, &paint)
+		r.writePaintState(&paint)
+		fmt.Fprintf(&r.content, "/%s Do\n", name)
+		emitted = true
+	}
+	return emitted
+}
+
+func (r *Renderer) registerFormXObject(prefix string, path geom.Path, paintOp string, paint *render.Paint) string {
+	if r.formIDs == nil {
+		r.formIDs = map[string]string{}
+	}
+	key := formXObjectKey(prefix, path, paintOp, paint)
+	if id, ok := r.formIDs[key]; ok {
+		return id
+	}
+	name := fmt.Sprintf("%s%d", prefix, len(r.forms)+1)
+	bbox, ok := pathBounds(path)
+	if !ok {
+		bbox = geom.Rect{}
+	}
+	padding := formPadding(paint)
+	bbox = bbox.Inflate(padding, padding)
+	r.formIDs[key] = name
+	r.forms = append(r.forms, pdfFormXObject{
+		name:     name,
+		path:     clonePath(path),
+		paintOp:  paintOp,
+		bbox:     bbox,
+		lineJoin: paint.LineJoin,
+		lineCap:  paint.LineCap,
+	})
+	return name
+}
+
+// Image draws a raster image into the destination rectangle as a PDF image
+// XObject. RGBA images with alpha get a grayscale soft mask.
+func (r *Renderer) Image(img render.Image, dst geom.Rect) {
+	if !r.began || img == nil || dst.W() <= 0 || dst.H() <= 0 {
+		return
+	}
+	matrix := geom.Affine{A: dst.W(), D: dst.H(), E: dst.Min.X, F: dst.Min.Y}
+	r.drawImageWithMatrix(img, matrix)
+}
+
+// ImageTransformed draws a raster image through an arbitrary affine transform.
+// The affine maps source image pixels into display coordinates; PDF image
+// XObjects paint a unit square, so the current transformation matrix includes
+// the source image dimensions.
+func (r *Renderer) ImageTransformed(img render.Image, _ geom.Rect, transform geom.Affine) {
+	if !r.began || img == nil {
+		return
+	}
+	w, h := img.Size()
+	if w <= 0 || h <= 0 {
+		return
+	}
+	matrix := geom.Affine{
+		A: transform.A * float64(w),
+		B: transform.B * float64(w),
+		C: transform.C * float64(h),
+		D: transform.D * float64(h),
+		E: transform.E,
+		F: transform.F,
+	}
+	r.drawImageWithMatrix(img, matrix)
+}
+
+func (r *Renderer) drawImageWithMatrix(img render.Image, matrix geom.Affine) {
+	rgbaSource, ok := img.(render.RGBAImage)
+	if !ok || rgbaSource.RGBA() == nil {
+		return
+	}
+	pdfImg, ok := encodePDFImage(
+		fmt.Sprintf("Im%d", len(r.images)+1),
+		rgbaSource.RGBA(),
+		imageAlphaMultiplier(img),
+	)
+	if !ok {
+		return
+	}
+	r.images = append(r.images, pdfImg)
+	fmt.Fprintf(&r.content, "q\n%s %s %s %s %s %s cm\n/%s Do\nQ\n",
+		shortFloat(matrix.A),
+		shortFloat(matrix.B),
+		shortFloat(matrix.C),
+		shortFloat(matrix.D),
+		shortFloat(matrix.E),
+		shortFloat(matrix.F),
+		pdfImg.name,
+	)
+}
+
+// GlyphRun draws shaped glyphs as filled outlines. GlyphRun only carries glyph
+// IDs, so this remains a practical fallback for simple code-point-shaped runs
+// until embedded font subsetting lands.
+func (r *Renderer) GlyphRun(run render.GlyphRun, textColor render.Color) {
+	if len(run.Glyphs) == 0 {
+		return
+	}
+	if run.FontKey != "" {
+		r.lastFontKey = run.FontKey
+	}
+	size := run.Size
+	if size <= 0 {
+		size = 12
+	}
+	penX := run.Origin.X
+	penY := run.Origin.Y
+	for _, glyph := range run.Glyphs {
+		if glyph.ID != 0 {
+			text := string(rune(glyph.ID))
+			origin := geom.Pt{X: penX + glyph.Offset.X, Y: penY + glyph.Offset.Y}
+			r.DrawTextWithFont(text, origin, size, textColor, r.lastFontKey)
+		}
+		advance := glyph.Advance
+		if advance <= 0 && glyph.ID != 0 {
+			advance = r.MeasureText(string(rune(glyph.ID)), size, r.lastFontKey).W
+		}
+		penX += advance
+	}
 }
 
 // MeasureText returns rough metrics so layout code does not divide by zero.
 // A future revision will plumb in the shared font manager.
-func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextMetrics {
+func (r *Renderer) MeasureText(text string, size float64, fontKey string) render.TextMetrics {
 	if text == "" {
 		return render.TextMetrics{}
+	}
+	if fontKey != "" {
+		r.lastFontKey = fontKey
 	}
 	if size <= 0 {
 		size = defaultFontHeight
@@ -247,6 +514,94 @@ func (r *Renderer) MeasureText(text string, size float64, _ string) render.TextM
 		H:       size,
 		Ascent:  size * 0.8,
 		Descent: size * 0.2,
+	}
+}
+
+// TextPath converts text to vector glyph outlines through the shared font
+// manager. This mirrors Matplotlib's text-as-path PDF mode until Type 0 font
+// subsetting is implemented.
+func (r *Renderer) TextPath(text string, origin geom.Pt, size float64, fontKey string) (geom.Path, bool) {
+	if fontKey != "" {
+		r.lastFontKey = fontKey
+	} else {
+		fontKey = r.lastFontKey
+	}
+	return render.TextPath(text, origin, size, fontKey)
+}
+
+// DrawText renders text as filled glyph paths using the most recently resolved
+// font key when one has been primed by MeasureText or DrawTextWithFont.
+func (r *Renderer) DrawText(text string, origin geom.Pt, size float64, textColor render.Color) {
+	r.DrawTextWithFont(text, origin, size, textColor, r.lastFontKey)
+}
+
+// DrawTextWithFont renders text as filled glyph paths using an explicit font.
+func (r *Renderer) DrawTextWithFont(text string, origin geom.Pt, size float64, textColor render.Color, fontKey string) {
+	if !r.began || text == "" || size <= 0 || textColor.A <= 0 {
+		return
+	}
+	path, ok := r.TextPath(text, origin, size, fontKey)
+	if !ok {
+		return
+	}
+	r.Path(path, &render.Paint{Fill: textColor})
+}
+
+// DrawTextRotated renders text as outlines around Matplotlib's bottom-center
+// rotated-text anchor.
+func (r *Renderer) DrawTextRotated(text string, anchor geom.Pt, size, angle float64, textColor render.Color) {
+	r.DrawTextRotatedWithFont(text, anchor, size, angle, textColor, r.lastFontKey)
+}
+
+// DrawTextRotatedWithFont renders rotated text as filled glyph paths.
+func (r *Renderer) DrawTextRotatedWithFont(text string, anchor geom.Pt, size, angle float64, textColor render.Color, fontKey string) {
+	if !r.began || text == "" || size <= 0 || textColor.A <= 0 || math.IsNaN(angle) || math.IsInf(angle, 0) {
+		return
+	}
+	metrics := r.MeasureText(text, size, fontKey)
+	if metrics.W <= 0 || metrics.H <= 0 {
+		return
+	}
+	origin := geom.Pt{
+		X: anchor.X - metrics.W/2,
+		Y: anchor.Y - metrics.Descent,
+	}
+	path, ok := r.TextPath(text, origin, size, fontKey)
+	if !ok {
+		return
+	}
+	path = affinePath(path, rotationAffine(angle, anchor))
+	r.Path(path, &render.Paint{Fill: textColor})
+}
+
+// DrawTextVertical renders one character per line as filled glyph paths.
+func (r *Renderer) DrawTextVertical(text string, center geom.Pt, size float64, textColor render.Color) {
+	r.DrawTextVerticalWithFont(text, center, size, textColor, r.lastFontKey)
+}
+
+// DrawTextVerticalWithFont renders vertical text with an explicit font key.
+func (r *Renderer) DrawTextVerticalWithFont(text string, center geom.Pt, size float64, textColor render.Color, fontKey string) {
+	if !r.began || text == "" || size <= 0 || textColor.A <= 0 {
+		return
+	}
+	runes := []rune(text)
+	lineMetrics := r.MeasureText("M", size, fontKey)
+	lineH := lineMetrics.H
+	if lineH <= 0 {
+		lineH = size
+	}
+	totalH := lineH * float64(len(runes))
+	y := center.Y - totalH/2 + lineMetrics.Ascent
+	for _, ch := range runes {
+		s := string(ch)
+		chMetrics := r.MeasureText(s, size, fontKey)
+		if chMetrics.W <= 0 || chMetrics.H <= 0 {
+			y += lineH
+			continue
+		}
+		origin := geom.Pt{X: center.X - chMetrics.W/2, Y: y}
+		r.DrawTextWithFont(s, origin, size, textColor, fontKey)
+		y += lineH
 	}
 }
 
@@ -264,7 +619,7 @@ func (r *Renderer) SavePDFWithOptions(path string, opts render.PDFOptions) error
 	if !r.began && len(r.document) == 0 {
 		return errors.New("pdf: SavePDFWithOptions called before End")
 	}
-	doc, err := buildDocument(r.width, r.height, r.content.Bytes(), opts)
+	doc, err := buildDocument(r.width, r.height, r.content.Bytes(), r.images, r.hatchPatterns, r.forms, opts)
 	if err != nil {
 		return err
 	}
@@ -388,6 +743,26 @@ func writeStrokeColor(w *bytes.Buffer, c render.Color) {
 	)
 }
 
+func writePatternFill(w *bytes.Buffer, name string) {
+	fmt.Fprintf(w, "/Pattern cs\n/%s scn\n", escapeName(name))
+}
+
+func (r *Renderer) writePaintState(paint *render.Paint) {
+	if paint == nil {
+		return
+	}
+	hasHatch := paint.Hatch != "" && paint.HatchColor.A > 0
+	if hasHatch {
+		writePatternFill(&r.content, r.registerHatchPattern(*paint))
+	} else if paint.Fill.A > 0 {
+		writeFillColor(&r.content, paint.Fill)
+	}
+	if paint.Stroke.A > 0 && paint.LineWidth > 0 {
+		writeStrokeColor(&r.content, paint.Stroke)
+		writeLineState(&r.content, paint)
+	}
+}
+
 func writeLineState(w *bytes.Buffer, paint *render.Paint) {
 	if paint.LineWidth > 0 {
 		fmt.Fprintf(w, "%s w\n", shortFloat(paint.LineWidth))
@@ -455,12 +830,232 @@ func clamp01(v float64) float64 {
 	return v
 }
 
+func rotationAffine(angle float64, pivot geom.Pt) geom.Affine {
+	cos := math.Cos(angle)
+	sin := math.Sin(angle)
+	return translateAffine(pivot).
+		Mul(geom.Affine{A: cos, B: sin, C: -sin, D: cos}).
+		Mul(translateAffine(geom.Pt{X: -pivot.X, Y: -pivot.Y}))
+}
+
+func translateAffine(p geom.Pt) geom.Affine {
+	return geom.Affine{A: 1, D: 1, E: p.X, F: p.Y}
+}
+
+func affinePath(path geom.Path, affine geom.Affine) geom.Path {
+	if len(path.V) == 0 {
+		return path
+	}
+	out := geom.Path{
+		V: make([]geom.Pt, len(path.V)),
+		C: append([]geom.Cmd(nil), path.C...),
+	}
+	for i, pt := range path.V {
+		out.V[i] = affine.Apply(pt)
+	}
+	return out
+}
+
+func clonePath(path geom.Path) geom.Path {
+	return geom.Path{
+		V: append([]geom.Pt(nil), path.V...),
+		C: append([]geom.Cmd(nil), path.C...),
+	}
+}
+
+func pathBounds(path geom.Path) (geom.Rect, bool) {
+	if len(path.V) == 0 {
+		return geom.Rect{}, false
+	}
+	minX, maxX := path.V[0].X, path.V[0].X
+	minY, maxY := path.V[0].Y, path.V[0].Y
+	for _, pt := range path.V[1:] {
+		if pt.X < minX {
+			minX = pt.X
+		}
+		if pt.X > maxX {
+			maxX = pt.X
+		}
+		if pt.Y < minY {
+			minY = pt.Y
+		}
+		if pt.Y > maxY {
+			maxY = pt.Y
+		}
+	}
+	return geom.Rect{Min: geom.Pt{X: minX, Y: minY}, Max: geom.Pt{X: maxX, Y: maxY}}, true
+}
+
+func paintOperator(paint *render.Paint) string {
+	if paint == nil {
+		return ""
+	}
+	hasFill := paint.Fill.A > 0 || (paint.Hatch != "" && paint.HatchColor.A > 0)
+	hasStroke := paint.Stroke.A > 0 && paint.LineWidth > 0
+	switch {
+	case hasFill && hasStroke:
+		return "B"
+	case hasFill:
+		return "f"
+	case hasStroke:
+		return "S"
+	default:
+		return ""
+	}
+}
+
+func formPadding(paint *render.Paint) float64 {
+	if paint == nil || paint.Stroke.A <= 0 || paint.LineWidth <= 0 {
+		return 0
+	}
+	padding := paint.LineWidth / 2
+	if paint.LineJoin == render.JoinMiter {
+		miter := paint.MiterLimit
+		if miter <= 0 {
+			miter = 10
+		}
+		padding = math.Max(padding, paint.LineWidth*miter/2)
+	}
+	return padding
+}
+
+func formXObjectKey(prefix string, path geom.Path, paintOp string, paint *render.Paint) string {
+	var b strings.Builder
+	b.WriteString(prefix)
+	b.WriteByte('\x00')
+	b.WriteString(paintOp)
+	b.WriteByte('\x00')
+	if paint != nil {
+		b.WriteString(strconv.Itoa(int(paint.LineJoin)))
+		b.WriteByte('\x00')
+		b.WriteString(strconv.Itoa(int(paint.LineCap)))
+	}
+	for _, cmd := range path.C {
+		b.WriteByte(byte(cmd))
+	}
+	b.WriteByte('\x00')
+	for _, pt := range path.V {
+		b.WriteString(shortFloat(pt.X))
+		b.WriteByte(',')
+		b.WriteString(shortFloat(pt.Y))
+		b.WriteByte(';')
+	}
+	return b.String()
+}
+
+func imageAlphaMultiplier(img render.Image) float64 {
+	if alphaImage, ok := img.(render.ImageAlpha); ok {
+		return clamp01(alphaImage.Alpha())
+	}
+	return 1
+}
+
+func encodePDFImage(name string, src *image.RGBA, alphaMul float64) (pdfImage, bool) {
+	if src == nil {
+		return pdfImage{}, false
+	}
+	bounds := src.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	if width <= 0 || height <= 0 {
+		return pdfImage{}, false
+	}
+	rgb := make([]byte, 0, width*height*3)
+	alpha := make([]byte, 0, width*height)
+	hasAlpha := false
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			c := src.RGBAAt(x, y)
+			a := uint8(float64(c.A)*alphaMul + 0.5)
+			rgb = append(rgb, c.R, c.G, c.B)
+			alpha = append(alpha, a)
+			if a != 0xff {
+				hasAlpha = true
+			}
+		}
+	}
+	return pdfImage{
+		name:     name,
+		width:    width,
+		height:   height,
+		rgb:      rgb,
+		alpha:    alpha,
+		hasAlpha: hasAlpha,
+	}, true
+}
+
+func hatchPatternKey(hatch string, face, line render.Color, lineWidth, spacing float64) string {
+	return strings.Join([]string{
+		hatch,
+		shortFloat(face.R),
+		shortFloat(face.G),
+		shortFloat(face.B),
+		shortFloat(face.A),
+		shortFloat(line.R),
+		shortFloat(line.G),
+		shortFloat(line.B),
+		shortFloat(line.A),
+		shortFloat(lineWidth),
+		shortFloat(spacing),
+	}, "\x00")
+}
+
+func hatchPatternStream(pattern pdfHatchPattern) []byte {
+	const side = 72.0
+	var buf bytes.Buffer
+	if pattern.faceColor.A > 0 {
+		writeFillColor(&buf, pattern.faceColor)
+		fmt.Fprintf(&buf, "0 0 %s %s re f\n", shortFloat(side), shortFloat(side))
+	}
+	writeStrokeColor(&buf, pattern.lineColor)
+	fmt.Fprintf(&buf, "%s w\n", shortFloat(pattern.lineWidth))
+	buf.WriteString("0 J\n")
+	for _, line := range hatchPatternLines(pattern.hatch, pattern.spacing) {
+		fmt.Fprintf(&buf, "%s %s m\n%s %s l\nS\n",
+			shortFloat(line[0].X), shortFloat(line[0].Y),
+			shortFloat(line[1].X), shortFloat(line[1].Y),
+		)
+	}
+	return buf.Bytes()
+}
+
+func hatchPatternLines(hatch string, spacing float64) [][2]geom.Pt {
+	if spacing <= 0 {
+		spacing = 8
+	}
+	lines := make([][2]geom.Pt, 0)
+	writeHatchLines := func(count int, draw func(float64)) {
+		if count <= 0 {
+			return
+		}
+		step := math.Max(2, spacing/float64(count))
+		for v := -72.0; v <= 144; v += step {
+			draw(v)
+		}
+	}
+	add := func(x1, y1, x2, y2 float64) {
+		lines = append(lines, [2]geom.Pt{{X: x1, Y: y1}, {X: x2, Y: y2}})
+	}
+	verticalCount := strings.Count(hatch, "|") + strings.Count(hatch, "+")
+	horizontalCount := strings.Count(hatch, "-") + strings.Count(hatch, "+")
+	slashCount := strings.Count(hatch, "/") + strings.Count(hatch, "x") + strings.Count(hatch, "X")
+	backslashCount := strings.Count(hatch, `\`) + strings.Count(hatch, "x") + strings.Count(hatch, "X")
+
+	writeHatchLines(verticalCount, func(x float64) { add(x, 0, x, 72) })
+	writeHatchLines(horizontalCount, func(y float64) { add(0, y, 72, y) })
+	writeHatchLines(slashCount, func(x float64) { add(x, 72, x+72, 0) })
+	writeHatchLines(backslashCount, func(x float64) { add(x, 0, x+72, 72) })
+	return lines
+}
+
 // --- PDF document assembly ---------------------------------------------------
 
 // buildDocument assembles the PDF bytes for one page given the encoded
 // content stream.
-func buildDocument(width, height int, contentStream []byte, opts render.PDFOptions) ([]byte, error) {
-	// We emit five indirect objects:
+func buildDocument(width, height int, contentStream []byte, images []pdfImage, hatches []pdfHatchPattern, forms []pdfFormXObject, opts render.PDFOptions) ([]byte, error) {
+	imageObjects := assignImageObjects(images, 6)
+	hatchObjects := assignHatchObjects(hatches, nextImageObjectID(imageObjects, 6))
+	formObjects := assignFormObjects(forms, nextHatchObjectID(hatchObjects, nextImageObjectID(imageObjects, 6)))
+	// We emit five fixed indirect objects, followed by image XObjects:
 	//   1: /Catalog
 	//   2: /Pages
 	//   3: /Page
@@ -478,8 +1073,8 @@ func buildDocument(width, height int, contentStream []byte, opts render.PDFOptio
 	w.endObject()
 
 	w.beginObject(3)
-	fmt.Fprintf(&w.buf, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] /Contents 4 0 R /Resources << >> >>",
-		width, height)
+	fmt.Fprintf(&w.buf, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] /Contents 4 0 R /Resources %s >>",
+		width, height, pageResources(imageObjects, hatchObjects, formObjects))
 	w.endObject()
 
 	// Compress the content stream with FlateDecode for determinism and size.
@@ -496,6 +1091,27 @@ func buildDocument(width, height int, contentStream []byte, opts render.PDFOptio
 	w.beginObject(5)
 	w.writeInfo(opts)
 	w.endObject()
+
+	for _, img := range imageObjects {
+		if err := w.writeImageObject(img); err != nil {
+			return nil, err
+		}
+		if img.smaskID != 0 {
+			if err := w.writeSoftMaskObject(img); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, hatch := range hatchObjects {
+		if err := w.writeHatchPatternObject(hatch); err != nil {
+			return nil, err
+		}
+	}
+	for _, form := range formObjects {
+		if err := w.writeFormXObject(form); err != nil {
+			return nil, err
+		}
+	}
 
 	xrefOffset := w.buf.Len()
 	w.writeXRef()
@@ -552,6 +1168,90 @@ func (w *pdfWriter) writeInfo(opts render.PDFOptions) {
 	w.buf.WriteString(" >>")
 }
 
+func (w *pdfWriter) writeImageObject(img pdfImageObject) error {
+	encoded, err := flateEncode(img.rgb)
+	if err != nil {
+		return fmt.Errorf("pdf: flate encode image %s: %w", img.name, err)
+	}
+	w.beginObject(img.objectID)
+	fmt.Fprintf(&w.buf,
+		"<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceRGB /BitsPerComponent 8",
+		img.width, img.height,
+	)
+	if img.smaskID != 0 {
+		fmt.Fprintf(&w.buf, " /SMask %d 0 R", img.smaskID)
+	}
+	fmt.Fprintf(&w.buf, " /Length %d /Filter /FlateDecode >>\nstream\n", len(encoded))
+	w.buf.Write(encoded)
+	w.writeString("\nendstream")
+	w.endObject()
+	return nil
+}
+
+func (w *pdfWriter) writeSoftMaskObject(img pdfImageObject) error {
+	encoded, err := flateEncode(img.alpha)
+	if err != nil {
+		return fmt.Errorf("pdf: flate encode image soft mask %s: %w", img.name, err)
+	}
+	w.beginObject(img.smaskID)
+	fmt.Fprintf(&w.buf,
+		"<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceGray /BitsPerComponent 8 /Length %d /Filter /FlateDecode >>\nstream\n",
+		img.width, img.height, len(encoded),
+	)
+	w.buf.Write(encoded)
+	w.writeString("\nendstream")
+	w.endObject()
+	return nil
+}
+
+func (w *pdfWriter) writeHatchPatternObject(hatch pdfHatchPatternObject) error {
+	stream := hatchPatternStream(hatch.pdfHatchPattern)
+	encoded, err := flateEncode(stream)
+	if err != nil {
+		return fmt.Errorf("pdf: flate encode hatch pattern %s: %w", hatch.name, err)
+	}
+	w.beginObject(hatch.objectID)
+	fmt.Fprintf(&w.buf,
+		"<< /Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 72 72] /XStep 72 /YStep 72 /Resources << >> /Length %d /Filter /FlateDecode >>\nstream\n",
+		len(encoded),
+	)
+	w.buf.Write(encoded)
+	w.writeString("\nendstream")
+	w.endObject()
+	return nil
+}
+
+func (w *pdfWriter) writeFormXObject(form pdfFormXObjectObject) error {
+	var stream bytes.Buffer
+	formPaint := render.Paint{
+		LineJoin: form.lineJoin,
+		LineCap:  form.lineCap,
+	}
+	writeLineState(&stream, &formPaint)
+	if !writePathOps(&stream, form.path) {
+		return nil
+	}
+	stream.WriteString(form.paintOp)
+	stream.WriteByte('\n')
+	encoded, err := flateEncode(stream.Bytes())
+	if err != nil {
+		return fmt.Errorf("pdf: flate encode form %s: %w", form.name, err)
+	}
+	w.beginObject(form.objectID)
+	fmt.Fprintf(&w.buf,
+		"<< /Type /XObject /Subtype /Form /BBox [%s %s %s %s] /Resources << >> /Length %d /Filter /FlateDecode >>\nstream\n",
+		shortFloat(form.bbox.Min.X),
+		shortFloat(form.bbox.Min.Y),
+		shortFloat(form.bbox.Max.X),
+		shortFloat(form.bbox.Max.Y),
+		len(encoded),
+	)
+	w.buf.Write(encoded)
+	w.writeString("\nendstream")
+	w.endObject()
+	return nil
+}
+
 func (w *pdfWriter) writeXRef() {
 	w.buf.WriteString("xref\n")
 	fmt.Fprintf(&w.buf, "0 %d\n", len(w.offsets))
@@ -600,6 +1300,104 @@ func sortedKeys(m map[string]string) []string {
 		}
 	}
 	return keys
+}
+
+func assignImageObjects(images []pdfImage, firstID int) []pdfImageObject {
+	if len(images) == 0 {
+		return nil
+	}
+	out := make([]pdfImageObject, len(images))
+	nextID := firstID
+	for i, img := range images {
+		out[i] = pdfImageObject{
+			pdfImage: img,
+			objectID: nextID,
+		}
+		nextID++
+		if img.hasAlpha {
+			out[i].smaskID = nextID
+			nextID++
+		}
+	}
+	return out
+}
+
+func nextImageObjectID(images []pdfImageObject, firstID int) int {
+	nextID := firstID
+	for _, img := range images {
+		if img.objectID >= nextID {
+			nextID = img.objectID + 1
+		}
+		if img.smaskID >= nextID {
+			nextID = img.smaskID + 1
+		}
+	}
+	return nextID
+}
+
+func assignHatchObjects(hatches []pdfHatchPattern, firstID int) []pdfHatchPatternObject {
+	if len(hatches) == 0 {
+		return nil
+	}
+	out := make([]pdfHatchPatternObject, len(hatches))
+	for i, hatch := range hatches {
+		out[i] = pdfHatchPatternObject{
+			pdfHatchPattern: hatch,
+			objectID:        firstID + i,
+		}
+	}
+	return out
+}
+
+func nextHatchObjectID(hatches []pdfHatchPatternObject, firstID int) int {
+	nextID := firstID
+	for _, hatch := range hatches {
+		if hatch.objectID >= nextID {
+			nextID = hatch.objectID + 1
+		}
+	}
+	return nextID
+}
+
+func assignFormObjects(forms []pdfFormXObject, firstID int) []pdfFormXObjectObject {
+	if len(forms) == 0 {
+		return nil
+	}
+	out := make([]pdfFormXObjectObject, len(forms))
+	for i, form := range forms {
+		out[i] = pdfFormXObjectObject{
+			pdfFormXObject: form,
+			objectID:       firstID + i,
+		}
+	}
+	return out
+}
+
+func pageResources(images []pdfImageObject, hatches []pdfHatchPatternObject, forms []pdfFormXObjectObject) string {
+	if len(images) == 0 && len(hatches) == 0 && len(forms) == 0 {
+		return "<< >>"
+	}
+	var b strings.Builder
+	b.WriteString("<<")
+	if len(images) > 0 || len(forms) > 0 {
+		b.WriteString(" /XObject <<")
+		for _, img := range images {
+			fmt.Fprintf(&b, " /%s %d 0 R", escapeName(img.name), img.objectID)
+		}
+		for _, form := range forms {
+			fmt.Fprintf(&b, " /%s %d 0 R", escapeName(form.name), form.objectID)
+		}
+		b.WriteString(" >>")
+	}
+	if len(hatches) > 0 {
+		b.WriteString(" /Pattern <<")
+		for _, hatch := range hatches {
+			fmt.Fprintf(&b, " /%s %d 0 R", escapeName(hatch.name), hatch.objectID)
+		}
+		b.WriteString(" >>")
+	}
+	b.WriteString(" >>")
+	return b.String()
 }
 
 // pdfLiteralString encodes s as a PDF literal string. It escapes parentheses
@@ -669,7 +1467,3 @@ func pdfDateString(t time.Time) string {
 		t.Hour(), t.Minute(), t.Second(),
 	)
 }
-
-// Image alpha helper used by the TODO image path; kept here so the eventual
-// XObject path can pre-multiply alpha consistently with other backends.
-var _ = image.NewRGBA
