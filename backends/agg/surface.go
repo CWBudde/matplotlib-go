@@ -145,6 +145,27 @@ func (s *aggSurface) SetFillColor(c agglib.Color) {
 	s.painter.FillColor(c)
 }
 
+// SetFillLinearGradient configures a two-color linear gradient as the active
+// fill source. Subsequent Fill() calls will sample colors along the
+// (x1,y1)->(x2,y2) axis. Use SetFillColor to reset to a solid color.
+func (s *aggSurface) SetFillLinearGradient(x1, y1, x2, y2 float64, c1, c2 agglib.Color, profile float64) {
+	s.painter.FillLinearGradient(x1, y1, x2, y2, c1, c2, profile)
+}
+
+// SetFillRadialGradient configures a two-color radial gradient as the active
+// fill source. Subsequent Fill() calls sample colors from the center color
+// (c1) at the focal point outward to c2 at the radius boundary.
+func (s *aggSurface) SetFillRadialGradient(cx, cy, radius float64, c1, c2 agglib.Color, profile float64) {
+	s.painter.FillRadialGradient(cx, cy, radius, c1, c2, profile)
+}
+
+// SetFillRadialGradientMultiStop configures a three-stop radial gradient. The
+// inner, middle, and outer colors are sampled at offsets 0, 0.5, and 1 along
+// the radius.
+func (s *aggSurface) SetFillRadialGradientMultiStop(cx, cy, radius float64, c1, c2, c3 agglib.Color) {
+	s.painter.FillRadialGradientMultiStop(cx, cy, radius, c1, c2, c3)
+}
+
 func (s *aggSurface) SetStrokeColor(c agglib.Color) {
 	s.painter.LineColor(c)
 }

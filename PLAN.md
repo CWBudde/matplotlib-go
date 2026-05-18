@@ -218,19 +218,43 @@ without backend-name conditionals.
 
 ### 2.1 Pattern and Gradient Fills
 
-- [ ] Renderer-neutral pattern fill API in `render/`: tile geometry, tile
+- [x] Renderer-neutral pattern fill API in `render/`: tile geometry, tile
   transform, and tile color description that AGG, SVG, PDF, and Skia can each
-  implement natively.
-- [ ] Linear and radial gradient fill description (stops, transform, spread
-  method) routed through the same capability interface.
-- [ ] AGG implementation using existing gradient span generators.
-- [ ] SVG implementation via `<linearGradient>` / `<radialGradient>` /
-  `<pattern>` defs (Gouraud fallback already documented; promote to native
-  once gradients land).
+  implement natively. (`PatternFill` on `Paint` plus `PatternFiller` capability
+  interface; `GraphicsContext.WithFillPattern` propagates through alpha/forced
+  alpha just like solid fills.)
+- [x] Linear and radial gradient fill description (stops, transform, spread
+  method) routed through the same capability interface. (`GradientFill` on
+  `Paint` plus `GradientFiller` capability interface; `GraphicsContext.WithFillGradient`
+  applies the same forced-alpha bookkeeping as patterns and solid fills.)
+- [x] AGG implementation using existing gradient span generators.
+  Two-stop linear and radial gradients route through Agg2D's gradient API; a
+  three-stop radial uses the multi-stop variant. `SupportsGradientFill`
+  advertises native support; `SupportsPatternFill` advertises `false` until
+  tile rasterization lands.
+- [x] SVG implementation via `<linearGradient>` / `<radialGradient>` /
+  `<pattern>` defs. Defs are deduplicated by content hash, honor the renderer's
+  hash-salted ID strategy, and emit in registration order so document output
+  remains deterministic. Hatch still wins precedence when both are set.
 - [ ] PDF implementation via shading dictionaries (Type 2 / 3).
 - [ ] Skia implementation via `SkShader` types.
 - [ ] Golden fixtures: gradient fill bar, radial gradient pie wedge, pattern
   fill polygon, gradient streamline plot.
+
+Current slice landed:
+
+- New `backends/svg/gradients.go` registers `<linearGradient>`,
+  `<radialGradient>`, and `<pattern>` defs from `Paint.FillGradient` and
+  `Paint.FillPattern`. Unit tests cover linear/radial emission, stop-opacity,
+  pattern emission, def deduplication, and hatch-over-gradient precedence.
+- New `backends/agg/gradients.go` wires AGG's `FillLinearGradient` /
+  `FillRadialGradient` / `FillRadialGradientMultiStop` into `Path()`. Unit
+  tests verify left-to-right linear color falloff, center-to-edge radial
+  falloff, and that subsequent solid fills are not painted through the active
+  gradient span generator.
+- `render.GradientFiller` / `render.PatternFiller` capability interfaces are
+  now implemented on AGG and SVG; the backend capability comparison report
+  reflects native vs unsupported truthfully.
 
 ### 2.2 Path Effects Pipeline
 

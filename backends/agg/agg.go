@@ -124,6 +124,8 @@ var (
 	_ render.QuadMeshDrawer         = (*Renderer)(nil)
 	_ render.GouraudTriangleDrawer  = (*Renderer)(nil)
 	_ render.NativeHatcher          = (*Renderer)(nil)
+	_ render.GradientFiller         = (*Renderer)(nil)
+	_ render.PatternFiller          = (*Renderer)(nil)
 	_ render.PNGExporter            = (*Renderer)(nil)
 )
 
@@ -454,8 +456,20 @@ func (r *Renderer) drawPathDirect(p geom.Path, paint *render.Paint) {
 	restoreAA := r.applyAntialiasMode(paint.Antialias)
 	defer restoreAA()
 
-	// Fill first if requested
-	if paint.Fill.A > 0 {
+	// Fill first if requested. Gradient fills take precedence over solid
+	// fills; the gradient endpoint colors carry their own alpha so a missing
+	// solid Fill.A is fine for gradient-only paints.
+	hasGradient := paint.FillGradient.Kind != render.GradientNone && len(paint.FillGradient.Stops) > 0
+	if hasGradient {
+		if r.applyGradientFill(paint) {
+			r.buildPath(p)
+			r.ctx.Fill()
+			// Restore the solid fill source so downstream draws (hatch
+			// overlay, stroke, marker batches, etc.) are not accidentally
+			// painted through the gradient span generator.
+			r.ctx.SetFillColor(renderColorToAGG(colorWithForcedAlpha(paint.Fill, paint)))
+		}
+	} else if paint.Fill.A > 0 {
 		r.buildPath(p)
 		r.ctx.SetFillColor(renderColorToAGG(colorWithForcedAlpha(paint.Fill, paint)))
 		r.ctx.Fill()

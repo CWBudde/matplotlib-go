@@ -113,6 +113,13 @@ type Renderer struct {
 	hatchOrder      []hatchDef
 	hatchIDCounter  int
 
+	gradientDefs         map[string]string // gradient key → gradientDef ID
+	gradientOrder        []gradientDef     // registration-order gradient defs
+	gradientIDCounter    int
+	patternFillDefs      map[string]string // pattern key → patternFillDef ID
+	patternFillOrder     []patternFillDef  // registration-order pattern defs
+	patternFillIDCounter int
+
 	fontFaces     map[string]fontFaceDef
 	fontFaceOrder []fontFaceDef
 
@@ -137,6 +144,8 @@ var (
 	_ render.MarkerDrawer         = (*Renderer)(nil)
 	_ render.PathCollectionDrawer = (*Renderer)(nil)
 	_ render.NativeHatcher        = (*Renderer)(nil)
+	_ render.GradientFiller       = (*Renderer)(nil)
+	_ render.PatternFiller        = (*Renderer)(nil)
 	_ render.SVGExporter          = (*Renderer)(nil)
 )
 
@@ -155,8 +164,10 @@ func New(w, h int, bg render.Color) (*Renderer, error) {
 		clipPathDefs: map[string]string{},
 		markerDefs:   map[string]string{},
 		pathDefs:     map[string]string{},
-		hatchDefs:    map[string]string{},
-		fontFaces:    map[string]fontFaceDef{},
+		hatchDefs:       map[string]string{},
+		gradientDefs:    map[string]string{},
+		patternFillDefs: map[string]string{},
+		fontFaces:       map[string]fontFaceDef{},
 		texManager:   tex.NewManager(tex.ManagerConfig{}),
 		options:      render.DefaultSVGOptions(),
 	}, nil
@@ -292,7 +303,9 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 		return
 	}
 
-	hasFill := paint.Fill.A > 0
+	hasGradient := paint.FillGradient.Kind != render.GradientNone && len(paint.FillGradient.Stops) > 0
+	hasPattern := paint.FillPattern.ID != "" || len(paint.FillPattern.Path.V) > 0
+	hasFill := paint.Fill.A > 0 || hasGradient || hasPattern
 	hasHatch := paint.Hatch != "" && paint.HatchColor.A > 0
 	hasStroke := paint.Stroke.A > 0 && paint.LineWidth > 0
 	if !hasFill && !hasHatch && !hasStroke {
@@ -304,11 +317,16 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 	writeAttr(&b, "d", d)
 	writeForcedOpacity(&b, *paint)
 
-	if hasHatch {
+	switch {
+	case hasHatch:
 		writeAttr(&b, "fill", "url(#"+r.registerHatch(*paint)+")")
-	} else if hasFill {
+	case hasGradient:
+		writeAttr(&b, "fill", "url(#"+r.registerGradient(&paint.FillGradient)+")")
+	case hasPattern:
+		writeAttr(&b, "fill", "url(#"+r.registerPatternFill(&paint.FillPattern)+")")
+	case paint.Fill.A > 0:
 		writeColorAttrs(&b, "fill", paint.Fill, forcedOpacity(*paint))
-	} else {
+	default:
 		writeAttr(&b, "fill", "none")
 	}
 
@@ -845,7 +863,7 @@ func (r *Renderer) renderSVG() string {
 		r.height))
 	writeMetadata(&b, r.options)
 
-	if len(r.clipOrder) > 0 || len(r.markerOrder) > 0 || len(r.pathOrder) > 0 || len(r.hatchOrder) > 0 || len(r.fontFaceOrder) > 0 {
+	if len(r.clipOrder) > 0 || len(r.markerOrder) > 0 || len(r.pathOrder) > 0 || len(r.hatchOrder) > 0 || len(r.gradientOrder) > 0 || len(r.patternFillOrder) > 0 || len(r.fontFaceOrder) > 0 {
 		b.WriteString("  <defs>\n")
 		if len(r.fontFaceOrder) > 0 {
 			b.WriteString("    <style type=\"text/css\"><![CDATA[\n")
@@ -889,6 +907,12 @@ func (r *Renderer) renderSVG() string {
 		}
 		for _, hatch := range r.hatchOrder {
 			writeHatchDef(&b, hatch)
+		}
+		for i := range r.gradientOrder {
+			writeGradientDef(&b, &r.gradientOrder[i])
+		}
+		for i := range r.patternFillOrder {
+			writePatternFillDef(&b, &r.patternFillOrder[i])
 		}
 		for _, m := range r.markerOrder {
 			b.WriteString(`    <path id="`)
