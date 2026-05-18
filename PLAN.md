@@ -141,7 +141,8 @@ patterns.
   without an embedded font program. Real text-as-text via embedded fonts
   becomes the default once subsetting lands.
 - [ ] Image XObjects with `/FlateDecode` and `/DCTDecode`, including
-  transparency groups for alpha images.
+  transparency groups for alpha images. (`/DCTDecode` passthrough is available
+  through `render.JPEGImage`; full transparency-group semantics remain open.)
 - [x] Native hatch via tiling pattern color spaces.
 - [x] Native marker / path collection batches via form XObjects.
 - [x] Metadata, `SOURCE_DATE_EPOCH`, and reproducible-output options on par
@@ -175,7 +176,8 @@ Current slice landed:
   checked renderer interfaces.
 - Raster `Image` draws now emit `/Image` XObjects with deterministic
   `/FlateDecode` streams and grayscale soft masks for RGBA alpha. JPEG
-  `/DCTDecode` passthrough and full transparency-group semantics remain open.
+  `/DCTDecode` passthrough is supported through the optional
+  `render.JPEGImage` interface; full transparency-group semantics remain open.
 - New `internal/pdfcompare` structural comparison helper parses indirect
   objects, ignores xref offset noise, normalizes object token whitespace, and
   decodes `/FlateDecode` streams before comparison. PDF backend tests exercise
@@ -188,6 +190,11 @@ Current slice landed:
   per-item paint state, matching Matplotlib's PDF batching strategy.
 - Transformed images now implement `render.ImageTransformer` by reusing image
   XObjects with arbitrary PDF `cm` matrices, covering rotated image placement.
+- Stroke/fill alpha now follows Matplotlib's PDF ExtGState model: paint draws
+  register reusable `/ExtGState` resources with separate `CA` / `ca` values and
+  select them through the `gs` operator.
+- Repeated raster image draws reuse a single image XObject when the encoded
+  RGB/alpha payload matches, mirroring Matplotlib's image-object cache.
 
 ### 1.2 PostScript and PGF Export
 

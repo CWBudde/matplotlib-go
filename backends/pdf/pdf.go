@@ -37,6 +37,7 @@ type pdfImage struct {
 	rgb      []byte
 	alpha    []byte
 	hasAlpha bool
+	filter   string
 }
 
 type pdfImageObject struct {
@@ -73,6 +74,12 @@ type pdfFormXObjectObject struct {
 	objectID int
 }
 
+type pdfAlphaState struct {
+	name        string
+	strokeAlpha float64
+	fillAlpha   float64
+}
+
 // Renderer implements render.Renderer by emitting a PDF document.
 //
 // The renderer buffers a single content stream. Calling End() finalizes the
@@ -92,10 +99,13 @@ type Renderer struct {
 	// content is the page content stream under construction.
 	content       bytes.Buffer
 	images        []pdfImage
+	imageIDs      map[string]string
 	hatchPatterns []pdfHatchPattern
 	hatchIDs      map[string]string
 	forms         []pdfFormXObject
 	formIDs       map[string]string
+	alphaStates   []pdfAlphaState
+	alphaIDs      map[string]string
 	// document is the fully serialized PDF bytes ready for write.
 	document []byte
 
@@ -166,10 +176,13 @@ func (r *Renderer) Begin(viewport geom.Rect) error {
 	r.document = nil
 	r.stack = r.stack[:0]
 	r.images = r.images[:0]
+	r.imageIDs = map[string]string{}
 	r.hatchPatterns = r.hatchPatterns[:0]
 	r.hatchIDs = map[string]string{}
 	r.forms = r.forms[:0]
 	r.formIDs = map[string]string{}
+	r.alphaStates = r.alphaStates[:0]
+	r.alphaIDs = map[string]string{}
 	r.lastFontKey = ""
 
 	// PDF's coordinate origin is bottom-left with +Y up. matplotlib-go uses a
@@ -196,7 +209,7 @@ func (r *Renderer) End() error {
 		return errors.New("pdf: End called before Begin")
 	}
 	r.began = false
-	doc, err := buildDocument(r.width, r.height, r.content.Bytes(), r.images, r.hatchPatterns, r.forms, r.pdfOpts)
+	doc, err := buildDocument(r.width, r.height, r.content.Bytes(), r.images, r.hatchPatterns, r.forms, r.alphaStates, r.pdfOpts)
 	if err != nil {
 		return err
 	}
@@ -268,6 +281,7 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 	}
 
 	if hasFill {
+		r.writeAlphaState(paint)
 		if hasHatch {
 			writePatternFill(&r.content, r.registerHatchPattern(*paint))
 		} else {
@@ -275,6 +289,9 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 		}
 	}
 	if hasStroke {
+		if !hasFill {
+			r.writeAlphaState(paint)
+		}
 		writeStrokeColor(&r.content, paint.Stroke)
 		writeLineState(&r.content, paint)
 	}
@@ -287,6 +304,48 @@ func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
 	case hasStroke:
 		r.content.WriteString("S\n")
 	}
+}
+
+func (r *Renderer) writeAlphaState(paint *render.Paint) {
+	if paint == nil {
+		return
+	}
+	strokeAlpha := 1.0
+	if paint.Stroke.A > 0 && paint.LineWidth > 0 {
+		strokeAlpha = clamp01(paint.Stroke.A)
+	}
+	fillAlpha := 1.0
+	if paint.Fill.A > 0 || (paint.Hatch != "" && paint.HatchColor.A > 0) {
+		fillAlpha = clamp01(paint.Fill.A)
+		if paint.Hatch != "" && paint.HatchColor.A > 0 {
+			fillAlpha = clamp01(paint.HatchColor.A)
+		}
+	}
+	if strokeAlpha >= 1 && fillAlpha >= 1 {
+		return
+	}
+	name := r.registerAlphaState(strokeAlpha, fillAlpha)
+	fmt.Fprintf(&r.content, "/%s gs\n", name)
+}
+
+func (r *Renderer) registerAlphaState(strokeAlpha, fillAlpha float64) string {
+	if r.alphaIDs == nil {
+		r.alphaIDs = map[string]string{}
+	}
+	strokeAlpha = clamp01(strokeAlpha)
+	fillAlpha = clamp01(fillAlpha)
+	key := shortFloat(strokeAlpha) + "\x00" + shortFloat(fillAlpha)
+	if id, ok := r.alphaIDs[key]; ok {
+		return id
+	}
+	id := fmt.Sprintf("A%d", len(r.alphaStates)+1)
+	r.alphaIDs[key] = id
+	r.alphaStates = append(r.alphaStates, pdfAlphaState{
+		name:        id,
+		strokeAlpha: strokeAlpha,
+		fillAlpha:   fillAlpha,
+	})
+	return id
 }
 
 func (r *Renderer) registerHatchPattern(paint render.Paint) string {
@@ -440,19 +499,32 @@ func (r *Renderer) ImageTransformed(img render.Image, _ geom.Rect, transform geo
 }
 
 func (r *Renderer) drawImageWithMatrix(img render.Image, matrix geom.Affine) {
+	if jpegSource, ok := img.(render.JPEGImage); ok {
+		pdfImg, ok := encodePDFJPEGImage("", jpegSource)
+		if !ok {
+			return
+		}
+		name := r.registerImage(pdfImg)
+		r.writeImageInvocation(matrix, name)
+		return
+	}
 	rgbaSource, ok := img.(render.RGBAImage)
 	if !ok || rgbaSource.RGBA() == nil {
 		return
 	}
 	pdfImg, ok := encodePDFImage(
-		fmt.Sprintf("Im%d", len(r.images)+1),
+		"",
 		rgbaSource.RGBA(),
 		imageAlphaMultiplier(img),
 	)
 	if !ok {
 		return
 	}
-	r.images = append(r.images, pdfImg)
+	name := r.registerImage(pdfImg)
+	r.writeImageInvocation(matrix, name)
+}
+
+func (r *Renderer) writeImageInvocation(matrix geom.Affine, name string) {
 	fmt.Fprintf(&r.content, "q\n%s %s %s %s %s %s cm\n/%s Do\nQ\n",
 		shortFloat(matrix.A),
 		shortFloat(matrix.B),
@@ -460,8 +532,22 @@ func (r *Renderer) drawImageWithMatrix(img render.Image, matrix geom.Affine) {
 		shortFloat(matrix.D),
 		shortFloat(matrix.E),
 		shortFloat(matrix.F),
-		pdfImg.name,
+		name,
 	)
+}
+
+func (r *Renderer) registerImage(img pdfImage) string {
+	if r.imageIDs == nil {
+		r.imageIDs = map[string]string{}
+	}
+	key := imageKey(img)
+	if name, ok := r.imageIDs[key]; ok {
+		return name
+	}
+	img.name = fmt.Sprintf("Im%d", len(r.images)+1)
+	r.imageIDs[key] = img.name
+	r.images = append(r.images, img)
+	return img.name
 }
 
 // GlyphRun draws shaped glyphs as filled outlines. GlyphRun only carries glyph
@@ -619,7 +705,7 @@ func (r *Renderer) SavePDFWithOptions(path string, opts render.PDFOptions) error
 	if !r.began && len(r.document) == 0 {
 		return errors.New("pdf: SavePDFWithOptions called before End")
 	}
-	doc, err := buildDocument(r.width, r.height, r.content.Bytes(), r.images, r.hatchPatterns, r.forms, opts)
+	doc, err := buildDocument(r.width, r.height, r.content.Bytes(), r.images, r.hatchPatterns, r.forms, r.alphaStates, opts)
 	if err != nil {
 		return err
 	}
@@ -751,6 +837,7 @@ func (r *Renderer) writePaintState(paint *render.Paint) {
 	if paint == nil {
 		return
 	}
+	r.writeAlphaState(paint)
 	hasHatch := paint.Hatch != "" && paint.HatchColor.A > 0
 	if hasHatch {
 		writePatternFill(&r.content, r.registerHatchPattern(*paint))
@@ -980,7 +1067,48 @@ func encodePDFImage(name string, src *image.RGBA, alphaMul float64) (pdfImage, b
 		rgb:      rgb,
 		alpha:    alpha,
 		hasAlpha: hasAlpha,
+		filter:   "FlateDecode",
 	}, true
+}
+
+func encodePDFJPEGImage(name string, src render.JPEGImage) (pdfImage, bool) {
+	if src == nil {
+		return pdfImage{}, false
+	}
+	width, height := src.Size()
+	data := src.JPEGData()
+	if width <= 0 || height <= 0 || len(data) == 0 {
+		return pdfImage{}, false
+	}
+	return pdfImage{
+		name:   name,
+		width:  width,
+		height: height,
+		rgb:    append([]byte(nil), data...),
+		filter: "DCTDecode",
+	}, true
+}
+
+func imageKey(img pdfImage) string {
+	var b strings.Builder
+	b.WriteString(strconv.Itoa(img.width))
+	b.WriteByte('x')
+	b.WriteString(strconv.Itoa(img.height))
+	b.WriteByte('\x00')
+	if img.hasAlpha {
+		b.WriteByte('a')
+	} else {
+		b.WriteByte('o')
+	}
+	b.WriteByte('\x00')
+	b.WriteString(img.filter)
+	b.WriteByte('\x00')
+	b.WriteString(string(img.rgb))
+	b.WriteByte('\x00')
+	if img.hasAlpha {
+		b.WriteString(string(img.alpha))
+	}
+	return b.String()
 }
 
 func hatchPatternKey(hatch string, face, line render.Color, lineWidth, spacing float64) string {
@@ -1051,7 +1179,7 @@ func hatchPatternLines(hatch string, spacing float64) [][2]geom.Pt {
 
 // buildDocument assembles the PDF bytes for one page given the encoded
 // content stream.
-func buildDocument(width, height int, contentStream []byte, images []pdfImage, hatches []pdfHatchPattern, forms []pdfFormXObject, opts render.PDFOptions) ([]byte, error) {
+func buildDocument(width, height int, contentStream []byte, images []pdfImage, hatches []pdfHatchPattern, forms []pdfFormXObject, alphaStates []pdfAlphaState, opts render.PDFOptions) ([]byte, error) {
 	imageObjects := assignImageObjects(images, 6)
 	hatchObjects := assignHatchObjects(hatches, nextImageObjectID(imageObjects, 6))
 	formObjects := assignFormObjects(forms, nextHatchObjectID(hatchObjects, nextImageObjectID(imageObjects, 6)))
@@ -1074,7 +1202,7 @@ func buildDocument(width, height int, contentStream []byte, images []pdfImage, h
 
 	w.beginObject(3)
 	fmt.Fprintf(&w.buf, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] /Contents 4 0 R /Resources %s >>",
-		width, height, pageResources(imageObjects, hatchObjects, formObjects))
+		width, height, pageResources(imageObjects, hatchObjects, formObjects, alphaStates))
 	w.endObject()
 
 	// Compress the content stream with FlateDecode for determinism and size.
@@ -1169,9 +1297,17 @@ func (w *pdfWriter) writeInfo(opts render.PDFOptions) {
 }
 
 func (w *pdfWriter) writeImageObject(img pdfImageObject) error {
-	encoded, err := flateEncode(img.rgb)
-	if err != nil {
-		return fmt.Errorf("pdf: flate encode image %s: %w", img.name, err)
+	filter := img.filter
+	if filter == "" {
+		filter = "FlateDecode"
+	}
+	encoded := img.rgb
+	if filter == "FlateDecode" {
+		var err error
+		encoded, err = flateEncode(img.rgb)
+		if err != nil {
+			return fmt.Errorf("pdf: flate encode image %s: %w", img.name, err)
+		}
 	}
 	w.beginObject(img.objectID)
 	fmt.Fprintf(&w.buf,
@@ -1181,7 +1317,7 @@ func (w *pdfWriter) writeImageObject(img pdfImageObject) error {
 	if img.smaskID != 0 {
 		fmt.Fprintf(&w.buf, " /SMask %d 0 R", img.smaskID)
 	}
-	fmt.Fprintf(&w.buf, " /Length %d /Filter /FlateDecode >>\nstream\n", len(encoded))
+	fmt.Fprintf(&w.buf, " /Length %d /Filter /%s >>\nstream\n", len(encoded), escapeName(filter))
 	w.buf.Write(encoded)
 	w.writeString("\nendstream")
 	w.endObject()
@@ -1373,8 +1509,8 @@ func assignFormObjects(forms []pdfFormXObject, firstID int) []pdfFormXObjectObje
 	return out
 }
 
-func pageResources(images []pdfImageObject, hatches []pdfHatchPatternObject, forms []pdfFormXObjectObject) string {
-	if len(images) == 0 && len(hatches) == 0 && len(forms) == 0 {
+func pageResources(images []pdfImageObject, hatches []pdfHatchPatternObject, forms []pdfFormXObjectObject, alphaStates []pdfAlphaState) string {
+	if len(images) == 0 && len(hatches) == 0 && len(forms) == 0 && len(alphaStates) == 0 {
 		return "<< >>"
 	}
 	var b strings.Builder
@@ -1393,6 +1529,17 @@ func pageResources(images []pdfImageObject, hatches []pdfHatchPatternObject, for
 		b.WriteString(" /Pattern <<")
 		for _, hatch := range hatches {
 			fmt.Fprintf(&b, " /%s %d 0 R", escapeName(hatch.name), hatch.objectID)
+		}
+		b.WriteString(" >>")
+	}
+	if len(alphaStates) > 0 {
+		b.WriteString(" /ExtGState <<")
+		for _, state := range alphaStates {
+			fmt.Fprintf(&b, " /%s << /Type /ExtGState /CA %s /ca %s >>",
+				escapeName(state.name),
+				shortFloat(state.strokeAlpha),
+				shortFloat(state.fillAlpha),
+			)
 		}
 		b.WriteString(" >>")
 	}

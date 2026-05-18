@@ -266,6 +266,14 @@ type RGBAImage interface {
 	RGBA() *image.RGBA
 }
 
+// JPEGImage is an optional renderer-facing image interface that exposes an
+// already-encoded JPEG payload. Vector backends can embed this directly using
+// PDF DCTDecode or equivalent mechanisms without round-tripping through RGBA.
+type JPEGImage interface {
+	Image
+	JPEGData() []byte
+}
+
 // ImageData is a concrete raster image implementation that satisfies both Image
 // and RGBAImage. It is the primary raster type used by heatmaps and image
 // artists in this package.

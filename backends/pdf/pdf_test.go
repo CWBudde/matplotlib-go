@@ -144,6 +144,33 @@ func TestRendererPathFillsAndStrokes(t *testing.T) {
 	}
 }
 
+func TestRendererPathAlphaEmitsExtGState(t *testing.T) {
+	r := newTestRenderer(t)
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	r.Path(pdfTestRectPath(10, 10, 50, 40), &render.Paint{
+		Fill:      render.Color{R: 1, A: 0.25},
+		Stroke:    render.Color{B: 1, A: 0.5},
+		LineWidth: 2,
+	})
+	raw := r.content.String()
+	if !strings.Contains(raw, "/A1 gs") {
+		t.Fatalf("expected content stream to select alpha ExtGState, got %q", raw)
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	doc := mustParsePDF(t, r)
+	if !pdfDocumentBodyContains(doc, "/ExtGState << /A1") {
+		t.Fatalf("page resources should reference ExtGState A1; objects: %#v", doc.Objects)
+	}
+	resourceBody := pdfDocumentObjectBodyContaining(doc, "/ExtGState << /A1")
+	for _, want := range []string{"/Type /ExtGState", "/CA 0.5", "/ca 0.25"} {
+		if !strings.Contains(resourceBody, want) {
+			t.Fatalf("ExtGState resource missing %q:\n%s", want, resourceBody)
+		}
+	}
+}
+
 func TestRendererNativeHatchEmitsTilingPattern(t *testing.T) {
 	r := newTestRenderer(t)
 	hatcher, ok := any(r).(render.NativeHatcher)
@@ -359,6 +386,60 @@ func TestImageEmitsXObjectResourceAndDrawOperator(t *testing.T) {
 		if !bytes.Contains(data, []byte(want)) {
 			t.Fatalf("serialized PDF missing %q:\n%s", want, data)
 		}
+	}
+}
+
+func TestJPEGImageEmitsDCTDecodeXObject(t *testing.T) {
+	r := newTestRenderer(t)
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	img := jpegTestImage{
+		w:    2,
+		h:    1,
+		data: []byte{0xff, 0xd8, 0xff, 0xd9},
+	}
+
+	r.Image(img, geom.Rect{Min: geom.Pt{X: 10, Y: 20}, Max: geom.Pt{X: 50, Y: 40}})
+
+	if !strings.Contains(r.content.String(), "/Im1 Do") {
+		t.Fatalf("expected JPEG image draw operator, got %q", r.content.String())
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	data, err := r.Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+	for _, want := range []string{"/Subtype /Image", "/ColorSpace /DeviceRGB", "/Filter /DCTDecode"} {
+		if !bytes.Contains(data, []byte(want)) {
+			t.Fatalf("serialized PDF missing %q:\n%s", want, data)
+		}
+	}
+}
+
+func TestImageReusesXObjectForRepeatedImageData(t *testing.T) {
+	r := newTestRenderer(t)
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	img := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	img.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
+	img.SetRGBA(1, 0, color.RGBA{G: 255, A: 255})
+	data := render.NewImageData(img)
+
+	r.Image(data, geom.Rect{Min: geom.Pt{X: 10, Y: 20}, Max: geom.Pt{X: 30, Y: 40}})
+	r.Image(data, geom.Rect{Min: geom.Pt{X: 40, Y: 20}, Max: geom.Pt{X: 60, Y: 40}})
+
+	if got := strings.Count(r.content.String(), "/Im1 Do"); got != 2 {
+		t.Fatalf("expected both draws to invoke reused Im1 XObject, got %d in %q", got, r.content.String())
+	}
+	if strings.Contains(r.content.String(), "/Im2 Do") {
+		t.Fatalf("did not expect duplicate image XObject invocation in %q", r.content.String())
+	}
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	doc := mustParsePDF(t, r)
+	if got := pdfDocumentObjectCountContaining(doc, "/Subtype /Image"); got != 1 {
+		t.Fatalf("expected one image XObject for repeated image data, got %d; objects: %#v", got, doc.Objects)
 	}
 }
 
@@ -656,3 +737,12 @@ func pdfDocumentObjectBodyContaining(doc *pdfcompare.Document, needle string) st
 	}
 	return ""
 }
+
+type jpegTestImage struct {
+	w, h int
+	data []byte
+}
+
+func (j jpegTestImage) Size() (int, int)      { return j.w, j.h }
+func (j jpegTestImage) Interpolation() string { return "" }
+func (j jpegTestImage) JPEGData() []byte      { return append([]byte(nil), j.data...) }
