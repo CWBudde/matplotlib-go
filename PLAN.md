@@ -1079,11 +1079,11 @@ Bring the SVG backend to functional parity with upstream Matplotlib's `RendererS
 - [x] Initial golden set under `backends/svg/testdata/golden/`: `line_stroked.svg`, `scatter_markers.svg` (marker batches via `<defs>` + `<use>`), `clipped_text.svg`, `image_transformed.svg`.
 - [ ] Expand golden set to remaining canonical plot families: bar, errorbar, hist, collection, image, clipped polar, hatch_bars, text_layout, mathtext. These require figure-level test fixtures rather than renderer-level closures, so they will piggyback on the parity catalog rather than `backends/svg/testdata`.
 
-**14.3.6 Capability matrix contract and audit coverage (in progress):**
+**14.3.6 Capability matrix contract and audit coverage (landed):**
 
 - [x] `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` invokes `VerifyRendererCapabilities`; over-advertised `FontHinting` removed (its runtime check expected `render.TextFontMetricer` which SVG never implemented).
-- [ ] Cross-backend semantic tests: render the same figure through AGG and SVG; compare clip/marker/text-glyph counts rather than pixel/byte parity.
-- [ ] `backends/svg/audit_test.go` exercising every `render.Renderer` surface method so silent-drop regressions surface as test failures rather than missing artist output.
+- [x] Cross-backend semantic tests: `backends/cross_backend_semantic_test.go` drives the same `core.Figure` through AGG and SVG via a counting wrapper renderer that mirrors the shared capability set, and asserts equal counts for clip pushes, path draws, image draws, glyph runs, text draws, marker batches, and path-collection batches.
+- [x] `backends/svg/audit_test.go` exercises every `render.Renderer` surface method and every optional capability the SVG renderer advertises (DPIAware, TextDrawer, RotatedTextDrawer, VerticalTextDrawer, TextPather, TeX{Metricer,Drawer,Rotated}, ImageTransformer, ClipPathTransformer, MarkerDrawer, PathCollectionDrawer, NativeHatcher, SVG{Exporter,OptionExporter,OptionSetter}), so silent-drop regressions surface as test failures rather than missing artist output.
 
 **Save dispatch (already routed via registry, completed before 14.3 began):**
 
@@ -1110,7 +1110,7 @@ Verification reference:
 - [x] Marker batches: `TestDrawMarkersEmitsDefAndUseElements`, `TestDrawMarkersDedupesIdenticalMarkerGeometry`, `TestDrawMarkersHonorsActiveClip`, `TestDrawMarkersRejectsEmptyBatchOrInvalidMarker`.
 - [x] Path collections, hatches, and forced alpha: `TestDrawPathCollectionEmitsDefsAndUseElements`, `TestDrawPathCollectionHonorsActiveClipAndRejectsEmptyBatch`, `TestPathWithHatchEmitsPatternFill`, `TestHatchPatternDefsAreReused`, `TestPathForcedAlphaUsesElementOpacity`, `TestSupportsNativeHatch`, and `TestGraphicsContextEffectivePaintCombinesForcedAndContextAlpha`.
 - [x] SVG options: `TestRenderSVGEmitsDefaultEmptyMetadata`, `TestRenderSVGMetadataOptionAndSourceDateEpoch`, `TestHashSaltUsesContentDerivedIDs`, `TestFontPolicyPathDrawsTextAsPath`, `TestSaveSVGPassesSVGOptionsToRenderer`, `TestSaveFig_ForwardsSVGOptions`, and `TestRegistry_SaveViaExtension_ForwardsSVGOptions`.
-- [x] Capability advertising: `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` (registry-level contract).
+- [x] Capability advertising: `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` (registry-level contract), `TestAuditRendererSurface` and `TestAuditAdvertisedCapabilitiesMatchAssertions` (per-method audit), and `TestCrossBackendSemanticParity` (AGG vs SVG operation-count parity).
 - [x] Structural diff helper: `TestEqualIgnoresAttributeOrder`, `TestEqualIgnoresInsignificantWhitespace`, `TestDiffReportsAttributeValueMismatch`, `TestDiffReportsMissingAttribute`, `TestDiffReportsUnexpectedAttribute`, `TestDiffReportsChildCountMismatch`, `TestDiffReportsTextMismatch`, `TestParseSupportsXlinkHref`, `TestParseRejectsMalformed` (all under `internal/svgcompare`).
 - [x] Golden fixtures: `TestSVGGoldens/{line_stroked,scatter_markers,clipped_text,image_transformed}` exercising the structural diff helper end-to-end.
 

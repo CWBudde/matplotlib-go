@@ -538,8 +538,10 @@ func TestDrawMarkersDedupesIdenticalMarkerGeometry(t *testing.T) {
 		batch := render.MarkerBatch{
 			Marker: circleMarkerPath(),
 			Items: []render.MarkerItem{
-				{Offset: geom.Pt{X: 0, Y: 0}, Transform: geom.Identity(),
-					Paint: render.Paint{Fill: render.Color{A: 1}}},
+				{
+					Offset: geom.Pt{X: 0, Y: 0}, Transform: geom.Identity(),
+					Paint: render.Paint{Fill: render.Color{A: 1}},
+				},
 			},
 		}
 		r.DrawMarkers(batch)
@@ -560,8 +562,10 @@ func TestDrawMarkersHonorsActiveClip(t *testing.T) {
 		r.DrawMarkers(render.MarkerBatch{
 			Marker: circleMarkerPath(),
 			Items: []render.MarkerItem{
-				{Offset: geom.Pt{X: 50, Y: 50}, Transform: geom.Identity(),
-					Paint: render.Paint{Fill: render.Color{A: 1}}},
+				{
+					Offset: geom.Pt{X: 50, Y: 50}, Transform: geom.Identity(),
+					Paint: render.Paint{Fill: render.Color{A: 1}},
+				},
 			},
 		})
 	})
