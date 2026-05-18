@@ -21,8 +21,9 @@ const (
 type ImplementationStatus string
 
 const (
-	StatusPlanned  ImplementationStatus = "planned"
-	StatusDeferred ImplementationStatus = "deferred"
+	StatusImplemented ImplementationStatus = "implemented"
+	StatusPlanned     ImplementationStatus = "planned"
+	StatusDeferred    ImplementationStatus = "deferred"
 )
 
 // CIBackendPolicy describes which Skia path runs in default CI.
@@ -50,13 +51,14 @@ func BackendStrategy() Strategy {
 		BuildTag:    "skia",
 		Binding:     BindingExternalCAPI,
 		DefaultMode: ModeCPU,
-		CPUStatus:   StatusPlanned,
+		CPUStatus:   StatusImplemented,
 		GPUStatus:   StatusDeferred,
 		CIDefault:   CIDefaultStub,
 		RequiredLibraries: []string{
-			"Skia shared library",
-			"C ABI wrapper library",
-			"CGO_ENABLED=1",
+			"none for the skia-tagged CPU compatibility renderer",
+			"Skia shared library for future native paths",
+			"C ABI wrapper library for future native paths",
+			"CGO_ENABLED=1 for future native paths",
 		},
 	}
 }

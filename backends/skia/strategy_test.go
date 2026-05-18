@@ -14,6 +14,9 @@ func TestBackendStrategyDocumentsBuildAndDependencyPolicy(t *testing.T) {
 	if strategy.DefaultMode != ModeCPU {
 		t.Fatalf("DefaultMode = %q, want %q", strategy.DefaultMode, ModeCPU)
 	}
+	if strategy.CPUStatus != StatusImplemented {
+		t.Fatalf("CPUStatus = %q, want %q", strategy.CPUStatus, StatusImplemented)
+	}
 	if strategy.GPUStatus != StatusDeferred {
 		t.Fatalf("GPUStatus = %q, want %q", strategy.GPUStatus, StatusDeferred)
 	}

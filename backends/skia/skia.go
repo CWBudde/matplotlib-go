@@ -4,31 +4,39 @@ package skia
 
 import (
 	"errors"
-	"fmt"
+	"image"
 
 	"github.com/cwbudde/matplotlib-go/backends"
-	"github.com/cwbudde/matplotlib-go/internal/geom"
+	"github.com/cwbudde/matplotlib-go/backends/gobasic"
 	"github.com/cwbudde/matplotlib-go/render"
 )
 
-// Renderer implements render.Renderer using Skia graphics library.
-// This is a stub implementation - actual Skia integration pending.
+// Renderer implements the Skia backend's CPU raster contract.
+//
+// The current skia-tagged implementation uses the shared Go raster surface as a
+// compatibility layer while the external Skia C ABI is still being wired. This
+// keeps backend registration, save dispatch, and renderer contract tests
+// functional without claiming GPU acceleration or Skia-native optional paths.
 type Renderer struct {
-	width      int
-	height     int
-	background render.Color
-	useGPU     bool
-	samples    int
-	began      bool
-	stack      []state
+	*gobasic.Renderer
+	width       int
+	height      int
+	background  render.Color
+	useGPU      bool
+	sampleCount int
+	colorType   string
 }
 
-type state struct {
-	// Skia graphics state would go here
-	// transform matrix, clip regions, etc.
-}
-
-var _ render.Renderer = (*Renderer)(nil)
+var (
+	_ render.Renderer           = (*Renderer)(nil)
+	_ render.DPIAware           = (*Renderer)(nil)
+	_ render.TextDrawer         = (*Renderer)(nil)
+	_ render.TextPather         = (*Renderer)(nil)
+	_ render.RotatedTextDrawer  = (*Renderer)(nil)
+	_ render.VerticalTextDrawer = (*Renderer)(nil)
+	_ render.RGBAExporter       = (*Renderer)(nil)
+	_ render.PNGExporter        = (*Renderer)(nil)
+)
 
 // New creates a new Skia renderer with the given configuration.
 func New(config backends.Config) (*Renderer, error) {
@@ -41,129 +49,46 @@ func New(config backends.Config) (*Renderer, error) {
 			ColorType:   "RGBA8888",
 		}
 	}
+	if skiaConfig.UseGPU {
+		return nil, errors.New("skia backend GPU mode is not implemented")
+	}
+	if config.Width <= 0 || config.Height <= 0 {
+		return nil, errors.New("skia backend requires positive width and height")
+	}
+	if skiaConfig.SampleCount <= 0 {
+		skiaConfig.SampleCount = 1
+	}
+	if skiaConfig.ColorType == "" {
+		skiaConfig.ColorType = "RGBA8888"
+	}
 
-	// TODO: Initialize Skia context here
-	// - Create GrDirectContext for GPU rendering if requested
-	// - Set up SkSurface with appropriate ColorType and SampleCount
-	// - Configure anti-aliasing and text rendering
-
+	cpu := gobasic.New(config.Width, config.Height, config.Background)
+	if config.DPI > 0 {
+		cpu.SetResolution(uint(config.DPI))
+	}
 	return &Renderer{
-		width:      config.Width,
-		height:     config.Height,
-		background: config.Background,
-		useGPU:     skiaConfig.UseGPU,
-		samples:    skiaConfig.SampleCount,
+		Renderer:    cpu,
+		width:       config.Width,
+		height:      config.Height,
+		background:  config.Background,
+		useGPU:      false,
+		sampleCount: skiaConfig.SampleCount,
+		colorType:   skiaConfig.ColorType,
 	}, nil
 }
 
-// Begin starts a drawing session with the given viewport.
-func (r *Renderer) Begin(viewport geom.Rect) error {
-	if r.began {
-		return errors.New("Begin called twice")
-	}
-	r.began = true
-	r.stack = r.stack[:0]
-
-	// TODO: Skia-specific initialization
-	// - Clear surface with background color
-	// - Set up viewport transform
-	// - Reset graphics state
-
-	return nil
-}
-
-// End finishes the drawing session.
-func (r *Renderer) End() error {
-	if !r.began {
-		return errors.New("End called before Begin")
-	}
-	r.began = false
-	r.stack = r.stack[:0]
-
-	// TODO: Skia-specific cleanup
-	// - Flush pending operations
-	// - Sync GPU if using GPU backend
-
-	return nil
-}
-
-// Save pushes the current graphics state onto the stack.
-func (r *Renderer) Save() {
-	// TODO: Use SkCanvas::save()
-	r.stack = append(r.stack, state{})
-}
-
-// Restore pops the graphics state from the stack.
-func (r *Renderer) Restore() {
-	if len(r.stack) == 0 {
-		return
-	}
-	r.stack = r.stack[:len(r.stack)-1]
-
-	// TODO: Use SkCanvas::restore()
-}
-
-// ClipRect sets a rectangular clip region.
-func (r *Renderer) ClipRect(rect geom.Rect) {
-	// TODO: Use SkCanvas::clipRect()
-	// Convert geom.Rect to SkRect and apply clipping
-}
-
-// ClipPath sets a path-based clip region.
-func (r *Renderer) ClipPath(p geom.Path) {
-	// TODO: Use SkCanvas::clipPath()
-	// Convert geom.Path to SkPath and apply clipping
-}
-
-// Path draws a path with the given paint style.
-func (r *Renderer) Path(p geom.Path, paint *render.Paint) {
-	if !p.Validate() {
-		return
-	}
-
-	// TODO: Skia path rendering
-	// - Convert geom.Path to SkPath
-	// - Convert render.Paint to SkPaint
-	// - Handle fills and strokes with proper anti-aliasing
-	// - Apply dash patterns, line caps, joins
-}
-
-// Image draws an image within the destination rectangle.
-func (r *Renderer) Image(img render.Image, dst geom.Rect) {
-	// TODO: Skia image rendering
-	// - Convert render.Image to SkImage
-	// - Use SkCanvas::drawImageRect() with filtering
-}
-
-// GlyphRun draws a run of glyphs.
-func (r *Renderer) GlyphRun(run render.GlyphRun, color render.Color) {
-	// TODO: Skia text rendering
-	// - Use SkTextBlob for shaped text
-	// - Apply proper hinting and subpixel positioning
-	// - Handle font loading and caching
-}
-
-// MeasureText measures text dimensions.
-func (r *Renderer) MeasureText(text string, size float64, fontKey string) render.TextMetrics {
-	// TODO: Skia text measurement
-	// - Use SkFont for metrics calculation
-	// - Return accurate bounds, ascent, descent
-	return render.TextMetrics{}
-}
-
 // GetSurface returns the underlying Skia surface for advanced operations.
-// This would return *skia.Surface or similar when implemented.
 func (r *Renderer) GetSurface() interface{} {
-	// TODO: Return actual SkSurface
+	// No Skia-native surface exists until the external C ABI lands.
 	return nil
 }
 
-// SavePNG saves the rendered image to a PNG file.
-func (r *Renderer) SavePNG(path string) error {
-	// TODO: Use Skia's image encoding
-	// - Create SkImage from surface
-	// - Encode as PNG with appropriate compression
-	return fmt.Errorf("Skia backend not implemented - use agg backend")
+// GetImage returns the CPU raster output buffer.
+func (r *Renderer) GetImage() *image.RGBA {
+	if r == nil || r.Renderer == nil {
+		return nil
+	}
+	return r.Renderer.GetImage()
 }
 
 // FlushGPU flushes pending GPU operations (if using GPU backend).
@@ -181,5 +106,14 @@ func (r *Renderer) GPU() bool {
 
 // SampleCount returns the MSAA sample count.
 func (r *Renderer) SampleCount() int {
-	return r.samples
+	return r.sampleCount
+}
+
+// ColorType returns the configured Skia color type name.
+func (r *Renderer) ColorType() string {
+	return r.colorType
+}
+
+func buildTagAvailable() bool {
+	return true
 }

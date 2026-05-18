@@ -65,3 +65,7 @@ func (r *Renderer) MeasureText(_ string, _ float64, _ string) render.TextMetrics
 func (r *Renderer) SavePNG(_ string) error {
 	return errors.New("skia backend not available")
 }
+
+func buildTagAvailable() bool {
+	return false
+}

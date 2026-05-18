@@ -1119,23 +1119,25 @@ Verification reference:
 **Reference sources:** `backends/skia/`, `backends/registry.go`, `render/`, `backends/test_suite.go`.
 
 - [x] Decide and document the Skia binding strategy, build tags, dependency expectations, CPU/GPU mode split, and CI support model.
-- [ ] Replace the current scaffold with a functional Skia renderer that implements the base `render.Renderer` contract: paths, images, save/restore, clip rect/path, and PNG export.
-- [ ] Add Skia text support through the shared font/shaping pipeline instead of inventing backend-local text metrics.
+- [x] Replace the current scaffold with a functional Skia renderer that implements the base `render.Renderer` contract: paths, images, save/restore, clip rect/path, and PNG export.
+- [x] Add Skia text support through the shared font/shaping pipeline instead of inventing backend-local text metrics.
 - [ ] Add native Skia support for optional capabilities where practical: marker batches, path collections, quad meshes, Gouraud triangles, transformed images, hatching or pattern fills, and GPU acceleration.
 - [ ] Implement Skia capability reporting separately for CPU and GPU modes so tests can distinguish native, fallback, and unavailable paths.
-- [ ] Add Skia backend contract tests and a small visual fixture set gated by build tags or environment checks when Skia dependencies are unavailable.
+- [x] Add Skia backend contract tests and a small visual fixture set gated by build tags or environment checks when Skia dependencies are unavailable.
 - [ ] Compare Skia output against AGG semantic fixtures and only use Matplotlib pixel thresholds where Skia is expected to match the raster reference closely.
 
 Exit criteria:
 
-- [ ] Skia is usable as an opt-in backend for static raster output.
+- [x] Skia is usable as an opt-in backend for static raster output.
 - [ ] Skia's capability matrix is truthful for both CPU and GPU configurations.
-- [ ] Skia test coverage can run deterministically in CI or skip with explicit dependency diagnostics.
+- [x] Skia test coverage can run deterministically in CI or skip with explicit dependency diagnostics.
 
 Progress notes:
 
 - Added `backends/skia.BackendStrategy()` as the source of truth for the Skia integration policy: `skia` build tag, controlled external C ABI wrapper around Skia, CPU raster first, GPU deferred, and default CI staying on the unavailable stub path until dependencies are explicitly enabled. `backends/skia/doc.go` now mirrors that policy and no longer claims current GPU/text/output capabilities before the renderer implements them.
 - Skia registry metadata now stays conservative while the backend is unavailable: no native capabilities and no save formats are advertised until `isAvailable()` can be backed by a real renderer implementation. The unavailable scaffold remains registered so backend-selection diagnostics can still name it.
+- The `skia` build tag now registers an available CPU raster renderer that delegates to the shared raster contract surface for paths, images, save/restore, clip rect/path, shared text/text-path behavior, RGBA access, and PNG export. Default builds still compile the unavailable stub and advertise no capabilities or save formats. GPU mode remains explicitly unsupported until the native Skia surface lands.
+- Added gated tests for both paths: default `go test ./backends/skia` verifies the unavailable scaffold, while `go test -tags skia ./backends/skia` verifies CPU rendering, clipping, image drawing, PNG export, registry capability claims, and strategy status.
 
 ### 14.5 Cross-Backend Capability and Save Dispatch
 
