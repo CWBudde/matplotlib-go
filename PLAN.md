@@ -1141,17 +1141,17 @@ Progress notes:
 
 ### 14.5 Cross-Backend Capability and Save Dispatch
 
-- [ ] Replace remaining hard-coded `SavePNG` / `SaveSVG` paths with registry/canvas save dispatch keyed by backend capabilities and file extension.
-- [ ] Expand `backends.CapabilityMatrix()` to include all optional renderer capabilities from `render/extensions.go`, not just the original coarse capability set.
-- [ ] Add tests that instantiate each registered backend and verify advertised native capabilities against concrete runtime interfaces.
-- [ ] Add a backend comparison report command or test helper that lists unsupported/fallback/native status for AGG, GoBasic, SVG, and Skia.
-- [ ] Keep backend docs aligned with actual capabilities whenever a renderer interface is added or removed.
+- [x] Replace remaining hard-coded `SavePNG` / `SaveSVG` paths with registry/canvas save dispatch keyed by backend capabilities and file extension. `pyplot.saveFigure` now resolves the backend through `backends.SelectBackendForExtension` and delegates to `registry.SaveViaExtension`; `core.SavePNG`/`core.SaveSVG` retain the renderer-explicit API and share the same `render.PNGExporter`/`render.SVGExporter` interface contract used by the registry.
+- [x] Expand `backends.CapabilityMatrix()` to include all optional renderer capabilities from `render/extensions.go`, not just the original coarse capability set. New capability constants cover `FontKey*` text variants, `TeX*`/`RotatedTeX`, `ClipPathTransform`, and `SVGOptionExport`, plus an `AllCapabilities` slice that drives the matrix and comparison report.
+- [x] Add tests that instantiate each registered backend and verify advertised native capabilities against concrete runtime interfaces. See `backends/backend_capability_runtime_test.go`: every registered backend is instantiated and run through `VerifyRendererCapabilities`, with an additional check that declared fallbacks do not silently support natively.
+- [x] Add a backend comparison report command or test helper that lists unsupported/fallback/native status for AGG, GoBasic, SVG, and Skia. Implemented as `backends.BackendComparisonReport`, exposed via `matplotlib-go backends compare` CLI subcommand and exercised by `TestBackendComparisonReportContainsEveryBackend`.
+- [x] Keep backend docs aligned with actual capabilities whenever a renderer interface is added or removed. AGG/SVG `init.go` updated to advertise FontKey-text, ClipPathTransform, TeX, SVG-option, DPI-aware capabilities; the comparison report is the single source of truth and surfaces drift as `✓!` markers.
 
 Exit criteria:
 
-- [ ] Backend selection, save dispatch, and capability reporting are the single source of truth for AGG, GoBasic, SVG, and Skia.
-- [ ] New artist work can rely on capability checks instead of backend-name conditionals.
-- [ ] The backend parity matrix is reviewed before marking future rendering phases complete.
+- [x] Backend selection, save dispatch, and capability reporting are the single source of truth for AGG, GoBasic, SVG, and Skia.
+- [x] New artist work can rely on capability checks instead of backend-name conditionals.
+- [x] The backend parity matrix is reviewed before marking future rendering phases complete.
 
 ---
 

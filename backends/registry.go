@@ -61,6 +61,20 @@ const (
 	PathCollectionBatch  Capability = "pathcollectionbatch"
 	QuadMeshBatch        Capability = "quadmeshbatch"
 	GouraudTriangleBatch Capability = "gouraudtrianglebatch"
+
+	// Extended text capabilities — explicit-font variants of DrawText/Rotated/Vertical.
+	FontKeyText         Capability = "fontkeytext"
+	FontKeyRotatedText  Capability = "fontkeyrotatedtext"
+	FontKeyVerticalText Capability = "fontkeyverticaltext"
+
+	// TeX / LaTeX text pipeline capabilities.
+	TeXMetrics Capability = "texmetrics"
+	TeXText    Capability = "textex"
+	RotatedTeX Capability = "rotatedtex"
+
+	// Advanced clipping / vector export capabilities.
+	ClipPathTransform Capability = "clippathtransform"
+	SVGOptionExport   Capability = "svgoptionexport"
 )
 
 // CapabilityStatus reports whether a backend capability is unavailable,
@@ -165,6 +179,38 @@ var capabilityRuntimeChecks = map[Capability]func(render.Renderer) bool{
 	},
 	GouraudTriangleBatch: func(r render.Renderer) bool {
 		_, ok := r.(render.GouraudTriangleDrawer)
+		return ok
+	},
+	FontKeyText: func(r render.Renderer) bool {
+		_, ok := r.(render.FontTextDrawer)
+		return ok
+	},
+	FontKeyRotatedText: func(r render.Renderer) bool {
+		_, ok := r.(render.FontRotatedTextDrawer)
+		return ok
+	},
+	FontKeyVerticalText: func(r render.Renderer) bool {
+		_, ok := r.(render.FontVerticalTextDrawer)
+		return ok
+	},
+	TeXMetrics: func(r render.Renderer) bool {
+		_, ok := r.(render.TeXMetricer)
+		return ok
+	},
+	TeXText: func(r render.Renderer) bool {
+		_, ok := r.(render.TeXDrawer)
+		return ok
+	},
+	RotatedTeX: func(r render.Renderer) bool {
+		_, ok := r.(render.RotatedTeXDrawer)
+		return ok
+	},
+	ClipPathTransform: func(r render.Renderer) bool {
+		_, ok := r.(render.ClipPathTransformer)
+		return ok
+	},
+	SVGOptionExport: func(r render.Renderer) bool {
+		_, ok := r.(render.SVGOptionExporter)
 		return ok
 	},
 }

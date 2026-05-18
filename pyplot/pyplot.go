@@ -750,45 +750,40 @@ func saveFigure(fig *core.Figure, path string) error {
 		return errors.New("pyplot: nil figure")
 	}
 
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".png":
-		renderer, err := newPNGRenderer(fig)
-		if err != nil {
-			return err
-		}
-		return core.SavePNG(fig, renderer, path)
-	case ".svg":
-		renderer, _, err := backends.NewRenderer(string(backends.SVG), rendererConfig(fig), nil)
-		if err != nil {
-			return err
-		}
-		return core.SaveSVG(fig, renderer, path)
-	default:
-		return fmt.Errorf("pyplot: unsupported savefig extension %q", filepath.Ext(path))
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == "" {
+		return fmt.Errorf("pyplot: savefig path %q has no extension", path)
 	}
-}
 
-func newPNGRenderer(fig *core.Figure) (render.Renderer, error) {
+	choice := strings.TrimSpace(os.Getenv("MATPLOTLIB_BACKEND"))
 	cfg := rendererConfig(fig)
-	if choice := os.Getenv("MATPLOTLIB_BACKEND"); strings.TrimSpace(choice) != "" {
-		renderer, _, err := backends.NewRenderer(choice, cfg, backends.TextCapabilities)
-		if err == nil {
-			if _, ok := renderer.(render.PNGExporter); ok {
-				return renderer, nil
-			}
+
+	backend, err := backends.SelectBackendForExtension(choice, ext, nil)
+	if err != nil {
+		// If the user pinned a backend that does not handle this extension,
+		// retry with auto so the registry picks any backend that can.
+		if choice != "" {
+			backend, err = backends.SelectBackendForExtension("", ext, nil)
+		}
+		if err != nil {
+			return fmt.Errorf("pyplot: %w", err)
 		}
 	}
 
-	for _, backend := range backends.Available() {
-		renderer, err := backends.Create(backend, cfg)
-		if err != nil {
-			continue
-		}
-		if _, ok := renderer.(render.PNGExporter); ok {
-			return renderer, nil
-		}
+	renderer, err := backends.Create(backend, cfg)
+	if err != nil {
+		return fmt.Errorf("pyplot: create %s renderer: %w", backend, err)
 	}
-	return nil, errors.New("pyplot: no PNG-capable backend available")
+
+	if setter, ok := renderer.(render.SVGOptionSetter); ok {
+		setter.SetSVGOptions(render.ResolveSVGOptions())
+	}
+	core.DrawFigure(fig, renderer)
+
+	if err := backends.DefaultRegistry.SaveViaExtension(backend, renderer, path); err != nil {
+		return fmt.Errorf("pyplot: %w", err)
+	}
+	return nil
 }
 
 func rendererConfig(fig *core.Figure) backends.Config {
