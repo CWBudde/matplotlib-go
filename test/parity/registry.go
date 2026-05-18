@@ -7,6 +7,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cwbudde/matplotlib-go/core"
+	showcase_bar_basic "github.com/cwbudde/matplotlib-go/examples/bar_basic"
+	showcase_basic_line "github.com/cwbudde/matplotlib-go/examples/basic_line"
+	showcase_hist_basic "github.com/cwbudde/matplotlib-go/examples/hist_basic"
+	showcase_image_heatmap "github.com/cwbudde/matplotlib-go/examples/image_heatmap"
+	showcase_mesh_contour_tri "github.com/cwbudde/matplotlib-go/examples/mesh_contour_tri"
+	showcase_polar_axes "github.com/cwbudde/matplotlib-go/examples/polar_axes"
+	showcase_scatter_basic "github.com/cwbudde/matplotlib-go/examples/scatter_basic"
 	"github.com/cwbudde/matplotlib-go/internal/examplecatalog"
 	example_annotation_composition "github.com/cwbudde/matplotlib-go/test/parity/annotation_composition"
 	example_arrays_showcase "github.com/cwbudde/matplotlib-go/test/parity/arrays_showcase"
@@ -204,6 +212,20 @@ var renderByID = map[string]func() image.Image{
 	"clip_path_batch":           example_clip_path_batch.Render,
 }
 
+var figureByID = map[string]func() *core.Figure{
+	"basic_line":         showcase_basic_line.Plot,
+	"bar_basic":          showcase_bar_basic.Plot,
+	"scatter_basic":      showcase_scatter_basic.Plot,
+	"hist_basic":         showcase_hist_basic.Plot,
+	"mesh_contour_tri":   showcase_mesh_contour_tri.Plot,
+	"image_heatmap":      showcase_image_heatmap.Plot,
+	"polar_axes":         showcase_polar_axes.Plot,
+	"patch_showcase":     example_patch_showcase.Plot,
+	"text_labels_strict": example_text_labels_strict.Plot,
+	"imshow_clipped":     example_imshow_clipped.Plot,
+	"imshow_transformed": example_imshow_transformed.Plot,
+}
+
 // Cases returns the canonical parity examples in catalog order.
 func Cases() []Case {
 	catalog := examplecatalog.Cases()
@@ -241,6 +263,19 @@ func Render(id string) (image.Image, Case, error) {
 		return nil, Case{}, fmt.Errorf("parity: missing Go renderer for case %q", id)
 	}
 	return render(), c, nil
+}
+
+// Figure builds a backend-agnostic figure for parity cases that expose one.
+func Figure(id string) (*core.Figure, Case, error) {
+	c, ok := Lookup(id)
+	if !ok {
+		return nil, Case{}, fmt.Errorf("parity: unknown case %q", id)
+	}
+	figure, ok := figureByID[id]
+	if !ok {
+		return nil, Case{}, fmt.Errorf("parity: missing Go figure factory for case %q", id)
+	}
+	return figure(), c, nil
 }
 
 // RenderToFile renders a parity example to outputDir/<id>.png.

@@ -34,6 +34,7 @@ type pdfImage struct {
 	name     string
 	width    int
 	height   int
+	colors   int
 	rgb      []byte
 	alpha    []byte
 	hasAlpha bool
@@ -812,8 +813,6 @@ func lastEndpoint(p geom.Path, vi int) geom.Pt {
 }
 
 func writeFillColor(w *bytes.Buffer, c render.Color) {
-	// Alpha requires an ExtGState entry; deferred to a later iteration. The
-	// document stays opaque until graphics-state dictionaries are wired up.
 	fmt.Fprintf(w, "%s %s %s rg\n",
 		shortFloat(clamp01(c.R)),
 		shortFloat(clamp01(c.G)),
@@ -1064,6 +1063,7 @@ func encodePDFImage(name string, src *image.RGBA, alphaMul float64) (pdfImage, b
 		name:     name,
 		width:    width,
 		height:   height,
+		colors:   3,
 		rgb:      rgb,
 		alpha:    alpha,
 		hasAlpha: hasAlpha,
@@ -1084,6 +1084,7 @@ func encodePDFJPEGImage(name string, src render.JPEGImage) (pdfImage, bool) {
 		name:   name,
 		width:  width,
 		height: height,
+		colors: 3,
 		rgb:    append([]byte(nil), data...),
 		filter: "DCTDecode",
 	}, true
@@ -1109,6 +1110,30 @@ func imageKey(img pdfImage) string {
 		b.WriteString(string(img.alpha))
 	}
 	return b.String()
+}
+
+func imageColorCount(img pdfImage) int {
+	if img.colors > 0 {
+		return img.colors
+	}
+	return 3
+}
+
+func pngPredictorRows(data []byte, width, height, colors int) []byte {
+	if width <= 0 || height <= 0 || colors <= 0 {
+		return data
+	}
+	rowLen := width * colors
+	if rowLen <= 0 || len(data) != rowLen*height {
+		return data
+	}
+	out := make([]byte, 0, len(data)+height)
+	for y := 0; y < height; y++ {
+		out = append(out, 0) // PNG filter type 0 (None).
+		start := y * rowLen
+		out = append(out, data[start:start+rowLen]...)
+	}
+	return out
 }
 
 func hatchPatternKey(hatch string, face, line render.Color, lineWidth, spacing float64) string {
@@ -1304,7 +1329,7 @@ func (w *pdfWriter) writeImageObject(img pdfImageObject) error {
 	encoded := img.rgb
 	if filter == "FlateDecode" {
 		var err error
-		encoded, err = flateEncode(img.rgb)
+		encoded, err = flateEncode(pngPredictorRows(img.rgb, img.width, img.height, imageColorCount(img.pdfImage)))
 		if err != nil {
 			return fmt.Errorf("pdf: flate encode image %s: %w", img.name, err)
 		}
@@ -1317,7 +1342,12 @@ func (w *pdfWriter) writeImageObject(img pdfImageObject) error {
 	if img.smaskID != 0 {
 		fmt.Fprintf(&w.buf, " /SMask %d 0 R", img.smaskID)
 	}
-	fmt.Fprintf(&w.buf, " /Length %d /Filter /%s >>\nstream\n", len(encoded), escapeName(filter))
+	fmt.Fprintf(&w.buf, " /Length %d /Filter /%s", len(encoded), escapeName(filter))
+	if filter == "FlateDecode" {
+		fmt.Fprintf(&w.buf, " /DecodeParms << /Predictor 10 /Colors %d /Columns %d /BitsPerComponent 8 >>",
+			imageColorCount(img.pdfImage), img.width)
+	}
+	w.buf.WriteString(" >>\nstream\n")
 	w.buf.Write(encoded)
 	w.writeString("\nendstream")
 	w.endObject()
@@ -1325,14 +1355,15 @@ func (w *pdfWriter) writeImageObject(img pdfImageObject) error {
 }
 
 func (w *pdfWriter) writeSoftMaskObject(img pdfImageObject) error {
-	encoded, err := flateEncode(img.alpha)
+	encoded, err := flateEncode(pngPredictorRows(img.alpha, img.width, img.height, 1))
 	if err != nil {
 		return fmt.Errorf("pdf: flate encode image soft mask %s: %w", img.name, err)
 	}
 	w.beginObject(img.smaskID)
 	fmt.Fprintf(&w.buf,
-		"<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceGray /BitsPerComponent 8 /Length %d /Filter /FlateDecode >>\nstream\n",
+		"<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceGray /BitsPerComponent 8 /Length %d /Filter /FlateDecode /DecodeParms << /Predictor 10 /Colors 1 /Columns %d /BitsPerComponent 8 >> >>\nstream\n",
 		img.width, img.height, len(encoded),
+		img.width,
 	)
 	w.buf.Write(encoded)
 	w.writeString("\nendstream")

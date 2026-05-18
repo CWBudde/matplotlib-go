@@ -9,6 +9,7 @@ package pdfcompare
 import (
 	"bytes"
 	"compress/zlib"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"sort"
@@ -127,6 +128,9 @@ func normalizeObjectBody(body []byte) (string, error) {
 			return "", err
 		}
 	}
+	if isImageStream(dict) {
+		return normalizeStreamDict(dict) + "\nstream\n" + binaryStreamDigest(decoded) + "\nendstream", nil
+	}
 	return normalizeStreamDict(dict) + "\nstream\n" + normalizeTokens(decoded) + "\nendstream", nil
 }
 
@@ -135,6 +139,16 @@ func hasFlateDecode(dict []byte) bool {
 	return strings.Contains(normalized, "/Filter /FlateDecode") ||
 		strings.Contains(normalized, "/Filter [ /FlateDecode ]") ||
 		strings.Contains(normalized, "/FlateDecode")
+}
+
+func isImageStream(dict []byte) bool {
+	normalized := normalizeTokens(dict)
+	return strings.Contains(normalized, "/Subtype /Image")
+}
+
+func binaryStreamDigest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("stream-bytes len=%d sha256=%x", len(data), sum)
 }
 
 func decodeFlate(data []byte) ([]byte, error) {
@@ -285,12 +299,22 @@ func Diff(expected, actual *Document) string {
 		if want.Body != got.Body {
 			label := fmt.Sprintf("%d %d obj", want.ID, want.Generation)
 			if strings.Contains(want.Body, "\nstream\n") || strings.Contains(got.Body, "\nstream\n") {
-				return fmt.Sprintf("%s: stream differs:\n  want: %q\n  got:  %q", label, want.Body, got.Body)
+				return fmt.Sprintf("%s: stream differs:\n  want: %s\n  got:  %s",
+					label, previewQuoted(want.Body), previewQuoted(got.Body))
 			}
-			return fmt.Sprintf("%s: body differs:\n  want: %q\n  got:  %q", label, want.Body, got.Body)
+			return fmt.Sprintf("%s: body differs:\n  want: %s\n  got:  %s",
+				label, previewQuoted(want.Body), previewQuoted(got.Body))
 		}
 	}
 	return ""
+}
+
+func previewQuoted(s string) string {
+	const max = 1200
+	if len(s) <= max {
+		return fmt.Sprintf("%q", s)
+	}
+	return fmt.Sprintf("%q... (truncated, %d bytes total)", s[:max], len(s))
 }
 
 // ParseAndDiff parses both inputs and returns the structural diff, or the

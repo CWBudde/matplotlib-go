@@ -3,6 +3,8 @@ package pdfcompare
 import (
 	"bytes"
 	"compress/zlib"
+	"crypto/sha256"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -68,6 +70,50 @@ func TestParseAndDiffReportsFlateStreamMismatch(t *testing.T) {
 	}
 }
 
+func TestParseAndDiffTruncatesLargeStreamMismatch(t *testing.T) {
+	expected := pdfWithFlateStream(t, strings.Repeat("10 10 m 20 20 l S\n", 4096))
+	actual := pdfWithFlateStream(t, strings.Repeat("10 10 m 30 20 l S\n", 4096))
+
+	diff, err := ParseAndDiff(expected, actual)
+	if err != nil {
+		t.Fatalf("ParseAndDiff: %v", err)
+	}
+	if !strings.Contains(diff, "truncated") {
+		t.Fatalf("large diff should be truncated, got: %s", diff)
+	}
+	if len(diff) > 4096 {
+		t.Fatalf("large diff length = %d, want bounded output", len(diff))
+	}
+}
+
+func TestParseAndDiffHashesFlateImageStreams(t *testing.T) {
+	pixels := bytes.Repeat([]byte{0, 10, 20, 30, 40, 50, 60}, 8192)
+	expected := pdfWithFlateImageStream(t, pixels)
+	actual := pdfWithFlateImageStream(t, append([]byte(nil), pixels...))
+
+	diff, err := ParseAndDiff(expected, actual)
+	if err != nil {
+		t.Fatalf("ParseAndDiff: %v", err)
+	}
+	if diff != "" {
+		t.Fatalf("matching image streams should compare equal, got: %s", diff)
+	}
+
+	changed := append([]byte(nil), pixels...)
+	changed[len(changed)-1] ^= 0xff
+	diff, err = ParseAndDiff(expected, pdfWithFlateImageStream(t, changed))
+	if err != nil {
+		t.Fatalf("ParseAndDiff changed image: %v", err)
+	}
+	wantHash := fmt.Sprintf("%x", sha256.Sum256(changed))
+	if !strings.Contains(diff, "stream-bytes") || !strings.Contains(diff, wantHash) {
+		t.Fatalf("image stream mismatch should report byte hashes, got: %s", diff)
+	}
+	if len(diff) > 4096 {
+		t.Fatalf("image stream diff length = %d, want bounded output", len(diff))
+	}
+}
+
 func TestParseReportsMissingPDFHeader(t *testing.T) {
 	if _, err := Parse([]byte("1 0 obj\n<< >>\nendobj\n")); err == nil {
 		t.Fatal("missing PDF header should produce an error")
@@ -88,6 +134,27 @@ func pdfWithFlateStream(t *testing.T, stream string) []byte {
 	out.WriteString("%PDF-1.7\n")
 	out.WriteString("1 0 obj\n")
 	out.WriteString("<< /Length ")
+	out.WriteString(strconv.Itoa(compressed.Len()))
+	out.WriteString(" /Filter /FlateDecode >>\nstream\n")
+	out.Write(compressed.Bytes())
+	out.WriteString("\nendstream\nendobj\n")
+	return out.Bytes()
+}
+
+func pdfWithFlateImageStream(t *testing.T, stream []byte) []byte {
+	t.Helper()
+	var compressed bytes.Buffer
+	zw := zlib.NewWriter(&compressed)
+	if _, err := zw.Write(stream); err != nil {
+		t.Fatalf("zlib write: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zlib close: %v", err)
+	}
+	var out bytes.Buffer
+	out.WriteString("%PDF-1.7\n")
+	out.WriteString("1 0 obj\n")
+	out.WriteString("<< /Type /XObject /Subtype /Image /Width 128 /Height 64 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length ")
 	out.WriteString(strconv.Itoa(compressed.Len()))
 	out.WriteString(" /Filter /FlateDecode >>\nstream\n")
 	out.Write(compressed.Bytes())

@@ -8,7 +8,7 @@ import (
 	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
-func Render() image.Image {
+func Plot() *core.Figure {
 	fig := core.NewFigure(420, 420)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.16, Y: 0.14}, Max: geom.Pt{X: 0.9, Y: 0.88}})
 	ax.SetTitle("Transformed Imshow")
@@ -40,5 +40,10 @@ func Render() image.Image {
 		Interpolation: &bilinear,
 	})
 
+	return fig
+}
+
+func Render() image.Image {
+	fig := Plot()
 	return common.RenderImageFixture(fig, 420, 420)
 }

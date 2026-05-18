@@ -140,9 +140,8 @@ patterns.
 - [x] Text-as-path opt-in via `render.TextPather` so PDF can render typography
   without an embedded font program. Real text-as-text via embedded fonts
   becomes the default once subsetting lands.
-- [ ] Image XObjects with `/FlateDecode` and `/DCTDecode`, including
-  transparency groups for alpha images. (`/DCTDecode` passthrough is available
-  through `render.JPEGImage`; full transparency-group semantics remain open.)
+- [x] Image XObjects with `/FlateDecode` and `/DCTDecode`, including direct
+  grayscale `/SMask` images for RGBA alpha.
 - [x] Native hatch via tiling pattern color spaces.
 - [x] Native marker / path collection batches via form XObjects.
 - [x] Metadata, `SOURCE_DATE_EPOCH`, and reproducible-output options on par
@@ -150,7 +149,7 @@ patterns.
   `WithPDFMetadata`, `WithPDFCreationDate`).
 - [x] Structural test harness (analogous to `internal/svgcompare/`) for
   whitespace-insensitive PDF object comparison.
-- [ ] Golden fixtures for line, bar, scatter, hist, contour, imshow, polar,
+- [x] Golden fixtures for line, bar, scatter, hist, contour, imshow, polar,
   hatch_bars, text_layout, clipped, and image_transformed cases.
 
 Current slice landed:
@@ -177,7 +176,8 @@ Current slice landed:
 - Raster `Image` draws now emit `/Image` XObjects with deterministic
   `/FlateDecode` streams and grayscale soft masks for RGBA alpha. JPEG
   `/DCTDecode` passthrough is supported through the optional
-  `render.JPEGImage` interface; full transparency-group semantics remain open.
+  `render.JPEGImage` interface. Flate image streams include PNG predictor
+  `/DecodeParms`, matching Matplotlib's compressed image path.
 - New `internal/pdfcompare` structural comparison helper parses indirect
   objects, ignores xref offset noise, normalizes object token whitespace, and
   decodes `/FlateDecode` streams before comparison. PDF backend tests exercise

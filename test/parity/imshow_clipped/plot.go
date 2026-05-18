@@ -8,7 +8,7 @@ import (
 	"github.com/cwbudde/matplotlib-go/internal/parityutil"
 )
 
-func Render() image.Image {
+func Plot() *core.Figure {
 	fig := core.NewFigure(640, 360)
 	ax := fig.AddAxes(geom.Rect{Min: geom.Pt{X: 0.12, Y: 0.16}, Max: geom.Pt{X: 0.92, Y: 0.88}})
 	ax.SetTitle("Clipped Imshow")
@@ -28,5 +28,10 @@ func Render() image.Image {
 	ax.SetXLim(2, 6)
 	ax.SetYLim(1, 7)
 
+	return fig
+}
+
+func Render() image.Image {
+	fig := Plot()
 	return common.RenderImageFixture(fig, 640, 360)
 }

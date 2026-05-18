@@ -389,6 +389,30 @@ func TestImageEmitsXObjectResourceAndDrawOperator(t *testing.T) {
 	}
 }
 
+func TestFlateImageEmitsPNGDecodeParms(t *testing.T) {
+	r := newTestRenderer(t)
+	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
+	img := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	img.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
+	img.SetRGBA(1, 0, color.RGBA{G: 255, A: 255})
+
+	r.Image(render.NewImageData(img), geom.Rect{Min: geom.Pt{X: 10, Y: 20}, Max: geom.Pt{X: 50, Y: 40}})
+
+	if err := r.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	doc := mustParsePDF(t, r)
+	body := pdfDocumentObjectBodyContaining(doc, "/Subtype /Image")
+	for _, want := range []string{
+		"/Filter /FlateDecode",
+		"/DecodeParms << /Predictor 10 /Colors 3 /Columns 2 /BitsPerComponent 8 >>",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("image object missing %q:\n%s", want, body)
+		}
+	}
+}
+
 func TestJPEGImageEmitsDCTDecodeXObject(t *testing.T) {
 	r := newTestRenderer(t)
 	_ = r.Begin(geom.Rect{Max: geom.Pt{X: 200, Y: 100}})
