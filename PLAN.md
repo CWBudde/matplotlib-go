@@ -1,8 +1,9 @@
 # Matplotlib-Go Development Plan
 
-This plan prioritizes getting useful plotting functionality working quickly. The AGG backend (via `github.com/cwbudde/agg_go`) is now available and provides a high-quality AGG-backed raster renderer, while GoBasic remains the default pure-Go backend.
-
-This roadmap is cross-checked against the local upstream Matplotlib snapshot in `third_party/matplotlib` so uncovered areas are tracked explicitly instead of being left in broad "future work" buckets.
+This plan tracks the remaining work to bring `matplotlib-go` to a v1.0 release. The
+roadmap is cross-checked against the local upstream Matplotlib snapshot in
+`third_party/matplotlib` so uncovered areas are tracked explicitly instead of
+being deferred to a vague "future work" bucket.
 
 ---
 
@@ -11,1147 +12,550 @@ This roadmap is cross-checked against the local upstream Matplotlib snapshot in 
 - `✅` = done and stable
 - `🧪` = implemented but under hardening
 - `⚪` = in progress
-- `⚠️` = deferred/design decision required
+- `⚠️` = deferred / design decision required
 - `[ ]` = not started
 
 ---
 
-# ✅ Phase 0: Architecture Alignment (COMPLETED)
+# Where We Are Today
 
-**Goal:** convert PoC decisions and the new upstream architecture comparison into concrete execution tracks before adding more surface area.
+The project has progressed well past the proof-of-concept stage. The major
+milestones already achieved are:
 
-### 0.1 Architecture Baseline
+**Architecture and core model**
 
-- [x] Clone/record upstream Matplotlib into `third_party/matplotlib`.
-- [x] Add upstream snapshot to `.gitignore`.
-- [x] Author `docs/architecture-comparison-with-matplotlib.md` capturing the fundamental differences.
+- Artist hierarchy (`Figure → Axes → Artists`) with stale/callback propagation,
+  draw scheduling, and lifecycle parity with upstream Matplotlib's
+  `RendererBase` / `GraphicsContext` split.
+- Explicit transform graph with `transData`, `transAxes`, `transFigure`, blended
+  and offset transforms, and a projection-friendly composition layer.
+- Backend-agnostic `render.Renderer` contract with optional capability
+  interfaces (`TextDrawer`, `ImageTransformer`, `MarkerDrawer`,
+  `PathCollectionDrawer`, `NativeHatcher`, `ClipPathTransformer`,
+  `PNGExporter`, `SVGExporter`, …).
+- Capability matrix and save dispatch driven by the backend registry rather
+  than backend-name conditionals.
 
-### 0.2 Sub-Phase A: Core Object Model Parity
+**Backends**
 
-- [x] Keep interface-based `Artist` model as the port design baseline.
-- [x] Add explicit parity notes for state/callback/stale behaviors that differ from upstream (`Artist` callbacks, stale propagation, picker/query surface).
-- [x] Document and codify lifecycle boundaries in `core` for parity-critical cases (animation, clipping, draw ordering, overlay).
+- **AGG** (`backends/agg`) — primary anti-aliased raster backend, native marker
+  batches, path collections, Gouraud triangles, transformed images, hatches,
+  buffer regions (`CopyFromBBox` / `RestoreRegion`), and offscreen filters
+  (`StartFilter` / `StopFilter`).
+- **GoBasic** (`backends/gobasic`) — pure-Go correctness fallback with full
+  renderer-neutral contract coverage and documented fidelity limits.
+- **SVG** (`backends/svg`) — deterministic vector output with native clip
+  paths, marker / path-collection batches, `<pattern>` hatches,
+  text-as-text vs text-as-path policy, hash-salted IDs, and a structural diff
+  test harness.
+- **Skia** (`backends/skia`) — opt-in CPU raster backend behind a build tag,
+  shares the raster contract surface for paths, images, clipping, text, and
+  PNG export.
 
-### 0.3 Sub-Phase B: Transform & Coordinate System
+**Plot vocabulary**
 
-- [x] Keep explicit transform combinators (`transform` package) as the operational model.
-- [x] Build a minimal invalidation-capable `TransformNode`-style compatibility layer for non-affine/affine split and cache-friendly compositions where it matters for projection-heavy cases.
-- [x] Expand composable coordinate helpers (`transData`, `transAxes`, `transFigure`, blended transforms) with explicit test coverage on nested projections.
+- 2D basics: line, scatter, bar (vertical/horizontal/grouped/stacked),
+  fill / fill_between / fill_betweenx, step, stairs, axhline/vline/span,
+  broken_barh.
+- Statistical: histogram (with binning strategies and density / cumulative
+  variants), boxplot (notches, confidence intervals, custom whiskers),
+  errorbar (asymmetric, with limit indicators), violinplot, ecdf, stackplot.
+- Color-mapped: imshow / matshow / spy, pcolor / pcolormesh (flat / nearest /
+  gouraud), contour / contourf, hist2d (weighted, density), hexbin, tripcolor,
+  tricontour / tricontourf.
+- Vector fields: quiver, quiverkey, barbs, streamplot.
+- Specialty: stem, eventplot, pie, table, sankey, specgram, psd, csd, cohere,
+  xcorr, acorr, annotated heatmaps, magnitude / angle / phase spectra.
+- Patches and collections: Rectangle, Circle, Ellipse, Polygon, PathPatch,
+  FancyArrow, hatch fills, PathCollection, LineCollection, PatchCollection,
+  PolyCollection, QuadMesh.
+- 3D (`mplot3d`): plot3d, scatter3d, surface, wireframe, contour / contourf,
+  trisurf, voxels, quiver3d, errorbar3d, stem3d, bar3d, fill_between3d,
+  with depth sorting and shared scalar-mappable state.
+- Non-Cartesian: polar, radar, skewx, mollweide projections via the
+  `projection=` registry.
 
-### 0.4 Sub-Phase C: Renderer/Backend Runtime Parity
+**Layout, composition, and styling**
 
-- [x] Keep compact `render.Renderer` interface for portability.
-- [x] Add parity-facing façade for backend capability checks and optional methods in a single registry contract.
-- [x] Add backend contract tests for raster/vector export behavior, text pipelines, clipping, and save/dispatch semantics.
+- Subplots, `add_subplot`, `GridSpec`, `subplot_mosaic`, nested grids,
+  `SubFigure`, granular share modes, twin / secondary axes.
+- Layout engines: `subplots_adjust`, `tight_layout`, `constrained_layout`,
+  measured-text margin computation, colorbar slot management.
+- Inset / zoomed-inset, `AxesDivider`, `ImageGrid`, `RGBAxes`, parasite axes,
+  anchored artists, `AxisArtist`, floating axes, curvilinear grids.
+- Figure-level labels (`suptitle`, `supxlabel`, `supylabel`), figure legends,
+  anchored boxes.
+- Style system: `rcParams`, `rc`, `rc_context`, `rcdefaults`, `.mplstyle`
+  loading, theme library, publication-ready themes.
 
-### 0.5 Sub-Phase D: Canvas, Event, and State API
+**API surface**
 
-- [x] Keep current headless canvas and event dispatcher as the minimum baseline.
-- [x] Add parity mapping for Matplotlib event categories (`mouse`, `key`, `resize`, `draw`, `close`) and cursor/pick interactions.
-- [x] Introduce a stricter manager contract for interactive backends (tooling + host lifecycle hooks) without blocking current non-interactive flow.
+- Object-oriented core API plus a stateful `pyplot` layer covering the common
+  Matplotlib migration path (`Figure`, `GCF`, `GCA`, `Subplot`, `Subplots`,
+  `title`, `xlabel`, `legend`, `colorbar`, `savefig`, `show`, …).
+- Convenience entry points: `SemilogX`, `SemilogY`, `LogLog`, `PlotDate`,
+  `Fill`, `BarH`, full spectrum variant wrappers.
+- Color-mapping model: `Normalize`, `NoNorm`, `LogNorm`, `SymLogNorm`,
+  `PowerNorm`, `TwoSlopeNorm`, `CenteredNorm`, `BoundaryNorm`, with consistent
+  scalar-mappable routing through every color-mapped artist.
+- Date / category / unit converters and locators.
 
-### 0.6 Sub-Phase E: Style/RC and Pyplot/API Surface
+**Tooling and infrastructure**
 
-- [x] Keep lightweight `style` RC defaults and stackable contexts.
-- [x] Add a staged rc-system expansion plan keyed by `supportedMPLStyleKeys` and upstream validator parity.
-- [x] Add `pyplot` parity buckets for wrappers that are high-value but currently absent or partial (e.g. figure/axes/window/axes property convenience, output dispatch, context helpers).
+- Headless `FigureCanvas` / `FigureManager` abstraction with event model
+  (mouse / key / resize / draw / close) and tool manager scaffolding.
+- WASM web demo host with persisted light/dark theme switch, focus/input
+  preservation, and GitHub Pages deployment.
+- `cmd/example` runner with `-list` mode driven by the
+  `internal/examplecatalog` source of truth.
+- Catalog-driven parity test suite: `TestGolden`, `TestMatplotlibRef`,
+  `TestReferenceCompare` discover cases by ID; per-case tolerances live on the
+  catalog row.
 
-### 0.7 Sub-Phase F: Architecture-First Test Strategy
-
-- [x] Keep golden/reference comparison loop alive for image behavior.
-- [x] Add architecture tests that validate: backend capability behavior, transform semantics, event lifecycle, rc param/option precedence.
-- [x] Add review points in plan milestones so feature work only starts when structural test debt is bounded.
-
----
-
-### 0.8 Missing architectural parity not yet tracked
-
-- [x] Add an explicit draw-state model closer to Matplotlib’s `GraphicsContext` split (`RendererBase` vs stateful graphics context), including centralized opacity, clip, transform, and path-state ownership.
-- [x] Add first-class event object types and connection lifecycle matching Matplotlib event classes (`MouseEvent`, `KeyEvent`, `PickEvent`) instead of only generic canvas events.
-- [x] Add event-loop and redraw queue semantics (`draw_idle`-style scheduling, timer callbacks) for interactive backends and widgets.
-- [x] Add artist callback and dirty-state lifecycle (`add_callback`/`remove_callback`, stale propagation, and draw scheduling) in `core` to support interactive mutation.
-- [x] Add backend format/router parity (`register_backend` / default format handler behavior) as a single dynamic registry instead of path-extension switch logic.
-
-## Baseline Status (Stable to Keep Unless Broken)
-
-The following phases have reached "foundational parity enough to continue feature expansion" and should be treated as stable:
-
-- ✅ Foundation (PoC to working renderer + AGG integration)
-- ✅ Phase 1: Core Plot Types
-- ✅ Phase 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.8
-- ✅ Phase 3 (except open edges noted)
-- ✅ Phase 4 completed items shown as checked
-- ✅ Phase 5.1, 5.2, 5.3, 5.4
-- ✅ Phase 6 (including sections 6.1–6.6)
-- ✅ Phase 7 core projection/toolkit scaffolding
-
-## ⚪ Example, Fixture, and Web Demo Catalog
-
-**Goal:** keep user examples, Go golden fixtures, Matplotlib references, and
-browser demos aligned around one catalog instead of separate hand-maintained
-lists.
-
-- [x] Add `internal/examplecatalog` as the shared metadata source for parity cases and the curated web demo subset.
-- [x] Reduce the browser demo catalog to high-signal showcase/composition cases selected from parity fixtures.
-- [x] Add catalog invariants for committed Go goldens, Matplotlib references, web-demo references, and reference-compare registration.
-- [x] Mark renderer/backend stress cases as fixture-only so they are excluded from human-example migration.
-- [x] Relocate the parity Go tree from `examples/parity/` to `test/parity/` to physically separate user-facing showcase code from test fixtures.
-- [x] Move shared parity helpers from `test/parity/internal/common` to `internal/parityutil` so showcase examples can reuse them.
-- [x] Migrate plot bodies into importable showcase packages at `examples/{id}/example.go`; parity wrappers at `test/parity/{id}/plot.go` import the showcase `Render()` to avoid duplication.
-- [x] Inline the legacy delegating wrappers (`dashes`, `arrays_showcase`, `axes_grid1_showcase`, `axisartist_showcase`, `boxplot_basic`, `colorbar_composition`, `unstructured_showcase`) so each `examples/{id}/example.go` is self-contained.
-- [x] Add a `Plot() *core.Figure` accessor to every non-fixture showcase package so the figure body is backend-agnostic and the AGG `Render()` is a thin wrapper.
-- [x] Split shared `internal/parityutil.RenderBarBasicScaffold` / `RenderGeoProjectionAxes` into `Plot…` + `Render…` pairs so the bar-progression and geo-projection cases also expose a backend-agnostic `Plot()`.
-- [x] Thin out duplicate top-level CLI runners (`examples/scatter/basic.go`, `examples/lines/basic.go`, etc.) so each one calls `examples/{id}.Plot()` instead of carrying its own copy of the figure body.
-- [x] Curate the showcase set to 31 polished examples tagged `Showcase: true` in the catalog. Bodies of dropped non-fixture cases (joins*caps, scatter_marker_types, scatter_advanced, the bar_basic*\* progression, fill_between, fill_stacked, hist_density/strategies, units_dates/categories/custom_converter, geo_hammer/lambert, etc.) moved back into `test/parity/{id}/plot.go` only, with `examples/{id}/` deleted.
-- [x] Retire the top-level `package main` wrapper directories (`examples/annotation/`, `examples/scatter/`, `examples/lines/basic.go`, etc.) — duplicated thin runners deleted; nested unique educational demos (`examples/axes/limits/`, `examples/lines/styles/`, `examples/lines/dash/`, `examples/geo/aitoff/`, `examples/mplot3d/terrain/`, `examples/backends/`, etc.) kept.
-- [x] Replace the 22 hand-maintained `buildXxxDemo()` builders in `internal/webdemo/demo.go` with calls to `examples/{id}.Plot()` for the 11 cataloged web demos. `demo.go` is now a ~210-line dispatcher importing the 11 showcase packages; `demo_test.go` was simplified to smoke-test that every cataloged web demo produces a non-blank figure and renders without error.
-- [x] Add a unified `cmd/example -name <id> -o out.png` runner with a `-list` mode that enumerates every `Showcase: true` catalog row. Uses `MATPLOTLIB_BACKEND` env selection. The remaining nested topic runners (`examples/lines/styles`, `examples/mplot3d/terrain`, etc.) are kept as topical educational demos but are no longer the only way to render a showcase.
-- [x] De-duplicate the parity Python sources: 89 `test/parity/{id}/plot.py` files that were byte-identical (or behaviourally identical) to `test/matplotlib_ref/plots/{id}.py` are now relative symlinks pointing at the canonical reference. Two parity-only cases (`imshow_bilinear`, `imshow_bicubic`) keep their own standalone `plot.py` because no canonical counterpart exists. Normalised `boxplot_basic` so the implementation lives in `test/matplotlib_ref/plots/boxplot_basic.py` like every other case. Updated `test/matplotlib_ref/generate.py` to import the case registry from `test.parity` instead of the retired `examples.parity`.
-- [x] Restructure `test/` from 19 to 8 files (~3.4k LOC removed via deduplication and subtest loops). Added `MinPSNR`/`MaxMeanAbs`/`MaxRMSE` fields to `examplecatalog.Case` so reference-compare tolerances are now stored on the catalog row; the duplicated `referenceCompareCases` slice and its sync-check (`example_catalog_test.go`) are gone. The 92 hand-written `TestX_Golden` one-liners collapsed into a single `TestGolden` that subtests over the catalog and skips cases without a committed PNG; the 77 `TestMpl_X` one-liners similarly collapsed into `TestMatplotlibRef`. The seven small fixture/showcase files (`image_fixtures_test.go`, `mesh_fixtures_test.go`, `agg_batch_fixtures_test.go`, `color_norm_fixtures_test.go`, `imshow_interpolation_test.go`, `showcase_parity_test.go`, `text_strict_test.go`) and the `golden_flavor_test.go` / `optional_visual_test.go` helpers were folded into `helpers_test.go` and `golden_test.go`. Three of the four diagnostic files (`alpha_residual_diagnostics`, `histogram_height_profile`, `rng_parity`) merged into `diagnostics_test.go`; `bar_text_diagnostic_test.go` stays separate because of its `cgo && !purego` build tag. Per-case invocation works via `go test -run TestGolden/basic_line` (and regex equivalents).
-
-# ✅ Foundation (COMPLETED)
-
-**What we have working:**
-
-- ✅ Artist hierarchy (Figure→Axes→Artists) with proper traversal
-- ✅ Transform system (Linear/Log scales, data→pixel transforms)
-- ✅ GoBasic renderer using `golang.org/x/image/vector` (PoC)
-- ✅ **AGG renderer** using `github.com/cwbudde/agg_go` — anti-aliased, sub-pixel accurate
-- ✅ Line2D artist with stroke support (joins, caps, dashes)
-- ✅ Golden image testing infrastructure
-- ✅ Working example: `examples/lines/basic.go` produces clean line plots
-- ✅ Backend registry system with GoBasic and AGG backends registered
-
-**Current capabilities:**
-
-```go
-// AGG backend with anti-aliased rendering
-r, err := agg.New(800, 500, render.Color{R: 1, G: 1, B: 1, A: 1})
-if err != nil { log.Fatal(err) }
-core.SavePNG(fig, r, "output.png")
-```
+**What's left** is the focused work in the phases below: PDF / vector output
+beyond SVG, interactive backends and animation, widget interaction, MathText
+and TeX completion, renderer effects (patterns / gradients / path effects),
+final backend deepening, and the documentation polish for v1.0.
 
 ---
 
-# ✅ Phase 1: Core Plot Types (COMPLETED)
+# Phase 1: PDF and Additional Vector Output
 
-**Goal:** Get the most commonly used plot types working
+**Goal:** add the publication-quality vector formats that are still missing
+after SVG landed, and finish the save-dispatch story so all formats route
+through the same backend / canvas pipeline.
 
-### 1.1 Scatter Plots
+**Reference sources:** `third_party/matplotlib/lib/matplotlib/backends/backend_pdf.py`,
+`backend_ps.py`, `backend_pgf.py`, current `backends/svg/` for serialization
+patterns.
 
-- [x] `Scatter2D` artist with point/marker rendering
-- [x] Basic marker shapes: circle, square, triangle, diamond, plus, cross
-- [x] Variable marker sizes and colors per point
-- [x] Edge colors and stroke support for marker outlines
-- [x] Alpha transparency support
-- [x] Proper bounds calculation
-- [x] Comprehensive unit tests and golden tests
-- [x] Example: `examples/scatter/basic.go`
+### 1.1 PDF Backend
 
-### 1.2 Bar Charts
+- [ ] Scaffold `backends/pdf/` following the SVG layout: deterministic
+  serialization, dedicated `init.go` registration, `doc.go` capability notes.
+- [ ] Page model and content stream encoder: graphics state stack, path
+  construction (`m`/`l`/`c`/`re`/`h`/`f`/`S`), clip operators, color spaces.
+- [ ] Embedded font subsetting (Type 0 / CIDFontType2) using the shared font
+  resource strategy that already drives AGG and SVG.
+- [ ] Text-as-text by default with a `FontPolicy: "path"` opt-out, matching
+  the SVG renderer's option surface.
+- [ ] Image XObjects with `/FlateDecode` and `/DCTDecode`, including
+  transparency groups for alpha images.
+- [ ] Native hatch via tiling pattern color spaces; native marker / path
+  collection batches via form XObjects.
+- [ ] Metadata, `SOURCE_DATE_EPOCH`, and reproducible-output options on par
+  with the SVG renderer.
+- [ ] Structural test harness (analogous to `internal/svgcompare/`) for
+  whitespace-insensitive PDF object comparison.
+- [ ] Golden fixtures for line, bar, scatter, hist, contour, imshow, polar,
+  hatch_bars, text_layout, clipped, and image_transformed cases.
 
-- [x] `Bar2D` artist using rectangle patches
-- [x] Vertical and horizontal bars
-- [x] Grouped bars (multiple series)
-- [x] Comprehensive unit tests and golden tests
-- [x] Edge colors and transparency support
-- [x] Variable bar widths and colors per bar
-- [x] Proper bounds calculation
-- [x] Example: `examples/bar/basic.go`
+### 1.2 PostScript and PGF Export
 
-### 1.3 Fill Operations
+- [ ] PostScript (`backends/ps/`) for journal submissions that still require
+  EPS. Scope limited to level-2 PS with the same font / image / hatch
+  semantics as PDF.
+- [ ] PGF / LaTeX export (`backends/pgf/`) for direct inclusion in LaTeX
+  documents. Decision required on whether to ship as a generator-only backend
+  or invoke `lualatex` for verification.
+- [ ] Optionally vector / mixed-mode output: rasterized fallback for
+  effects PDF/PS cannot represent (driven by renderer capability checks, not
+  backend-name conditionals).
 
-- [x] `Fill2D` artist for area plots and fill_between
-- [x] Alpha transparency support
-- [x] Edge colors and stroke support for fill outlines
-- [x] Multiple fill regions on same axes
-- [x] Proper bounds calculation
-- [x] Comprehensive unit tests and golden tests
-- [x] Performance optimization for large datasets
-- [x] Example: `examples/fill/basic.go`
+### 1.3 Save Dispatch Cleanup
 
-### 1.4 Multiple Series Support
+- [ ] Remove the last hard-coded format paths in callers; every save route
+  through `backends.SelectBackendForExtension` and the `SaveFormats` map.
+- [ ] Expand `BackendComparisonReport` to enumerate PDF / PS / PGF capability
+  status alongside AGG / GoBasic / SVG / Skia.
+- [ ] Add `cmd/example -format pdf|ps|pgf` smoke coverage matching the
+  existing PNG / SVG runners.
 
-- [x] Plot multiple lines/scatter/bars on same axes
-- [x] Automatic color cycling for series
-- [x] Series labels for legend preparation
-- [x] Example: `examples/multi/basic.go`
+**Exit criteria:**
 
----
-
-# Phase 2: Axes, Scales, Ticks & Transforms
-
-**Goal:** Move from the current rectilinear subset to a broader Matplotlib-compatible axis system while preserving the existing AGG-backed quality work
-
-### 2.1 AGG Backend Integration ✅
-
-- [x] Add `github.com/cwbudde/agg_go` v0.2.2 dependency
-- [x] Implement `render.Renderer` interface using an AGG-backed raster backend
-- [x] Path rendering (fill + stroke) with proper joins, caps, dashes
-- [x] Move AGG backend drawing policy into backend-owned helpers instead of relying broadly on `Agg2D`
-- [x] Add shared optional renderer extension interfaces in `render/` for text, transformed images, DPI, and PNG export
-- [x] Register AGG backend in the backend registry
-- [x] AGG backend unit tests
-- [x] Example: `examples/agg-demo/main.go`
-
-### 2.2 Update Golden Tests for AGG ✅
-
-- [x] Regenerate golden images using AGG backend
-- [x] Verify anti-aliased output quality vs GoBasic
-- [x] Update test infrastructure to use AGG backend (all 14 golden tests migrated)
-- [x] Add incremental bar-baseline parity fixtures (`bar_basic_frame` → `bar_basic_ticks` → `bar_basic_tick_labels` → `bar_basic_title`)
-- [x] Commit `testdata/matplotlib_ref` fixtures and document regeneration via `test/matplotlib_ref/generate.py`
-- [x] Refresh golden/reference baselines after the AGG text-path refactor
-- [x] Re-run Matplotlib reference comparisons and either accept the new baseline or tighten text/layout parity
-
-### 2.3 Axis Rendering with AGG ✅
-
-- [x] Draw actual axis lines (spines) using AGG's anti-aliased lines
-- [x] Tick marks (major/minor) positioned correctly
-- [x] Use existing LinearLocator/LogLocator for tick placement
-- [x] MinorLinearLocator for subdividing between major ticks
-- [x] Example: `examples/axes/spines/main.go`
-
-### 2.4 Grid Lines ✅
-
-- [x] Major and minor grid lines
-- [x] Grid styling (color, alpha, line width, dash patterns)
-- [x] Grid behind data (z-order -1000)
-- [x] Custom locators per grid (major/minor independently)
-- [x] Example: `examples/axes/grid/main.go`
-
-### 2.5 Axis Limits and Scaling ✅
-
-- [x] `SetXLim(min, max)` and `SetYLim(min, max)` methods
-- [x] `SetXLimLog`/`SetYLimLog` with auto-configured locators/formatters
-- [x] `AutoScale(margin)` — computes limits from artist bounds with configurable margin
-- [x] `Line2D.Bounds()` now returns actual data extent (was stub)
-- [x] Example: `examples/axes/limits/main.go`
-
-### 2.6 Text Labels using AGG Text Engine ✅
-
-- [x] Text rendering using AGG raster FreeType with GSV vector font fallback
-- [x] Title, xlabel, ylabel placement with proper centering
-- [x] Tick labels using existing formatters (ScalarFormatter, LogFormatter)
-- [x] Vertical ylabel text via `DrawTextVertical` (character-by-character layout)
-- [x] `MeasureText` for layout calculations
-- [x] Example: `examples/axes/labels/main.go`
-
-### 2.7 Axes Control Surface ✅
-
-- [x] Public API for top/right spines, ticks, and labels instead of only internal `AxisSide` support
-- [x] Axis inversion helpers (`InvertX`, `InvertY`)
-- [x] Visual regression fixture for the new top/right-axis + inversion slice (`axes_top_right_inverted`)
-- [x] Broader explicit axis direction control beyond inversion
-- [x] Aspect controls (`SetAspect`, `SetBoxAspect`, axis-equal helpers)
-- [x] `TickParams`, `LocatorParams`, and minor tick toggles (`MinorticksOn` / `MinorticksOff`)
-- [x] Twin/secondary axis support (`TwinX`, `TwinY`, `SecondaryXAxis`, `SecondaryYAxis`)
-- [x] Visual regression fixture for the broader axes-control surface (`axes_control_surface`)
-
-### 2.8 Scale System Parity ✅
-
-- [x] Public `SetXScale` / `SetYScale` API instead of only linear/log limit helpers
-- [x] Additional built-in scales: `symlog`, `asinh`, `logit`, and function-based scales
-- [x] Scale-specific configuration (`base`, `subs`, `linthresh`, non-positive handling, etc.)
-- [x] Scale registration hooks so projections/toolkits can contribute custom scales
-
-### 2.9 Locator and Formatter Parity ✅
-
-- [x] Additional locators: `FixedLocator`, `NullLocator`, `MultipleLocator`, `MaxNLocator`, `AutoLocator`, `AutoMinorLocator`
-- [x] Additional formatters: `FixedFormatter`, `NullFormatter`, `FuncFormatter`, `FormatStrFormatter`, `StrMethodFormatter`, `EngFormatter`, `PercentFormatter`
-- [x] Axis-owned tick style/state instead of today's loose locator/formatter pairing only
-- [x] Multi-level ticks, label rotation/alignment helpers, and top/right tick label placement
-
-### 2.10 ⚪ Transform Graph and Coordinate Systems
-
-- [x] Expose Matplotlib-like coordinate spaces: `transData`, `transAxes`, `transFigure`
-- [x] Add blended transforms, offset transforms, and bbox-driven transforms
-- [x] Refactor annotations/layout helpers to consume shared transform primitives instead of ad-hoc math
-- [x] Make the transform stack projection-friendly so non-Cartesian axes do not require a redraw pipeline rewrite
-
-### 2.11 Dates, Categories, and Units ✅
-
-- [x] Date locators/formatters and `time.Time`-friendly axis plumbing
-- [x] Categorical axes instead of today's "categories as float positions" workaround
-- [x] Units/converter support similar to Matplotlib's `units` machinery
-- [x] Example coverage for dates, units, and category plots
-- [x] Golden/parity coverage for dates, units, and category plots
-- [x] Tighten web-demo units parity for Matplotlib-style bar sticky baselines, default bar margins, daily date ticks, and rotated tick anchoring
-
-### 2.12 ✅ Architecture Gates for Axes/Transforms
-
-- [x] Add automated assertions for axis state transitions in non-affine/projection-heavy paths.
-- [x] Add focused tests for transform-space APIs (`CoordData`, `CoordAxes`, `CoordFigure`) before adding new transform-specific plot APIs.
-- [x] Add parity acceptance checks for coordinate-space helpers used by annotations and inset-like features.
-
-**Exit Criteria:**
-
-- [x] All plots render with AGG anti-aliasing
-- [x] Plots have proper axis lines, ticks, and labels
-- [x] Grid lines work and look good (major + minor, dashed)
-- [x] Axis limits can be set manually or auto-computed
-- [x] Architectural gates for transforms/coordinate systems are validated
+- [ ] `core.SaveFig(fig, "out.pdf")` works end-to-end with deterministic
+  output and Matplotlib-comparable visual fidelity.
+- [ ] PDF, PS, and PGF backends are reachable through the registry without
+  any caller knowing about them.
+- [ ] Vector backends share a documented font / hatch / image semantics
+  surface so future formats are additions instead of rewrites.
 
 ---
 
-# Phase 3: Additional Plot Types (MEDIUM PRIORITY)
+# Phase 2: Renderer Effects, Patterns, and Compositing
 
-**Goal:** Expand the plotting vocabulary
+**Goal:** finish the renderer-depth cleanup deferred from earlier phases so
+artists can request pattern / gradient fills and post-render path effects
+without backend-name conditionals.
 
-### 3.1 Histograms ✅
+**Reference sources:** `third_party/matplotlib/lib/matplotlib/patheffects.py`,
+`third_party/matplotlib/lib/matplotlib/colors.py` (gradient stops),
+`backends/agg/` filter support, `backends/svg/` `<pattern>` / `<filter>` defs.
 
-- [x] `Hist2D` artist for histogram plots
-- [x] Automatic binning strategies: Auto, Sturges, Scott, Freedman-Diaconis, Sqrt
-- [x] Explicit bin edges supported via `BinEdges` field
-- [x] Normalization modes: Count (default), Probability, Density
-- [x] `Axes.Hist()` convenience method with color cycling
-- [x] Comprehensive unit tests and golden tests (3 golden images)
-- [x] Example: `examples/histogram/basic.go`
+### 2.1 Pattern and Gradient Fills
 
-### 3.2 Box Plots
+- [ ] Renderer-neutral pattern fill API in `render/`: tile geometry, tile
+  transform, and tile color description that AGG, SVG, PDF, and Skia can each
+  implement natively.
+- [ ] Linear and radial gradient fill description (stops, transform, spread
+  method) routed through the same capability interface.
+- [ ] AGG implementation using existing gradient span generators.
+- [ ] SVG implementation via `<linearGradient>` / `<radialGradient>` /
+  `<pattern>` defs (Gouraud fallback already documented; promote to native
+  once gradients land).
+- [ ] PDF implementation via shading dictionaries (Type 2 / 3).
+- [ ] Skia implementation via `SkShader` types.
+- [ ] Golden fixtures: gradient fill bar, radial gradient pie wedge, pattern
+  fill polygon, gradient streamline plot.
 
-- [x] `BoxPlot` artist for statistical visualization
-- [x] Quartiles, whiskers, outliers
-- [x] Multiple box plots per axes
-- [x] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
-- [x] Comprehensive unit tests and golden tests
-- [x] Example: `examples/boxplot/basic.go`
+### 2.2 Path Effects Pipeline
 
-### 3.3 Error Bars
+- [ ] Path effects model (`PathEffect` interface) covering Matplotlib's
+  `Normal`, `Stroke`, `withStroke`, `SimplePatchShadow`, `SimpleLineShadow`,
+  `PathPatchEffect`, `TickedStroke`.
+- [ ] Backend hook for offscreen capture / replay: AGG uses
+  `StartFilter` / `StopFilter`; SVG uses `<filter>` defs; PDF uses
+  transparency groups + soft masks.
+- [ ] Apply-time pipeline that walks the effects list and composes results
+  back into the parent renderer.
+- [ ] Golden fixtures: text with drop shadow, line with halo, scatter markers
+  with shadow, polygon outline + fill effect stack.
 
-- [x] `ErrorBar` artist for scientific plots
-- [x] X and Y error bars with caps
-- [x] Combine with scatter/line plots
-- [x] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
-- [x] Comprehensive unit tests and golden tests
-- [x] Example: `examples/errorbar/basic.go`
+### 2.3 Mixed Raster / Vector Output
 
-### 3.4 Images and Heatmaps
+- [ ] Artist-level "rasterize" flag honored by every vector backend, gated by
+  renderer capability checks.
+- [ ] DPI-aware rasterization at save time so dense scatter / image /
+  contour plots embed as raster tiles inside PDF / PS / SVG without losing
+  surrounding vector text and axes.
+- [ ] Golden fixtures verifying the rasterized region honors clip, transform,
+  and alpha state.
 
-- [x] `Image2D` artist for imshow functionality
-- [x] AGG image transformation for scaling/rotation
-- [x] Colormaps (using AGG gradients)
-- [x] Create matplotlib reference in testdata/matplotlib_ref similar how the others got generated
-- [x] Comprehensive unit tests and golden tests
-- [x] Example: `examples/image/basic.go`
+**Exit criteria:**
 
-### 3.5 Simple Plot Variants Built from Existing Primitives ✅
-
-- [x] `Axes.Step()` and step draw styles
-- [x] `Axes.Stairs()` for pre-binned histogram-style plots
-- [x] `Axes.FillBetweenX()` / `fill_betweenx`
-- [x] Infinite/reference line helpers: `axhline`, `axvline`, `axline`
-- [x] Span helpers: `axhspan`, `axvspan`
-- [x] `broken_barh` and stacked bar support
-- [x] Bar labels and other simple bar-annotation helpers
-
-### 3.6 Derived Statistical and Area Variants
-
-- [x] `stackplot`
-- [x] `ecdf`
-- [x] Histogram presentation variants (cumulative, multi-hist, histtype variants)
-- [x] Example and Matplotlib-reference coverage for each newly added convenience plot
-
-**Exit Criteria:**
-
-- Common scientific plot types work
-- Examples demonstrate real-world use cases
+- [ ] Pattern fills, gradients, and path effects work uniformly across AGG,
+  SVG, PDF, and Skia without backend-name conditionals.
+- [ ] `Artist.SetRasterized(true)` produces correct mixed-mode output on
+  every vector backend.
+- [ ] All effects have committed golden and Matplotlib-reference fixtures.
 
 ---
 
-# Phase 4: Layout, Figure Composition & Annotation
+# Phase 3: Mathematical Text and TeX
 
-**Goal:** Move beyond a fixed subplot grid into the figure/layout systems Matplotlib relies on for real multi-panel figures
+**Goal:** make MathText and `usetex` first-class across raster and vector
+backends, and stabilize `internal/mathtext` for promotion.
 
-### 4.1 Subplots ✅
+**Reference sources:** `third_party/matplotlib/lib/matplotlib/_mathtext.py`,
+`mathtext.py`, `texmanager.py`; current `internal/mathtext/`.
 
-- [x] `Subplot` functionality for multiple axes grids
-- [x] Automatic spacing and layout
-- [x] Shared axes between subplots
-- [x] Example: `examples/subplots/basic.go`
+### 3.1 MathText Pipeline Completion
 
-### 4.2 Figure Composition and GridSpec
+- [ ] Finish the shared shaping layer (carried over from prior backend work)
+  so AGG text draw, text measurement, text bounds, and text-path output all
+  consume the same shaped glyph runs.
+- [ ] Complete the MathText grammar coverage gaps versus upstream: stacked
+  fractions, accents, big operators, integral limits, matrix environments.
+- [ ] Cache stabilization: deterministic cache keys, eviction policy, and
+  cross-process safe storage so `internal/mathtext` can ship as its own
+  module.
+- [ ] MathText draw path through every backend: AGG (raster glyph composite),
+  SVG (paths or text-as-text where the font is available), PDF, Skia.
+- [ ] Golden fixtures: mathtext_basic, mathtext_fractions, mathtext_integrals,
+  mathtext_matrices, mathtext_inline_labels.
 
-- [x] `add_subplot` / subplot-spec style axes creation
-- [x] `GridSpec`, nested grids, width/height ratios, and `subplot2grid`
-- [x] `subplot_mosaic`
-- [x] `SubFigure` / subfigure composition
-- [x] More granular share modes (`row`, `col`, selected peers) instead of all-or-nothing grid sharing
+### 3.2 `usetex` Support
 
-### 4.3 Layout Engines
+- [ ] `usetex` import path that shells out to a system `latex` / `dvipng` /
+  `dvisvgm` pipeline, behind a build tag / rc switch so the default build
+  has no external dependency.
+- [ ] DVI parser sufficient to read the geometry of the rasterized result
+  back into the renderer's text bounds API.
+- [ ] Shared clipping, alpha, and DPI semantics between MathText and `usetex`
+  paths so the artist-side API does not branch.
+- [ ] Golden fixtures gated by the presence of a TeX installation; skip with
+  a clear diagnostic when missing.
 
-- [x] `subplots_adjust`
-- [x] `tight_layout`
-- [x] `constrained_layout`
-- [x] Automatic label/title alignment across axes
-- [x] Margin computation driven by measured text extents instead of fixed subplot padding
+### 3.3 MathText Module Promotion
 
-### 4.4 Legends ✅
+- [ ] Stabilize the public API surface of `internal/mathtext` against the
+  needs of the AGG, SVG, PDF, and Skia text drawers.
+- [ ] Promote `internal/mathtext` to a top-level module / repo with its own
+  versioning, once the grammar coverage and cache contracts are firm.
 
-- [x] `Legend` artist with automatic entries
-- [x] Legend placement and styling
-- [x] Line/marker/patch legend entries
-- [x] Example: `examples/legend/basic.go`
+**Exit criteria:**
 
-### 4.5 Text Annotations ✅
-
-- [x] `Text` artist for arbitrary text placement
-- [x] Arrow annotations pointing to data
-- [x] Math symbols and Greek letters (basic)
-- [x] Example: `examples/annotation/basic.go`
-
-### 4.6 Figure-Level Labels and Annotation Helpers
-
-- [x] `suptitle`, `supxlabel`, and `supylabel`
-- [x] Figure-level legends
-- [x] Annotation boxes / offset-box style anchored layout helpers
-- [x] Better title/xlabel/ylabel alignment behavior across shared-axis figures
-- [x] Example: `examples/figure_labels/basic.go`
-
-### 4.7 Colorbars ✅
-
-- [x] `Colorbar` artist for heatmaps
-- [x] Automatic scaling and labels
-- [x] Various colormap support
-- [x] Example: `examples/colorbar/basic.go`
-
-### 4.8 Phase 4 Visual Parity and Composition Hardening
-
-- [x] Add committed golden and Matplotlib-reference fixtures for Phase 4 composition examples:
-  - nested `GridSpec` / subfigure composition
-  - figure-level labels plus figure legends and anchored text
-  - heatmap colorbar composition
-  - text/arrow annotation composition
-- [x] Fix nested `GridSpec` / constrained-layout small-panel spacing so tick labels do not overlap in `examples/gridspec/main.go` (`Nested Top` currently compresses y tick labels).
-- [x] Make figure-level labels participate in measured margins strongly enough to prevent clipping (`examples/figure_labels/basic.go` currently clips the left `supylabel`).
-- [x] Include figure legends and figure-level anchored boxes in layout collision checks so they avoid the suptitle and plot area by default.
-- [x] Tighten colorbar layout coverage so colorbar axes, ticks, and labels compose without hand-tuned parent axes padding.
-- [x] Define Phase 4 visual acceptance checks: generated examples have no clipped labels, no overlapping tick labels, no legend/title collisions, and pass documented golden/reference tolerances.
-
-**Exit Criteria:**
-
-- [x] Multi-panel figures work well beyond simple uniform grids
-- [x] Layout no longer depends on hand-tuned subplot padding for common cases
-- [x] Figure-level labels, legends, and colorbars compose cleanly
+- [ ] MathText renders identically across all backends within documented
+  tolerances.
+- [ ] `usetex` is opt-in, dependency-free by default, and tested when the
+  external TeX toolchain is present.
+- [ ] `internal/mathtext` is either standalone or has a documented promotion
+  date.
 
 ---
 
-# Phase 5: API Surface, Configuration & Output
+# Phase 4: Interactive Backends and Event Loop
 
-**Goal:** Close the major non-artist API gaps between an object-only plotting core and a usable Matplotlib-like runtime
+**Goal:** turn the existing headless canvas / event scaffolding into a
+working interactive runtime that supports pan, zoom, picking, and live
+updates.
 
-### 5.1 SVG Export
+**Reference sources:** `third_party/matplotlib/lib/matplotlib/backend_bases.py`
+(NavigationToolbar2, FigureCanvasBase event flow), upstream `backend_qtagg.py`
+and `backend_tkagg.py` for desktop reference, `webagg_core.py` for web
+reference; current `core/events.go`, `internal/webdemo/`.
 
-- [x] SVG backend using path recording
-- [x] Vector output for publications
-- [x] Text as actual text (not paths)
-- [x] Example: `examples/export/svg.go`
+### 4.1 Navigation and Hit Testing
 
-### 5.2 Pyplot / Stateful API
+- [ ] Pan, zoom-to-rect, and box-zoom interactions wired through the event
+  dispatcher and the existing draw-idle queue.
+- [ ] Picking / hit testing: `Artist.Contains(MouseEvent)` for every artist
+  family, with shared bounding-box and path-contains helpers.
+- [ ] Coordinate inspection: hover-driven formatter callbacks, cursor
+  rendering hook, and a default `format_coord` implementation.
+- [ ] Callback registration matching `mpl_connect` / `mpl_disconnect`
+  semantics; covered by event-lifecycle tests.
 
-- [x] Optional `pyplot`-style figure registry (`Figure`, `GCF`, `GCA`, `Subplot`, `Subplots`)
-- [x] Stateful helpers for `title`, `xlabel`, `ylabel`, `legend`, `colorbar`, `savefig`, `show`, and `pause`
-- [x] Keep the explicit object API first-class while offering a migration-friendly convenience layer
+### 4.2 Desktop Interactive Backend
 
-### 5.3 Styling and Configuration Parity
+- [ ] Decision and ADR on the desktop toolkit: Fyne, Ebiten, Gio, or a thin
+  SDL2 binding. Decision criteria: pure-Go preference, AGG framebuffer
+  embedding, keyboard / mouse event fidelity, and CI availability.
+- [ ] Backend implementation that hosts an AGG renderer, drives the event
+  dispatcher, and supports the standard NavigationToolbar actions
+  (home / pan / zoom / save).
+- [ ] Toolbar abstraction generic enough for a future Qt or GTK binding.
+- [ ] Embedding example in `examples/embed/desktop/`.
 
-- [x] Style sheets and themes
-- [x] Color palettes and defaults
-- [x] Publication-ready themes
-- [x] Example: `examples/styling/themes.go`
-- [x] Runtime rc defaults wired through new figures and the `pyplot` stateful API
-- [x] `rcParams`, `rc`, `rc_context`, `rcdefaults`, and rc-file loading semantics
-- [x] Example: `examples/styling/rc/main.go`
-- [x] Much broader `.mplstyle` coverage than the current supported subset
-- [x] Broader `.mplstyle` coverage for typography, tick styling, grid defaults/styles, legend frame controls, and `figure.figsize`
-- [x] Style-library discovery beyond the built-in named theme registry
+### 4.3 Web Interactive Backend (WebAgg-style)
 
-### 5.4 Backend Runtime, Canvas, and Tooling
+- [ ] Server-side WebAgg implementation that broadcasts AGG diff regions
+  over WebSockets, mirroring upstream's protocol shape.
+- [ ] Browser-side JS shim handling event encoding, diff application, and
+  cursor rendering.
+- [ ] WASM interactive mode for the existing browser demo host so the
+  GitHub Pages gallery is clickable.
+- [ ] Embedding example in `examples/embed/web/`.
 
-- [x] `FigureCanvas` / `FigureManager` abstraction instead of only renderer factories
-- [x] Event model shared across backends (mouse, keyboard, resize, draw, close)
-- [x] Tool manager / toolbar abstractions
-- [x] Embedding/runtime hosts for desktop or web backends
-- [x] Minimal browser runtime host for Go `js/wasm` demos using the GoBasic backend and an HTML canvas bridge
-- [x] Web demo stabilization for browser-hosted WASM callbacks: preserve the runtime on canvas focus/mouse input and fail clearly on stale generated web assets
-- [x] Broaden the WASM web demo gallery with showcase examples for fills, error bars, patches, and polar axes
-- [x] Add a persisted light/dark/auto theme switch to the WASM web demo host
+### 4.4 Real-Time Redraw
 
-### 5.5 Additional Export and Embedding Targets
+- [ ] Blit / damage-region optimizations for animated artists, riding on the
+  existing AGG `CopyFromBBox` / `RestoreRegion` surface.
+- [ ] `draw_idle` scheduling parity: coalesce redraw requests, drop stale
+  frames, honor the figure's `stale` propagation.
+- [ ] Tests that verify event-driven mutations produce exactly one redraw
+  per idle tick, not one per mutation.
 
-- [ ] PDF/PS/PGF export for publication workflows
-- [ ] Filetype dispatch through backend/canvas capabilities instead of hard-coded `SavePNG` / `SaveSVG`
-- [ ] GUI and web embedding examples (SDL/GTK/Qt/Tk/WebAgg-style)
-- [x] GitHub Pages deployment workflow for the WASM-backed web demo
+**Exit criteria:**
 
-**Exit Criteria:**
-
-- [ ] Both object-oriented and optional stateful APIs are usable
-- [x] Configuration is no longer limited to hard-coded theme structs plus a tiny `.mplstyle` subset
-- [x] Output/runtime capabilities are organized around backend canvases rather than ad-hoc helpers
-
----
-
-# Phase 6: Advanced Artists, Collections, Meshes & Specialty Plots
-
-**Goal:** Add the missing artist families that Matplotlib builds many higher-level plot types on top of
-
-### 6.1 Patch Hierarchy
-
-- [x] Introduce a `Patch` base artist instead of baking patch logic into one-off plot types
-- [x] `Rectangle`, `Circle`, `Ellipse`, `Polygon`, and `PathPatch`
-- [x] Arrow/fancy-box support (`arrow`, `FancyArrow`, box styles)
-- [x] Hatch fill support
-
-### 6.2 Collections and Result Containers
-
-- [x] `Collection`, `PathCollection`, `LineCollection`, `PatchCollection`, `PolyCollection`
-- [x] `QuadMesh` and `FillBetweenPolyCollection`-style primitives
-- [x] Generalize scatter onto collection semantics for arbitrary marker paths and better batching
-- [x] Matplotlib-style result containers (`BarContainer`, `ErrorbarContainer`, `StemContainer`)
-
-### 6.3 Mesh, Contour, and Triangulation Plots
-
-- [x] `pcolor` / `pcolormesh`
-- [x] `contour` / `contourf` and contour labels
-- [x] `hist2d`
-- [x] Unstructured triangulation family: `triplot`, `tricontour`, `tricontourf`, `tripcolor`
-
-### 6.4 Vector Fields and Field Visualization
-
-- [x] `quiver`
-- [x] `quiverkey`
-- [x] `barbs`
-- [x] `streamplot`
-
-### 6.5 Statistical and Specialty Artists
-
-- [x] `stem`
-- [x] `eventplot`
-- [x] `hexbin`
-- [x] `pie`
-- [x] `violinplot`
-- [x] `table`
-- [x] `sankey`
-- [x] Stateful `pyplot` wrappers for the Phase 6.5 artists/builders (`Stem`, `Eventplot`, `Hexbin`, `Pie`, `Violinplot`, `Table`, `Sankey`)
-- [x] Focused unit coverage for the new Phase 6.5 artist families and the Sankey builder
-- [x] Combined specialty example: `examples/specialty/main.go`
-- [x] Golden and Matplotlib-reference parity fixtures for the new specialty artists
-- [x] Phase 6.5 parity hardening for the specialty artist fixture: Matplotlib-style tick density, table alignment/row labels, pie label distance, and reference-matched demo construction
-
-### 6.6 Derived Image and Signal Helpers
-
-- [x] `matshow`
-- [x] `spy`
-- [x] `specgram`
-- [x] Signal-analysis helpers such as `psd`, `csd`, `cohere`, `xcorr`, and `acorr`
-- [x] Annotated-heatmap / matrix-display helpers built on top of image + text primitives
-
-**Exit Criteria:**
-
-- [x] The port covers more than the "basic chart" subset and includes the artist families Matplotlib uses for mesh, contour, collection, and specialty plots
-- [x] New plot families are backed by reusable artist infrastructure instead of one-off helpers
+- [ ] At least one desktop and one web interactive backend can drive pan /
+  zoom / pick across every plot category committed in earlier phases.
+- [ ] Event lifecycle and redraw scheduling match upstream Matplotlib for
+  the documented event set.
+- [ ] Interactive backends share the same artist / event / renderer surface
+  as the headless backends.
 
 ---
 
-# Phase 7: Advanced Axes, Projections & Toolkits
+# Phase 5: Widgets and Selectors
 
-**Goal:** Cover the non-Cartesian and toolkit-driven areas that make upstream Matplotlib much broader than a simple 2D plotting core
+**Goal:** turn the static widget artist surface introduced in Phase 7 into
+fully interactive widgets that participate in the event dispatch from
+Phase 4.
 
-### 7.1 Non-Cartesian Projections
+**Reference sources:** `third_party/matplotlib/lib/matplotlib/widgets.py`.
 
-- [x] Polar axes
-- [x] Geographic / geo projections (initial built-in `mollweide` projection)
-- [x] Projection registry and `projection=`-style axes creation
-- [x] Projection-specific ticks, labels, and transforms
-- [x] Specialty projections built on top of the registry (`radar`, `skew-T`, other curvilinear examples)
+### 5.1 Interactive Widget Behaviors
 
-Current slice landed:
+- [ ] `Button` click activation with hover, press, and disabled states.
+- [ ] `Slider` and `RangeSlider` with click-to-set, drag, keyboard nudging,
+  and value formatting.
+- [ ] `CheckButtons` and `RadioButtons` with keyboard navigation and
+  value-change callbacks.
+- [ ] `TextBox` with focus, caret, selection, copy / paste, and submit /
+  cancel callbacks.
 
-- Built-in `polar` projection with circular spines, angular/radial grids, and polar tick labels
-- Built-in `radar` projection on the projection registry with polygon frames, polygon radial grids, configurable spoke labels, and `Figure.AddRadarAxes`
-- Built-in `skewx` projection for Skew-T style meteorological plots with pressure-axis defaults, top x-axis support, configurable skew angle, and `Figure.AddSkewXAxes`
-- Projection registry plus `Figure.AddAxesProjection`, `Figure.AddPolarAxes`, and subplot `WithProjection(...)`
-- Polar-specific theta zero-location, theta-direction, radial-label-angle controls, and projection-stage transform access via `DrawContext.TransProjection()`
-- Built-in `mollweide` projection with oval frame/clipping, longitude/latitude degree ticks, sampled graticule lines, inverse pixel-to-data support, and Matplotlib reference coverage
+### 5.2 Selectors
 
-### 7.2 3D Toolkit
+- [ ] `SpanSelector`, `RectangleSelector`, `EllipseSelector`,
+  `PolygonSelector`, and `LassoSelector` with mouse and keyboard editing.
+- [ ] Modifier-key behaviors (shift / ctrl / alt) matching upstream
+  defaults.
+- [ ] `Cursor` and `MultiCursor` helpers driven by hover events.
 
-- [x] `Axes3D` and projection math
-- [x] 3D line, scatter, bar, surface, wireframe, contour, trisurf, voxel, and text artists (initial scaffold)
-- [x] 3D examples corresponding to the upstream `mplot3d` and `plot_types/3D` gallery families
+### 5.3 Widget Composition
 
-Current slice landed:
+- [ ] Widget z-order separate from artist z-order so widgets always sit on
+  top of plot data.
+- [ ] Layout helpers for widget axes that compose with `GridSpec` and
+  `constrained_layout`.
+- [ ] Widget gallery example covering every widget, mirroring the upstream
+  `gallery/widgets/` family.
 
-- `examples/mplot3d/basic.go` for base 3D artist coverage
-- `examples/mplot3d/terrain/main.go` for surface/filled-contour/trisurf workflow
+**Exit criteria:**
 
-### 7.3 Axes Composition Helpers
-
-- [x] Inset axes and zoomed-inset helpers
-- [x] `AxesDivider`, `ImageGrid`, and RGB axes composition
-- [x] Parasite axes / multi-view axes composition helpers
-- [x] Anchored artists and locator-driven placement helpers
-
-Current slice landed:
-
-- Draw-time `AxesLocator` support with parent-relative `Axes.InsetAxes(...)` and `Axes.ZoomedInset(...)`
-- Inset style/projection/share options and example coverage in `examples/axes/inset`
-- `AxesDivider`, `ImageGrid`, and `RGBAxes` helpers now compose structured grids and channel-axis layout.
-- `ParasiteAxes` adds overlay host-linked axes with optional shared x/y scale-root wiring for multi-view workflows in `core` and pyplot-facing helpers.
-- Shared `AnchoredBoxLocator` helpers now drive placement for `AnchoredTextBox` and `Legend`, including normalized relative placement and corner-offset locator helpers.
-
-### 7.4 AxisArtist and Floating-Axis Systems
-
-- [x] Alternate axisartist-style axis subsystem
-- [x] Floating axes
-- [x] Curvelinear grids and grid helpers
-- [x] Axis line styles and tick-direction control beyond standard Cartesian spines
-
-Current slice landed:
-
-- `AxisArtist` and `Axes.ExtraAxes` provide host-linked auxiliary axes that render through the normal figure draw path.
-- `Axes.FloatingXAxis(...)` and `Axes.FloatingYAxis(...)` create data-positioned floating axes on rectilinear plots.
-- Axis spines now support data-position overrides, and axes support explicit tick direction (`out`, `in`, `inout`) across standard and auxiliary axes.
-- Projection grids now sample constant-coordinate paths for non-separable projection transforms, and curvilinear grids inherit axis locators by default so `skewx`/future projection helpers get the right grid geometry without bespoke grid artists.
-- Axis stroke styling now exposes cap/join/dash control through `Axis.SetLineStyle(...)` and `Axes.SetAxisLineStyle(...)`, and `TickParams` now carries tick-direction control through the normal axes API.
-
-### 7.5 Gallery Parity and Showcase Coverage
-
-- [x] Add example coverage for the remaining upstream gallery families still missing here (`widgets`) and deepen the newer showcase families where coverage is still thin (`axes_grid1`, `axisartist`, `unstructured`, `arrays`)
-- [x] Add parity fixtures for each newly ported toolkit/projection family
-
-Current slice landed:
-
-- Added showcase examples for `axisartist` and `axes_grid1` using the new floating-axis, parasite-axis, anchored-box, `ImageGrid`, and `RGBAxes` helpers.
-- Added showcase examples for `unstructured` and `arrays` using `TriPlot`, `TriColor`, `TriContour`, `TriContourf`, `AnnotatedHeatmap`, `PColorMesh`, `Contour`, and `Spy`.
-- Added golden and Matplotlib parity fixtures for the new `unstructured` and `arrays` showcase cases, including cross-reference thresholds and reference-image generator entries.
-- Added golden and Matplotlib parity fixtures for the `axisartist` and `axes_grid1` showcase cases so the new toolkit-style examples are covered by the same visual-regression pipeline.
-- Added a first static widget artist surface in `core` (`Button`, `Slider`, `CheckButtons`, `RadioButtons`, `TextBox`) plus a `widgets` showcase example to close the remaining gallery-family example gap in Phase 7.
-- Documented the Python/Go example readability gaps in `docs/example-python-go-readability-gaps.md`, starting from the `examples/arrays` counterpart pair.
-- Aligned the Go example bodies with their Python counterparts across the gallery, keeping language-specific setup idiomatic while matching data, call order, constants, layout, and explanatory comments where possible.
-
-**Exit Criteria:**
-
-- [ ] The port is no longer limited to rectangular 2D axes
-- [ ] Toolkit-driven layouts and projections have first-class support instead of bespoke examples
+- [ ] Every widget responds to mouse and keyboard events through the shared
+  event dispatcher.
+- [ ] Selectors emit semantic callbacks (with data-coordinate payloads) and
+  are usable for ROI selection workflows.
+- [ ] Widget examples render correctly in headless mode and remain
+  interactive in desktop and web backends.
 
 ---
 
-# Phase 8: Advanced Rendering, Text & Backend Depth
+# Phase 6: Animation
 
-**Goal:** finish the renderer-depth cleanup that still belongs in Phase 8. Backend-specific parity programs now live in Phase 14, plot-category raster parity lives in Phase 10, and interaction/runtime behavior lives in Phase 9.
+**Goal:** add the animation API that depends on the interactive event loop
+and the blit-friendly redraw paths from Phase 4.
 
-Phase 8 has been condensed to remaining work only. Completed AGG, text, TeX, shaping, and performance history has been collapsed out of this section; use git history and the dedicated later phases for detailed implementation provenance.
+**Reference sources:** `third_party/matplotlib/lib/matplotlib/animation.py`.
 
-### 8.1 Renderer Contract and Effects Cleanup
+### 6.1 Animation API
 
-- [ ] Expose renderer-neutral pattern fill, gradient fill, and richer alpha-compositing contracts beyond AGG-local hatch support.
-- [ ] Surface path effects and post-stroke/post-fill rendering passes to artists and backends, using AGG offscreen filter support where native.
-- [ ] Add mixed raster/vector rendering controls at the artist/save-dispatch level, with backend capability checks instead of backend-name conditionals.
+- [ ] `FuncAnimation` and `ArtistAnimation` mirroring upstream signatures,
+  driven by the figure's draw-idle scheduler.
+- [ ] Frame timing / pacing controls (interval, repeat, repeat_delay,
+  blit toggle) with deterministic-frame mode for tests.
+- [ ] Artist `set_animated(true)` flag honored by the AGG and Skia
+  backends via blit regions.
 
-### 8.2 AGG Text and Font Pipeline Paydown
+### 6.2 Frame Writers
 
-- [x] Replace the temporary DejaVu font-file bootstrap with an explicit font-resource strategy that can use embedded, shipped, and system fonts without leaking backend policy into draw calls.
-- [x] Remove the GSV text fallback as a normal parity path; keep it only as an explicit emergency fallback with tests and diagnostics.
-- [x] Match Matplotlib glyph bitmap compositing for antialiased and mono glyphs, including color-alpha application and clipping semantics.
-- [x] Isolate text, path, and stroke state in the AGG surface so hidden draw-state resets and legacy font state no longer affect correctness.
+- [ ] GIF writer (pure-Go encoder, no external dependency).
+- [ ] APNG writer for higher-quality web demos.
+- [ ] MP4 / WebM writers via optional `ffmpeg` shellout, gated by a build
+  tag and runtime detection.
+- [ ] HTML embedding writer producing self-contained
+  `<video>` / `<canvas>` snippets for the web demo host.
 
-### 8.3 Hatch, Pattern, and Fallback Cleanup
+### 6.3 Animation Examples and Fixtures
 
-- [x] Move residual hatch clipping/fallback logic out of `core` once backend-native hatches and renderer-neutral hatch fallbacks are fully covered.
-- [x] Split renderer-neutral fallback tests from AGG-native parity tests so missing native backend behavior cannot be hidden by fallback drawing.
-- [x] Add focused diagnostics for remaining non-text AGG residuals that are not already owned by Phase 10 or Phase 14.
+- [ ] Animated line plot, animated scatter / collection, animated imshow
+  (heatmap), animated subplot composition.
+- [ ] Deterministic-frame golden fixtures verifying frame-N output matches
+  Matplotlib's frame-N output within tolerance.
 
-### 8.4 MathText Packaging
+**Exit criteria:**
 
-- [ ] Promote `internal/mathtext` to a focused standalone module/repo once the grammar and cache APIs stabilize.
-
-### 8.5 Work Moved to Dedicated Phases
-
-- [x] Backend parity, Skia, SVG, GoBasic, and cross-backend capability/save dispatch now live in Phase 14.
-- [x] Plot-category AGG raster parity now lives in Phase 10.
-- [x] Interactive redraw, widgets, animation, and runtime host behavior now live in Phase 9.
-
-**Exit Criteria:**
-
-- [ ] Remaining Phase 8 renderer cleanup is either complete or explicitly moved to a dedicated later phase.
-- [ ] Renderer APIs expose effects, pattern, and mixed-output controls without backend-name conditionals.
-- [ ] AGG text/font cleanup no longer depends on temporary font-file bootstrap behavior or normal GSV fallback rendering.
-
----
-
-# Phase 9: Interactivity, Widgets & Animation
-
-**Goal:** Add the runtime behaviors that depend on the backend/event infrastructure introduced earlier
-
-### 9.1 Interactive Navigation and Events
-
-- [ ] Basic pan/zoom using mouse
-- [ ] Picking / hit testing
-- [ ] Coordinate inspection, cursors, and callback registration
-- [ ] Real-time plot updates / redraw scheduling
-
-### 9.2 Widgets
-
-- [ ] Buttons, check buttons, radio buttons
-- [ ] Sliders and range sliders
-- [ ] Text boxes and selection widgets
-- [ ] Span/rectangle/polygon selectors
-
-### 9.3 Animation
-
-- [ ] `FuncAnimation`-style API
-- [ ] Frame capture / writer backends (GIF, video, HTML)
-- [ ] Efficient redraw/blitting paths for animated artists
-
-### 9.4 Embedding Examples
-
-- [ ] Desktop embedding examples
-- [x] Web/server embedding examples
-- [x] Direct web-demo PNG export and Matplotlib parity-viewer workflow
-- [ ] Interactive example gallery parity for events, widgets, and animation
-
-**Exit Criteria:**
-
-- [ ] Interactive backends are usable for exploration instead of export-only rendering
-- [ ] Widgets and animation work on top of the shared backend/event runtime instead of custom demos
+- [ ] `FuncAnimation` produces correct frames in headless mode and animates
+  smoothly in interactive backends.
+- [ ] At least one self-contained file format works without external
+  dependencies (GIF).
+- [ ] Animation examples appear in the WASM demo gallery.
 
 ---
 
-# Phase 10: AGG-First Raster Plot Parity
+# Phase 7: Backend Deepening and Parity Hardening
 
-**Goal:** make the existing raster-heavy 2D plot categories behave like Matplotlib on the AGG backend before expanding the public plot vocabulary further.
+**Goal:** finish the backend-specific work that was carved out of the earlier
+backend parity program but is not yet complete.
 
-This phase tracks the plot categories that already exist in the Go port but are not yet fully supported at Matplotlib/RendererAgg fidelity. The reference source for these behaviors is `third_party/matplotlib/lib/matplotlib/backends/backend_agg.py`, `third_party/matplotlib/src/_backend_agg.*`, and the plot-type examples under `third_party/matplotlib/galleries/plot_types`.
+### 7.1 AGG Native Capabilities
 
-### 10.1 QuadMesh, PColor, PColorMesh, and Hist2D
+- [ ] Complete the AGG MathText raster pipeline once Phase 3.1 lands so
+  raster glyph composition shares the same shaping pipeline as text-as-path.
+- [ ] Plumb `usetex` output through AGG using the DVI parser from Phase 3.2.
+- [ ] Expand AGG parity diagnostics for remaining non-text residuals: dense
+  path collections, repeated translucent overlaps, image interpolation modes,
+  hatch clipping, and mixed raster / vector fallbacks.
+- [ ] Split AGG-native parity fixtures from renderer-neutral fallback
+  fixtures so missing native AGG behavior cannot be hidden by fallback
+  drawing.
 
-- [x] Match Matplotlib `pcolor` / `pcolormesh` input-shape validation for the supported 1-D rectilinear scalar-data API, including explicit edge coordinates, center coordinates, and mismatched dimensions.
-- [x] Add shading policy parity for `flat`, `nearest`, `auto`, and rectilinear `gouraud`, including how each mode derives cell geometry from input coordinates.
-- [x] Preserve NaN/Inf bad-cell transparency through `QuadMesh` color mapping and AGG draw batches; add weighted/density `hist2d` bin semantics.
-- [x] Extend masked, bad, under, and over cell semantics beyond the current linear colormap model through `QuadMesh`, `Colorbar`, and AGG draw batches.
-- [x] Match AGG edge rendering for antialiasing, linewidth, snap, join, cap, and alpha accumulation on dense quad meshes.
-- [x] Add focused Matplotlib-reference fixtures for `pcolor`, `pcolormesh(shading="nearest")`, `pcolormesh(shading="gouraud")`, masked quad meshes, and `hist2d` with weights/density.
-- [x] Tighten `quad_mesh` thresholds once the native batch path matches upstream cell placement and blending.
+### 7.2 SVG Coverage Expansion
 
-Completed notes:
+- [ ] Expand the structural golden set to the remaining canonical plot
+  families: bar, errorbar, hist, collection, image, clipped polar,
+  hatch_bars, text_layout, mathtext.
+- [ ] Wire the SVG-specific golden set into the catalog so the structural
+  diff harness runs alongside the rasterized golden / reference comparison.
 
-- Added `MeshShading` support for rectilinear `flat`, `nearest`, `auto`, and `gouraud` mesh construction.
-- `nearest` now interprets supplied coordinates as centers and expands them to cell edges using Matplotlib's midpoint policy; `flat` rejects center-shaped coordinate inputs.
-- Rectilinear `gouraud` meshes route through native `render.GouraudTriangleDrawer` batches when available and fall back to averaged flat cells otherwise.
-- Non-finite mesh scalar values now remain transparent while finite values drive scalar range resolution.
-- `Hist2D` now supports per-sample weights plus probability/density normalization over 2D bin area.
-- Colormaps now preserve explicit bad, under, and over colors for mesh scalar mapping; `MeshOptions.Mask` treats masked cells as bad values and excludes them from scalar range calculation.
-- Added committed Go goldens and Matplotlib references for `pcolor_flat`, `pcolormesh_nearest`, `pcolormesh_gouraud`, `pcolormesh_masked`, and `hist2d_weighted_density`.
-- Matplotlib-style colorbar slot placement now preserves manual-axes default fraction slots while constrained managed axes use the resolved aspect-width slot; `hist2d_weighted_density` and `pcolormesh_gouraud` are RMSE-gated below 30 against Matplotlib references.
+### 7.3 Skia Native Paths
 
-### 10.2 PathCollection and Large Scatter
+- [ ] Native Skia marker batches, path collections, transformed images,
+  quad meshes, and Gouraud triangles wired through `SkCanvas::drawAtlas` and
+  `SkVertices`.
+- [ ] Skia native hatching via tiled `SkShader`s.
+- [ ] GPU mode (`SkSurface::MakeRenderTarget`) behind a separate build tag,
+  with deterministic CPU readback for golden tests.
+- [ ] Capability reporting split between CPU and GPU configurations so the
+  comparison report shows truthful native / fallback / unavailable status
+  per mode.
+- [ ] Skia vs AGG semantic-fixture comparison; tolerances documented per
+  fixture where Skia is not expected to pixel-match.
 
-- [x] Audit `PathCollection` batch routing against upstream `RendererAgg.draw_markers` and `draw_path_collection` fast-path selection for homogeneous and heterogeneous markers.
-- [x] Match per-point facecolor, edgecolor, linewidth, alpha, snap, hatch, antialiasing, and transform handling for large scatter and mixed collections.
-- [x] Add coverage for empty collections, all-masked collections, unfilled markers, `edgecolors="face"`-style behavior, and collection-level alpha combined with per-item alpha.
-- [x] Tighten `large_scatter` and `mixed_collection` thresholds after collection placement and alpha accumulation match upstream.
-- [x] Keep fallback-renderer behavior tested separately so GoBasic/SVG fallback paths do not hide missing AGG-native behavior.
+### 7.4 GoBasic Long Tail
 
-Completed notes:
+- [ ] GoBasic equivalents for the renderer-neutral path effect pipeline
+  introduced in Phase 2 so the fallback backend keeps full semantic coverage.
+- [ ] GoBasic smoke coverage for any new plot family introduced in Phases
+  1-6 (PDF / interactive / animation paths excluded since GoBasic targets
+  static output).
 
-- `PathCollection` routing is now explicitly covered against the upstream selection policy: homogeneous single-marker state can use `draw_markers`, while varying transforms, colors, linewidths, or paths route through `draw_path_collection`.
-- Added focused collection tests for empty and all-invisible collections, line-only/unfilled marker stroke fallback, face-colored edges, and collection alpha combined with per-item face/edge alpha.
-- Collection batches now propagate `SnapAuto`, collection-level antialias-off, native hatch metadata, hatch alpha, path transforms, and per-item paint state through marker/path collection batches and fallback paths.
-- Added separate fallback coverage for heterogeneous path collections when native batch drawing declines.
-- Tightened `large_scatter` to PSNR >= 55, MeanAbs <= 0.5, RMSE <= 4 and `mixed_collection` to PSNR >= 60, MeanAbs <= 0.5, RMSE <= 2 against Matplotlib references.
+**Exit criteria:**
 
-### 10.3 Images, Imshow, Matshow, and Spy
-
-- [x] Complete AGG image clipping for clip boxes and non-rectangular clip paths, including projected axes frames.
-- [x] Align image interpolation and resampling controls with Matplotlib names and fallback behavior (`nearest`, `none`, `bilinear`, `bicubic`, and rc/default policy); add scale-aware `auto`/`antialiased` resolution for direct and transformed draws.
-- [x] Preserve image alpha, GC alpha, premultiplication, and background compositing semantics in the backend instead of pre-flattening in callers.
-- [x] Match transformed image orientation, affine sampling, clipping, and interpolation against upstream `RendererAgg.draw_image`.
-- [x] Add reference fixtures for clipped `imshow`, transformed `imshow`, alpha images, `matshow`, marker-mode `spy`, and image-mode `spy`.
-- [x] Add direct buffer tests for RGBA/ARGB ordering, transparent backgrounds, and raw image export behavior.
-
-Completed notes:
-
-- Ported upstream `RendererAgg::draw_image` alpha behavior from `third_party/matplotlib/src/_backend_agg.h`: image-level alpha is applied to source alpha only before source-over compositing; RGB channels are not recolored by image alpha.
-- AGG image draws now use source-over image compositing for direct and transformed image paths, preserving transparent-background behavior and matching Matplotlib's straight-RGBA buffer semantics.
-- Fixed transformed-image parallelogram orientation so affine image sampling uses top-left, top-right, bottom-right corner order as AGG expects.
-- Added committed Go goldens and Matplotlib references for `imshow_clipped`, `imshow_transformed`, `image_alpha`, `matshow_basic`, `spy_marker`, and `spy_image`.
-- Added backend buffer/export tests covering RGBA byte order, transparent backgrounds, PNG round-tripping from the renderer buffer, source-alpha scaling, and transformed image orientation.
-- `spy` image mode now uses Matplotlib's binary white/black image defaults with nearest interpolation, and transformed image rotation now follows Matplotlib's data-coordinate positive-angle convention; both `spy_image` and `imshow_transformed` are RMSE-gated below 30.
-
-### 10.4 Filled Areas, Contours, and Alpha Accumulation
-
-- [x] Track down remaining fill/hist alpha residuals called out in the current AGG notes and add fixture-specific diagnostics for repeated translucent overlaps.
-- [x] Match filled polygon winding, self-intersection, clipping, and alpha accumulation for `fill_between`, `stackplot`, histogram fill variants, and filled contours.
-- [x] Add contour topology cases for saddle points, masked triangles, holes, and contour bands that touch plot boundaries.
-- [x] Make inline contour label erasure and rotated label placement match upstream display-space behavior across dense and sparse contours.
-
-Completed notes:
-
-- Added `TestAlphaResidualDiagnostics` for repeated translucent overlap cases, currently reporting axes-local residuals for `fill_stacked` and `hist_strategies` against Matplotlib references.
-- Fixed explicit alpha handling for filled areas and histograms so `Alpha` overrides embedded RGBA alpha consistently; omitted histogram alpha now preserves color alpha through the `Axes.Hist` wrapper.
-- Added structured contour topology coverage for filled saddle quads, interior holes, and boundary-touching contour bands, plus masked-triangle `tricontourf` coverage.
-- Split ambiguous filled saddle bands into separate Matplotlib-style polygons instead of emitting a self-intersecting hourglass path, and close boundary-touching band paths where Matplotlib does.
-- Inline contour label erasure now handles closed contours by cutting the wrapped segment across the path boundary, matching Matplotlib's display-space split behavior for labels near a closed-path seam.
-- Added focused inline contour label coverage for dense, sparse, and too-short contours; label erasure, style preservation, and rotated placement are verified in display-space units.
-- Verified filled-area, histogram, stackplot/stat, and filled-contour reference paths against Matplotlib with documented residuals: `fill_between` PSNR 53.13 / MeanAbs 0.21, `fill_stacked` PSNR 50.08 / MeanAbs 0.58, `hist_strategies` PSNR 50.98 / MeanAbs 0.24, `stat_variants` PSNR 53.34 / MeanAbs 0.23, and `mesh_contour_tri` PSNR 47.63 / MeanAbs 0.92.
-
-**Exit Criteria:**
-
-- [x] Raster-heavy 2D fixtures compare against Matplotlib references with the same strict thresholds used by line/bar/scatter basics, or have documented fixture-specific tolerances with root causes.
-- [x] Existing plot categories no longer depend on backend fallbacks to appear complete when the AGG-native path is missing behavior.
-- [x] `RendererAgg` batch fixtures cover marker, path collection, quad mesh, Gouraud, image, and clip-path paths with committed Go goldens and Matplotlib references.
-
-Phase 10 closure notes:
-
-- Added `clip_path_batch` as the missing non-rectangular clip-path visual fixture. It applies a data-space path clip to a native AGG quad-mesh batch and has committed Go golden and Matplotlib reference images.
-- Phase 10 reference fixtures now cover pcolor/pcolormesh/Hist2D, large scatter/path collections, native quad mesh, Gouraud triangles, imshow/matshow/spy/image alpha, fill/hist/stack/contour, and clip-path batch behavior.
-- Fresh reference comparison for `clip_path_batch`: PSNR 50.40 / MeanAbs 0.34 / RMSE 3.93, thresholded at PSNR >= 45, MeanAbs <= 1, RMSE <= 6.
+- [ ] AGG, SVG, and Skia all advertise truthful capability matrices for
+  every optional renderer interface, with no `✓!` drift markers in the
+  comparison report.
+- [ ] Every committed plot family has at least one native and one
+  fallback-path fixture so silent fallbacks cannot pass for native
+  behavior.
+- [ ] Skia is a viable secondary raster backend for users who need GPU
+  acceleration.
 
 ---
 
-# Phase 11: Color Mapping, Normalization & ScalarMappable Parity
-
-**Goal:** make color-mapped plot categories share a Matplotlib-like scalar mapping model instead of each artist carrying a partial `vmin`/`vmax` implementation.
-
-### 11.1 Normalization Model
-
-- [x] Add a backend-independent `Normalize` model covering linear `Normalize`, `NoNorm`, `LogNorm`, `SymLogNorm`, `PowerNorm`, `TwoSlopeNorm`, `CenteredNorm`, and `BoundaryNorm`.
-- [x] Preserve Matplotlib validation behavior for conflicting `norm`, `vmin`, and `vmax` inputs.
-- [x] Add masked, bad, under, and over color handling in scalar mapping; colorbar extension rendering remains tracked in 11.2.
-- [x] Make `Image2D`, `QuadMesh`, `PolyCollection`, `ContourSet`, `HexbinCollection`, `TriColor`, and `StreamplotSet` expose consistent scalar-mappable state.
-
-Completed notes:
-
-- Added `core.ScalarNormalizer` and backend-independent norm implementations for linear, no-op/index, log, symlog, power, diverging/two-slope, centered, and boundary normalization.
-- Added `ScalarMapConfig`/`ResolveScalarMapValues`/`ResolveScalarMapGrid` so explicit norms autoscale through a shared path and `norm` with `vmin`/`vmax` is rejected consistently.
-- Routed `Image2D`, `PColorMesh`/`QuadMesh`, `Hist2D`, `TriColor`, `ContourSet` fills, `HexbinCollection`, collection scalar metadata, and `StreamplotSet` scalar metadata through shared scalar-map state.
-- Reused colormap bad/under/over support from scalar mapping so masked and non-finite mesh/image values no longer require plot-specific fallbacks; colorbar under/over extension geometry and norm-specific ticks remain in 11.2.
-
-### 11.2 Colormap and Colorbar Depth
-
-- [x] Add colormap registration, reversal, copying, and bad/under/over color mutation APIs close enough for common Matplotlib migration paths.
-- [x] Match colorbar tick locator/formatter behavior for linear, log, boundary, and categorical-like norms.
-- [x] Support colorbar extension triangles/rectangles for under/over ranges.
-- [x] Add reference fixtures for `BoundaryNorm` pcolormesh, `LogNorm` imshow, diverging `TwoSlopeNorm`, and colorbar extension behavior.
-
-Completed notes:
-
-- Added `Colormap.Copy`, `Colormap.Reversed`, and in-place `SetBad`/`SetUnder`/`SetOver` methods while preserving the existing immutable `WithBad`/`WithUnder`/`WithOver` helpers and runtime registration path.
-- Colorbars now retain scalar-mappable `ScalarMapInfo`, configure right-side log ticks/formatters for `LogNorm`, and use boundary values as fixed colorbar ticks for `BoundaryNorm`.
-- Added colorbar extension drawing for `Extend: "min"`, `"max"`, and `"both"` with under/over colormap colors.
-- Added focused unit coverage for colormap copy/reversal/mutation APIs, log and boundary colorbar tick configuration, and colorbar extension geometry.
-- Added committed Go golden and Matplotlib reference fixtures for `boundarynorm_pcolormesh`, `lognorm_imshow`, `twoslope_norm_image`, and `colorbar_extensions`. Fresh reference comparisons: `boundarynorm_pcolormesh` PSNR 42.08 / MeanAbs 4.49, `lognorm_imshow` PSNR 41.95 / MeanAbs 5.03, `twoslope_norm_image` PSNR 41.25 / MeanAbs 3.81, `colorbar_extensions` PSNR 42.79 / MeanAbs 3.14.
-
-### 11.3 Plot Category Integration
-
-- [x] Route `imshow`, `matshow`, `pcolor`, `pcolormesh`, `contourf`, `tripcolor`, `hexbin`, `hist2d`, `quiver`, `barbs`, and `streamplot` through the shared normalizer.
-- [x] Ensure legends and colorbars can infer scalar-mappable metadata consistently from all color-mapped artists.
-- [x] Document unsupported normalization modes explicitly until they are implemented.
-
-Completed notes:
-
-- Added `Norm` forwarding to `MatShowOptions`/`ImShowOptions` and routed both helpers through the shared `Image2D` scalar-map path.
-- Routed scalar-colored `Quiver`, `QuiverGrid`, `Barbs`, and `BarbsGrid` through `ResolveScalarMapValues`, preserving norm metadata for legends and colorbars.
-- Added streamplot scalar coloring via `CGrid`, with scalar interpolation along streamline segments and arrows, and a line-collection scalar-map fallback when arrows are disabled.
-- The Phase 11 built-in normalizer set is implemented: linear `Normalize`, `NoNorm`, `LogNorm`, `SymLogNorm`, `PowerNorm`, `TwoSlopeNorm`, `CenteredNorm`, and `BoundaryNorm`. Custom Matplotlib norm subclasses do not have a direct porting layer; Go callers can implement `ScalarNormalizer` explicitly.
-
-**Exit Criteria:**
-
-- [x] Color-mapped plot categories use the same normalization and colormap semantics.
-- [x] Colorbar behavior is driven by scalar-mappable state rather than plot-specific shortcuts.
-- [x] Matplotlib-reference fixtures cover linear, log, boundary, diverging, masked, bad, under, and over color behavior.
-
----
-
-# Phase 12: Remaining 2D Plot API Surface
-
-**Goal:** close the remaining high-value 2D API gaps where Matplotlib has plot-category entry points but the Go port only has lower-level building blocks or no direct equivalent.
-
-### 12.1 Convenience Plot Entry Points
-
-- [x] Add `SemilogX`, `SemilogY`, and `LogLog` helpers that mirror Matplotlib's scale-setting side effects while reusing `Axes.Plot`.
-- [x] Add `PlotDate` or an explicit date-plot helper that preserves existing units/date converter behavior while matching Matplotlib's common migration path.
-- [x] Add `Fill` for arbitrary closed polygon fills, distinct from `FillBetween` and patch helpers.
-- [x] Add direct `BarH` convenience API if horizontal bars remain option-only in `Axes.Bar`.
-- [x] Add pyplot wrappers for any object-oriented helpers already present but missing from `pyplot`.
-
-### 12.2 Signal and Spectrum Variants
-
-- [x] Add `MagnitudeSpectrum`, `AngleSpectrum`, and `PhaseSpectrum` equivalents alongside existing `Specgram`, `PSD`, `CSD`, `Cohere`, `XCorr`, and `ACorr`.
-- [x] Align FFT windowing, detrending, scaling, sides, and dB behavior with upstream `matplotlib.mlab`/`Axes` helper behavior where practical.
-- [x] Add Matplotlib-reference fixtures for spectrum variants and representative parameter combinations.
-
-Current slice:
-
-- Added object-oriented and pyplot convenience wrappers for `semilogx`, `semilogy`, `loglog`, `plot_date`, `fill`, and `barh`, backed by existing plot, units, polygon collection, and bar implementations.
-- Added one-sided `magnitude_spectrum`, `angle_spectrum`, and unwrapped `phase_spectrum` helpers over the existing FFT utility path, with focused unit coverage for frequency bins and phase unwrapping.
-- Aligned spectrum variants with Matplotlib's single-segment helper path: full-input FFT by default, `Fs`/`Fc`, Hanning or named windowing, mean/linear detrending, one-sided/two-sided frequency selection, and linear/dB magnitude scaling. FFT execution is now backed by the local `../algo-fft` module, and the repository Go floor is raised to 1.25 accordingly.
-- Added `spectrum_variants` Go golden and Matplotlib-reference fixture covering magnitude dB scaling, two-sided angle spectra with `Fc`, and one-sided unwrapped phase spectra.
-
-### 12.3 Statistical and Specialty Depth
-
-- [x] Expand `ErrorBar` to support Matplotlib limit indicators (`uplims`, `lolims`, `xuplims`, `xlolims`) and asymmetric error shape validation.
-- [x] Add deeper `BoxPlot` options: notch behavior, bootstrap/confidence intervals, custom medians/confidence intervals, whisker percentiles, and flier customization.
-- [x] Expand `Violinplot` options for side selection, quantiles, custom bandwidth methods, and orientation aliases.
-- [x] Expand `Pie` with label-rotation, normalization controls, shadow dictionaries, hatch support, and `pie_label`-style post-labeling.
-- [x] Expand `Hexbin` with log bins, `xscale`/`yscale` behavior, marginal histograms, and reducer behavior beyond the current common reducers.
-
-Current slice:
-
-- Added asymmetric `ErrorBar` range fields, per-point limit flags, and validation for negative or shape-mismatched error arrays.
-- Added `BoxPlot` notch/stat override fields, custom confidence intervals and medians, percentile whiskers, and flier marker/edge styling.
-- Added `Violinplot` horizontal orientation aliases, low/high/both side selection, quantile line collections, and Scott/Silverman/numeric bandwidth method selection.
-- Added `Pie` normalization control, wedge hatching, simple shadow wedges, stored label rotation angles, and `PieLabel`/`pyplot.PieLabel` post-labeling.
-- Added `Hexbin` log-bin normalization, log-scale axis side effects, min/max reducers, bin discretization, and optional marginal bar collections.
-
-**Exit Criteria:**
-
-- [x] Common Matplotlib 2D plot-type entry points have either a direct Go API or an explicitly documented lower-level migration path.
-- [x] New helpers are covered by unit tests and at least one Matplotlib-reference fixture per plot family.
-- [x] Existing lower-level implementations are not duplicated by convenience wrappers.
-
-Exit notes:
-
-- Phase 12 plot families now have direct object-oriented APIs and pyplot wrappers where stateful coverage is expected: semilog/loglog/date/fill/barh, spectrum variants, errorbar depth, boxplot depth, violin depth, pie label helpers, and hexbin depth.
-- Unit coverage spans the new direct helpers and option paths, including asymmetric errorbar limits, boxplot statistical overrides, violin side/orientation/quantiles, pie post-labeling, and hexbin log/reducer/marginal handling.
-- Matplotlib-reference coverage includes existing basic family fixtures plus `spectrum_variants` and `specialty_depth`, the latter exercising the Phase 12.3 errorbar, boxplot, violin, pie, and hexbin depth paths in one reference image.
-- Convenience wrappers continue to delegate to the lower-level artists/builders rather than duplicating rendering implementations.
-
----
-
-# Phase 13: mplot3d Plot Category Completion
-
-**Goal:** move 3D support from a projection scaffold to first-class coverage of Matplotlib's mplot3d plot categories.
-
-The current implementation projects 3D data into 2D artists, which is useful for static AGG output but still falls short of the upstream `mpl_toolkits.mplot3d.axes3d.Axes3D` plot surface.
-
-### 13.1 Missing 3D Plot Families
-
-- [x] Add `Axes3D.Quiver` for 3D vector fields with length normalization, arrow ratios, pivot behavior, and `axlim_clip`.
-- [x] Add `Axes3D.ErrorBar` for x/y/z error ranges, caps, limit markers, and depth-aware drawing order.
-- [x] Add `Axes3D.Stem` with line, marker, and baseline styling.
-- [x] Add `Axes3D.FillBetween` for polygon bands between two 3D curves.
-- [x] Add `Axes3D.Bar` compatibility for 2D bars projected into selected z directions, separate from full cuboid `Bar3D`.
-
-### 13.2 Existing 3D Plot Depth
-
-- [x] Replace placeholder/simplified contour and contourf projection with Matplotlib-like level selection, `zdir`, `offset`, filled bands, and clipping behavior.
-- [x] Expand `Surface` / `PlotSurfaceGrid` with stride/count sampling, facecolors, lighting, shade, antialiasing, `vmin`/`vmax`/`norm`, and colorbar-compatible scalar state.
-- [x] Expand `Wireframe` with row/column stride and count behavior.
-- [x] Expand `Trisurf` with colormap/norm support, triangle masking, edge/face styling, and depth sorting compatible with upstream examples.
-- [x] Replace `Voxel` as bar-like prisms with Matplotlib-style boolean grid voxel input, facecolors, edgecolors, shade, and internal-face culling.
-
-### 13.3 3D Rendering and Axes Behavior
-
-- [x] Add depth sorting and z-order rules for mixed 3D collections that match upstream static AGG output.
-- [x] Add 3D axis limit, aspect, pane, grid, tick locator, label placement, and view-init parity for common gallery examples.
-- [x] Add Matplotlib-reference fixtures for every upstream `galleries/plot_types/3D` family: plot3d, scatter3d, surface3d, wire3d, trisurf3d, bar3d, voxels, quiver3d, stem3d, and fill_between3d.
-- [x] Keep 3D tests focused on static AGG output; interactive rotation belongs to Phase 9 unless a backend-specific viewer requires it.
-
-Current parity-hardening slice:
-
-- Matplotlib-style 3D scatter marker depth sorting and depth-shaded alpha for the existing `mplot3d_basic` fixture.
-- Filled-contour autoscaling from filled level midpoints, plus same-band contour path boundary merging for the existing `mplot3d_terrain` fixture.
-- Unicode-minus scalar tick labels for default 3D z-axis formatter parity in negative tick ranges.
-
-**Exit Criteria:**
-
-- [x] Every Matplotlib plot-type gallery 3D category has a Go example, a golden image, and a Matplotlib reference image.
-- [x] Existing 3D helpers expose scalar-mappable state where Matplotlib would support colorbars.
-- [x] Mixed 3D scenes have deterministic depth ordering suitable for AGG golden tests.
-
----
-
-# Phase 14: Backend Parity Program
-
-**Goal:** make backend behavior explicit, testable, and Matplotlib-compatible across AGG, GoBasic, SVG, and Skia, in that order.
-
-This phase consolidates the remaining backend work that was previously spread across Phase 8 renderer-depth notes and backend strategy notes. The ordering is intentional: AGG remains the reference raster backend, GoBasic is the pure-Go fallback, SVG is the first-class vector backend, and Skia follows after the shared contracts are stable enough to avoid duplicating backend-specific work.
-
-### 14.1 AGG Reference Backend Parity
-
-**Reference sources:** `third_party/matplotlib/lib/matplotlib/backends/backend_agg.py`, `third_party/matplotlib/src/_backend_agg.*`, `backends/agg/`, `render/`, `test/`.
-
-- [x] Audit `backends/agg` against upstream `RendererAgg` method coverage and record any intentionally unsupported methods in backend docs.
-- [ ] Finish the shared shaping layer tracked in 8.1C so AGG text draw, measurement, bounds, and text-path output all consume the same shaped glyph runs.
-- [ ] Complete AGG MathText and `usetex` import paths so raster text, path text, MathText, and TeX output share the same clipping, alpha, and DPI semantics.
-- [x] Add buffer-region APIs equivalent to `copy_from_bbox` / `restore_region` for animation, blitting, and interactive redraw (`backends/agg.CopyFromBBox` / `backends/agg.RestoreRegion`).
-- [x] Add `start_filter` / `stop_filter`-style offscreen rendering support for path effects and filtered artist output (`backends/agg.StartFilter` / `backends/agg.StopFilter`).
-- [ ] Expand AGG parity diagnostics for remaining non-text residuals: dense path collections, repeated translucent overlaps, image interpolation modes, hatch clipping, and mixed raster/vector fallbacks.
-- [ ] Split AGG-native parity fixtures from renderer-neutral fallback fixtures so missing native AGG behavior cannot be hidden by fallback drawing.
-
-Exit criteria:
-
-- [x] AGG is the canonical raster reference backend for parity fixtures and passes the strictest committed golden/reference thresholds.
-- [x] AGG exposes native or explicitly unsupported status for every optional renderer capability in `render/extensions.go`.
-- [x] AGG text, image, path, collection, hatching, clipping, and buffer behavior have targeted unit coverage plus representative visual fixtures.
-
-Verification reference:
-
-- [x] Added AGG optional-surface capability registration and status wiring in `backends/registry.go` and `backends/capabilities.go`.
-- [x] Marked AGG implementation surface (`backends/agg/init.go`) for DPI-aware, text-bounds/path/rotated/vertical, image-transform, native-hatch, and PNG export capabilities.
-- [x] Added AGG capability status assertions in `backends/agg/registry_test.go` for all declared native capabilities and explicitly unsupported SVG export.
-
-### 14.2 GoBasic Backend Parity
-
-**Reference sources:** `backends/gobasic/`, `backends/test_suite.go`, `backends/contract_test.go`, `render/`.
-
-- [x] Define GoBasic's supported scope as a pure-Go correctness fallback rather than a pixel-identical Matplotlib renderer.
-- [x] Bring GoBasic capability reporting into exact agreement with runtime interfaces: text, clipping, image transforms, batch fallbacks, hatching, export formats, and DPI behavior.
-- [x] Make GoBasic implement all renderer-neutral fallback paths required by `core` without silently dropping paint state such as alpha, line joins/caps, dashes, clipping, hatches, and antialiasing flags.
-- [x] Add GoBasic contract tests for path state save/restore, clip stack behavior, image drawing, transformed image fallback, text metrics, and collection fallback routing.
-- [x] Add a small GoBasic visual smoke fixture set that checks semantic output stability without using AGG-level pixel thresholds.
-- [x] Document every known GoBasic fidelity limitation in `backends/gobasic/doc.go` and surface those limitations through the capability matrix.
-
-Current contract checklist:
-
-- [x] Capability/status reporting: native DPI/text/text-path/rotated/vertical/PNG/path-clip support, fallback marker/path-collection/quad-mesh/hatch support, and unsupported image-transform/font-bound/vector/Gouraud/SVG support are covered.
-- [x] Shared backend lifecycle/path contract suite runs against GoBasic.
-- [x] `Path` tolerates nil paint without panicking.
-- [x] Image drawing preserves source pixel sampling and applies `render.ImageAlpha` before bitmap blending.
-- [x] Path paint-state contract audit: alpha, line joins/caps, dashes, clip rect/path stacking, hatch fallback, and antialias flags all need explicit GoBasic tests that inspect rendered semantics rather than only no-panic behavior. Per-path antialias toggling remains documented as unsupported by GoBasic's vector rasterizer, while AntialiasOff draw paths are covered against output drops.
-- [x] Transformed image fallback contract: rotated/transformed images should have an explicit GoBasic test documenting that `core` falls back to axis-aligned `Image` when `render.ImageTransformer` is absent.
-- [x] Text metrics contract: basic `MeasureText`, DPI scaling, missing-font fallback, rotated text, vertical text, and text-path behavior need grouped contract coverage; unsupported font-wide metrics and ink bounds should stay explicitly unsupported.
-- [x] Collection fallback routing contract: marker, path collection, patch collection, quad mesh, hatches, and Gouraud fallback/unsupported behavior need tests proving GoBasic receives renderer-neutral `Path`/`Image` calls instead of silently dropping output.
-- [x] Example smoke contract: render every committed non-interactive showcase/parity case with GoBasic and assert no panic plus non-blank output under semantic, non-AGG thresholds.
-
-Exit criteria:
-
-- [x] GoBasic can render every committed non-interactive example without panics or missing mandatory artist output.
-- [x] GoBasic capability reports match actual behavior and fail tests when a claimed capability is absent.
-- [x] GoBasic remains dependency-light and pure Go while sharing as much renderer-neutral logic as possible with AGG/SVG/Skia.
-
-Verification reference:
-
-- [x] Added GoBasic capability-status coverage for native DPI/text/text-path/rotated/vertical/PNG/path-clip support, renderer-neutral marker/path-collection/quad-mesh/hatch fallback status, and unsupported image-transform/font-bound/vector/Gouraud/SVG capabilities.
-- [x] Wired GoBasic capability registration to the runtime interfaces it actually implements and added compile-time interface assertions.
-- [x] Ran the shared backend contract suite against GoBasic; fixed `Path` to tolerate nil paint without panicking.
-- [x] Added a GoBasic image drawing contract for `render.ImageAlpha` and applied image-level alpha before bitmap blending.
-- [x] Added rendered GoBasic semantic contracts for alpha blending, line joins/caps, dashes, nested clip rect restore, missing-font text metrics/text paths, unsupported text bounds/font metrics, rotated image fallback without `render.ImageTransformer`, and renderer-neutral collection/hatch/Gouraud fallbacks.
-- [x] Added `cmd/example` GoBasic smoke coverage for every registered showcase and relaxed the CLI's required capability set so the pure-Go backend can render examples.
-- [x] Documented GoBasic's per-path antialias fidelity limitation in `backends/gobasic/doc.go` while keeping `AntiAliasing` capability scoped to vector rasterizer output.
-
-### 14.3 SVG Vector Backend Parity
-
-**Reference sources:** `third_party/matplotlib/lib/matplotlib/backends/backend_svg.py`, `backends/svg/`, `render/`, `test/`.
-
-Bring the SVG backend to functional parity with upstream Matplotlib's `RendererSVG`: deterministic serialization, real vector clip paths, native marker/hatch defs, an explicit text-as-text vs text-as-path policy, and a structural test surface that does not depend on rasterized screenshots. Work is split into six dependency-ordered subtasks; each can ship independently and any subtask audits the matching upstream behavior as part of its own work item.
-
-**14.3.1 Deterministic serialization foundation (landed):**
-
-- [x] Compact float formatter mirroring matplotlib's `_short_float_fmt` (6 decimals max, trailing zeros stripped, `-0` normalized, NaN/Inf clamped to `0`).
-- [x] Centralized rotation formatter (`rotateTransform`) so the eventual matrix-transform switch only touches one helper.
-- [x] Deterministic ID assignment across rect clips, path clips, and marker defs via a single shared counter and registration-ordered slices (no map iteration in the writer).
-- [x] Byte-for-byte reproducibility test (`TestSerializationDeterministic`) and table-driven `TestShortFloat` / `TestRotateTransformUsesShortFloat` pinning formatter semantics.
-
-**14.3.2 Clip paths, nested clip groups, transformed clips (landed):**
-
-- [x] `ClipPath(geom.Path)` registers a deduped `<clipPath><path d="…"/></clipPath>` def in `<defs>` keyed by path data.
-- [x] Nested clip stacks: `Save`/`Restore` snapshot/truncate the path-clip stack; each rendered node captures the full active chain (rect outer, path inner).
-- [x] Serializer wraps content in nested `<g clip-path="url(#…)">` groups in outer-to-inner order.
-- [x] Tests for nested rect+path composition, dedup across nodes, restore-pop unwind, empty-path rejection.
-- [x] Switch per-element rotation strings to canonical `matrix(a b c d e f)` transforms everywhere a transform is applied (text, image, marker `<use>`). Single helper (`matrixTransform`) already exists from 14.3.3 and is reused.
-- [x] Transformed clip paths: apply an affine to a stored clip-path def via `<clipPath><path … transform="…"/></clipPath>` once matrix transforms are universal.
-
-**14.3.3 Native batches, image transforms, hatches, alpha (in progress):**
-
-- [x] `ImageTransformed` emits `transform="matrix(a b c d e f)"` on `<image>`; advertised native `ImageTransform`.
-- [x] Native `DrawMarkers`: one `<defs><path id="markerN" d="…"/>` per unique marker geometry; short `<use href="#markerN" transform=… fill=… stroke=…/>` per item, all wrapped in a single clip-group node; advertised native `MarkerBatch`.
-- [x] Native `DrawPathCollection` via `<defs>` + `<use>` per unique path geometry (mirrors the marker treatment); advertise native `PathCollectionBatch`.
-- [x] Native hatches via `<pattern>` defs (72×72 user-space, keyed by hatch, face color, hatch color, line width, spacing, and forced-alpha policy); advertise `NativeHatch` once `<pattern>` reuse is structural and the existing core-side rasterizer is no longer invoked for SVG.
-- [x] Forced-alpha group wrapping: when `paint.ForceAlpha && paint.Alpha < 1`, emit `opacity="alpha"` on the element (or a `<g opacity>` wrapper for batches) and skip per-color `*-opacity`. Requires coordinated changes to `render/graphics_context.go` so colors are not double-multiplied.
-- [x] Gouraud triangle fallback: continue rasterizing via core but document the limitation explicitly; native `<linearGradient>` emission deferred until use cases warrant it.
-
-**14.3.4 Font policy, metadata, and SVG-specific save options (landed):**
-
-- [x] `FontPolicy` option on `svg.Renderer` (`"none"` text-as-text default, `"path"` text-as-path via `render.TextPather`); analogue of matplotlib's `svg.fonttype` rcParam.
-- [x] Plumb `FontPolicy`, `Metadata`, and `HashSalt` options through `core.SaveSVG`/canvas save dispatch via a typed options interface.
-- [x] Default empty `<metadata>` block; opt-in via explicit `Metadata` option or `SOURCE_DATE_EPOCH` env var for date stability.
-- [x] Opt-in `HashSalt`: when set, switch IDs to `SHA256(salt+content)[:10]` (matches matplotlib's `svg.hashsalt`); default keeps the existing sequential `clipN`/`markerN` IDs.
-- [x] Document the option set in `backends/svg/doc.go`.
-
-**14.3.5 Reference fixtures and structural diff helper (in progress):**
-
-- [x] New `internal/svgcompare/` package: `encoding/xml`-based parser, sorted attribute normalization, whitespace-insensitive structural diff returning human-readable `/path/to/element: reason` reports. Unit-tested for attribute reordering, missing/unexpected attributes, child-count and text mismatches, `xlink:href` round-tripping, and malformed input rejection.
-- [x] `backends/svg/golden_test.go` table-driven harness with `-update` flag; pass `go test ./backends/svg/... -run TestSVGGoldens -update` to rebake fixtures after intentional output changes.
-- [x] Initial golden set under `backends/svg/testdata/golden/`: `line_stroked.svg`, `scatter_markers.svg` (marker batches via `<defs>` + `<use>`), `clipped_text.svg`, `image_transformed.svg`.
-- [ ] Expand golden set to remaining canonical plot families: bar, errorbar, hist, collection, image, clipped polar, hatch_bars, text_layout, mathtext. These require figure-level test fixtures rather than renderer-level closures, so they will piggyback on the parity catalog rather than `backends/svg/testdata`.
-
-**14.3.6 Capability matrix contract and audit coverage (landed):**
-
-- [x] `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` invokes `VerifyRendererCapabilities`; over-advertised `FontHinting` removed (its runtime check expected `render.TextFontMetricer` which SVG never implemented).
-- [x] Cross-backend semantic tests: `backends/cross_backend_semantic_test.go` drives the same `core.Figure` through AGG and SVG via a counting wrapper renderer that mirrors the shared capability set, and asserts equal counts for clip pushes, path draws, image draws, glyph runs, text draws, marker batches, and path-collection batches.
-- [x] `backends/svg/audit_test.go` exercises every `render.Renderer` surface method and every optional capability the SVG renderer advertises (DPIAware, TextDrawer, RotatedTextDrawer, VerticalTextDrawer, TextPather, TeX{Metricer,Drawer,Rotated}, ImageTransformer, ClipPathTransformer, MarkerDrawer, PathCollectionDrawer, NativeHatcher, SVG{Exporter,OptionExporter,OptionSetter}), so silent-drop regressions surface as test failures rather than missing artist output.
-
-**Save dispatch (already routed via registry, completed before 14.3 began):**
-
-- [x] `BackendInfo.SaveFormats[".svg"] = backends.SaveSVG` is wired in `backends/svg/init.go` and exercised end-to-end by `backends/registry_save_test.go` and `core/savesvg_test.go`. The original "route save dispatch through backend capabilities" bullet shipped before this task started; promoted to exit criterion.
-
-Exit criteria:
-
-- [ ] SVG output is deterministic, standards-compliant enough for browser viewing, and covered by structural tests instead of only rasterized screenshots.
-- [ ] SVG supports the same high-level artist surface as AGG, with documented vector-specific fallbacks for unsupported raster-only effects.
-- [x] `.svg` save dispatch works through the backend registry/canvas path.
-
-Progress notes:
-
-- The original "Audit SVG output against upstream `RendererSVG`" bullet has been folded into the per-subtask design rather than tracked separately — each subtask cites the upstream behavior it is matching, so the audit ships incrementally with the implementation.
-- 14.3.2 and 14.3.3 share a transitive dependency: transformed clip paths (14.3.2) and `<pattern>`-based hatch defs (14.3.3) both benefit from the matrix-transform helper introduced for `ImageTransformed`/`DrawMarkers`. The matrix-transform refactor in 14.3.2 has landed; native path collections and hatch patterns are now unblocked.
-- Moving `MarkerBatch` from fallback to native (14.3.3) exposed that `PathCollectionBatch` and `QuadMeshBatch` remain core-side fallbacks; native treatment of path collections is the next natural step.
-- Default-no-metadata in 14.3.4 diverges intentionally from matplotlib (which always emits a generated date) to maximize byte-for-byte determinism out of the box; users opt in via `SOURCE_DATE_EPOCH` or explicit options.
-
-Verification reference:
-
-- [x] Formatter pinning: `TestShortFloat`, `TestRotateTransformUsesMatrixTransform`, `TestSerializationDeterministic`.
-- [x] Clip paths: `TestClipPathNestsInsideActiveRectClip`, `TestClipPathDedupesIdenticalPathsAcrossNodes`, `TestClipPathStackUnwindsOnRestore`, `TestClipPathRejectsEmptyPath`, `TestClipPathTransformedEmitsPathTransformAndDedupesByTransform`, plus the existing `TestRenderSVGPreservesClipStackAcrossSaveRestore` for rect-only intersection semantics.
-- [x] Image transforms: `TestImageTransformedEmitsMatrixAttribute`, `TestImageTransformedHonorsClip`, `TestImageTransformedSkipsUnsupportedImage`, `TestMatrixTransformFormat`.
-- [x] Marker batches: `TestDrawMarkersEmitsDefAndUseElements`, `TestDrawMarkersDedupesIdenticalMarkerGeometry`, `TestDrawMarkersHonorsActiveClip`, `TestDrawMarkersRejectsEmptyBatchOrInvalidMarker`.
-- [x] Path collections, hatches, and forced alpha: `TestDrawPathCollectionEmitsDefsAndUseElements`, `TestDrawPathCollectionHonorsActiveClipAndRejectsEmptyBatch`, `TestPathWithHatchEmitsPatternFill`, `TestHatchPatternDefsAreReused`, `TestPathForcedAlphaUsesElementOpacity`, `TestSupportsNativeHatch`, and `TestGraphicsContextEffectivePaintCombinesForcedAndContextAlpha`.
-- [x] SVG options: `TestRenderSVGEmitsDefaultEmptyMetadata`, `TestRenderSVGMetadataOptionAndSourceDateEpoch`, `TestHashSaltUsesContentDerivedIDs`, `TestFontPolicyPathDrawsTextAsPath`, `TestSaveSVGPassesSVGOptionsToRenderer`, `TestSaveFig_ForwardsSVGOptions`, and `TestRegistry_SaveViaExtension_ForwardsSVGOptions`.
-- [x] Capability advertising: `TestSVGBackend_AdvertisedCapabilitiesAreImplemented` (registry-level contract), `TestAuditRendererSurface` and `TestAuditAdvertisedCapabilitiesMatchAssertions` (per-method audit), and `TestCrossBackendSemanticParity` (AGG vs SVG operation-count parity).
-- [x] Structural diff helper: `TestEqualIgnoresAttributeOrder`, `TestEqualIgnoresInsignificantWhitespace`, `TestDiffReportsAttributeValueMismatch`, `TestDiffReportsMissingAttribute`, `TestDiffReportsUnexpectedAttribute`, `TestDiffReportsChildCountMismatch`, `TestDiffReportsTextMismatch`, `TestParseSupportsXlinkHref`, `TestParseRejectsMalformed` (all under `internal/svgcompare`).
-- [x] Golden fixtures: `TestSVGGoldens/{line_stroked,scatter_markers,clipped_text,image_transformed}` exercising the structural diff helper end-to-end.
-
-### 14.4 Skia Backend Parity
-
-**Reference sources:** `backends/skia/`, `backends/registry.go`, `render/`, `backends/test_suite.go`.
-
-- [x] Decide and document the Skia binding strategy, build tags, dependency expectations, CPU/GPU mode split, and CI support model.
-- [x] Replace the current scaffold with a functional Skia renderer that implements the base `render.Renderer` contract: paths, images, save/restore, clip rect/path, and PNG export.
-- [x] Add Skia text support through the shared font/shaping pipeline instead of inventing backend-local text metrics.
-- [ ] Add native Skia support for optional capabilities where practical: marker batches, path collections, quad meshes, Gouraud triangles, transformed images, hatching or pattern fills, and GPU acceleration.
-- [ ] Implement Skia capability reporting separately for CPU and GPU modes so tests can distinguish native, fallback, and unavailable paths.
-- [x] Add Skia backend contract tests and a small visual fixture set gated by build tags or environment checks when Skia dependencies are unavailable.
-- [ ] Compare Skia output against AGG semantic fixtures and only use Matplotlib pixel thresholds where Skia is expected to match the raster reference closely.
-
-Exit criteria:
-
-- [x] Skia is usable as an opt-in backend for static raster output.
-- [ ] Skia's capability matrix is truthful for both CPU and GPU configurations.
-- [x] Skia test coverage can run deterministically in CI or skip with explicit dependency diagnostics.
-
-Progress notes:
-
-- Added `backends/skia.BackendStrategy()` as the source of truth for the Skia integration policy: `skia` build tag, controlled external C ABI wrapper around Skia, CPU raster first, GPU deferred, and default CI staying on the unavailable stub path until dependencies are explicitly enabled. `backends/skia/doc.go` now mirrors that policy and no longer claims current GPU/text/output capabilities before the renderer implements them.
-- Skia registry metadata now stays conservative while the backend is unavailable: no native capabilities and no save formats are advertised until `isAvailable()` can be backed by a real renderer implementation. The unavailable scaffold remains registered so backend-selection diagnostics can still name it.
-- The `skia` build tag now registers an available CPU raster renderer that delegates to the shared raster contract surface for paths, images, save/restore, clip rect/path, shared text/text-path behavior, RGBA access, and PNG export. Default builds still compile the unavailable stub and advertise no capabilities or save formats. GPU mode remains explicitly unsupported until the native Skia surface lands.
-- Added gated tests for both paths: default `go test ./backends/skia` verifies the unavailable scaffold, while `go test -tags skia ./backends/skia` verifies CPU rendering, clipping, image drawing, PNG export, registry capability claims, and strategy status.
-
-### 14.5 Cross-Backend Capability and Save Dispatch
-
-- [x] Replace remaining hard-coded `SavePNG` / `SaveSVG` paths with registry/canvas save dispatch keyed by backend capabilities and file extension. `pyplot.saveFigure` now resolves the backend through `backends.SelectBackendForExtension` and delegates to `registry.SaveViaExtension`; `core.SavePNG`/`core.SaveSVG` retain the renderer-explicit API and share the same `render.PNGExporter`/`render.SVGExporter` interface contract used by the registry.
-- [x] Expand `backends.CapabilityMatrix()` to include all optional renderer capabilities from `render/extensions.go`, not just the original coarse capability set. New capability constants cover `FontKey*` text variants, `TeX*`/`RotatedTeX`, `ClipPathTransform`, and `SVGOptionExport`, plus an `AllCapabilities` slice that drives the matrix and comparison report.
-- [x] Add tests that instantiate each registered backend and verify advertised native capabilities against concrete runtime interfaces. See `backends/backend_capability_runtime_test.go`: every registered backend is instantiated and run through `VerifyRendererCapabilities`, with an additional check that declared fallbacks do not silently support natively.
-- [x] Add a backend comparison report command or test helper that lists unsupported/fallback/native status for AGG, GoBasic, SVG, and Skia. Implemented as `backends.BackendComparisonReport`, exposed via `matplotlib-go backends compare` CLI subcommand and exercised by `TestBackendComparisonReportContainsEveryBackend`.
-- [x] Keep backend docs aligned with actual capabilities whenever a renderer interface is added or removed. AGG/SVG `init.go` updated to advertise FontKey-text, ClipPathTransform, TeX, SVG-option, DPI-aware capabilities; the comparison report is the single source of truth and surfaces drift as `✓!` markers.
-
-Exit criteria:
-
-- [x] Backend selection, save dispatch, and capability reporting are the single source of truth for AGG, GoBasic, SVG, and Skia.
-- [x] New artist work can rely on capability checks instead of backend-name conditionals.
-- [x] The backend parity matrix is reviewed before marking future rendering phases complete.
+# Phase 8: Documentation, Examples Polish, and v1.0 Release
+
+**Goal:** make the project consumable by users who have not been following
+the development thread, and tag a stable v1.0.
+
+### 8.1 API Documentation
+
+- [ ] Package-level GoDoc passes for every public package, with a worked
+  example per package.
+- [ ] Hosted documentation site (pkg.go.dev plus a curated landing page
+  under the existing GitHub Pages deployment).
+- [ ] Migration guide from upstream Matplotlib: side-by-side Python / Go
+  snippets for every plot family covered by the catalog.
+- [ ] Backend selection guide: when to use AGG / GoBasic / SVG / PDF /
+  Skia, with capability matrix excerpts.
+
+### 8.2 Examples Gallery Polish
+
+- [ ] Review every `Showcase: true` catalog row for caption, description,
+  and runnable snippet quality.
+- [ ] Add an "anti-gallery" of intentional Matplotlib-divergence cases with
+  the reasons documented (where the Go port chose different defaults).
+- [ ] Promote the WASM browser gallery to a first-class entry point on the
+  project README.
+
+### 8.3 Performance Pass
+
+- [ ] Profiling sweep across the catalog: identify hotspots that exceed the
+  100k-point smoothness goal and the sub-second typical-plot goal.
+- [ ] Reusable benchmark suite under `benchmarks/` with regression tracking
+  in CI.
+- [ ] Documented memory-usage targets and a tuning guide for long-running
+  applications.
+
+### 8.4 Release Readiness
+
+- [ ] Semantic version policy decision and `CHANGELOG.md` baseline.
+- [ ] Final golden / reference regeneration pass with explicit per-case
+  tolerances frozen for v1.0.
+- [ ] Public API stability audit: identify and either rename or hide any
+  symbol that is not intended to be part of the v1.0 surface.
+- [ ] CI gate: `just fmt && just lint && just test` plus catalog-driven
+  parity checks must all pass on the release branch.
+- [ ] Tag v1.0.
+
+**Exit criteria:**
+
+- [ ] A new user can install the module, follow the documentation, and
+  reproduce every showcase plot.
+- [ ] The public API surface is documented, audited, and frozen for v1.0.
+- [ ] Performance and parity baselines are tracked in CI.
 
 ---
 
@@ -1159,39 +563,56 @@ Exit criteria:
 
 ## Backend Strategy
 
-- **Primary backend:** AGG (`backends/agg/`) — anti-aliased, sub-pixel accurate
-- **Pure-Go fallback:** GoBasic (`backends/gobasic/`) — retained for dependency-light semantic coverage
-- **Vector backend:** SVG (`backends/svg/`) — deterministic vector export and browser-readable output
-- **Future accelerated backend:** Skia (`backends/skia/`) — CPU/GPU raster path after shared backend contracts are stable
-- **Future print/export backends:** PDF and other formats once SVG/vector contracts are mature
+- **Primary raster backend:** AGG (`backends/agg/`) — anti-aliased,
+  sub-pixel accurate, reference for parity fixtures.
+- **Pure-Go fallback:** GoBasic (`backends/gobasic/`) — dependency-light
+  correctness fallback.
+- **Primary vector backend:** SVG (`backends/svg/`) — deterministic,
+  browser-readable, structurally tested.
+- **Publication vector backends:** PDF / PS / PGF (Phase 1).
+- **Accelerated raster backend:** Skia (`backends/skia/`) — opt-in CPU and
+  future GPU paths.
 
 ## Testing Strategy
 
-- Golden image tests for all plot types
-- Property-based tests for data ranges
-- Visual regression testing
-- `go test ./...` runs all tests
+- Catalog-driven parity tests (`internal/examplecatalog.Case` + `test/`).
+- Golden image tests for raster backends, structural diff for vector
+  backends.
+- Property-based tests for data ranges and transforms.
+- Visual regression against Matplotlib references with documented
+  per-case tolerances.
+- `go test ./...` runs the full suite; `go test ./test/ -run <id>` runs
+  one parity case.
 
 ## API Design Principles
 
-- Follow matplotlib conventions where sensible
-- Use functional options for configuration
-- Keep simple cases simple
-- Provide escape hatches for complex cases
+- Follow Matplotlib conventions where sensible; document and explain
+  divergences.
+- Use functional options for configuration; keep zero-value defaults
+  useful.
+- Keep the object-oriented core API first-class; offer `pyplot` as a
+  migration-friendly convenience layer.
+- Provide escape hatches (renderer access, raw paths) for advanced cases.
 
 ## Performance Goals
 
-- Handle datasets up to 100k points smoothly
-- Sub-second rendering for typical plots
-- Memory efficient for long-running applications
+- Handle datasets up to 100k points smoothly.
+- Sub-second rendering for typical plots.
+- Memory-efficient for long-running applications and animation.
 
 ## Examples-Driven Development
 
-- Every feature gets a working example
-- Examples serve as integration tests
-- README showcases example gallery
-- Examples demonstrate real-world usage
+- Every feature gets a working example tied to the catalog.
+- Examples serve as integration tests and gallery content.
+- Showcase examples appear in the WASM browser gallery and the README.
+- Examples demonstrate real-world usage rather than minimal API smoke
+  tests.
 
 ---
 
-This plan gets you to a fully functional plotting library quickly while keeping the foundation solid for future enhancements.
+This roadmap reflects the work remaining to bring matplotlib-go to a
+stable, documented v1.0 release. Phases 1-3 close functional gaps in
+output formats, effects, and math typography; Phases 4-6 add the
+interactive runtime that the headless event infrastructure has been
+waiting for; Phase 7 hardens the backend matrix; Phase 8 finishes the
+release.
